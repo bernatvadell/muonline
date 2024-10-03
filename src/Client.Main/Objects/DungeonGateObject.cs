@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.DungeonGate)]
-    public class DungeonGateObject : ModelObject
+    [MapObjectType(ModelType.DungeonGate)]
+    public class DungeonGateObject : WorldObject
     {
         public DungeonGateObject()
         {

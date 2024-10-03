@@ -9,8 +9,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(min: ModelType.Stone01, max: ModelType.Stone10)]
-    public class StoneObject : ModelObject
+    [MapObjectType(min: ModelType.Stone01, max: ModelType.Stone10)]
+    public class StoneObject : WorldObject
     {
         public StoneObject()
         {

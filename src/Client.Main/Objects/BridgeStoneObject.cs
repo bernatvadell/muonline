@@ -5,17 +5,17 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [MapObjectType(ModelType.MuGame)]
-    public class MuGameObject : WorldObject
+    [MapObjectType(ModelType.BridgeStone)]
+    public class BridgeStoneObject : WorldObject
     {
-        public MuGameObject()
+        public BridgeStoneObject()
         {
             LightEnabled = false;
         }
 
         public override async Task Load(GraphicsDevice graphicsDevice)
         {
-            Model = await BMDLoader.Instance.Prepare("Logo/Logo03.bmd");
+            Model = await BMDLoader.Instance.Prepare($"Object1/BridgeStone01.bmd");
             await base.Load(graphicsDevice);
         }
     }

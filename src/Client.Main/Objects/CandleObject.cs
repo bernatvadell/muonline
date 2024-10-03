@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.Candle)]
-    public class CandleObject : ModelObject
+    [MapObjectType(ModelType.Candle)]
+    public class CandleObject : WorldObject
     {
         public CandleObject()
         {

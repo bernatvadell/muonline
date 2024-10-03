@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.Stair)]
-    public class StairObject : ModelObject
+    [MapObjectType(ModelType.Stair)]
+    public class StairObject : WorldObject
     {
         public StairObject()
         {

@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.Sign01, ModelType.Sign02)]
-    public class SignObject : ModelObject
+    [MapObjectType(ModelType.Sign01, ModelType.Sign02)]
+    public class SignObject : WorldObject
     {
         public SignObject()
         {

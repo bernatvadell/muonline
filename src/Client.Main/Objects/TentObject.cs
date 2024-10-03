@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.Tent)]
-    public class TentObject : ModelObject
+    [MapObjectType(ModelType.Tent)]
+    public class TentObject : WorldObject
     {
         public TentObject()
         {

@@ -99,7 +99,7 @@ namespace Client.Main.Controls
 
             foreach (var mapObj in obj.Objects)
             {
-                var instance = WorldObjectFactory.CreateMapObject(this, mapObj);
+                var instance = WorldObjectFactory.CreateMapTileObject(this, mapObj);
                 if (instance != null) tasks.Add(AddObject(instance));
             }
 
@@ -182,7 +182,7 @@ namespace Client.Main.Controls
 
         protected virtual void CreateMapTileObjects()
         {
-            var typeMapObject = typeof(Objects.MapObject);
+            var typeMapObject = typeof(Objects.MapTileObject);
 
             for (var i = 0; i < MapTileObjects.Length; i++)
                 MapTileObjects[i] = typeMapObject;

@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(min: ModelType.Grass01, max: ModelType.Grass08)]
-    public class GrassObject : ModelObject
+    [MapObjectType(min: ModelType.Grass01, max: ModelType.Grass08)]
+    public class GrassObject : WorldObject
     {
         public GrassObject()
         {

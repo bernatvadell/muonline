@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.LogoSun)]
-    public class LogoSunObject : ModelObject
+    [MapObjectType(ModelType.LogoSun)]
+    public class LogoSunObject : WorldObject
     {
         public LogoSunObject()
         {

@@ -9,8 +9,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.Ship)]
-    public class ShipObject : ModelObject
+    [MapObjectType(ModelType.Ship)]
+    public class ShipObject : WorldObject
     {
         public ShipObject()
         {

@@ -9,8 +9,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(min: ModelType.HouseWall01, max: ModelType.HouseWall06)]
-    public class HouseWallObject : ModelObject
+    [MapObjectType(min: ModelType.HouseWall01, max: ModelType.HouseWall06)]
+    public class HouseWallObject : WorldObject
     {
         public HouseWallObject()
         {

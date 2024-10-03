@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.WaterSpout)]
-    public class WaterSpoutObject : ModelObject
+    [MapObjectType(ModelType.WaterSpout)]
+    public class WaterSpoutObject : WorldObject
     {
         public WaterSpoutObject()
         {

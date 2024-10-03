@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(min: ModelType.StoneStatue01, max: ModelType.StoneStatue03)]
+    [MapObjectType(min: ModelType.StoneStatue01, max: ModelType.StoneStatue03)]
     public class StoneStatueObject : WorldObject
     {
         public StoneStatueObject()

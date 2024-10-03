@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.TreasureDrum)]
-    public class TreasureDrumObject : ModelObject
+    [MapObjectType(ModelType.TreasureDrum)]
+    public class TreasureDrumObject : WorldObject
     {
         public TreasureDrumObject()
         {

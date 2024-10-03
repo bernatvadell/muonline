@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(
+    [MapObjectType(
         ModelType.Unknown48,
 
         ModelType.Unknown79,
@@ -32,7 +32,7 @@ namespace Client.Main.Objects
         ModelType.Unknown157,
         ModelType.Unknown159
     )]
-    public class UnknownObject : ModelObject
+    public class UnknownObject : WorldObject
     {
         public override async Task Load(GraphicsDevice graphicsDevice)
         {

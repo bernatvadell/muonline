@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(min: ModelType.Tree01, max: ModelType.Tree12)]
-    public class TreeObject : ModelObject
+    [MapObjectType(min: ModelType.Tree01, max: ModelType.Tree12)]
+    public class TreeObject : WorldObject
     {
         public TreeObject()
         {

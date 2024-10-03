@@ -7,16 +7,16 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    public class ModelObjectTypeAttribute : Attribute
+    public class MapObjectTypeAttribute : Attribute
     {
         public ModelType[] Types { get; set; }
 
-        public ModelObjectTypeAttribute(params ModelType[] types)
+        public MapObjectTypeAttribute(params ModelType[] types)
         {
             Types = types;
         }
 
-        public ModelObjectTypeAttribute(ModelType min, ModelType max)
+        public MapObjectTypeAttribute(ModelType min, ModelType max)
         {
             var umin = (ushort)min;
             var umax = (ushort)max;

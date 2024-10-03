@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(min: ModelType.HouseEtc01, max: ModelType.HouseEtc03)]
-    public class HouseEtcObject : ModelObject
+    [MapObjectType(min: ModelType.HouseEtc01, max: ModelType.HouseEtc03)]
+    public class HouseEtcObject : WorldObject
     {
         public HouseEtcObject()
         {

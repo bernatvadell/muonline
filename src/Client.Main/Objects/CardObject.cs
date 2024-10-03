@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.Card)]
-    public class CardObject : ModelObject
+    [MapObjectType(ModelType.Card)]
+    public class CardObject : WorldObject
     {
         public CardObject()
         {

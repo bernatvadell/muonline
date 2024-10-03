@@ -9,8 +9,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.Tomb01, ModelType.Tomb03)]
-    public class TombObject : ModelObject
+    [MapObjectType(ModelType.Tomb01, ModelType.Tomb03)]
+    public class TombObject : WorldObject
     {
         public TombObject()
         {

@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.WaveByShip)]
-    public class WaveByShipObject : ModelObject
+    [MapObjectType(ModelType.WaveByShip)]
+    public class WaveByShipObject : WorldObject
     {
         public WaveByShipObject()
         {

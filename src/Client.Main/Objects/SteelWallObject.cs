@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(min: ModelType.SteelWall01, max: ModelType.SteelWall03)]
-    public class SteelWallObject : ModelObject
+    [MapObjectType(min: ModelType.SteelWall01, max: ModelType.SteelWall03)]
+    public class SteelWallObject : WorldObject
     {
         public SteelWallObject()
         {

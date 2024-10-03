@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    public class MapObject : WorldObject
+    public class MapTileObject : WorldObject
     {
         public override async Task Load(GraphicsDevice graphicsDevice)
         {

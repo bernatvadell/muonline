@@ -9,8 +9,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(min:ModelType.Light01, ModelType.Light03)]
-    public class LightObject : ModelObject
+    [MapObjectType(min:ModelType.Light01, ModelType.Light03)]
+    public class LightObject : WorldObject
     {
         public LightObject()
         {

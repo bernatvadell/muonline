@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.MerchantAnimal01, ModelType.MerchantAnimal02)]
-    public class MerchantAnimalObject : ModelObject
+    [MapObjectType(ModelType.MerchantAnimal01, ModelType.MerchantAnimal02)]
+    public class MerchantAnimalObject : WorldObject
     {
         public MerchantAnimalObject()
         {

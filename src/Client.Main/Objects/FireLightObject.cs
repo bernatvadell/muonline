@@ -9,8 +9,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.FireLight01, ModelType.FireLight02)]
-    public class FireLightObject : ModelObject
+    [MapObjectType(ModelType.FireLight01, ModelType.FireLight02)]
+    public class FireLightObject : WorldObject
     {
         public FireLightObject()
         {

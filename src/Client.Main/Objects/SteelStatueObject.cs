@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.SteelStatue)]
-    public class SteelStatueObject : ModelObject
+    [MapObjectType(ModelType.SteelStatue)]
+    public class SteelStatueObject : WorldObject
     {
         public SteelStatueObject()
         {

@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(min: ModelType.Well01, max: ModelType.Well04)]
-    public class WellObject : ModelObject
+    [MapObjectType(min: ModelType.Well01, max: ModelType.Well04)]
+    public class WellObject : WorldObject
     {
         public WellObject()
         {

@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(min: ModelType.Face01, max: ModelType.Face07)]
-    public class FaceObject : ModelObject
+    [MapObjectType(min: ModelType.Face01, max: ModelType.Face07)]
+    public class FaceObject : WorldObject
     {
         public FaceObject()
         {

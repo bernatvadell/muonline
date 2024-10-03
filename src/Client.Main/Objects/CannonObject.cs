@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(min: ModelType.Cannon01, max: ModelType.Cannon03)]
-    public class CannonObject : ModelObject
+    [MapObjectType(min: ModelType.Cannon01, max: ModelType.Cannon03)]
+    public class CannonObject : WorldObject
     {
         public CannonObject()
         {

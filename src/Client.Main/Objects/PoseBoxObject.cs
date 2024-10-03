@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.PoseBox)]
-    public class PoseBoxObject : ModelObject
+    [MapObjectType(ModelType.PoseBox)]
+    public class PoseBoxObject : WorldObject
     {
         public PoseBoxObject()
         {

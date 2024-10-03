@@ -9,8 +9,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(min: ModelType.Beer01, max: ModelType.Beer03)]
-    public class BeerObject : ModelObject
+    [MapObjectType(min: ModelType.Beer01, max: ModelType.Beer03)]
+    public class BeerObject : WorldObject
     {
         public BeerObject()
         {

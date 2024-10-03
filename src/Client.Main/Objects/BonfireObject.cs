@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.Bonfire)]
-    public class BonfireObject : ModelObject
+    [MapObjectType(ModelType.Bonfire)]
+    public class BonfireObject : WorldObject
     {
         public BonfireObject()
         {

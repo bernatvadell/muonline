@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.Hanging)]
-    public class HangingObject : ModelObject
+    [MapObjectType(ModelType.Hanging)]
+    public class HangingObject : WorldObject
     {
         public HangingObject()
         {

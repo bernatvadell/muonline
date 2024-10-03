@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(min: ModelType.Furniture01, max: ModelType.Furniture07)]
-    public class FurnitureObject : ModelObject
+    [MapObjectType(min: ModelType.Furniture01, max: ModelType.Furniture07)]
+    public class FurnitureObject : WorldObject
     {
         public FurnitureObject()
         {

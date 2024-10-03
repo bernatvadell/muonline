@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.MurdererDog)]
-    public class MurdererDogObject : ModelObject
+    [MapObjectType(ModelType.MurdererDog)]
+    public class MurdererDogObject : WorldObject
     {
         public MurdererDogObject()
         {

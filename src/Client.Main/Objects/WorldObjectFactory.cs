@@ -14,9 +14,9 @@ namespace Client.Main.Objects
 
         static WorldObjectFactory()
         {
-            foreach (var type in typeof(ModelObject).Assembly.GetTypes())
+            foreach (var type in typeof(WorldObject).Assembly.GetTypes())
             {
-                var attribute = (ModelObjectTypeAttribute)Attribute.GetCustomAttribute(type, typeof(ModelObjectTypeAttribute));
+                var attribute = (MapObjectTypeAttribute)Attribute.GetCustomAttribute(type, typeof(MapObjectTypeAttribute));
 
                 if (attribute != null)
                 {
@@ -26,12 +26,12 @@ namespace Client.Main.Objects
             }
         }
 
-        public static ModelObject CreateModelObject(WorldControl world, ModelType type)
+        public static WorldObject CreateMapObject(WorldControl world, ModelType type)
         {
             if (!_modelTypes.TryGetValue(type, out Type worldObjectType))
                 throw new ArgumentException($"Invalid object type: {type}");
 
-            var modelObject = (ModelObject)Activator.CreateInstance(worldObjectType);
+            var modelObject = (WorldObject)Activator.CreateInstance(worldObjectType);
 
             modelObject.World = world;
             modelObject.Type = (ushort)type;
@@ -39,14 +39,14 @@ namespace Client.Main.Objects
             return modelObject;
         }
 
-        public static WorldObject CreateMapObject(WorldControl world, Data.OBJS.MapObject obj)
+        public static WorldObject CreateMapTileObject(WorldControl world, Data.OBJS.MapObject obj)
         {
             var type = world.MapTileObjects[obj.Type];
 
             if (type == null)
                 return null;
 
-            WorldObject mapObj = (WorldObject)Activator.CreateInstance(type);
+            var mapObj = (WorldObject)Activator.CreateInstance(type);
 
             mapObj.World = world;
             mapObj.Type = obj.Type;

@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(min: ModelType.Fence01, max: ModelType.Fence04)]
-    public class FenceObject : ModelObject
+    [MapObjectType(min: ModelType.Fence01, max: ModelType.Fence04)]
+    public class FenceObject : WorldObject
     {
         public FenceObject()
         {

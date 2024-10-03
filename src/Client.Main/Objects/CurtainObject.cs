@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.Curtain)]
-    public class CurtainObject : ModelObject
+    [MapObjectType(ModelType.Curtain)]
+    public class CurtainObject : WorldObject
     {
         public CurtainObject()
         {

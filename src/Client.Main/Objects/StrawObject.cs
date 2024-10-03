@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.Straw01, ModelType.Straw02)]
-    public class StrawObject : ModelObject
+    [MapObjectType(ModelType.Straw01, ModelType.Straw02)]
+    public class StrawObject : WorldObject
     {
         public StrawObject()
         {

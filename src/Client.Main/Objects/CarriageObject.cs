@@ -5,8 +5,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(min: ModelType.Carriage01, max: ModelType.Carriage04)]
-    public class CarriageObject : ModelObject
+    [MapObjectType(min: ModelType.Carriage01, max: ModelType.Carriage04)]
+    public class CarriageObject : WorldObject
     {
         public CarriageObject()
         {

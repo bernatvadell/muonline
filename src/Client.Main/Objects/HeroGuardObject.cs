@@ -6,8 +6,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    [ModelObjectType(ModelType.HeroGuard)]
-    public class HeroGuardObject : ModelObject
+    [MapObjectType(ModelType.HeroGuard)]
+    public class HeroGuardObject : WorldObject
     {
         public HeroGuardObject()
         {
