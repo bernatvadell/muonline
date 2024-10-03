@@ -16,7 +16,6 @@ namespace Client.Main.Controls
     {
         private GraphicsDevice _graphicsDevice;
         private BasicEffect _debugEffect;
-        private BasicEffect _objectEffect;
         private CameraTourController _tourController;
         private float _nextMoveTime = 0f;
         private Vector3 _currentTargetPosition;
@@ -77,22 +76,6 @@ namespace Client.Main.Controls
                 World = Matrix.Identity
             };
 
-            _objectEffect = new BasicEffect(graphicsDevice)
-            {
-                TextureEnabled = true,
-                VertexColorEnabled = false,
-                World = Matrix.Identity
-            };
-
-            _objectEffect.DirectionalLight0.Enabled = false;
-            _objectEffect.DirectionalLight0.DiffuseColor = new Vector3(1, 1, 1);
-            _objectEffect.DirectionalLight0.Direction = Vector3.Normalize(new Vector3(1.3f, 0, 2));
-            _objectEffect.DirectionalLight0.SpecularColor = new Vector3(0.1f, 0.1f, 0.1f);
-            _objectEffect.AmbientLightColor = new Vector3(0.3f, 0.3f, 0.3f);
-            _objectEffect.DiffuseColor = new Vector3(1, 1, 1);
-            _objectEffect.SpecularPower = 16f;
-            _objectEffect.SpecularColor = new Vector3(0, 0, 0);
-
             var objReader = new OBJReader();
 
             OBJ obj = await objReader.Load(Path.Combine(Constants.DataPath, worldFolder, $"EncTerrain{WorldIndex}.obj"));
@@ -152,8 +135,8 @@ namespace Client.Main.Controls
                 MoveCameraPosition(time);
             }
 
-            _objectEffect.Projection = _debugEffect.Projection = Camera.Instance.Projection;
-            _objectEffect.View = _debugEffect.View = Camera.Instance.View;
+            _debugEffect.Projection = Camera.Instance.Projection;
+            _debugEffect.View = Camera.Instance.View;
 
             foreach (var obj in Objects)
                 obj.Update(time);
@@ -191,7 +174,7 @@ namespace Client.Main.Controls
         private void RenderObjects(GameTime gameTime)
         {
             foreach (var obj in Objects)
-                obj.Draw(_objectEffect, gameTime);
+                obj.Draw(gameTime);
         }
 
         private void DrawTargetIndicator()

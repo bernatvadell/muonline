@@ -27,6 +27,7 @@ namespace Client.Main.Objects
         private BoundingSphere _transformedBoundingSphere;
         private bool OutOfView;
         private Matrix _globalTransform;
+        private BasicEffect _effect;
 
         public string ObjectName => GetType().Name;
 
@@ -52,6 +53,22 @@ namespace Client.Main.Objects
                 return Task.CompletedTask;
             }
 
+            _effect = new BasicEffect(graphicsDevice)
+            {
+                TextureEnabled = true,
+                VertexColorEnabled = false,
+                World = Matrix.Identity,
+                DiffuseColor = new Vector3(1, 1, 1),
+                SpecularColor = new Vector3(0, 0, 0),
+                SpecularPower = 16f,
+                AmbientLightColor = new Vector3(0.3f, 0.3f, 0.3f)
+            };
+
+            _effect.DirectionalLight0.Enabled = LightEnabled;
+            _effect.DirectionalLight0.DiffuseColor = new Vector3(1, 1, 1);
+            _effect.DirectionalLight0.Direction = Vector3.Normalize(new Vector3(1.3f, 0, 2));
+            _effect.DirectionalLight0.SpecularColor = new Vector3(0.1f, 0.1f, 0.1f);
+
             _boneMatrix = new Matrix[Model.Bones.Length];
             _boneQuaternion = new Quaternion[Model.Bones.Length];
 
@@ -71,6 +88,9 @@ namespace Client.Main.Objects
         public virtual void Update(GameTime gameTime)
         {
             if (!Ready) return;
+
+            _effect.View = Camera.Instance.View;
+            _effect.Projection = Camera.Instance.Projection;
 
             Vector3 angleInRadians = new Vector3(
                 MathHelper.ToRadians(Angle.X),
@@ -126,12 +146,12 @@ namespace Client.Main.Objects
             Animation(_boneMatrix, currentFrame, priorFrame, 0, Angle, Vector3.Zero, false, true);
         }
 
-        public virtual void Draw(BasicEffect effect, GameTime gameTime)
+        public virtual void Draw(GameTime gameTime)
         {
             if (!Visible) return;
 
-            effect.Alpha = Alpha;
-            effect.LightingEnabled = LightEnabled;
+            _effect.Alpha = Alpha;
+            _effect.LightingEnabled = LightEnabled;
 
             foreach (var meshIndex in _boneVertexBuffers.Keys)
             {
@@ -147,14 +167,14 @@ namespace Client.Main.Objects
                 Matrix boneTransform = _boneMatrix[boneIndex];
 
                 Matrix worldMatrix = boneTransform * _globalTransform;
-                effect.World = worldMatrix;
+                _effect.World = worldMatrix;
 
-                effect.Texture = _boneTextures[meshIndex];
+                _effect.Texture = _boneTextures[meshIndex];
 
-                if (effect.Texture == null)
+                if (_effect.Texture == null)
                     continue;
 
-                foreach (var pass in effect.CurrentTechnique.Passes)
+                foreach (var pass in _effect.CurrentTechnique.Passes)
                 {
                     pass.Apply();
 
