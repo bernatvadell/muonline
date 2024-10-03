@@ -13,6 +13,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -22,6 +23,8 @@ namespace Client.Main.Controls
 {
     public class TerrainControl : GameControl
     {
+        private readonly float _specialHeight = 1200f;
+
         private TerrainAttribute _terrain;
         private BasicEffect _terrainEffect;
 
@@ -35,7 +38,6 @@ namespace Client.Main.Controls
         private Vector3[] _backTerrainLight;
         private Vector3[] _terrainNormal;
         private byte[] _backTerrainHeight;
-        private float _specialHeight = 1200f;
         private GraphicsDevice _graphicsDevice;
 
         public short WorldIndex { get; set; }
@@ -58,7 +60,7 @@ namespace Client.Main.Controls
             _terrainEffect = new BasicEffect(graphicsDevice)
             {
                 TextureEnabled = true,
-                VertexColorEnabled = false,
+                VertexColorEnabled = true,
                 World = Matrix.Identity
             };
 
@@ -120,6 +122,8 @@ namespace Client.Main.Controls
 
         public override void Update(GameTime time)
         {
+            base.Update(time);
+
             _terrainEffect.Projection = Camera.Instance.Projection;
             _terrainEffect.View = Camera.Instance.View;
 
@@ -129,6 +133,8 @@ namespace Client.Main.Controls
         public override void Draw(GameTime time)
         {
             RenderTerrain();
+
+            base.Draw(time);
         }
 
         public float RequestTerrainHeight(float xf, float yf)
@@ -243,6 +249,7 @@ namespace Client.Main.Controls
                     PrimaryTerrainLight[Index] = new Color(_backTerrainLight[Index].X, _backTerrainLight[Index].Y, _backTerrainLight[Index].Z);
                 }
             }
+
             float WindScale;
             float WindSpeed;
 
@@ -265,22 +272,43 @@ namespace Client.Main.Controls
 
         private void RenderTerrain()
         {
-            int xi = 0;
-            int yi = 0;
-            float xf = 0;
-            var yf = (float)yi;
+            int blockSize = 4;
 
-            for (; yi <= 250; yi += 4, yf += 4f)
+            for (int yi = 0; yi <= Constants.TERRAIN_SIZE_MASK; yi += blockSize)
             {
-                xi = 0;
-                xf = (float)xi;
-                for (; xi <= 250; xi += 4, xf += 4f)
+                for (int xi = 0; xi <= Constants.TERRAIN_SIZE_MASK; xi += blockSize)
                 {
-                    RenderTerrainBlock(xf, yf, xi, yi);
+                    float xStart = xi * Constants.TERRAIN_SCALE;
+                    float yStart = yi * Constants.TERRAIN_SCALE;
+                    float xEnd = (xi + blockSize) * Constants.TERRAIN_SCALE;
+                    float yEnd = (yi + blockSize) * Constants.TERRAIN_SCALE;
+
+                    float minZ = float.MaxValue;
+                    float maxZ = float.MinValue;
+
+                    for (int y = yi; y < yi + blockSize; y++)
+                    {
+                        for (int x = xi; x < xi + blockSize; x++)
+                        {
+                            int index = GetTerrainIndexRepeat(x, y);
+                            float height = _backTerrainHeight[index] * 1.5f;
+
+                            minZ = Math.Min(minZ, height);
+                            maxZ = Math.Max(maxZ, height);
+                        }
+                    }
+
+                    BoundingBox blockBounds = new BoundingBox(
+                        new Vector3(xStart, yStart, minZ),
+                        new Vector3(xEnd, yEnd, maxZ)
+                    );
+
+                    if (Camera.Instance.Frustum.Intersects(blockBounds))
+                        RenderTerrainBlock(xStart / Constants.TERRAIN_SCALE, yStart / Constants.TERRAIN_SCALE, xi, yi);
                 }
             }
-
         }
+
 
         private void RenderTerrainBlock(float xf, float yf, int xi, int yi)
         {
@@ -309,6 +337,8 @@ namespace Client.Main.Controls
             var idx2 = GetTerrainIndex(xi + lodi, yi);
             var idx3 = GetTerrainIndex(xi + lodi, yi + lodi);
             var idx4 = GetTerrainIndex(xi, yi + lodi);
+
+
 
             //var alpha1 = _mapping.Alpha[idx1];
             //var alpha2 = _mapping.Alpha[idx2];
@@ -366,11 +396,8 @@ namespace Client.Main.Controls
 
         private void RenderTexture(int textureIndex, float xf, float yf, Vector3[] terrainVertex, Color[] terrainLights)
         {
-            // Verificar si la textura es válida
             if (textureIndex == 255 || _textures[textureIndex] == null)
-            {
                 return;
-            }
 
             var texture = _textures[textureIndex];
 
@@ -380,30 +407,27 @@ namespace Client.Main.Controls
             float suf = xf * width;
             float svf = yf * height;
 
-            // Crear las coordenadas de textura (normalizadas entre 0 y 1)
             var terrainTextureCoord = new Vector2[4];
-            terrainTextureCoord[0] = new Vector2(suf, svf);   // Coordenada de textura (0, 0)
-            terrainTextureCoord[1] = new Vector2(suf + width, svf);   // Coordenada de textura (1, 0)
-            terrainTextureCoord[2] = new Vector2(suf + width, svf + height);   // Coordenada de textura (1, 1)
-            terrainTextureCoord[3] = new Vector2(suf, svf + height);   // Coordenada de textura (0, 1)
+            terrainTextureCoord[0] = new Vector2(suf, svf);
+            terrainTextureCoord[1] = new Vector2(suf + width, svf);
+            terrainTextureCoord[2] = new Vector2(suf + width, svf + height);
+            terrainTextureCoord[3] = new Vector2(suf, svf + height);
 
-            // Para TriangleList necesitamos 6 vértices (dos triángulos)
             var vertices2 = new VertexPositionColorTexture[6];
-            vertices2[0] = new VertexPositionColorTexture(terrainVertex[0], terrainLights[0], terrainTextureCoord[0]); // Triángulo 1 - Vértice 0
-            vertices2[1] = new VertexPositionColorTexture(terrainVertex[1], terrainLights[1], terrainTextureCoord[1]); // Triángulo 1 - Vértice 1
-            vertices2[2] = new VertexPositionColorTexture(terrainVertex[2], terrainLights[2], terrainTextureCoord[2]); // Triángulo 1 - Vértice 2
+            vertices2[0] = new VertexPositionColorTexture(terrainVertex[0], terrainLights[0], terrainTextureCoord[0]);
+            vertices2[1] = new VertexPositionColorTexture(terrainVertex[1], terrainLights[1], terrainTextureCoord[1]);
+            vertices2[2] = new VertexPositionColorTexture(terrainVertex[2], terrainLights[2], terrainTextureCoord[2]);
 
-            vertices2[3] = new VertexPositionColorTexture(terrainVertex[2], terrainLights[2], terrainTextureCoord[2]); // Triángulo 2 - Vértice 2
-            vertices2[4] = new VertexPositionColorTexture(terrainVertex[3], terrainLights[3], terrainTextureCoord[3]); // Triángulo 2 - Vértice 3
-            vertices2[5] = new VertexPositionColorTexture(terrainVertex[0], terrainLights[0], terrainTextureCoord[0]); // Triángulo 2 - Vértice 0
+            vertices2[3] = new VertexPositionColorTexture(terrainVertex[2], terrainLights[2], terrainTextureCoord[2]);
+            vertices2[4] = new VertexPositionColorTexture(terrainVertex[3], terrainLights[3], terrainTextureCoord[3]);
+            vertices2[5] = new VertexPositionColorTexture(terrainVertex[0], terrainLights[0], terrainTextureCoord[0]);
 
-            _terrainEffect.VertexColorEnabled = true;
             _terrainEffect.Texture = texture;
 
             foreach (var pass in _terrainEffect.CurrentTechnique.Passes)
             {
                 pass.Apply();
-                _graphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, vertices2, 0, 2); // Dibujar 2 triángulos
+                _graphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, vertices2, 0, 2);
             }
         }
 

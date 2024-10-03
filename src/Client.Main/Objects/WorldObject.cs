@@ -23,6 +23,10 @@ namespace Client.Main.Objects
         private int _boneHead;
         private float _bodyHeight;
         private float _bodyScale = 1;
+        private BoundingSphere _originalBoundingSphere;
+        private BoundingSphere _transformedBoundingSphere;
+        private bool OutOfView;
+        private Matrix _globalTransform;
 
         public string ObjectName => GetType().Name;
 
@@ -34,7 +38,7 @@ namespace Client.Main.Objects
         public bool LightEnabled { get; set; } = true;
         public BMD Model { get; set; }
         public bool Ready => Model != null && _boneVertexBuffers != null;
-        public bool Visible => Ready;
+        public bool Visible => Ready && !OutOfView;
         public WorldControl World { get; set; }
         public ushort Type { get; set; }
 
@@ -48,7 +52,6 @@ namespace Client.Main.Objects
                 return Task.CompletedTask;
             }
 
-            // Inicializamos las matrices y quaternions para los huesos
             _boneMatrix = new Matrix[Model.Bones.Length];
             _boneQuaternion = new Quaternion[Model.Bones.Length];
 
@@ -60,28 +63,66 @@ namespace Client.Main.Objects
 
             InitializeBuffers();
 
+            ComputeBoundingSphere();
+
             return Task.CompletedTask;
         }
 
         public virtual void Update(GameTime gameTime)
         {
-            if (!Visible) return;
+            if (!Ready) return;
+
+            Vector3 angleInRadians = new Vector3(
+                MathHelper.ToRadians(Angle.X),
+                MathHelper.ToRadians(Angle.Y),
+                MathHelper.ToRadians(Angle.Z));
+
+            _globalTransform = Matrix.CreateScale(Scale)
+                                    * Matrix.CreateFromQuaternion(AngleQuaternion(angleInRadians))
+                                    * Matrix.CreateTranslation(Position);
+
+            _transformedBoundingSphere = TransformBoundingSphere(_originalBoundingSphere, _globalTransform);
+
+            OutOfView = Camera.Instance.Frustum.Contains(_transformedBoundingSphere) == ContainmentType.Disjoint;
+
+            if (OutOfView)
+                return;
+
             Animation(gameTime);
+        }
+
+        private BoundingSphere TransformBoundingSphere(BoundingSphere sphere, Matrix transform)
+        {
+            transform.Decompose(out Vector3 scale, out Quaternion rotation, out Vector3 translation);
+            float maxScale = Math.Max(scale.X, Math.Max(scale.Y, scale.Z));
+            Vector3 transformedCenter = Vector3.Transform(sphere.Center, transform);
+            return new BoundingSphere(transformedCenter, sphere.Radius * maxScale);
+        }
+
+        private void ComputeBoundingSphere()
+        {
+            List<Vector3> positions = [];
+
+            foreach (var mesh in Model.Meshes)
+            {
+                foreach (var vertex in mesh.Vertices)
+                {
+                    positions.Add(vertex.Position);
+                }
+            }
+
+            _originalBoundingSphere = BoundingSphere.CreateFromPoints(positions);
         }
 
         private void Animation(GameTime gameTime)
         {
-            // Calcula el frame actual de la animación basándote en el tiempo del juego
-            float animationSpeed = 3f; // Velocidad de animación, ajustable
+            float animationSpeed = 3f; 
             float currentFrame = (float)(gameTime.TotalGameTime.TotalSeconds * animationSpeed);
 
-            // Asegúrate de que el frame se ajusta al número de claves de animación disponible
             currentFrame %= Model.Actions[_currentAction].NumAnimationKeys;
 
-            // Configura el frame anterior y prior frame para la interpolación de animación
             float priorFrame = Math.Max(0, currentFrame - 1);
 
-            // Llamar al método Animation para actualizar las transformaciones de los huesos
             Animation(_boneMatrix, currentFrame, priorFrame, 0, Angle, Vector3.Zero, false, true);
         }
 
@@ -89,42 +130,25 @@ namespace Client.Main.Objects
         {
             if (!Visible) return;
 
-            _graphicsDevice.BlendState = Alpha >= 1f ? BlendState.Opaque : BlendState.AlphaBlend;
             effect.Alpha = Alpha;
             effect.LightingEnabled = LightEnabled;
 
-            // Convierte los ángulos del objeto a radianes y crea la rotación
-            Vector3 angleInRadians = new Vector3(
-                MathHelper.ToRadians(Angle.X),
-                MathHelper.ToRadians(Angle.Y),
-                MathHelper.ToRadians(Angle.Z));
-
-            // Crear la transformación global incluyendo rotación, escala y traslación
-            Matrix globalTransform = Matrix.CreateScale(Scale)
-                                    * Matrix.CreateFromQuaternion(AngleQuaternion(angleInRadians))
-                                    * Matrix.CreateTranslation(Position);
-
-            // Usamos las matrices de huesos para transformar las partes del cuerpo en cada draw call
             foreach (var meshIndex in _boneVertexBuffers.Keys)
             {
-                // Obtener el vértice del mesh para averiguar a qué hueso pertenece
                 var mesh = Model.Meshes[meshIndex];
                 if (mesh.Vertices.Length == 0)
                     continue;
 
-                // Todos los vértices del "mesh" deberían pertenecer al mismo hueso
                 int boneIndex = mesh.Vertices[0].Node;
 
                 if (boneIndex < 0 || boneIndex >= _boneMatrix.Length)
-                    continue;  // Asegúrate de que el índice del hueso sea válido
+                    continue; 
 
                 Matrix boneTransform = _boneMatrix[boneIndex];
 
-                // Aplicar la transformación global y del hueso
-                Matrix worldMatrix = boneTransform * globalTransform;
+                Matrix worldMatrix = boneTransform * _globalTransform;
                 effect.World = worldMatrix;
 
-                // Establecer la textura asociada al hueso/mesh
                 effect.Texture = _boneTextures[meshIndex];
 
                 if (effect.Texture == null)
@@ -134,11 +158,9 @@ namespace Client.Main.Objects
                 {
                     pass.Apply();
 
-                    // Establecer los buffers
                     _graphicsDevice.SetVertexBuffer(_boneVertexBuffers[meshIndex]);
                     _graphicsDevice.Indices = _boneIndexBuffers[meshIndex];
 
-                    // Dibujar los triángulos
                     _graphicsDevice.DrawIndexedPrimitives(
                         PrimitiveType.TriangleList,
                         0,
@@ -159,7 +181,6 @@ namespace Client.Main.Objects
             {
                 var mesh = Model.Meshes[meshIndex];
 
-                // Obtener los buffers y texturas del BMDLoader
                 VertexBuffer vertexBuffer = BMDLoader.Instance.GetVertexBuffer(Model, meshIndex);
                 IndexBuffer indexBuffer = BMDLoader.Instance.GetIndexBuffer(Model, meshIndex);
                 Texture2D texture = TextureLoader.Instance.GetTexture2D(BMDLoader.Instance.GetTexturePath(Model, mesh.TexturePath));
@@ -177,7 +198,6 @@ namespace Client.Main.Objects
             if (priorAction >= Model.Actions.Length) priorAction = 0;
             if (_currentAction >= Model.Actions.Length) _currentAction = 0;
 
-            // Frame actual y factores de interpolación
             float currentAnimation = animationFrame;
             int currentAnimationFrame = (int)animationFrame;
             float interpolationFactor = currentAnimation - currentAnimationFrame;
@@ -186,11 +206,9 @@ namespace Client.Main.Objects
             if (priorAnimationFrame < 0) priorAnimationFrame = 0;
             if (currentAnimationFrame < 0) currentAnimationFrame = 0;
 
-            // Asegúrate de que las posiciones están dentro del rango
             if (priorAnimationFrame >= Model.Actions[priorAction].NumAnimationKeys) priorAnimationFrame = 0;
             if (currentAnimationFrame >= Model.Actions[_currentAction].NumAnimationKeys) currentAnimationFrame = 0;
 
-            // Recorrer todos los huesos
             for (int i = 0; i < Model.Bones.Length; i++)
             {
                 var bone = Model.Bones[i];
@@ -201,29 +219,21 @@ namespace Client.Main.Objects
                 var bm1 = bone.Matrixes[priorAction];
                 var bm2 = bone.Matrixes[_currentAction];
 
-                // Interpolamos las rotaciones (quaternions) y las posiciones
                 Quaternion q1 = AngleQuaternion(bm1.Rotation[priorAnimationFrame]);
                 Quaternion q2 = AngleQuaternion(bm2.Rotation[currentAnimationFrame]);
                 _boneQuaternion[i] = Quaternion.Slerp(q1, q2, interpolationFactor);
 
-                // Crear la matriz de transformación del hueso basada en el quaternion interpolado
                 Matrix boneMatrixTransform = Matrix.CreateFromQuaternion(_boneQuaternion[i]);
 
-                // Interpolamos las posiciones
                 Vector3 position1 = bm1.Position[priorAnimationFrame];
                 Vector3 position2 = bm2.Position[currentAnimationFrame];
                 Vector3 interpolatedPosition = Vector3.Lerp(position1, position2, interpolationFactor);
 
-                // Asignar la interpolación a la matriz
                 boneMatrixTransform.Translation = interpolatedPosition;
 
-                // Si el hueso tiene un padre, combinamos la transformación con la del padre
                 if (bone.Parent != -1)
-                {
                     boneMatrixTransform *= boneMatrix[bone.Parent];
-                }
 
-                // Guardamos la matriz calculada para el hueso
                 boneMatrix[i] = boneMatrixTransform;
             }
         }
@@ -233,7 +243,6 @@ namespace Client.Main.Objects
             float angle;
             float sr, sp, sy, cr, cp, cy;
 
-            // Rescalado de los ángulos a la mitad
             angle = angles.Z * 0.5f;
             sy = (float)Math.Sin(angle);
             cy = (float)Math.Cos(angle);

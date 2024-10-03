@@ -16,6 +16,8 @@ namespace Client.Main.Scenes
     {
         public LoginScene() : base(worldIndex: 74, tourMode: true)
         {
+            Camera.Instance.ViewFar = 7000f;
+            Camera.Instance.FOV = 65f;
         }
     }
 }

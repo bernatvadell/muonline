@@ -15,7 +15,6 @@ namespace Client.Main.Objects
 
         public override async Task Load(GraphicsDevice graphicsDevice)
         {
-            // the ceiling of the bar.
             Model = await BMDLoader.Instance.Prepare($"Object1/Curtain01.bmd");
             await base.Load(graphicsDevice);
         }

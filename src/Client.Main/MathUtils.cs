@@ -11,15 +11,10 @@ namespace Client.Main
     {
         public static Matrix AngleMatrix(Vector3 angles)
         {
-            // Angles en radianes (MonoGame espera radianes, no grados)
-            float yaw = MathHelper.ToRadians(angles.Y);   // Rotación alrededor del eje Y (Yaw)
-            float pitch = MathHelper.ToRadians(angles.X); // Rotación alrededor del eje X (Pitch)
-            float roll = MathHelper.ToRadians(angles.Z);  // Rotación alrededor del eje Z (Roll)
-
-            // Crear la matriz de rotación a partir de los ángulos
+            float yaw = MathHelper.ToRadians(angles.Y);  
+            float pitch = MathHelper.ToRadians(angles.X); 
+            float roll = MathHelper.ToRadians(angles.Z); 
             Matrix rotationMatrix = Matrix.CreateFromYawPitchRoll(yaw, pitch, roll);
-
-            // Transponer la matriz para hacerla equivalente a la convención row-major
             return Matrix.Transpose(rotationMatrix);
         }
 

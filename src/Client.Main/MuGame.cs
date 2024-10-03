@@ -14,12 +14,16 @@ namespace Client.Main
         private bool _loaded = false;
 
         public GameControl ActiveScene;
+        private SpriteFont _font;
 
         public MuGame()
         {
             _graphics = new GraphicsDeviceManager(this);
-            _graphics.PreferredBackBufferWidth = 1280;
-            _graphics.PreferredBackBufferHeight = 768;
+            _graphics.PreferredBackBufferWidth = 800;
+            _graphics.PreferredBackBufferHeight = 600;
+            _graphics.SynchronizeWithVerticalRetrace = false;
+            IsFixedTimeStep = false;
+
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
             ActiveScene = new GameScene();
@@ -35,15 +39,19 @@ namespace Client.Main
             BMDLoader.Instance.SetGraphicsDevice(GraphicsDevice);
             TextureLoader.Instance.SetGraphicsDevice(GraphicsDevice);
 
-            await ActiveScene?.Load(GraphicsDevice);
+            _spriteBatch = new SpriteBatch(GraphicsDevice);
+            _font = Content.Load<SpriteFont>("Arial");
+
+            await ActiveScene?.Initialize(GraphicsDevice);
             _loaded = true;
         }
 
         protected override void Update(GameTime gameTime)
         {
-            if (!_loaded) return;
             FPSCounter.Instance.CalcFPS(gameTime);
-            ActiveScene?.Update(gameTime);
+
+            if (_loaded) ActiveScene?.Update(gameTime);
+
             base.Update(gameTime);
         }
 
@@ -52,7 +60,24 @@ namespace Client.Main
             GraphicsDevice.Clear(Color.Black);
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
+            GraphicsDevice.BlendState = BlendState.Opaque;
+
             if (_loaded) ActiveScene?.Draw(gameTime);
+
+            _spriteBatch.Begin();
+            _spriteBatch.DrawString(_font, $"FPS: {(int)FPSCounter.Instance.FPS_AVG}", new Vector2(10, 10), Color.White);
+
+            if(ActiveScene is GameScene gameScene)
+            {
+                _spriteBatch.DrawString(_font, $"PX: {gameScene.PositionX}, PY: {gameScene.PositionY}", new Vector2(10, 30), Color.White);
+            }
+
+            _spriteBatch.End();
+
+            GraphicsDevice.BlendState = BlendState.Opaque;
+            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
+            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+            GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
 
             base.Draw(gameTime);
         }

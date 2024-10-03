@@ -119,7 +119,7 @@ namespace Client.Main.Controllers
 
                 Camera.Instance.Position = Vector3.Lerp(_startPosition, _endPosition, _moveProgress);
 
-                float targetStartProgress = 0.7f; // Rotation starts at 80% of the movement
+                float targetStartProgress = 0.7f;
                 if (_moveProgress < targetStartProgress)
                 {
                     Camera.Instance.Target = _startTarget;

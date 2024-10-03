@@ -61,14 +61,16 @@ namespace Client.Main.Content
 
                 var dir = Path.GetRelativePath(Constants.DataPath, Path.GetDirectoryName(path));
 
+                var tasks = new List<Task>();
                 foreach (var mesh in asset.Meshes)
                 {
                     var fullPath = Path.Combine(dir, mesh.TexturePath);
                     texturePathMap.Add(mesh.TexturePath.ToLowerInvariant(), fullPath);
-                    await TextureLoader.Instance.Prepare(fullPath);
+                    tasks.Add(TextureLoader.Instance.Prepare(fullPath));
                 }
 
-                // Inicializar los vértices y los índices solo una vez para este BMD
+                await Task.WhenAll(tasks);
+
                 InitializeBuffers(asset);
 
                 return asset;
@@ -84,7 +86,7 @@ namespace Client.Main.Content
         private void InitializeBuffers(BMD asset)
         {
             if (_vertexBuffers.ContainsKey(asset))
-                return; // Los buffers ya están creados, no necesitamos volver a hacerlo.
+                return;
 
             var allVertices = new VertexBuffer[asset.Meshes.Length];
             var allIndices = new IndexBuffer[asset.Meshes.Length];
@@ -104,22 +106,20 @@ namespace Client.Main.Content
                             var vertexIndex = triangle.VertexIndex[i];
                             var vertex = mesh.Vertices[vertexIndex];
 
-                            // Obtener la normal asociada al vértice
                             var normalIndex = triangle.NormalIndex[i];
-                            var normal = mesh.Normals[normalIndex].Normal; // Extrae la normal desde la estructura
+                            var normal = mesh.Normals[normalIndex].Normal;
 
                             var coordIndex = triangle.TexCoordIndex[i];
                             var texCoord = mesh.TexCoords[coordIndex];
 
-                            // Agregar el vértice con posición, color, normal y coordenadas de textura
                             vertices.Add(new VertexPositionColorNormalTexture(
-                                vertex.Position,             // Posición del vértice
-                                Color.White,                 // Color (puedes cambiar esto según sea necesario)
-                                normal,                      // Normal del vértice
-                                new Vector2(texCoord.U, texCoord.V) // Coordenadas de textura
+                                vertex.Position,
+                                Color.White,
+                                normal,
+                                new Vector2(texCoord.U, texCoord.V)
                             ));
 
-                            indices.Add(vertices.Count - 1); // Agregar el índice en orden de vértices
+                            indices.Add(vertices.Count - 1);
                         }
                         catch (Exception e)
                         {
@@ -128,7 +128,6 @@ namespace Client.Main.Content
                     }
                 }
 
-                // Crear los buffers y almacenar en caché
                 VertexBuffer vertexBuffer = new VertexBuffer(
                     _graphicsDevice,
                     VertexPositionColorNormalTexture.VertexDeclaration,

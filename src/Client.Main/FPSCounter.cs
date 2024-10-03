@@ -44,9 +44,8 @@ namespace Client.Main
                 FPS = 1000 / differenceMs;
             }
 
-            FPS_ANIMATION_FACTOR = Math.Min((float)(REFERENCE_FPS / FPS), 2.5f); // no less than 10 fps
+            FPS_ANIMATION_FACTOR = Math.Min((float)(REFERENCE_FPS / FPS), 2.5f);
 
-            // Calculate average fps every 2 seconds or 25 frames
             double diffSinceStart = WorldTime - _startTime;
             if (diffSinceStart > 2000.0 || _frameCount > 25)
             {
@@ -56,8 +55,6 @@ namespace Client.Main
             }
 
             _lastTime = WorldTime;
-
-            // Si tienes lógica adicional relacionada con escenas o habilidades, inclúyela aquí
         }
     }
 

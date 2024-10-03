@@ -14,6 +14,7 @@ namespace Client.Main.Content
 
         private OZTReader _tgaReader = new OZTReader();
         private OZJReader _jpgReader = new OZJReader();
+        private Dictionary<string, Task> _textureTasks = new Dictionary<string, Task>();
         private Dictionary<string, TextureData> _textures = new Dictionary<string, TextureData>();
         private Dictionary<string, Texture2D> _texture2dCache = new Dictionary<string, Texture2D>();
         private GraphicsDevice _graphicsDevice;
@@ -23,29 +24,38 @@ namespace Client.Main.Content
             _graphicsDevice = graphicsDevice;
         }
 
-        public async Task Prepare(string path)
+        public Task Prepare(string path)
         {
-            lock (_textures)
+            lock (_textureTasks)
             {
                 path = path.ToLowerInvariant();
 
-                if (_textures.ContainsKey(path))
-                    return;
+                if (_textureTasks.TryGetValue(path, out var task))
+                    return task;
 
-                _textures.Add(path, null); // add this to prevent loading the same texture multiple times
+                _textureTasks.Add(path, task = InternalPrepare(path));
+
+                return task;
             }
+        }
 
+        private async Task InternalPrepare(string path)
+        {
             try
             {
                 var dataPath = Path.Combine(Constants.DataPath, path);
                 var ext = Path.GetExtension(path).ToLowerInvariant();
+                TextureData data;
 
                 if (ext == ".ozt" || ext == ".tga")
-                    _textures[path] = await _tgaReader.Load(Path.ChangeExtension(dataPath, ".ozt"));
+                    data = await _tgaReader.Load(Path.ChangeExtension(dataPath, ".ozt"));
                 else if (ext == ".ozj" || ext == ".jpg")
-                    _textures[path] = await _jpgReader.Load(Path.ChangeExtension(dataPath, ".ozj"));
+                    data = await _jpgReader.Load(Path.ChangeExtension(dataPath, ".ozj"));
                 else
                     throw new NotImplementedException($"Extension {ext} not implemented.");
+
+                lock (_textures)
+                    _textures[path] = data;
             }
             catch (Exception e)
             {

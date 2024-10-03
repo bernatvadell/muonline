@@ -1,11 +1,5 @@
-﻿using Client.Data.ATT;
-using Client.Data.BMD;
-using Client.Data.CWS;
-using Client.Data.MAP;
+﻿using Client.Data.CWS;
 using Client.Data.OBJS;
-using Client.Data.OZB;
-using Client.Data.Texture;
-using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Objects;
 using Microsoft.Xna.Framework;
@@ -13,12 +7,8 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Markup;
 
 namespace Client.Main.Controls
 {
@@ -27,14 +17,22 @@ namespace Client.Main.Controls
         private GraphicsDevice _graphicsDevice;
         private BasicEffect _debugEffect;
         private BasicEffect _objectEffect;
-
         private CameraTourController _tourController;
+        private TimeSpan _lastMoveTime = TimeSpan.Zero;
 
-        private int _front = 0;
-        private int _lateral = 0;
-        private int _height = 0;
-        private int _headY = 0;
-        private int _headX = 0;
+        public byte PositionX { get; set; } = 138;
+        public byte PositionY { get; set; } = 124;
+
+        public Vector3 TargetPosition
+        {
+            get
+            {
+                var x = PositionX * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
+                var y = PositionY * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
+                var v = new Vector3(x, y, Terrain.RequestTerrainHeight(x, y));
+                return v;
+            }
+        }
 
         public TerrainControl Terrain { get; }
         public short WorldIndex { get; private set; }
@@ -67,6 +65,8 @@ namespace Client.Main.Controls
             _graphicsDevice = graphicsDevice;
 
             Camera.Instance.AspectRatio = graphicsDevice.Viewport.AspectRatio;
+
+            UpdateCameraPosition();
 
             _debugEffect = new BasicEffect(graphicsDevice)
             {
@@ -115,26 +115,37 @@ namespace Client.Main.Controls
             base.Update(time);
 
             if (TourMode)
-                _tourController?.Update(time);
-
-            var state = Keyboard.GetState();
-
-            if (state.IsKeyDown(Keys.W)) _front += 10;
-            if (state.IsKeyDown(Keys.S)) _front -= 10;
-            if (state.IsKeyDown(Keys.A)) _lateral -= 10;
-            if (state.IsKeyDown(Keys.D)) _lateral += 10;
-            if (state.IsKeyDown(Keys.Space)) _height += 10;
-            if (state.IsKeyDown(Keys.LeftControl)) _height -= 10;
-
-            if (state.IsKeyDown(Keys.Left)) _headX -= 10;
-            if (state.IsKeyDown(Keys.Right)) _headX += 10;
-            if (state.IsKeyDown(Keys.Up)) _headY += 10;
-            if (state.IsKeyDown(Keys.Down)) _headY -= 10;
-
-            if (!TourMode)
             {
-                Camera.Instance.Position = new Vector3(100 + _lateral, 900 + _front, 330 + _height);
-                Camera.Instance.Target = new Vector3(100 + _lateral + _headX, 1200 + _front, 110 + _height + _headY);
+                _tourController?.Update(time);
+            }
+            else if (time.TotalGameTime > _lastMoveTime)
+            {
+                _lastMoveTime = _lastMoveTime.Add(TimeSpan.FromSeconds(0.1f));
+
+                var state = Keyboard.GetState();
+
+                if (state.IsKeyDown(Keys.W))
+                {
+                    PositionX -= 1;
+                    PositionY += 1;
+                }
+                if (state.IsKeyDown(Keys.A))
+                {
+                    PositionX -= 1;
+                    PositionY -= 1;
+                }
+                if (state.IsKeyDown(Keys.S))
+                {
+                    PositionX += 1;
+                    PositionY -= 1;
+                }
+                if (state.IsKeyDown(Keys.D))
+                {
+                    PositionX += 1;
+                    PositionY += 1;
+                }
+
+                UpdateCameraPosition();
             }
 
             _objectEffect.Projection = _debugEffect.Projection = Camera.Instance.Projection;
@@ -181,25 +192,32 @@ namespace Client.Main.Controls
 
         private void DrawTargetIndicator()
         {
-            // Define los vértices del triángulo
             var triangleVertices = new VertexPositionColor[3];
-            float size = 45f; // Tamaño del triángulo
+            float size = 45f;
 
-            // Vértice 1 (Centro)
             triangleVertices[0] = new VertexPositionColor(Camera.Instance.Target, Color.Yellow);
-
-            // Vértice 2 (A la derecha)
             triangleVertices[1] = new VertexPositionColor(new Vector3(Camera.Instance.Target.X + size, Camera.Instance.Target.Y, Camera.Instance.Target.Z), Color.Yellow);
-
-            // Vértice 3 (Arriba)
             triangleVertices[2] = new VertexPositionColor(new Vector3(Camera.Instance.Target.X, Camera.Instance.Target.Y + size, Camera.Instance.Target.Z), Color.Yellow);
 
-            // Usamos el BasicEffect para renderizar el triángulo
             foreach (var pass in _debugEffect.CurrentTechnique.Passes)
             {
                 pass.Apply();
                 _graphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, triangleVertices, 0, 1);
             }
+        }
+
+        private void UpdateCameraPosition()
+        {
+            var terrainHeight = Terrain.RequestTerrainHeight(PositionX * Constants.TERRAIN_SCALE, PositionY * Constants.TERRAIN_SCALE);
+
+            var cameraDistance = 1000f;
+
+            var p = new Vector3(0, -cameraDistance, 0f);
+            var m = MathUtils.AngleMatrix(new Vector3(0, 0, -45));
+            var t = MathUtils.VectorIRotate(p, m);
+
+            Camera.Instance.Position = TargetPosition + t + new Vector3(0, 0, cameraDistance - 150f);
+            Camera.Instance.Target = TargetPosition;
         }
     }
 }

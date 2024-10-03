@@ -8,9 +8,9 @@ namespace Client.Main
         public static Camera Instance { get; } = new Camera();
 
         private float _aspectRatio = 1.4f;
-        private float _fov = 65f;
+        private float _fov = 35f;
         private float _viewNear = 1f;
-        private float _viewFar = 100_000_0f;
+        private float _viewFar = 2200f;
         private Vector3 _position = new Vector3(100, 900, 330);
         private Vector3 _target = new Vector3(100, 1200, 110);
 
@@ -25,6 +25,8 @@ namespace Client.Main
         public Matrix View { get; private set; }
         public Matrix Projection { get; private set; }
 
+        public BoundingFrustum Frustum { get; private set; }
+
         public bool FollowTarget { get; set; } = true;
 
         private Camera()
@@ -37,6 +39,7 @@ namespace Client.Main
         {
             UpdateProjection();
             UpdateView();
+            UpdateFrustum();
         }
 
         private void UpdateProjection()
@@ -47,6 +50,8 @@ namespace Client.Main
                 _viewNear,
                 _viewFar
             );
+
+            UpdateFrustum();
         }
 
         private void UpdateView()
@@ -61,6 +66,23 @@ namespace Client.Main
             }
 
             View = Matrix.CreateLookAt(Position, Target, cameraUp);
+
+            UpdateFrustum();
+        }
+
+        private void UpdateFrustum()
+        {
+            float adjustedFOV = _fov + 10f;
+            float adjustedViewFar = _viewFar + 120f;
+
+            Matrix expandedProjection = Matrix.CreatePerspectiveFieldOfView(
+                MathHelper.ToRadians(adjustedFOV),
+                _aspectRatio,
+                _viewNear,
+                adjustedViewFar
+            );
+
+            Frustum = new BoundingFrustum(View * expandedProjection);
         }
     }
 }
