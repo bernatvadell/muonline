@@ -18,10 +18,14 @@ namespace Client.Main.Controls
         private BasicEffect _debugEffect;
         private BasicEffect _objectEffect;
         private CameraTourController _tourController;
-        private TimeSpan _lastMoveTime = TimeSpan.Zero;
+        private float _nextMoveTime = 0f;
+        private Vector3 _currentTargetPosition;
 
+
+        public bool IsMoving => Vector3.Distance(_currentTargetPosition, TargetPosition) > 1f;
         public byte PositionX { get; set; } = 138;
         public byte PositionY { get; set; } = 124;
+
 
         public Vector3 TargetPosition
         {
@@ -53,10 +57,9 @@ namespace Client.Main.Controls
 
         public override async Task Load(GraphicsDevice graphicsDevice)
         {
-            var tasks = new List<Task>
-            {
-                base.Load(graphicsDevice)
-            };
+            await base.Load(graphicsDevice);
+
+            var tasks = new List<Task>();
 
             CreateMapTileObjects();
 
@@ -66,7 +69,7 @@ namespace Client.Main.Controls
 
             Camera.Instance.AspectRatio = graphicsDevice.Viewport.AspectRatio;
 
-            UpdateCameraPosition();
+            _currentTargetPosition = Vector3.Zero;
 
             _debugEffect = new BasicEffect(graphicsDevice)
             {
@@ -118,34 +121,35 @@ namespace Client.Main.Controls
             {
                 _tourController?.Update(time);
             }
-            else if (time.TotalGameTime > _lastMoveTime)
+            else
             {
-                _lastMoveTime = _lastMoveTime.Add(TimeSpan.FromSeconds(0.1f));
+                if (!IsMoving)
+                {
+                    var state = Keyboard.GetState();
 
-                var state = Keyboard.GetState();
+                    if (state.IsKeyDown(Keys.W))
+                    {
+                        PositionX -= 1;
+                        PositionY += 1;
+                    }
+                    if (state.IsKeyDown(Keys.A))
+                    {
+                        PositionX -= 1;
+                        PositionY -= 1;
+                    }
+                    if (state.IsKeyDown(Keys.S))
+                    {
+                        PositionX += 1;
+                        PositionY -= 1;
+                    }
+                    if (state.IsKeyDown(Keys.D))
+                    {
+                        PositionX += 1;
+                        PositionY += 1;
+                    }
+                }
 
-                if (state.IsKeyDown(Keys.W))
-                {
-                    PositionX -= 1;
-                    PositionY += 1;
-                }
-                if (state.IsKeyDown(Keys.A))
-                {
-                    PositionX -= 1;
-                    PositionY -= 1;
-                }
-                if (state.IsKeyDown(Keys.S))
-                {
-                    PositionX += 1;
-                    PositionY -= 1;
-                }
-                if (state.IsKeyDown(Keys.D))
-                {
-                    PositionX += 1;
-                    PositionY += 1;
-                }
-
-                UpdateCameraPosition();
+                MoveCameraPosition(time);
             }
 
             _objectEffect.Projection = _debugEffect.Projection = Camera.Instance.Projection;
@@ -206,9 +210,41 @@ namespace Client.Main.Controls
             }
         }
 
-        private void UpdateCameraPosition()
+        private void MoveCameraPosition(GameTime time)
         {
-            var terrainHeight = Terrain.RequestTerrainHeight(PositionX * Constants.TERRAIN_SCALE, PositionY * Constants.TERRAIN_SCALE);
+            if (_currentTargetPosition == Vector3.Zero)
+            {
+                _currentTargetPosition = TargetPosition;
+                UpdateCameraPosition(_currentTargetPosition);
+                return;
+            }
+
+            if (!IsMoving)
+            {
+                _currentTargetPosition = TargetPosition;
+                return;
+            }
+
+            Vector3 direction = TargetPosition - _currentTargetPosition;
+            direction.Normalize();
+
+            float deltaTime = (float)time.ElapsedGameTime.TotalSeconds;
+            Vector3 moveVector = direction * 300f * deltaTime;
+
+            // Verifica si la distancia a mover excede la distancia restante al objetivo
+            if (moveVector.Length() > (_currentTargetPosition - TargetPosition).Length())
+            {
+                UpdateCameraPosition(_currentTargetPosition);
+            }
+            else
+            {
+                UpdateCameraPosition(_currentTargetPosition + moveVector);
+            }
+        }
+
+        private void UpdateCameraPosition(Vector3 position)
+        {
+            _currentTargetPosition = position;
 
             var cameraDistance = 1000f;
 
@@ -216,8 +252,8 @@ namespace Client.Main.Controls
             var m = MathUtils.AngleMatrix(new Vector3(0, 0, -45));
             var t = MathUtils.VectorIRotate(p, m);
 
-            Camera.Instance.Position = TargetPosition + t + new Vector3(0, 0, cameraDistance - 150f);
-            Camera.Instance.Target = TargetPosition;
+            Camera.Instance.Position = position + t + new Vector3(0, 0, cameraDistance - 150f);
+            Camera.Instance.Target = position;
         }
     }
 }
