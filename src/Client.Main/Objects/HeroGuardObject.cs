@@ -11,7 +11,7 @@ namespace Client.Main.Objects
     {
         public HeroGuardObject()
         {
-            LightEnabled = false;
+            LightEnabled = true;
         }
 
         public override async Task Load(GraphicsDevice graphicsDevice)

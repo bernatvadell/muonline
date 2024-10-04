@@ -14,7 +14,7 @@ namespace Client.Main.Objects
     {
         public MuWallObject()
         {
-            LightEnabled = false;
+            LightEnabled = true;
         }
 
         public override async Task Load(GraphicsDevice graphicsDevice)

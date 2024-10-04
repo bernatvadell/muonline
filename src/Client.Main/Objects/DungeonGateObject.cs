@@ -10,12 +10,12 @@ namespace Client.Main.Objects
     {
         public DungeonGateObject()
         {
-            LightEnabled = false;
+            LightEnabled = true;
         }
 
         public override async Task Load(GraphicsDevice graphicsDevice)
         {
-            Model = await BMDLoader.Instance.Prepare($"Object1/DungeonGate01.bmd");
+            Model = await BMDLoader.Instance.Prepare($"Object1/DoungeonGate01.bmd");
             await base.Load(graphicsDevice);
         }
     }

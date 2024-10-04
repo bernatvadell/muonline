@@ -4,6 +4,7 @@ using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System;
 
 namespace Client.Main
 {
@@ -12,6 +13,8 @@ namespace Client.Main
         private GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch;
         private bool _loaded = false;
+
+        public static Random Random { get; } = new Random();
 
         public GameControl ActiveScene;
         private SpriteFont _font;
@@ -48,8 +51,6 @@ namespace Client.Main
 
         protected override void Update(GameTime gameTime)
         {
-            FPSCounter.Instance.CalcFPS(gameTime);
-
             if (_loaded) ActiveScene?.Update(gameTime);
 
             base.Update(gameTime);
@@ -57,6 +58,8 @@ namespace Client.Main
 
         protected override void Draw(GameTime gameTime)
         {
+            FPSCounter.Instance.CalcFPS(gameTime);
+
             GraphicsDevice.Clear(Color.Black);
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
@@ -66,17 +69,10 @@ namespace Client.Main
 
             _spriteBatch.Begin();
             _spriteBatch.DrawString(_font, $"FPS: {(int)FPSCounter.Instance.FPS_AVG}", new Vector2(10, 10), Color.White);
-
             if(ActiveScene is GameScene gameScene)
-            {
                 _spriteBatch.DrawString(_font, $"PX: {gameScene.PositionX}, PY: {gameScene.PositionY}", new Vector2(10, 30), Color.White);
-            }
-
             _spriteBatch.End();
 
-            GraphicsDevice.BlendState = BlendState.Opaque;
-            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
             GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
 
             base.Draw(gameTime);

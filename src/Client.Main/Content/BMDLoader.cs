@@ -5,8 +5,10 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Client.Main.Content
@@ -15,12 +17,11 @@ namespace Client.Main.Content
     {
         public static BMDLoader Instance { get; } = new BMDLoader();
 
-        private readonly BMDReader _reader = new BMDReader();
-        private Dictionary<string, Task<BMD>> _bmds = [];
+        private readonly BMDReader _reader = new();
 
-        private Dictionary<BMD, Dictionary<string, string>> _texturePathMap = new Dictionary<BMD, Dictionary<string, string>>();
-        private Dictionary<BMD, VertexBuffer[]> _vertexBuffers = new Dictionary<BMD, VertexBuffer[]>();
-        private Dictionary<BMD, IndexBuffer[]> _indexBuffers = new Dictionary<BMD, IndexBuffer[]>();
+        private readonly Dictionary<string, Task<BMD>> _bmds = [];
+        private readonly Dictionary<BMD, Dictionary<string, string>> _texturePathMap = [];
+
         private GraphicsDevice _graphicsDevice;
 
         public void SetGraphicsDevice(GraphicsDevice graphicsDevice)
@@ -71,8 +72,6 @@ namespace Client.Main.Content
 
                 await Task.WhenAll(tasks);
 
-                InitializeBuffers(asset);
-
                 return asset;
             }
             catch (Exception e)
@@ -82,94 +81,55 @@ namespace Client.Main.Content
             }
         }
 
-
-        private void InitializeBuffers(BMD asset)
+        public void GetModelBuffers(BMD asset, int meshIndex, Color color, Matrix[] boneMatrix, out VertexBuffer vertexBuffer, out IndexBuffer indexBuffer)
         {
-            if (_vertexBuffers.ContainsKey(asset))
-                return;
+            var mesh = asset.Meshes[meshIndex];
 
-            var allVertices = new VertexBuffer[asset.Meshes.Length];
-            var allIndices = new IndexBuffer[asset.Meshes.Length];
+            int totalVertices = mesh.Triangles.Sum(triangle => triangle.Polygon);
+            int totalIndices = totalVertices;
 
-            for (var m = 0; m < asset.Meshes.Length; m++)
+            var vertices = new VertexPositionColorNormalTexture[totalVertices];
+            var indices = new int[totalIndices];
+
+            var pi = 0;
+
+            for (var i = 0; i < mesh.Triangles.Length; i++)
             {
-                var mesh = asset.Meshes[m];
-                var vertices = new List<VertexPositionColorNormalTexture>();
-                var indices = new List<int>();
+                var triangle = mesh.Triangles[i];
 
-                foreach (var triangle in mesh.Triangles)
+                for (int j = 0; j < triangle.Polygon; j++)
                 {
-                    for (int i = 0; i < triangle.Polygon; i++)
-                    {
-                        try
-                        {
-                            var vertexIndex = triangle.VertexIndex[i];
-                            var vertex = mesh.Vertices[vertexIndex];
+                    var vertexIndex = triangle.VertexIndex[j];
+                    var vertex = mesh.Vertices[vertexIndex];
 
-                            var normalIndex = triangle.NormalIndex[i];
-                            var normal = mesh.Normals[normalIndex].Normal;
+                    var normalIndex = triangle.NormalIndex[j];
+                    var normal = mesh.Normals[normalIndex].Normal;
 
-                            var coordIndex = triangle.TexCoordIndex[i];
-                            var texCoord = mesh.TexCoords[coordIndex];
+                    var coordIndex = triangle.TexCoordIndex[j];
+                    var texCoord = mesh.TexCoords[coordIndex];
 
-                            vertices.Add(new VertexPositionColorNormalTexture(
-                                vertex.Position,
-                                Color.White,
-                                normal,
-                                new Vector2(texCoord.U, texCoord.V)
-                            ));
+                    var pos = Vector3.Transform(vertex.Position, boneMatrix[vertex.Node]);
 
-                            indices.Add(vertices.Count - 1);
-                        }
-                        catch (Exception e)
-                        {
-                            Debug.WriteLine("Error creating vertex", e);
-                        }
-                    }
+                    vertices[pi] = new VertexPositionColorNormalTexture(
+                        pos,
+                        color,
+                        normal,
+                        new Vector2(texCoord.U, texCoord.V)
+                    );
+
+                    indices[pi] = pi;
+
+                    pi++;
                 }
-
-                VertexBuffer vertexBuffer = new VertexBuffer(
-                    _graphicsDevice,
-                    VertexPositionColorNormalTexture.VertexDeclaration,
-                    vertices.Count,
-                    BufferUsage.None);
-
-                vertexBuffer.SetData(vertices.ToArray());
-
-                IndexBuffer indexBuffer = new IndexBuffer(
-                    _graphicsDevice,
-                    IndexElementSize.ThirtyTwoBits,
-                    indices.Count,
-                    BufferUsage.None);
-
-                indexBuffer.SetData(indices.ToArray());
-
-                allVertices[m] = vertexBuffer;
-                allIndices[m] = indexBuffer;
             }
+            
+            _graphicsDevice.SetRenderTarget(null);
 
-            lock (_vertexBuffers)
-                _vertexBuffers[asset] = allVertices;
+            vertexBuffer = new DynamicVertexBuffer(_graphicsDevice, VertexPositionColorNormalTexture.VertexDeclaration, totalVertices, BufferUsage.WriteOnly);
+            vertexBuffer.SetData(vertices);
 
-            lock (_indexBuffers)
-                _indexBuffers[asset] = allIndices;
-        }
-
-
-        public VertexBuffer GetVertexBuffer(BMD asset, int meshIndex)
-        {
-            if (_vertexBuffers.TryGetValue(asset, out var vertexBuffers) && vertexBuffers.Length > meshIndex)
-                return vertexBuffers[meshIndex];
-
-            return null;
-        }
-
-        public IndexBuffer GetIndexBuffer(BMD asset, int meshIndex)
-        {
-            if (_indexBuffers.TryGetValue(asset, out var indexBuffers) && indexBuffers.Length > meshIndex)
-                return indexBuffers[meshIndex];
-
-            return null;
+            indexBuffer = new DynamicIndexBuffer(_graphicsDevice, IndexElementSize.ThirtyTwoBits, totalIndices, BufferUsage.WriteOnly);
+            indexBuffer.SetData(indices);
         }
 
         public string GetTexturePath(BMD bmd, string texturePath)
@@ -178,8 +138,8 @@ namespace Client.Main.Content
 
             string result = null;
 
-            if (_texturePathMap.TryGetValue(bmd, out Dictionary<string, string> value) && value.ContainsKey(texturePath))
-                result = value[texturePath];
+            if (_texturePathMap.TryGetValue(bmd, out Dictionary<string, string> value) && value.TryGetValue(texturePath, out string fullTexturePath))
+                result = fullTexturePath;
 
             if (result == null)
                 Debug.WriteLine($"Texture path not found: {texturePath}");

@@ -76,6 +76,8 @@ namespace Client.Main.Controls
                 World = Matrix.Identity
             };
 
+            await Task.WhenAll(tasks);
+
             var objReader = new OBJReader();
 
             OBJ obj = await objReader.Load(Path.Combine(Constants.DataPath, worldFolder, $"EncTerrain{WorldIndex}.obj"));
@@ -217,7 +219,7 @@ namespace Client.Main.Controls
             // Verifica si la distancia a mover excede la distancia restante al objetivo
             if (moveVector.Length() > (_currentTargetPosition - TargetPosition).Length())
             {
-                UpdateCameraPosition(_currentTargetPosition);
+                UpdateCameraPosition(TargetPosition);
             }
             else
             {

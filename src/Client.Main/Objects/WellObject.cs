@@ -10,7 +10,7 @@ namespace Client.Main.Objects
     {
         public WellObject()
         {
-            LightEnabled = false;
+            LightEnabled = true;
         }
 
         public override async Task Load(GraphicsDevice graphicsDevice)

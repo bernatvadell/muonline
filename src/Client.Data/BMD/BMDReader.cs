@@ -105,6 +105,11 @@ namespace Client.Data.BMD
                             Position = br.ReadStructArray<Vector3>(action.NumAnimationKeys),
                             Rotation = br.ReadStructArray<Vector3>(action.NumAnimationKeys)
                         };
+
+                        // precalculate quaternion
+                        bone.Matrixes[m].Quaternion = new Quaternion[action.NumAnimationKeys];
+                        for (var r = 0; r < action.NumAnimationKeys; r++)
+                            bone.Matrixes[m].Quaternion[r] = MathUtils.AngleQuaternion(bone.Matrixes[m].Rotation[r]);
                     }
                 }
             }

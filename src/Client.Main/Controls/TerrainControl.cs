@@ -31,8 +31,7 @@ namespace Client.Main.Controls
         private TerrainMapping _mapping;
         private Texture2D[] _textures;
 
-        private Color[] PrimaryTerrainLight;
-        private float[] TerrainGrassWind;
+        private float[] _terrainGrassWind;
         private TextureData _terrainLightTexture;
         private Vector3[] _terrainLight;
         private Vector3[] _backTerrainLight;
@@ -118,6 +117,8 @@ namespace Client.Main.Controls
 
             CreateTerrainNormal();
             CreateTerrainLight();
+
+            await base.Load(graphicsDevice);
         }
 
         public override void Update(GameTime time)
@@ -170,6 +171,57 @@ namespace Client.Main.Controls
             float left = _backTerrainHeight[Index1] + (_backTerrainHeight[Index2] - _backTerrainHeight[Index1]) * yd;
             float right = _backTerrainHeight[Index3] + (_backTerrainHeight[Index4] - _backTerrainHeight[Index3]) * yd;
             return left + (right - left) * xd;
+        }
+
+        public Vector3 RequestTerrainLight(float xf, float yf)
+        {
+            if (_terrain == null || _terrain.TerrainWall == null || xf < 0.0f || yf < 0.0f)
+                return Vector3.Zero;
+
+            xf /= Constants.TERRAIN_SCALE;
+            yf /= Constants.TERRAIN_SCALE;
+
+            int xi = (int)xf;
+            int yi = (int)yf;
+            float xd = xf - xi;
+            float yd = yf - yi;
+
+            int Index1 = GetTerrainIndexRepeat(xi, yi);
+            int Index2 = GetTerrainIndexRepeat(xi, yi + 1);
+            int Index3 = GetTerrainIndexRepeat(xi + 1, yi);
+            int Index4 = GetTerrainIndexRepeat(xi + 1, yi + 1);
+
+            if (Index1 >= Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE || Index2 >= Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE ||
+                    Index3 >= Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE || Index4 >= Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE)
+                return Vector3.Zero;
+
+            var output = new float[3];
+
+            for (var i = 0; i < 3; i++)
+            {
+                float left = 0;
+                float right = 0;
+
+                switch (i)
+                {
+                    case 0:
+                        left = _backTerrainLight[Index1].X + (_backTerrainLight[Index4].X - _backTerrainLight[Index1].X) * yd;
+                        right = _backTerrainLight[Index1].X + (_backTerrainLight[Index4].X - _backTerrainLight[Index1].X) * yd;
+                        break;
+                    case 1:
+                        left = _backTerrainLight[Index1].Y + (_backTerrainLight[Index4].Y - _backTerrainLight[Index1].Y) * yd;
+                        right = _backTerrainLight[Index1].Y + (_backTerrainLight[Index4].Y - _backTerrainLight[Index1].Y) * yd;
+                        break;
+                    case 2:
+                        left = _backTerrainLight[Index1].Z + (_backTerrainLight[Index4].Z - _backTerrainLight[Index1].Z) * yd;
+                        right = _backTerrainLight[Index1].Z + (_backTerrainLight[Index4].Z - _backTerrainLight[Index1].Z) * yd;
+                        break;
+                }
+
+                output[i] = (left + (right - left) * xd);
+            }
+
+            return new Vector3(output[0], output[1], output[2]);
         }
 
         private static int GetTerrainIndex(int x, int y)
@@ -235,20 +287,7 @@ namespace Client.Main.Controls
 
         private void InitTerrainLight(GameTime time)
         {
-            PrimaryTerrainLight = new Color[Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE];
-            TerrainGrassWind = new float[Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE];
-
-            int xi, yi;
-            yi = 0;
-            for (; yi <= 250 + 3; yi += 1)
-            {
-                xi = 0;
-                for (; xi <= 250 + 3; xi += 1)
-                {
-                    int Index = GetTerrainIndexRepeat(xi, yi);
-                    PrimaryTerrainLight[Index] = new Color(_backTerrainLight[Index].X, _backTerrainLight[Index].Y, _backTerrainLight[Index].Z);
-                }
-            }
+            _terrainGrassWind = new float[Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE];
 
             float WindScale;
             float WindSpeed;
@@ -256,16 +295,16 @@ namespace Client.Main.Controls
             WindScale = 10f;
             WindSpeed = (int)time.ElapsedGameTime.TotalMilliseconds % (360000 * 2) * (0.002f);
 
-            yi = 0;
+            var yi = 0;
 
             for (; yi <= Math.Min(250 + 3, Constants.TERRAIN_SIZE_MASK); yi += 1)
             {
-                xi = 0;
+                var xi = 0;
                 var xf = (float)xi;
                 for (; xi <= Math.Min(250 + 3, Constants.TERRAIN_SIZE_MASK); xi += 1, xf += 1f)
                 {
                     int Index = GetTerrainIndex(xi, yi);
-                    TerrainGrassWind[Index] = (float)Math.Sin(WindSpeed + xf * 5f) * WindScale;
+                    _terrainGrassWind[Index] = (float)Math.Sin(WindSpeed + xf * 5f) * WindScale;
                 }
             }
         }
@@ -374,11 +413,11 @@ namespace Client.Main.Controls
             if (_terrain.TerrainWall[idx4].HasFlag(TWFlags.Height))
                 terrainVertex[3].Z += 1200f;
 
-            var terrainLights = new Color[4];
-            terrainLights[0] = PrimaryTerrainLight[idx1];
-            terrainLights[1] = PrimaryTerrainLight[idx2];
-            terrainLights[2] = PrimaryTerrainLight[idx3];
-            terrainLights[3] = PrimaryTerrainLight[idx4];
+            var terrainLights = new Vector3[4];
+            terrainLights[0] = _backTerrainLight[idx1];
+            terrainLights[1] = _backTerrainLight[idx2];
+            terrainLights[2] = _backTerrainLight[idx3];
+            terrainLights[3] = _backTerrainLight[idx4];
 
             RenderTexture(_mapping.Layer1[idx1], xf, yf, terrainVertex, terrainLights);
 
@@ -394,7 +433,7 @@ namespace Client.Main.Controls
             // if (alpha) RenderTexture(alpha ? _mapping.Layer2[idx1] : _mapping.Layer1[idx1], xf, yf, terrainVertex, alpha1);
         }
 
-        private void RenderTexture(int textureIndex, float xf, float yf, Vector3[] terrainVertex, Color[] terrainLights)
+        private void RenderTexture(int textureIndex, float xf, float yf, Vector3[] terrainVertex, Vector3[] terrainLights)
         {
             if (textureIndex == 255 || _textures[textureIndex] == null)
                 return;
@@ -414,13 +453,13 @@ namespace Client.Main.Controls
             terrainTextureCoord[3] = new Vector2(suf, svf + height);
 
             var vertices2 = new VertexPositionColorTexture[6];
-            vertices2[0] = new VertexPositionColorTexture(terrainVertex[0], terrainLights[0], terrainTextureCoord[0]);
-            vertices2[1] = new VertexPositionColorTexture(terrainVertex[1], terrainLights[1], terrainTextureCoord[1]);
-            vertices2[2] = new VertexPositionColorTexture(terrainVertex[2], terrainLights[2], terrainTextureCoord[2]);
+            vertices2[0] = new VertexPositionColorTexture(terrainVertex[0], new Color(terrainLights[0].X, terrainLights[0].Y, terrainLights[0].Z), terrainTextureCoord[0]);
+            vertices2[1] = new VertexPositionColorTexture(terrainVertex[1], new Color(terrainLights[1].X, terrainLights[1].Y, terrainLights[1].Z), terrainTextureCoord[1]);
+            vertices2[2] = new VertexPositionColorTexture(terrainVertex[2], new Color(terrainLights[2].X, terrainLights[2].Y, terrainLights[2].Z), terrainTextureCoord[2]);
 
-            vertices2[3] = new VertexPositionColorTexture(terrainVertex[2], terrainLights[2], terrainTextureCoord[2]);
-            vertices2[4] = new VertexPositionColorTexture(terrainVertex[3], terrainLights[3], terrainTextureCoord[3]);
-            vertices2[5] = new VertexPositionColorTexture(terrainVertex[0], terrainLights[0], terrainTextureCoord[0]);
+            vertices2[3] = new VertexPositionColorTexture(terrainVertex[2], new Color(terrainLights[2].X, terrainLights[2].Y, terrainLights[2].Z), terrainTextureCoord[2]);
+            vertices2[4] = new VertexPositionColorTexture(terrainVertex[3], new Color(terrainLights[3].X, terrainLights[3].Y, terrainLights[3].Z), terrainTextureCoord[3]);
+            vertices2[5] = new VertexPositionColorTexture(terrainVertex[0], new Color(terrainLights[0].X, terrainLights[0].Y, terrainLights[0].Z), terrainTextureCoord[0]);
 
             _terrainEffect.Texture = texture;
 

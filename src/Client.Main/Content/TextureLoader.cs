@@ -55,7 +55,7 @@ namespace Client.Main.Content
                     throw new NotImplementedException($"Extension {ext} not implemented.");
 
                 lock (_textures)
-                    _textures[path] = data;
+                    _textures.Add(path, data);
             }
             catch (Exception e)
             {
@@ -82,8 +82,8 @@ namespace Client.Main.Content
 
                 path = path.ToLowerInvariant();
 
-                if (_texture2dCache.ContainsKey(path))
-                    return _texture2dCache[path];
+                if (_texture2dCache.TryGetValue(path, out Texture2D value))
+                    return value;
 
                 _texture2dCache.Add(path, null);
 
@@ -99,16 +99,20 @@ namespace Client.Main.Content
 
                 Color[] pixelData = new Color[(int)textureData.Width * (int)textureData.Height];
 
-                for (int i = 0; i < pixelData.Length; i++)
+                if (textureData.Components == 3)
                 {
-                    if (textureData.Components == 3) // RGB
+                    for (int i = 0; i < pixelData.Length; i++)
                     {
                         byte r = textureData.Data[i * 3];
                         byte g = textureData.Data[i * 3 + 1];
                         byte b = textureData.Data[i * 3 + 2];
+
                         pixelData[i] = new Color(r, g, b, (byte)255);
                     }
-                    else if (textureData.Components == 4) // RGBA
+                }
+                else if (textureData.Components == 4)
+                {
+                    for (int i = 0; i < pixelData.Length; i++)
                     {
                         byte r = textureData.Data[i * 4];
                         byte g = textureData.Data[i * 4 + 1];
