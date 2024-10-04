@@ -11,7 +11,7 @@ namespace Client.Main
         public const int TERRAIN_SIZE = 256;
         public const int TERRAIN_SIZE_MASK = 255;
         public const float TERRAIN_SCALE = 100f;
-
+        public const bool DRAW_BOUNDING_BOXES = false;
         public const string DataPath = @"C:\Projects\MuMain\Source Main 5.2\bin\Data\";
     }
 }

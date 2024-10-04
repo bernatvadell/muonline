@@ -122,7 +122,7 @@ namespace Client.Main.Content
                     pi++;
                 }
             }
-            
+
             _graphicsDevice.SetRenderTarget(null);
 
             vertexBuffer = new DynamicVertexBuffer(_graphicsDevice, VertexPositionColorNormalTexture.VertexDeclaration, totalVertices, BufferUsage.WriteOnly);

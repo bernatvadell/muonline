@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Transactions;
 
 namespace Client.Main.Objects
 {
@@ -26,10 +27,10 @@ namespace Client.Main.Objects
         private int _boneHead;
         private float _bodyHeight;
         private float _bodyScale = 1;
-        private BoundingSphere _originalBoundingSphere;
-        private BoundingSphere _transformedBoundingSphere;
+        private BoundingBox _boundingBox;
         private bool OutOfView = true;
         private BasicEffect _effect;
+        private BasicEffect _boundingBoxEffect;
         private Vector3 _position, _angle;
         private float _scale = 1f;
         private bool _invalidatedBuffers = true;
@@ -68,9 +69,18 @@ namespace Client.Main.Objects
                 World = Matrix.Identity,
             };
 
+            _boundingBoxEffect = new BasicEffect(_graphicsDevice)
+            {
+                VertexColorEnabled = true,
+                View = Camera.Instance.View,
+                Projection = Camera.Instance.Projection,
+                World = Matrix.Identity
+            };
+
             _boneMatrix = new Matrix[Model.Bones.Length];
 
             UpdateWorldPosition();
+            GenerateBoneMatrix(0, 0, 0, 0, 0);
 
             return Task.CompletedTask;
         }
@@ -79,13 +89,13 @@ namespace Client.Main.Objects
         {
             if (!Ready) return;
 
-            OutOfView = Camera.Instance.Frustum.Contains(_transformedBoundingSphere) == ContainmentType.Disjoint;
+            OutOfView = Camera.Instance.Frustum.Contains(_boundingBox) == ContainmentType.Disjoint;
 
             if (OutOfView)
                 return;
 
-            _effect.View = Camera.Instance.View;
-            _effect.Projection = Camera.Instance.Projection;
+            _boundingBoxEffect.View = _effect.View = Camera.Instance.View;
+            _boundingBoxEffect.Projection = _effect.Projection = Camera.Instance.Projection;
 
             Animation(gameTime);
             SetDynamicBuffers();
@@ -98,22 +108,40 @@ namespace Client.Main.Objects
             WorldPosition = Matrix.CreateScale(Scale)
                                    * Matrix.CreateFromQuaternion(MathUtils.AngleQuaternion(Angle))
                                    * Matrix.CreateTranslation(Position);
-
-            UpdateBoundings();
         }
 
         private void UpdateBoundings()
         {
-            _transformedBoundingSphere = TransformBoundingSphere(_originalBoundingSphere, WorldPosition);
+            if (Model == null) return;
+
+            var min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
+            var max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+
+            foreach (var mesh in Model.Meshes)
+            {
+                foreach (var vertex in mesh.Vertices)
+                {
+                    int boneIndex = vertex.Node;
+                    Matrix boneMatrix = _boneMatrix[boneIndex];
+                    Vector3 transformedPosition = Vector3.Transform(vertex.Position, boneMatrix);
+                    min = Vector3.Min(min, transformedPosition);
+                    max = Vector3.Max(max, transformedPosition);
+                }
+            }
+
+            _boundingBox = new BoundingBox(min, max);
         }
 
-        private static BoundingSphere TransformBoundingSphere(BoundingSphere sphere, Matrix transform)
+        private static BoundingBox TransformBoundingBox(BoundingBox box, Matrix transform)
         {
-            transform.Decompose(out Vector3 scale, out Quaternion rotation, out Vector3 translation);
-            float maxScale = Math.Max(scale.X, Math.Max(scale.Y, scale.Z));
-            Vector3 transformedCenter = Vector3.Transform(sphere.Center, transform);
-            return new BoundingSphere(transformedCenter, sphere.Radius * maxScale);
+            Vector3[] corners = box.GetCorners();
+
+            for (int i = 0; i < corners.Length; i++)
+                corners[i] = Vector3.Transform(corners[i], transform);
+
+            return BoundingBox.CreateFromPoints(corners);
         }
+
 
         private void Animation(GameTime gameTime)
         {
@@ -151,6 +179,39 @@ namespace Client.Main.Objects
                     _graphicsDevice.Indices = indexBuffer;
                     _graphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
                 }
+            }
+
+            if (Constants.DRAW_BOUNDING_BOXES)
+                DrawBoundingBox();
+        }
+
+        private void DrawBoundingBox()
+        {
+            Vector3[] corners = _boundingBox.GetCorners();
+
+            int[] indices =
+            [
+                0, 1, 1, 2, 2, 3, 3, 0,
+                4, 5, 5, 6, 6, 7, 7, 4,
+                0, 4, 1, 5, 2, 6, 3, 7
+            ];
+
+            var vertexData = new VertexPositionColor[8];
+            for (int i = 0; i < corners.Length; i++)
+                vertexData[i] = new VertexPositionColor(corners[i], Color.GreenYellow);
+
+            foreach (var pass in _boundingBoxEffect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                _graphicsDevice.DrawUserIndexedPrimitives(
+                    PrimitiveType.LineList,
+                    vertexData,
+                    0,
+                    8,
+                    indices,
+                    0,
+                    indices.Length / 2
+                );
             }
         }
 
@@ -219,6 +280,7 @@ namespace Client.Main.Objects
         {
             var priorActionData = Model.Actions[priorAction];
             var currentActionData = Model.Actions[currentAction];
+            var changed = false;
 
             for (int i = 0; i < Model.Bones.Length; i++)
             {
@@ -261,11 +323,16 @@ namespace Client.Main.Objects
                 else
                     newMatrix = matrix * WorldPosition;
 
-                if (_boneMatrix[i] != newMatrix)
-                {
-                    _boneMatrix[i] = newMatrix;
-                    _invalidatedBuffers = true;
-                }
+                if (!changed && _boneMatrix[i] != newMatrix)
+                    changed = true;
+
+                _boneMatrix[i] = newMatrix;
+            }
+
+            if (changed)
+            {
+                _invalidatedBuffers = true;
+                UpdateBoundings();
             }
         }
     }
