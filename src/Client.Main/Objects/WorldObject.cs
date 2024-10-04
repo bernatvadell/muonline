@@ -48,7 +48,6 @@ namespace Client.Main.Objects
         public WorldControl World { get; set; }
         public Matrix WorldPosition { get; set; }
         public ushort Type { get; set; }
-
         public float BlendMeshLight { get; set; } = 1f;
         public float BodyHeight { get; private set; }
 
@@ -62,20 +61,22 @@ namespace Client.Main.Objects
                 return Task.CompletedTask;
             }
 
-            _effect = new BasicEffect(graphicsDevice)
+            lock (graphicsDevice)
             {
-                TextureEnabled = true,
-                VertexColorEnabled = true,
-                World = Matrix.Identity,
-            };
-
-            _boundingBoxEffect = new BasicEffect(_graphicsDevice)
-            {
-                VertexColorEnabled = true,
-                View = Camera.Instance.View,
-                Projection = Camera.Instance.Projection,
-                World = Matrix.Identity
-            };
+                _effect = new BasicEffect(graphicsDevice)
+                {
+                    TextureEnabled = true,
+                    VertexColorEnabled = true,
+                    World = Matrix.Identity,
+                };
+                _boundingBoxEffect = new BasicEffect(_graphicsDevice)
+                {
+                    VertexColorEnabled = true,
+                    View = Camera.Instance.View,
+                    Projection = Camera.Instance.Projection,
+                    World = Matrix.Identity
+                };
+            }
 
             _boneMatrix = new Matrix[Model.Bones.Length];
 
@@ -122,8 +123,12 @@ namespace Client.Main.Objects
                 foreach (var vertex in mesh.Vertices)
                 {
                     int boneIndex = vertex.Node;
+
+                    if (boneIndex < 0 || boneIndex >= _boneMatrix.Length)
+                        continue;
+
                     Matrix boneMatrix = _boneMatrix[boneIndex];
-                    Vector3 transformedPosition = Vector3.Transform(vertex.Position, boneMatrix);
+                    Vector3 transformedPosition = Vector3.Transform(vertex.Position, boneMatrix * WorldPosition);
                     min = Vector3.Min(min, transformedPosition);
                     max = Vector3.Max(max, transformedPosition);
                 }
@@ -131,17 +136,6 @@ namespace Client.Main.Objects
 
             _boundingBox = new BoundingBox(min, max);
         }
-
-        private static BoundingBox TransformBoundingBox(BoundingBox box, Matrix transform)
-        {
-            Vector3[] corners = box.GetCorners();
-
-            for (int i = 0; i < corners.Length; i++)
-                corners[i] = Vector3.Transform(corners[i], transform);
-
-            return BoundingBox.CreateFromPoints(corners);
-        }
-
 
         private void Animation(GameTime gameTime)
         {
@@ -163,11 +157,11 @@ namespace Client.Main.Objects
 
             _graphicsDevice.BlendState = BlendState.AlphaBlend;
             _effect.Alpha = Alpha;
+            _effect.World = WorldPosition;
 
             for (var i = 0; i < _boneVertexBuffers.Length; i++)
             {
                 _effect.Texture = _boneTextures[i];
-
                 var vertexBuffer = _boneVertexBuffers[i];
                 var indexBuffer = _boneIndexBuffers[i];
                 var primitiveCount = indexBuffer.IndexCount / 3;
@@ -321,7 +315,7 @@ namespace Client.Main.Objects
                 if (bone.Parent != -1)
                     newMatrix = matrix * _boneMatrix[bone.Parent];
                 else
-                    newMatrix = matrix * WorldPosition;
+                    newMatrix = matrix;
 
                 if (!changed && _boneMatrix[i] != newMatrix)
                     changed = true;

@@ -18,9 +18,10 @@ namespace Client.Main.Content
         public static BMDLoader Instance { get; } = new BMDLoader();
 
         private readonly BMDReader _reader = new();
-
         private readonly Dictionary<string, Task<BMD>> _bmds = [];
         private readonly Dictionary<BMD, Dictionary<string, string>> _texturePathMap = [];
+        private readonly Dictionary<BMD, DynamicVertexBuffer[]> _vertexs = [];
+        private readonly Dictionary<BMD, DynamicIndexBuffer[]> _indexs = [];
 
         private GraphicsDevice _graphicsDevice;
 
@@ -81,12 +82,27 @@ namespace Client.Main.Content
             }
         }
 
-        public void GetModelBuffers(BMD asset, int meshIndex, Color color, Matrix[] boneMatrix, out VertexBuffer vertexBuffer, out IndexBuffer indexBuffer)
+        public void GetModelBuffers(BMD asset, int meshIndex, Color color, Matrix[] boneMatrix, out DynamicVertexBuffer vertexBuffer, out DynamicIndexBuffer indexBuffer)
         {
+            if (!_vertexs.TryGetValue(asset, out var vertexs))
+                _vertexs.Add(asset, vertexs = new DynamicVertexBuffer[asset.Meshes.Length]);
+
+            if (!_indexs.TryGetValue(asset, out var indexs))
+                _indexs.Add(asset, indexs = new DynamicIndexBuffer[asset.Meshes.Length]);
+
             var mesh = asset.Meshes[meshIndex];
 
             int totalVertices = mesh.Triangles.Sum(triangle => triangle.Polygon);
             int totalIndices = totalVertices;
+
+            vertexBuffer = vertexs[meshIndex];
+
+            if (vertexBuffer == null)
+                vertexBuffer = vertexs[meshIndex] = new DynamicVertexBuffer(_graphicsDevice, VertexPositionColorNormalTexture.VertexDeclaration, totalVertices, BufferUsage.WriteOnly);
+
+            indexBuffer = indexs[meshIndex];
+            if (indexBuffer == null)
+                indexBuffer = indexs[meshIndex] = new DynamicIndexBuffer(_graphicsDevice, IndexElementSize.ThirtyTwoBits, totalIndices, BufferUsage.WriteOnly);
 
             var vertices = new VertexPositionColorNormalTexture[totalVertices];
             var indices = new int[totalIndices];
@@ -123,13 +139,8 @@ namespace Client.Main.Content
                 }
             }
 
-            _graphicsDevice.SetRenderTarget(null);
-
-            vertexBuffer = new DynamicVertexBuffer(_graphicsDevice, VertexPositionColorNormalTexture.VertexDeclaration, totalVertices, BufferUsage.WriteOnly);
-            vertexBuffer.SetData(vertices);
-
-            indexBuffer = new DynamicIndexBuffer(_graphicsDevice, IndexElementSize.ThirtyTwoBits, totalIndices, BufferUsage.WriteOnly);
-            indexBuffer.SetData(indices);
+            vertexBuffer.SetData(vertices, 0, totalVertices, SetDataOptions.Discard);
+            indexBuffer.SetData(indices, 0, totalIndices, SetDataOptions.Discard);
         }
 
         public string GetTexturePath(BMD bmd, string texturePath)

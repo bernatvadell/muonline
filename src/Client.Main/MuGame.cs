@@ -74,7 +74,7 @@ namespace Client.Main
             _spriteBatch.Begin();
             _spriteBatch.DrawString(_font, $"FPS: {(int)FPSCounter.Instance.FPS_AVG}", new Vector2(10, 10), Color.White);
             if (ActiveScene is GameScene gameScene)
-                _spriteBatch.DrawString(_font, $"PX: {gameScene.PositionX}, PY: {gameScene.PositionY}", new Vector2(10, 30), Color.White);
+                _spriteBatch.DrawString(_font, $"PX: {gameScene.World.PositionX}, PY: {gameScene.World.PositionY}", new Vector2(10, 30), Color.White);
             _spriteBatch.End();
 
             GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;

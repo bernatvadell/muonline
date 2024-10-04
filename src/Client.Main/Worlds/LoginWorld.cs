@@ -2,7 +2,6 @@ using Client.Data.BMD;
 using Client.Main.Content;
 using Client.Main.Controls;
 using Client.Main.Objects;
-using Client.Main.Worlds;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
@@ -11,15 +10,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Client.Main.Scenes
+namespace Client.Main.Worlds
 {
-    public class GameScene : GameControl
+    public class LoginWorld : WorldControl
     {
-        public WorldControl World { get; private set; }
-
-        public GameScene()
+        public LoginWorld() : base(worldIndex: 74, tourMode: true)
         {
-            Controls.Add(World = new LorenciaWorld());
+            Camera.Instance.ViewFar = 7000f;
+            Camera.Instance.FOV = 65f;
         }
     }
 }

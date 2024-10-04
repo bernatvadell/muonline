@@ -1,8 +1,7 @@
-﻿using Client.Data.BMD;
-using Client.Data.OBJS;
+using Client.Data.BMD;
 using Client.Main.Content;
 using Client.Main.Controls;
-using Client.Main.Worlds;
+using Client.Main.Objects;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
@@ -11,13 +10,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Client.Main.Scenes
+namespace Client.Main.Worlds
 {
-    public class LoginScene : GameControl
+    public class DeviasWorld : WorldControl
     {
-        public LoginScene()
+        public DeviasWorld() : base(worldIndex: 3)
         {
-            Controls.Add(new LoginWorld());
+            PositionX = 219;
+            PositionY = 24;
         }
     }
 }

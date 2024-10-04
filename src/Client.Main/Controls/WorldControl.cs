@@ -8,6 +8,7 @@ using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Client.Main.Controls
@@ -15,9 +16,7 @@ namespace Client.Main.Controls
     public class WorldControl : GameControl
     {
         private GraphicsDevice _graphicsDevice;
-        private BasicEffect _debugEffect;
         private CameraTourController _tourController;
-        private float _nextMoveTime = 0f;
         private Vector3 _currentTargetPosition;
 
 
@@ -70,22 +69,21 @@ namespace Client.Main.Controls
 
             _currentTargetPosition = Vector3.Zero;
 
-            _debugEffect = new BasicEffect(graphicsDevice)
-            {
-                VertexColorEnabled = true,
-                World = Matrix.Identity
-            };
-
             await Task.WhenAll(tasks);
 
             var objReader = new OBJReader();
 
-            OBJ obj = await objReader.Load(Path.Combine(Constants.DataPath, worldFolder, $"EncTerrain{WorldIndex}.obj"));
+            var objectPath = Path.Combine(Constants.DataPath, worldFolder, $"EncTerrain{WorldIndex}.obj");
 
-            foreach (var mapObj in obj.Objects)
+            if (File.Exists(objectPath))
             {
-                var instance = WorldObjectFactory.CreateMapTileObject(this, mapObj);
-                if (instance != null) tasks.Add(AddObject(instance));
+                OBJ obj = await objReader.Load(objectPath);
+
+                foreach (var mapObj in obj.Objects)
+                {
+                    var instance = WorldObjectFactory.CreateMapTileObject(this, mapObj);
+                    if (instance != null) tasks.Add(AddObject(instance));
+                }
             }
 
             await Task.WhenAll(tasks);
@@ -137,11 +135,8 @@ namespace Client.Main.Controls
                 MoveCameraPosition(time);
             }
 
-            _debugEffect.Projection = Camera.Instance.Projection;
-            _debugEffect.View = Camera.Instance.View;
-
-            foreach (var obj in Objects)
-                obj.Update(time);
+            for (var i = 0; i < Objects.Count; i++)
+                Objects[i].Update(time);
         }
 
         public override void Draw(GameTime time)
@@ -149,7 +144,6 @@ namespace Client.Main.Controls
             base.Draw(time);
 
             RenderObjects(time);
-            // DrawTargetIndicator();
         }
 
         public async Task AddObject(WorldObject obj)
@@ -177,22 +171,6 @@ namespace Client.Main.Controls
         {
             foreach (var obj in Objects)
                 obj.Draw(gameTime);
-        }
-
-        private void DrawTargetIndicator()
-        {
-            var triangleVertices = new VertexPositionColor[3];
-            float size = 45f;
-
-            triangleVertices[0] = new VertexPositionColor(Camera.Instance.Target, Color.Yellow);
-            triangleVertices[1] = new VertexPositionColor(new Vector3(Camera.Instance.Target.X + size, Camera.Instance.Target.Y, Camera.Instance.Target.Z), Color.Yellow);
-            triangleVertices[2] = new VertexPositionColor(new Vector3(Camera.Instance.Target.X, Camera.Instance.Target.Y + size, Camera.Instance.Target.Z), Color.Yellow);
-
-            foreach (var pass in _debugEffect.CurrentTechnique.Passes)
-            {
-                pass.Apply();
-                _graphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, triangleVertices, 0, 1);
-            }
         }
 
         private void MoveCameraPosition(GameTime time)

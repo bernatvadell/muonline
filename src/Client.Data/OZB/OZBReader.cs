@@ -24,8 +24,8 @@ namespace Client.Data.OZB
 
             var version = br.ReadByte();
 
-            if (version != 4)
-                throw new FileLoadException($"Invalid OZB version. Expected 4, Received: {version}");
+            if (version != 0 && version != 4)
+                throw new FileLoadException($"Invalid OZB version. Expected 0 or 4, Received: {version}");
 
             var bmpHeader = br.ReadBytes(1080);
 
