@@ -13,5 +13,6 @@ namespace Client.Main
         public const float TERRAIN_SCALE = 100f;
         public const bool DRAW_BOUNDING_BOXES = false;
         public const string DataPath = @"C:\Projects\MuMain\Source Main 5.2\bin\Data\";
+        public const bool UNLIMITED_FPS = false;
     }
 }

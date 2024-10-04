@@ -24,8 +24,12 @@ namespace Client.Main
             _graphics = new GraphicsDeviceManager(this);
             _graphics.PreferredBackBufferWidth = 800;
             _graphics.PreferredBackBufferHeight = 600;
-            _graphics.SynchronizeWithVerticalRetrace = false;
-            IsFixedTimeStep = false;
+
+            if (Constants.UNLIMITED_FPS)
+            {
+                _graphics.SynchronizeWithVerticalRetrace = false;
+                IsFixedTimeStep = false;
+            }
 
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
@@ -69,7 +73,7 @@ namespace Client.Main
 
             _spriteBatch.Begin();
             _spriteBatch.DrawString(_font, $"FPS: {(int)FPSCounter.Instance.FPS_AVG}", new Vector2(10, 10), Color.White);
-            if(ActiveScene is GameScene gameScene)
+            if (ActiveScene is GameScene gameScene)
                 _spriteBatch.DrawString(_font, $"PX: {gameScene.PositionX}, PY: {gameScene.PositionY}", new Vector2(10, 30), Color.White);
             _spriteBatch.End();
 
