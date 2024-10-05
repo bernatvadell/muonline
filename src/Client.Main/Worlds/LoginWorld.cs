@@ -12,11 +12,12 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
-    public class LoginWorld : WorldControl
+    public class LoginWorld : TourWorldControl
     {
-        public LoginWorld() : base(worldIndex: 74, tourMode: true)
+        public LoginWorld() : base(worldIndex: 74)
         {
-            Camera.Instance.ViewFar = 7000f;
+            Camera.Instance.ViewFar = 3000f;
+            Camera.Instance.ViewNear = 1;
             Camera.Instance.FOV = 65f;
         }
     }
