@@ -8,9 +8,9 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
-    public class LorenciaWorld : WorldControl
+    public class LorenciaWorld : WalkableWorldControl
     {
-        public LorenciaWorld() : base(worldIndex: 1, tourMode: false)
+        public LorenciaWorld() : base(worldIndex: 1)
         {
             PositionX = 138;
             PositionY = 124;

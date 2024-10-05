@@ -12,12 +12,12 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
-    public class DungeonWorld : WalkableWorldControl
+    public class LostTowerWorld : WalkableWorldControl
     {
-        public DungeonWorld() : base(worldIndex: 2)
+        public LostTowerWorld() : base(worldIndex: 5)
         {
-            PositionX = 232;
-            PositionY = 126;
+            PositionX = 208;
+            PositionY = 81;
         }
     }
 }

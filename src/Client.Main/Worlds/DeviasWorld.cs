@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
-    public class DeviasWorld : WorldControl
+    public class DeviasWorld : WalkableWorldControl
     {
         public DeviasWorld() : base(worldIndex: 3)
         {

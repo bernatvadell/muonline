@@ -57,7 +57,7 @@ namespace Client.Main.Objects
 
             if (Model == null)
             {
-                Debug.WriteLine($"Model is not assigned for {ObjectName}");
+                Debug.WriteLine($"Model is not assigned for {ObjectName} -> Type: {Type}");
                 return Task.CompletedTask;
             }
 
@@ -143,7 +143,8 @@ namespace Client.Main.Objects
             float currentFrame = (float)(gameTime.TotalGameTime.TotalSeconds * animationSpeed);
 
             currentFrame %= Model.Actions[_currentAction].NumAnimationKeys;
-            var priorFrame = Math.Max(0, currentFrame - 1);
+            var priorFrame = currentFrame - 1;
+            if (priorFrame < 0) priorFrame = Model.Actions[_currentAction].NumAnimationKeys - 1 - priorFrame;
 
             Animation(currentFrame, priorFrame, _priorAction);
         }

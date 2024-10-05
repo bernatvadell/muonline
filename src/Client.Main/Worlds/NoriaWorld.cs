@@ -12,12 +12,12 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
-    public class NoriaWorld : WorldControl
+    public class NoriaWorld : WalkableWorldControl
     {
         public NoriaWorld() : base(worldIndex: 4)
         {
-            PositionX = 31;
-            PositionY = 38;
+            PositionX = 178;
+            PositionY = 104;
         }
     }
 }

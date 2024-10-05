@@ -15,11 +15,11 @@ namespace Client.Main.Scenes
 {
     public class GameScene : GameControl
     {
-        public WorldControl World { get; private set; }
+        public WalkableWorldControl World { get; private set; }
 
         public GameScene()
         {
-            Controls.Add(World = new LorenciaWorld());
+            Controls.Add(World = new LostTowerWorld());
         }
     }
 }

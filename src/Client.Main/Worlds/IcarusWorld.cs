@@ -12,10 +12,12 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
-    public class IcarusWorld : WorldControl
+    public class IcarusWorld : WalkableWorldControl
     {
         public IcarusWorld() : base(worldIndex: 11)
         {
+            PositionX = 14;
+            PositionX = 12;
         }
     }
 }
