@@ -435,8 +435,11 @@ namespace Client.Main.Controls
 
         private void RenderTexture(int textureIndex, float xf, float yf, Vector3[] terrainVertex, Vector3[] terrainLights)
         {
-            if (textureIndex == 255 || _textures[textureIndex] == null)
+            if (_textures[textureIndex] == null)
+            {
+                Debug.WriteLine($"Texture {textureIndex} is null for terrain {WorldIndex}");
                 return;
+            }
 
             var texture = _textures[textureIndex];
 
