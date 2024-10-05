@@ -2,7 +2,6 @@ using Client.Data.BMD;
 using Client.Main.Content;
 using Client.Main.Controls;
 using Client.Main.Objects;
-using Client.Main.Worlds;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
@@ -11,15 +10,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Client.Main.Scenes
+namespace Client.Main.Worlds
 {
-    public class GameScene : GameControl
+    public class AtlansWorld : WalkableWorldControl
     {
-        public WalkableWorldControl World { get; private set; }
-
-        public GameScene()
+        public AtlansWorld() : base(worldIndex: 8)
         {
-            Controls.Add(World = new LorenciaWorld());
+            PositionX = 20;
+            PositionY = 20;
         }
     }
 }
