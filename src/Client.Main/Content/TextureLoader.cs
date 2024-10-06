@@ -12,11 +12,11 @@ namespace Client.Main.Content
     {
         public static TextureLoader Instance { get; } = new TextureLoader();
 
-        private OZTReader _tgaReader = new OZTReader();
-        private OZJReader _jpgReader = new OZJReader();
-        private Dictionary<string, Task> _textureTasks = new Dictionary<string, Task>();
-        private Dictionary<string, TextureData> _textures = new Dictionary<string, TextureData>();
-        private Dictionary<string, Texture2D> _texture2dCache = new Dictionary<string, Texture2D>();
+        private readonly OZTReader _tgaReader = new ();
+        private readonly OZJReader _jpgReader = new ();
+        private readonly Dictionary<string, Task<TextureData>> _textureTasks = [];
+        private readonly Dictionary<string, TextureData> _textures = [];
+        private readonly Dictionary<string, Texture2D> _texture2dCache = [];
         private GraphicsDevice _graphicsDevice;
 
         public void SetGraphicsDevice(GraphicsDevice graphicsDevice)
@@ -24,7 +24,7 @@ namespace Client.Main.Content
             _graphicsDevice = graphicsDevice;
         }
 
-        public Task Prepare(string path)
+        public Task<TextureData> Prepare(string path)
         {
             lock (_textureTasks)
             {
@@ -39,7 +39,7 @@ namespace Client.Main.Content
             }
         }
 
-        private async Task InternalPrepare(string path)
+        private async Task<TextureData> InternalPrepare(string path)
         {
             try
             {
@@ -56,10 +56,13 @@ namespace Client.Main.Content
 
                 lock (_textures)
                     _textures.Add(path, data);
+
+                return data;
             }
             catch (Exception e)
             {
                 Console.WriteLine($"Failed to load asset {path}: {e.Message}");
+                return null;
             }
         }
 
@@ -75,13 +78,13 @@ namespace Client.Main.Content
 
         public Texture2D GetTexture2D(string path)
         {
+            if (path == null)
+                return null;
+
+            path = path.ToLowerInvariant();
+
             lock (_texture2dCache)
             {
-                if (path == null)
-                    return null;
-
-                path = path.ToLowerInvariant();
-
                 if (_texture2dCache.TryGetValue(path, out Texture2D value))
                     return value;
 

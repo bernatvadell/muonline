@@ -8,15 +8,15 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Controls
 {
-    public abstract class GameControl
+    public abstract class GameControl : IChildItem<GameControl>, IDisposable
     {
         public GameControl Parent { get; set; }
-        public ControlCollection Controls { get; private set; }
+        public ChildrenCollection<GameControl> Controls { get; private set; }
         public bool Ready { get; private set; } = false;
 
         protected GameControl()
         {
-            Controls = new ControlCollection(this);
+            Controls = new ChildrenCollection<GameControl>(this);
         }
 
         public virtual async Task Initialize(GraphicsDevice graphicsDevice)
@@ -48,6 +48,18 @@ namespace Client.Main.Controls
 
             for (int i = 0; i < Controls.Count; i++)
                 Controls[i].Draw(gameTime);
+        }
+
+        public virtual void Dispose()
+        {
+            var controls = Controls.ToArray();
+
+            for (int i = 0; i < controls.Length; i++)
+                controls[i].Dispose();
+
+            Controls.Clear();
+
+            Ready = false;
         }
     }
 }

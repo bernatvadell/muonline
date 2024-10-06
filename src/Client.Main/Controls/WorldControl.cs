@@ -16,16 +16,12 @@ namespace Client.Main.Controls
     public abstract class WorldControl : GameControl
     {
         private GraphicsDevice _graphicsDevice;
-       
 
         public virtual Vector3 TargetPosition { get; }
-
         public TerrainControl Terrain { get; }
         public short WorldIndex { get; private set; }
-
         public List<WorldObject> Objects { get; private set; } = [];
-
-        public Type[] MapTileObjects { get; } = new Type[(Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE_MASK) / 4];
+        public Type[] MapTileObjects { get; } = new Type[Constants.TERRAIN_SIZE];
 
         public WorldControl(short worldIndex)
         {
@@ -67,7 +63,6 @@ namespace Client.Main.Controls
 
             await Task.WhenAll(tasks);
         }
-
         public override void Update(GameTime time)
         {
             base.Update(time);
@@ -75,14 +70,11 @@ namespace Client.Main.Controls
             for (var i = 0; i < Objects.Count; i++)
                 Objects[i].Update(time);
         }
-
         public override void Draw(GameTime time)
         {
             base.Draw(time);
-
             RenderObjects(time);
         }
-
         public async Task AddObject(WorldObject obj)
         {
             lock (Objects)
@@ -108,6 +100,19 @@ namespace Client.Main.Controls
         {
             foreach (var obj in Objects)
                 obj.Draw(gameTime);
+
+            foreach (var obj in Objects)
+                obj.DrawAfter(gameTime);
+        }
+
+        public override void Dispose()
+        {
+            base.Dispose();
+
+            var objects = Objects.ToArray();
+
+            for (var i = 0; i < objects.Length; i++)
+                objects[i].Dispose();
         }
     }
 }

@@ -36,11 +36,7 @@ namespace Client.Data
         Stone03 = 32,
         Stone04 = 33,
         Stone05 = 34,
-        Stone06 = 35,
-        Stone07 = 36,
-        Stone08 = 37,
-        Stone09 = 38,
-        Stone10 = 39,
+        
         StoneStatue01 = 40,
         StoneStatue02 = 41,
         StoneStatue03 = 42,

@@ -40,7 +40,6 @@ namespace Client.Main.Controls
         private GraphicsDevice _graphicsDevice;
 
         public short WorldIndex { get; set; }
-
         public override async Task Load(GraphicsDevice graphicsDevice)
         {
             _graphicsDevice = graphicsDevice;
@@ -120,7 +119,6 @@ namespace Client.Main.Controls
 
             await base.Load(graphicsDevice);
         }
-
         public override void Update(GameTime time)
         {
             base.Update(time);
@@ -130,14 +128,13 @@ namespace Client.Main.Controls
 
             InitTerrainLight(time);
         }
-
         public override void Draw(GameTime time)
         {
-            RenderTerrain();
+            _graphicsDevice.BlendState = BlendState.Opaque;
 
+            RenderTerrain();
             base.Draw(time);
         }
-
         public float RequestTerrainHeight(float xf, float yf)
         {
             if (_terrain == null || _terrain.TerrainWall == null || xf < 0.0f || yf < 0.0f)
@@ -172,7 +169,6 @@ namespace Client.Main.Controls
             float right = _backTerrainHeight[Index3] + (_backTerrainHeight[Index4] - _backTerrainHeight[Index3]) * yd;
             return left + (right - left) * xd;
         }
-
         public Vector3 RequestTerrainLight(float xf, float yf)
         {
             if (_terrain == null || _terrain.TerrainWall == null || xf < 0.0f || yf < 0.0f)
@@ -224,11 +220,26 @@ namespace Client.Main.Controls
             return new Vector3(output[0], output[1], output[2]);
         }
 
+        public override void Dispose()
+        {
+            base.Dispose();
+            _terrainEffect.Dispose();
+
+            _terrain = null;
+            _mapping = default;
+            _textures = null;
+            _terrainGrassWind = null;
+            _terrainLightTexture = null;
+            _terrainLight = null;
+            _backTerrainLight = null;
+            _terrainNormal = null;
+            _backTerrainHeight = null;
+        }
+
         private static int GetTerrainIndex(int x, int y)
         {
             return (y) * Constants.TERRAIN_SIZE + (x);
         }
-
         private static int GetTerrainIndexRepeat(int x, int y)
         {
             return ((y & Constants.TERRAIN_SIZE_MASK) * Constants.TERRAIN_SIZE) + (x & Constants.TERRAIN_SIZE_MASK);
@@ -257,7 +268,6 @@ namespace Client.Main.Controls
                 }
             }
         }
-
         private void CreateTerrainLight()
         {
             var lightTextureInfo = _terrainLightTexture;
@@ -284,7 +294,6 @@ namespace Client.Main.Controls
                 }
             }
         }
-
         private void InitTerrainLight(GameTime time)
         {
             _terrainGrassWind = new float[Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE];
@@ -308,7 +317,6 @@ namespace Client.Main.Controls
                 }
             }
         }
-
         private void RenderTerrain()
         {
             int blockSize = 4;
@@ -347,8 +355,6 @@ namespace Client.Main.Controls
                 }
             }
         }
-
-
         private void RenderTerrainBlock(float xf, float yf, int xi, int yi)
         {
             int lodi = 1;
@@ -365,7 +371,6 @@ namespace Client.Main.Controls
                 yf += lodf;
             }
         }
-
         private void RenderTerrainTile(float xf, float yf, int xi, int yi, float lodf, int lodi)
         {
             var idx1 = GetTerrainIndex(xi, yi);
@@ -432,7 +437,6 @@ namespace Client.Main.Controls
             // RenderTexture(alpha ? _mapping.Layer1[idx1] : _mapping.Layer2[idx1], xf, yf, terrainVertex, alpha1);
             // if (alpha) RenderTexture(alpha ? _mapping.Layer2[idx1] : _mapping.Layer1[idx1], xf, yf, terrainVertex, alpha1);
         }
-
         private void RenderTexture(int textureIndex, float xf, float yf, Vector3[] terrainVertex, Vector3[] terrainLights)
         {
             if (_textures[textureIndex] == null)

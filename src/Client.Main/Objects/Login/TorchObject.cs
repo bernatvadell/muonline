@@ -1,5 +1,5 @@
-﻿using Client.Data.OBJS;
-using Client.Main.Content;
+﻿using Client.Main.Content;
+using Client.Main.Objects.Effects;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -10,13 +10,24 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Client.Main.Objects
+namespace Client.Main.Objects.Login
 {
-    public class MapTileObject : ModelObject
+    public class TorchObject : ModelObject
     {
+        public override int OriginBoneIndex => 1;
+
+        public TorchObject()
+        {
+            BoundingBoxColor = Color.Blue;
+            Children.Add(new FlareEffect()
+            {
+                Scale = 4f
+            });
+        }
+
         public override async Task Load(GraphicsDevice graphicsDevice)
         {
-            var modelPath = Path.Join($"Object{World.WorldIndex}", $"Object{(Type + 1).ToString().PadLeft(2, '0')}.bmd");
+            var modelPath = Path.Join($"Object74", $"Object38.bmd");
 
             Model = await BMDLoader.Instance.Prepare(modelPath);
 

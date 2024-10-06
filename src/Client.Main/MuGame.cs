@@ -5,13 +5,18 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Client.Main
 {
     public class MuGame : Game
     {
+        public static MuGame Instance { get; private set; }
+
         private GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch;
+
+
         private bool _loaded = false;
 
         public static Random Random { get; } = new Random();
@@ -19,11 +24,27 @@ namespace Client.Main
         public GameControl ActiveScene;
         private SpriteFont _font;
 
+        public RenderTarget2D EffectRenderTarget { get; private set; }
+        public BlendState InverseDestinationBlend { get; private set; }
+
         public MuGame()
         {
+            Instance = this;
+
             _graphics = new GraphicsDeviceManager(this);
             _graphics.PreferredBackBufferWidth = 800;
             _graphics.PreferredBackBufferHeight = 600;
+
+           
+
+            InverseDestinationBlend = new BlendState
+            {
+                ColorSourceBlend = Blend.InverseDestinationColor,
+                ColorDestinationBlend = Blend.One,
+                AlphaSourceBlend = Blend.One, // Opcional, dependiendo si se desea afectar también el alfa
+                AlphaDestinationBlend = Blend.One, // Mantener el alfa del destino sin cambios
+                BlendFactor = Color.White
+            };
 
             if (Constants.UNLIMITED_FPS)
             {
@@ -46,6 +67,7 @@ namespace Client.Main
             BMDLoader.Instance.SetGraphicsDevice(GraphicsDevice);
             TextureLoader.Instance.SetGraphicsDevice(GraphicsDevice);
 
+            EffectRenderTarget = new RenderTarget2D(GraphicsDevice, 800, 600);
             _spriteBatch = new SpriteBatch(GraphicsDevice);
             _font = Content.Load<SpriteFont>("Arial");
 
@@ -64,12 +86,21 @@ namespace Client.Main
         {
             FPSCounter.Instance.CalcFPS(gameTime);
 
+            GraphicsDevice.SetRenderTarget(EffectRenderTarget);
             GraphicsDevice.Clear(Color.Black);
+            GraphicsDevice.SetRenderTarget(null);
+
+            GraphicsDevice.Clear(Color.Black);
+
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
             GraphicsDevice.BlendState = BlendState.Opaque;
 
             if (_loaded) ActiveScene?.Draw(gameTime);
+
+            //_spriteBatch.Begin(blendState: BlendState.AlphaBlend);
+            //_spriteBatch.Draw(EffectRenderTarget, Vector2.Zero, Color.White);
+            //_spriteBatch.End();
 
             _spriteBatch.Begin();
             _spriteBatch.DrawString(_font, $"FPS: {(int)FPSCounter.Instance.FPS_AVG}", new Vector2(10, 10), Color.White);

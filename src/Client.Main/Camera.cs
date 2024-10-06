@@ -1,5 +1,6 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using System;
 
 namespace Client.Main
 {
@@ -9,7 +10,7 @@ namespace Client.Main
 
         private float _aspectRatio = 1.4f;
         private float _fov = 35f;
-        private float _viewNear = 20f;
+        private float _viewNear = 1f;
         private float _viewFar = 2000f;
         private Vector3 _position = Vector3.Zero;
         private Vector3 _target = Vector3.Zero;
@@ -26,6 +27,8 @@ namespace Client.Main
         public Matrix Projection { get; private set; }
 
         public BoundingFrustum Frustum { get; private set; }
+
+        public event EventHandler CameraMoved;
 
         private Camera()
         {
@@ -50,6 +53,8 @@ namespace Client.Main
             );
 
             UpdateFrustum();
+
+            CameraMoved?.Invoke(this, EventArgs.Empty);
         }
 
         private void UpdateView()
@@ -61,6 +66,8 @@ namespace Client.Main
             View = Matrix.CreateLookAt(Position, Target, cameraUp);
 
             UpdateFrustum();
+
+            CameraMoved?.Invoke(this, EventArgs.Empty);
         }
 
         private void UpdateFrustum()

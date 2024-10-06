@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -29,6 +30,12 @@ namespace Client.Main.Controls
         {
             base.Update(time);
             _tourController?.Update(time);
+        }
+
+        public override void Dispose()
+        {
+            base.Dispose();
+            _tourController = null;
         }
     }
 }

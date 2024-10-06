@@ -1,7 +1,10 @@
+using Client.Data;
 using Client.Data.BMD;
 using Client.Main.Content;
 using Client.Main.Controls;
-using Client.Main.Objects;
+using Client.Main.Objects.Effects;
+using Client.Main.Objects.Login;
+using Client.Main.Objects.Lorencia;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
@@ -16,9 +19,21 @@ namespace Client.Main.Worlds
     {
         public LoginWorld() : base(worldIndex: 74)
         {
-            Camera.Instance.ViewFar = 3000f;
+            Camera.Instance.ViewFar = 2500f;
             Camera.Instance.ViewNear = 1;
             Camera.Instance.FOV = 65f;
+        }
+
+        protected override void CreateMapTileObjects()
+        {
+            base.CreateMapTileObjects();
+            MapTileObjects[37] = typeof(TorchObject);
+            MapTileObjects[79] = typeof(StatueTorchObject);
+        }
+
+        public override async Task Load(GraphicsDevice graphicsDevice)
+        {
+            await base.Load(graphicsDevice);
         }
     }
 }
