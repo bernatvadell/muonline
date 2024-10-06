@@ -1,5 +1,7 @@
-﻿using Client.Main.Controls;
+﻿using Client.Main.Controllers;
+using Client.Main.Controls;
 using Client.Main.Objects.Lorencia;
+using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -115,6 +117,13 @@ namespace Client.Main.Worlds
 
             for (var i = 0; i < 3; i++)
                 MapTileObjects[151 + i] = typeof(BeerObject);
+        }
+
+        public override async Task Load(GraphicsDevice graphicsDevice)
+        {
+            await base.Load(graphicsDevice);
+
+            SoundController.Instance.PlayBackgroundMusic("Music/MuTheme.mp3");
         }
     }
 }

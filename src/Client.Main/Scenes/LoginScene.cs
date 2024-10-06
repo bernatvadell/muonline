@@ -1,6 +1,7 @@
 ﻿using Client.Data.BMD;
 using Client.Data.OBJS;
 using Client.Main.Content;
+using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Worlds;
 using Microsoft.Xna.Framework.Graphics;
@@ -18,6 +19,13 @@ namespace Client.Main.Scenes
         public LoginScene()
         {
             Controls.Add(new LoginWorld());
+        }
+
+        public override async Task Load(GraphicsDevice graphicsDevice)
+        {
+            await base.Load(graphicsDevice);
+
+            SoundController.Instance.PlayBackgroundMusic("Music/login_theme.mp3");
         }
     }
 }
