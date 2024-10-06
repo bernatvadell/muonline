@@ -23,6 +23,8 @@ namespace Client.Main.Objects.Particles.Effects
 
         public override void Update(GameTime time)
         {
+            if (Particle == null) return;
+
             float elapsedSeconds = (float)time.ElapsedGameTime.TotalSeconds;
             CurrentVelocity += Gravity * elapsedSeconds;
             Particle.Position += CurrentVelocity * elapsedSeconds;

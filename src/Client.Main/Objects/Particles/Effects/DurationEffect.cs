@@ -20,7 +20,7 @@ namespace Client.Main.Objects.Particles.Effects
 
             if (Duration <= 0)
             {
-                Particle.Dispose();
+                Particle?.Dispose();
                 return;
             }
         }

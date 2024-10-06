@@ -32,7 +32,7 @@ namespace Client.Main.Objects
         public override bool Ready => Model != null;
 
         public float BodyHeight { get; private set; }
-        public override Vector3 Origin => Vector3.Transform(_boneTransform[OriginBoneIndex].Translation, WorldPosition);
+        public override Vector3 Origin => _boneTransform != null && _boneTransform.Length > OriginBoneIndex ? Vector3.Transform(_boneTransform[OriginBoneIndex].Translation, WorldPosition) : Vector3.Zero;
 
         public int HiddenMesh { get; set; } = -1;
         public int BlendMesh { get; set; } = -1;
@@ -74,8 +74,11 @@ namespace Client.Main.Objects
 
             if (!Ready || OutOfView) return;
 
-            _effect.View = Camera.Instance.View;
-            _effect.Projection = Camera.Instance.Projection;
+            if (_effect != null)
+            {
+                _effect.View = Camera.Instance.View;
+                _effect.Projection = Camera.Instance.Projection;
+            }
 
             Animation(gameTime);
             SetDynamicBuffers();
@@ -263,6 +266,8 @@ namespace Client.Main.Objects
         }
         private void GenerateBoneMatrix(int priorAction, int currentAction, int priorAnimationFrame, int currentAnimationFrame, float interpolationFactor)
         {
+            if (_boneTransform == null) return;
+
             var priorActionData = Model.Actions[priorAction];
             var currentActionData = Model.Actions[currentAction];
             var changed = false;

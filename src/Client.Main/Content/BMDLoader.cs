@@ -84,6 +84,13 @@ namespace Client.Main.Content
 
         public void GetModelBuffers(BMD asset, int meshIndex, Color color, Matrix[] boneMatrix, out DynamicVertexBuffer vertexBuffer, out DynamicIndexBuffer indexBuffer)
         {
+            if (boneMatrix == null)
+            {
+                vertexBuffer = null;
+                indexBuffer = null;
+                return;
+            }
+
             if (!_vertexs.TryGetValue(asset, out var vertexs))
                 _vertexs.Add(asset, vertexs = new DynamicVertexBuffer[asset.Meshes.Length]);
 
@@ -97,12 +104,11 @@ namespace Client.Main.Content
 
             vertexBuffer = vertexs[meshIndex];
 
-            if (vertexBuffer == null)
-                vertexBuffer = vertexs[meshIndex] = new DynamicVertexBuffer(_graphicsDevice, VertexPositionColorNormalTexture.VertexDeclaration, totalVertices, BufferUsage.WriteOnly);
+            vertexBuffer ??= vertexs[meshIndex] = new DynamicVertexBuffer(_graphicsDevice, VertexPositionColorNormalTexture.VertexDeclaration, totalVertices, BufferUsage.WriteOnly);
 
             indexBuffer = indexs[meshIndex];
-            if (indexBuffer == null)
-                indexBuffer = indexs[meshIndex] = new DynamicIndexBuffer(_graphicsDevice, IndexElementSize.ThirtyTwoBits, totalIndices, BufferUsage.WriteOnly);
+
+            indexBuffer ??= indexs[meshIndex] = new DynamicIndexBuffer(_graphicsDevice, IndexElementSize.ThirtyTwoBits, totalIndices, BufferUsage.WriteOnly);
 
             var vertices = new VertexPositionColorNormalTexture[totalVertices];
             var indices = new int[totalIndices];

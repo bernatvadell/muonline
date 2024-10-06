@@ -15,8 +15,6 @@ namespace Client.Main.Controls
 {
     public class WorldControl : GameControl
     {
-        private GraphicsDevice _graphicsDevice;
-
         public virtual Vector3 TargetPosition { get; }
         public TerrainControl Terrain { get; }
         public short WorldIndex { get; private set; }
@@ -38,7 +36,6 @@ namespace Client.Main.Controls
 
             var worldFolder = $"World{WorldIndex}";
 
-            _graphicsDevice = graphicsDevice;
 
             Camera.Instance.AspectRatio = graphicsDevice.Viewport.AspectRatio;
 
@@ -82,7 +79,7 @@ namespace Client.Main.Controls
                 Objects.Add(obj);
             }
 
-            await obj.Load(_graphicsDevice);
+            await obj.Load(GraphicsDevice);
         }
 
         protected virtual void CreateMapTileObjects()

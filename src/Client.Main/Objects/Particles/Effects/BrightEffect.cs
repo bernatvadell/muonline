@@ -19,6 +19,8 @@ namespace Client.Main.Objects.Particles.Effects
 
         public override void Update(GameTime time)
         {
+            if (Particle == null) return;
+
             if (_durationEffect != null && _durationEffect.Duration < 15)
                 Particle.Alpha -= FPSCounter.Instance.FPS_ANIMATION_FACTOR * 0.2f;
             if (Particle.Alpha < 1)

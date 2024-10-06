@@ -5,7 +5,8 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
-using static System.Runtime.InteropServices.JavaScript.JSType;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace Client.Main
 {
@@ -14,18 +15,21 @@ namespace Client.Main
         public static MuGame Instance { get; private set; }
 
         private GraphicsDeviceManager _graphics;
-        private SpriteBatch _spriteBatch;
-
-
         private bool _loaded = false;
 
         public static Random Random { get; } = new Random();
 
-        public GameControl ActiveScene;
-        private SpriteFont _font;
-
+        public BaseScene ActiveScene;
+        public SpriteBatch SpriteBatch { get; private set; }
+        public SpriteFont Font { get; private set; }
         public RenderTarget2D EffectRenderTarget { get; private set; }
         public BlendState InverseDestinationBlend { get; private set; }
+
+        public int Width => _graphics.PreferredBackBufferWidth;
+        public int Height => _graphics.PreferredBackBufferHeight;
+
+        public Texture2D Pixel { get; private set; }
+        public MouseState Mouse { get; private set; }
 
         public MuGame()
         {
@@ -52,7 +56,16 @@ namespace Client.Main
 
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
-            ActiveScene = new GameScene();
+        }
+
+        public void ChangeScene<T>() where T : BaseScene, new()
+        {
+            ActiveScene?.Dispose();
+            ActiveScene = new T();
+            if (_loaded)
+            {
+                Task.Run(() => ActiveScene.Initialize(GraphicsDevice));
+            }
         }
 
         protected override void Initialize()
@@ -60,22 +73,24 @@ namespace Client.Main
             IsMouseVisible = false;
             base.Initialize();
         }
-
-        protected override async void LoadContent()
+        protected override void LoadContent()
         {
             BMDLoader.Instance.SetGraphicsDevice(GraphicsDevice);
             TextureLoader.Instance.SetGraphicsDevice(GraphicsDevice);
 
+            Pixel = new Texture2D(GraphicsDevice, 1, 1);
+            Pixel.SetData(new[] { Color.White });
             EffectRenderTarget = new RenderTarget2D(GraphicsDevice, 800, 600);
-            _spriteBatch = new SpriteBatch(GraphicsDevice);
-            _font = Content.Load<SpriteFont>("Arial");
-
-            await ActiveScene?.Initialize(GraphicsDevice);
+            SpriteBatch = new SpriteBatch(GraphicsDevice);
+            Font = Content.Load<SpriteFont>("Arial");
             _loaded = true;
+            ChangeScene<TestScene>();
         }
 
         protected override void Update(GameTime gameTime)
         {
+            Mouse = Microsoft.Xna.Framework.Input.Mouse.GetState();
+
             if (_loaded) ActiveScene?.Update(gameTime);
 
             base.Update(gameTime);
@@ -97,15 +112,11 @@ namespace Client.Main
 
             if (_loaded) ActiveScene?.Draw(gameTime);
 
-            //_spriteBatch.Begin(blendState: BlendState.AlphaBlend);
-            //_spriteBatch.Draw(EffectRenderTarget, Vector2.Zero, Color.White);
-            //_spriteBatch.End();
-
-            _spriteBatch.Begin();
-            _spriteBatch.DrawString(_font, $"FPS: {(int)FPSCounter.Instance.FPS_AVG}", new Vector2(10, 10), Color.White);
+            SpriteBatch.Begin();
+            SpriteBatch.DrawString(Font, $"FPS: {(int)FPSCounter.Instance.FPS_AVG}", new Vector2(10, 10), Color.White);
             if (ActiveScene is GameScene gameScene)
-                _spriteBatch.DrawString(_font, $"PX: {gameScene.World.PositionX}, PY: {gameScene.World.PositionY}", new Vector2(10, 30), Color.White);
-            _spriteBatch.End();
+                SpriteBatch.DrawString(Font, $"PX: {gameScene.World.PositionX}, PY: {gameScene.World.PositionY}", new Vector2(10, 30), Color.White);
+            SpriteBatch.End();
 
             GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
 

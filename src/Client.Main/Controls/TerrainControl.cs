@@ -228,7 +228,7 @@ namespace Client.Main.Controls
         public override void Dispose()
         {
             base.Dispose();
-            _terrainEffect.Dispose();
+            _terrainEffect?.Dispose();
 
             _terrain = null;
             _mapping = default;

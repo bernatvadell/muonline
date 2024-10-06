@@ -1,5 +1,6 @@
 ﻿using Client.Data;
 using Client.Main.Controls;
+using Client.Main.Controls.UI;
 using Client.Main.Objects.Effects;
 using Client.Main.Objects.Login;
 using Client.Main.Objects.Lorencia;
@@ -27,11 +28,15 @@ namespace Client.Main.Scenes
             Camera.Instance.Target = new Vector3(1, 1, 1);
         }
 
-
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async void AfterLoad()
         {
-            await base.Load(graphicsDevice);
+            base.AfterLoad();
             await World.AddObject(new StatueTorchObject() { World = World });
+
+            MessageWindow.Show("Press the button to change scene", () =>
+            {
+                MuGame.Instance.ChangeScene<LoginScene>();
+            });
         }
 
         public override void Update(GameTime time)

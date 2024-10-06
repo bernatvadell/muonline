@@ -91,9 +91,12 @@ namespace Client.Main.Objects
             if (OutOfView)
                 return;
 
-            _boundingBoxEffect.View = Camera.Instance.View;
-            _boundingBoxEffect.Projection = Camera.Instance.Projection;
-            _boundingBoxEffect.World = Matrix.Identity;
+            if (_boundingBoxEffect != null)
+            {
+                _boundingBoxEffect.View = Camera.Instance.View;
+                _boundingBoxEffect.Projection = Camera.Instance.Projection;
+                _boundingBoxEffect.World = Matrix.Identity;
+            }
 
             for (var i = 0; i < Children.Count; i++)
                 Children[i].Update(gameTime);

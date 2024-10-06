@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+﻿using Client.Main.Controls.UI;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
@@ -40,7 +41,8 @@ namespace Client.Main.Controls
         {
             var mouseState = Mouse.GetState();
             
-            Position = new Vector2(mouseState.X, mouseState.Y);
+            X = mouseState.X;
+            Y = mouseState.Y;
 
             if (mouseState.LeftButton == ButtonState.Pressed)
                 TexturePath = "Interface/CursorPush.tga";
