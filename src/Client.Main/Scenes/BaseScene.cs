@@ -14,6 +14,7 @@ namespace Client.Main.Scenes
     {
         public CursorControl Cursor { get; }
         public GameControl MouseControl { get; set; }
+        public GameControl FocusedControl { get; set; }
 
         public BaseScene()
         {
@@ -42,6 +43,7 @@ namespace Client.Main.Scenes
             {
                 MouseControl.IsMousePressed = false;
                 MouseControl.OnClick();
+                FocusedControl = MouseControl;
             }
             else if (currentMouseControl != null && currentMouseControl.IsMousePressed)
             {

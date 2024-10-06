@@ -61,11 +61,14 @@ namespace Client.Main
         public void ChangeScene<T>() where T : BaseScene, new()
         {
             ActiveScene?.Dispose();
-            ActiveScene = new T();
-            if (_loaded)
+            ActiveScene = null;
+
+            var scene = new T();
+            Task.Run(async () =>
             {
-                Task.Run(() => ActiveScene.Initialize(GraphicsDevice));
-            }
+                await scene.Initialize(GraphicsDevice);
+                ActiveScene = scene;
+            });
         }
 
         protected override void Initialize()

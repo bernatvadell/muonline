@@ -34,6 +34,7 @@
             treeView1 = new TreeView();
             panel1 = new Panel();
             splitContainer1 = new SplitContainer();
+            exportToolStripMenuItem = new ToolStripMenuItem();
             menuStrip1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)splitContainer1).BeginInit();
             splitContainer1.Panel1.SuspendLayout();
@@ -52,7 +53,7 @@
             // 
             // fileToolStripMenuItem
             // 
-            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { menuOpenDataFolder });
+            fileToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { menuOpenDataFolder, exportToolStripMenuItem });
             fileToolStripMenuItem.Name = "fileToolStripMenuItem";
             fileToolStripMenuItem.Size = new Size(37, 20);
             fileToolStripMenuItem.Text = "File";
@@ -60,7 +61,7 @@
             // menuOpenDataFolder
             // 
             menuOpenDataFolder.Name = "menuOpenDataFolder";
-            menuOpenDataFolder.Size = new Size(163, 22);
+            menuOpenDataFolder.Size = new Size(180, 22);
             menuOpenDataFolder.Text = "Open data folder";
             // 
             // treeView1
@@ -97,6 +98,13 @@
             splitContainer1.SplitterDistance = 266;
             splitContainer1.TabIndex = 3;
             // 
+            // exportToolStripMenuItem
+            // 
+            exportToolStripMenuItem.Name = "exportToolStripMenuItem";
+            exportToolStripMenuItem.Size = new Size(180, 22);
+            exportToolStripMenuItem.Text = "Export";
+            exportToolStripMenuItem.Click += ExportToolStripMenuItem_Click;
+            // 
             // FMain
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -126,5 +134,6 @@
         private TreeView treeView1;
         private Panel panel1;
         private SplitContainer splitContainer1;
+        private ToolStripMenuItem exportToolStripMenuItem;
     }
 }

@@ -19,7 +19,8 @@ namespace Client.Main.Controls.UI
         public int OffsetWidth { get; set; }
         public int OffsetHeight { get; set; }
 
-        public override Rectangle Rectangle => new(OffsetX, OffsetY, Width - OffsetWidth, Height - OffsetHeight);
+        public virtual Rectangle SourceRectangle => new(OffsetX, OffsetY, _texture.Width - OffsetWidth, _texture.Height - OffsetHeight);
+        public override Rectangle Rectangle => new(ScreenX, ScreenY, (int)(SourceRectangle.Width * Scale), (int)(SourceRectangle.Height * Scale));
 
         public string TexturePath { get => _texturePath; set { if (_texturePath != value) { _texturePath = value; OnChangeTexturePath(); } } }
         public BlendState BlendState { get; set; } = BlendState.Opaque;
@@ -42,7 +43,7 @@ namespace Client.Main.Controls.UI
                 return;
 
             MuGame.Instance.SpriteBatch.Begin(blendState: BlendState);
-            MuGame.Instance.SpriteBatch.Draw(_texture, new Vector2(ScreenX, ScreenY), Rectangle, Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0f);
+            MuGame.Instance.SpriteBatch.Draw(_texture, Rectangle, SourceRectangle, Color.White, 0f, Vector2.Zero, SpriteEffects.None, 0f);
             MuGame.Instance.SpriteBatch.End();
 
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;

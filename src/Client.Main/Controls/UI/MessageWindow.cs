@@ -48,7 +48,7 @@ namespace Client.Main.Controls.UI
                 control._button.Click += (sender, e) =>
                 {
                     onClose?.Invoke();
-                    MuGame.Instance.ActiveScene.Controls.Remove(control);
+                    MuGame.Instance.ActiveScene?.Controls.Remove(control);
                 };
 
                 MuGame.Instance.ActiveScene.Controls.Add(control);

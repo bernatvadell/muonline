@@ -13,6 +13,8 @@ namespace Client.Editor
 {
     public partial class CTextureEditor : UserControl
     {
+        public TextureData Data { get; private set; }
+
         public CTextureEditor()
         {
             InitializeComponent();
@@ -27,15 +29,15 @@ namespace Client.Editor
                 case ".ozj":
                     {
                         var reader = new OZJReader();
-                        var data = await reader.Load(filePath);
-                        SetData(data);
+                        Data = await reader.Load(filePath);
+                        SetData();
                     }
                     break;
                 case ".ozt":
                     {
                         var reader = new OZTReader();
-                        var data = await reader.Load(filePath);
-                        SetData(data);
+                        Data = await reader.Load(filePath);
+                        SetData();
                     }
                     break;
                 default:
@@ -43,24 +45,23 @@ namespace Client.Editor
             }
         }
 
-        public void SetData(TextureData textureData)
+        public void SetData()
         {
-            Bitmap bitmap = new Bitmap((int)textureData.Width, (int)textureData.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            var textureData = Data;
+
+            var bitmap = new Bitmap((int)textureData.Width, (int)textureData.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
 
             for (int y = 0; y < textureData.Height; y++)
             {
                 for (int x = 0; x < textureData.Width; x++)
                 {
-                    // Calcular el índice en el array de bytes
                     int index = (y * (int)textureData.Width + x) * textureData.Components;
 
-                    // Extraer los componentes RGB o RGBA
                     byte r = textureData.Data[index];
                     byte g = textureData.Data[index + 1];
                     byte b = textureData.Data[index + 2];
                     byte a = (textureData.Components == 4) ? textureData.Data[index + 3] : (byte)255; // Si son RGB, se asume A = 255
 
-                    // Crear un Color con los componentes
                     Color color = Color.FromArgb(a, r, g, b);
 
                     bitmap.SetPixel(x, y, color);
@@ -68,6 +69,21 @@ namespace Client.Editor
             }
 
             pictureBox1.Image = bitmap;
+        }
+
+        public void Export()
+        {
+            var bitmap = (Bitmap)pictureBox1.Image;
+            using (var sfd = new SaveFileDialog())
+            {
+                var isPng = Data.Components == 4;
+                sfd.Filter = isPng ? "PNG|*.png" : "JPG|*.jpg";
+
+                if (sfd.ShowDialog() == DialogResult.OK)
+                {
+                    bitmap.Save(sfd.FileName, isPng ? System.Drawing.Imaging.ImageFormat.Png : System.Drawing.Imaging.ImageFormat.Jpeg);
+                }
+            }
         }
     }
 }

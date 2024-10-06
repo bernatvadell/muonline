@@ -24,6 +24,7 @@ namespace Client.Main.Controls
         public int Y { get; set; }
         public int Width { get; set; }
         public int Height { get; set; }
+        public float Scale { get; set; } = 1f;
 
         public virtual Rectangle Rectangle => new(0, 0, Width, Height);
 
@@ -36,6 +37,7 @@ namespace Client.Main.Controls
 
         public bool IsMouseOver { get; set; }
         public bool IsMousePressed { get; set; }
+        public bool HasFocus { get; set; }
 
         protected GameControl()
         {
@@ -44,6 +46,7 @@ namespace Client.Main.Controls
 
         public virtual void OnClick()
         {
+            HasFocus = true;
             Click?.Invoke(this, EventArgs.Empty);
         }
 

@@ -4,6 +4,8 @@ namespace Client.Editor
 {
     public partial class FMain : Form
     {
+        public UserControl Editor { get; private set; }
+
         public FMain()
         {
             InitializeComponent();
@@ -33,6 +35,7 @@ namespace Client.Editor
                 case ".ozt":
                     {
                         var editor = new CTextureEditor();
+                        Editor = editor;
                         editor.Dock = DockStyle.Fill;
                         editor.Init(filePath);
                         panel1.Controls.Clear();
@@ -75,6 +78,14 @@ namespace Client.Editor
                     Tag = file
                 };
                 directoryNode.Nodes.Add(fileNode);
+            }
+        }
+
+        private void ExportToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if(Editor is CTextureEditor editor)
+            {
+                editor.Export();
             }
         }
     }
