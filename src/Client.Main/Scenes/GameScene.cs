@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Scenes
 {
-    public class GameScene : GameControl
+    public class GameScene : BaseScene
     {
         public WalkableWorldControl World { get; private set; }
 

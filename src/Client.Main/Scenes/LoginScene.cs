@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Scenes
 {
-    public class LoginScene : GameControl
+    public class LoginScene : BaseScene
     {
         public LoginScene()
         {

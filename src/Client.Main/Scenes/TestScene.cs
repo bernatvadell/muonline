@@ -15,20 +15,23 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Scenes
 {
-    public class TestScene : WorldControl
+    public class TestScene : BaseScene
     {
         private ParticleSystem Particles;
+        public WorldControl World { get; private set; }
 
-        public TestScene() : base(-1)
+        public TestScene()
         {
+            Controls.Add(World = new WorldControl(-1));
             Camera.Instance.Position = new Vector3(10, 10, 10);
             Camera.Instance.Target = new Vector3(1, 1, 1);
         }
 
+
         public override async Task Load(GraphicsDevice graphicsDevice)
         {
             await base.Load(graphicsDevice);
-            await AddObject(new StatueTorchObject() { World = this });
+            await World.AddObject(new StatueTorchObject() { World = World });
         }
 
         public override void Update(GameTime time)

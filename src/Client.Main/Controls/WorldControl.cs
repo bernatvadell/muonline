@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Controls
 {
-    public abstract class WorldControl : GameControl
+    public class WorldControl : GameControl
     {
         private GraphicsDevice _graphicsDevice;
 

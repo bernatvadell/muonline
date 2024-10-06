@@ -57,6 +57,7 @@ namespace Client.Main
 
         protected override void Initialize()
         {
+            IsMouseVisible = false;
             base.Initialize();
         }
 

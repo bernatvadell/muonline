@@ -10,6 +10,7 @@ namespace Client.Main.Controls
 {
     public abstract class GameControl : IChildItem<GameControl>, IDisposable
     {
+        public GraphicsDevice GraphicsDevice { get; private set; }
         public GameControl Parent { get; set; }
         public ChildrenCollection<GameControl> Controls { get; private set; }
         public bool Ready { get; private set; } = false;
@@ -33,7 +34,11 @@ namespace Client.Main.Controls
             Ready = true;
         }
 
-        public virtual Task Load(GraphicsDevice graphicsDevice) => Task.CompletedTask;
+        public virtual Task Load(GraphicsDevice graphicsDevice)
+        {
+            GraphicsDevice = graphicsDevice;
+            return Task.CompletedTask;
+        }
 
         public virtual void Update(GameTime gameTime)
         {
@@ -60,6 +65,16 @@ namespace Client.Main.Controls
             Controls.Clear();
 
             Ready = false;
+        }
+
+        public void BringToFront()
+        {
+            if (!Ready) return;
+            if (Parent == null) return;
+            if (Parent.Controls[^1] == this) return;
+            var parent = Parent;
+            Parent.Controls.Remove(this);
+            parent.Controls.Add(this);
         }
     }
 }

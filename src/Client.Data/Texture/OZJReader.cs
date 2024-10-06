@@ -16,19 +16,8 @@ namespace Client.Data.Texture
             using var br = new BinaryReader(new MemoryStream(buffer));
 
             var magicNumber = br.ReadUInt32();
-
-            if (magicNumber != 0xE0FFD8FF && magicNumber != 0x4B6D4BFF)
-                throw new FileLoadException("Invalid OZJ file");
-
             var version = br.ReadInt16();
-
-            if (version != 27956 && version != 4096)
-                throw new FileLoadException($"Invalid OZJ version. Expected 4096, Received: {version}");
-
             var format = br.ReadString(4);
-
-            if (format != "u" && format != "JFIF")
-                throw new FileLoadException($"Invalid OZJ format. Expected JFIF, Received: {format}");
 
             var u1 = br.ReadBytes(3);
             var isTopDownSort = br.ReadBoolean();

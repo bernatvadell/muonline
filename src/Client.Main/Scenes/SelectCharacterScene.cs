@@ -3,7 +3,7 @@ using Client.Main.Worlds;
 
 namespace Client.Main.Scenes
 {
-    public class SelectCharacterScene : GameControl
+    public class SelectCharacterScene : BaseScene
     {
         public SelectCharacterScene()
         {
