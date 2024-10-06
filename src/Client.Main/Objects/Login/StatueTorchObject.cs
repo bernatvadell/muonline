@@ -19,12 +19,9 @@ namespace Client.Main.Objects.Login
     {
         public StatueTorchObject()
         {
-            Alpha = 1f;
+            HiddenMesh = 0;
 
-            Children.Add(new LightEffect()
-            {
-                Scale = 2f
-            });
+            Children.Add(new LightEffect() { Scale = 2f });
 
             Children.Add(
                 ParticleSystem.Create()
