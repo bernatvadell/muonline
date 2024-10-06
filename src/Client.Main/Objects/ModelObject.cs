@@ -1,5 +1,6 @@
 ﻿using Client.Data;
 using Client.Data.BMD;
+using Client.Data.Texture;
 using Client.Main.Content;
 using Client.Main.Controls;
 using Microsoft.Xna.Framework;
@@ -33,6 +34,7 @@ namespace Client.Main.Objects
         public float BodyHeight { get; private set; }
         public override Vector3 Origin => Vector3.Transform(_boneTransform[OriginBoneIndex].Translation, WorldPosition);
 
+        public int HiddenMesh { get; set; } = -1;
         public int BlendMesh { get; set; } = -1;
         public float BlendMeshLight { get => _blendMeshLight; set { _blendMeshLight = value; _invalidatedBuffers = true; } }
 
@@ -92,13 +94,18 @@ namespace Client.Main.Objects
         }
         public virtual void DrawMesh(int mesh)
         {
+            if (HiddenMesh == mesh)
+                return;
+
             if (_boneVertexBuffers == null)
                 return;
 
             GraphicsDevice.BlendState = BlendState;
 
+            var texture = _boneTextures[mesh];
+
             _effect.Alpha = Alpha;
-            _effect.Texture = _boneTextures[mesh];
+            _effect.Texture = texture;
             var vertexBuffer = _boneVertexBuffers[mesh];
             var indexBuffer = _boneIndexBuffers[mesh];
             var primitiveCount = indexBuffer.IndexCount / 3;
@@ -210,8 +217,23 @@ namespace Client.Main.Objects
                 _boneVertexBuffers[meshIndex] = vertexBuffer;
                 _boneIndexBuffers[meshIndex] = indexBuffer;
 
+
                 if (_boneTextures[meshIndex] == null)
-                    _boneTextures[meshIndex] = TextureLoader.Instance.GetTexture2D(BMDLoader.Instance.GetTexturePath(Model, mesh.TexturePath));
+                {
+                    var texturePath = BMDLoader.Instance.GetTexturePath(Model, mesh.TexturePath);
+                    _boneTextures[meshIndex] = TextureLoader.Instance.GetTexture2D(texturePath);
+
+                    var script = TextureLoader.Instance.GetScript(texturePath);
+
+                    if (script != null)
+                    {
+                        if (script.HiddenMesh)
+                            HiddenMesh = meshIndex;
+
+                        if (script.Bright)
+                            BlendMesh = meshIndex;
+                    }
+                }
 
                 _invalidatedBuffers = false;
             }

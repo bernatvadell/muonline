@@ -2,21 +2,22 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
 namespace Client.Main.Content
 {
+
     public class TextureLoader
     {
         public static TextureLoader Instance { get; } = new TextureLoader();
 
-        private readonly OZTReader _tgaReader = new ();
-        private readonly OZJReader _jpgReader = new ();
+        private readonly OZTReader _tgaReader = new();
+        private readonly OZJReader _jpgReader = new();
         private readonly Dictionary<string, Task<TextureData>> _textureTasks = [];
-        private readonly Dictionary<string, TextureData> _textures = [];
-        private readonly Dictionary<string, Texture2D> _texture2dCache = [];
+        private readonly ConcurrentDictionary<string, ClientTexture> _textures = [];
         private GraphicsDevice _graphicsDevice;
 
         public void SetGraphicsDevice(GraphicsDevice graphicsDevice)
@@ -54,10 +55,15 @@ namespace Client.Main.Content
                 else
                     throw new NotImplementedException($"Extension {ext} not implemented.");
 
-                lock (_textures)
-                    _textures.Add(path, data);
+                var clientTexture = new ClientTexture
+                {
+                    Info = data,
+                    Script = ParseScript(path)
+                };
 
-                return data;
+                _textures.TryAdd(path, clientTexture);
+
+                return clientTexture.Info;
             }
             catch (Exception e)
             {
@@ -66,12 +72,65 @@ namespace Client.Main.Content
             }
         }
 
+        private static TextureScript ParseScript(string fileName)
+        {
+            if (fileName.Contains("mu_rgb_lights.jpg"))
+                return new TextureScript { Bright = true };
+
+            var tokens = Path.GetFileNameWithoutExtension(fileName).Split('_');
+
+            if (tokens.Length > 1)
+            {
+                var script = new TextureScript();
+                var token = tokens[^1].ToLowerInvariant();
+
+                switch (token)
+                {
+                    case "a":
+                        script.Alpha = true;
+                        break;
+                    case "r":
+                        script.Bright = true;
+                        break;
+                    case "h":
+                        script.HiddenMesh = true;
+                        break;
+                    case "s":
+                        script.StreamMesh = true;
+                        break;
+                    case "n":
+                        script.NoneBlendMesh = true;
+                        break;
+                    case "dc":
+                        script.ShadowMesh = 1; // NoneTexture
+                        break;
+                    case "dt":
+                        script.ShadowMesh = 2; // Texture
+                        break;
+                    default:
+                        return null;
+                }
+            }
+
+            return null;
+        }
+
         public TextureData Get(string path)
         {
             path = path.ToLowerInvariant();
 
-            if (_textures.ContainsKey(path))
-                return _textures[path];
+            if (_textures.TryGetValue(path, out ClientTexture value))
+                return value.Info;
+
+            return null;
+        }
+
+        public TextureScript GetScript(string path)
+        {
+            path = path.ToLowerInvariant();
+
+            if (_textures.TryGetValue(path, out ClientTexture value))
+                return value.Script;
 
             return null;
         }
@@ -80,57 +139,47 @@ namespace Client.Main.Content
         {
             if (path == null)
                 return null;
-
             path = path.ToLowerInvariant();
 
-            lock (_texture2dCache)
+            if (!_textures.TryGetValue(path, out ClientTexture textureData))
+                return null;
+
+            if (textureData.Texture != null)
+                return textureData.Texture;
+
+            if (textureData.Info.Width == 0 || textureData.Info.Height == 0 || textureData.Info.Data == null)
+                return null;
+
+            var texture = textureData.Texture = new Texture2D(_graphicsDevice, (int)textureData.Info.Width, (int)textureData.Info.Height);
+
+            Color[] pixelData = new Color[(int)textureData.Info.Width * (int)textureData.Info.Height];
+
+            if (textureData.Info.Components == 3)
             {
-                if (_texture2dCache.TryGetValue(path, out Texture2D value))
-                    return value;
-
-                _texture2dCache.Add(path, null);
-
-                var textureData = Get(path);
-
-                if (textureData == null)
-                    return null;
-
-                if (textureData.Width == 0 || textureData.Height == 0 || textureData.Data == null)
-                    return null;
-
-                var texture = new Texture2D(_graphicsDevice, (int)textureData.Width, (int)textureData.Height);
-
-                Color[] pixelData = new Color[(int)textureData.Width * (int)textureData.Height];
-
-                if (textureData.Components == 3)
+                for (int i = 0; i < pixelData.Length; i++)
                 {
-                    for (int i = 0; i < pixelData.Length; i++)
-                    {
-                        byte r = textureData.Data[i * 3];
-                        byte g = textureData.Data[i * 3 + 1];
-                        byte b = textureData.Data[i * 3 + 2];
+                    byte r = textureData.Info.Data[i * 3];
+                    byte g = textureData.Info.Data[i * 3 + 1];
+                    byte b = textureData.Info.Data[i * 3 + 2];
 
-                        pixelData[i] = new Color(r, g, b, (byte)255);
-                    }
+                    pixelData[i] = new Color(r, g, b, (byte)255);
                 }
-                else if (textureData.Components == 4)
-                {
-                    for (int i = 0; i < pixelData.Length; i++)
-                    {
-                        byte r = textureData.Data[i * 4];
-                        byte g = textureData.Data[i * 4 + 1];
-                        byte b = textureData.Data[i * 4 + 2];
-                        byte a = textureData.Data[i * 4 + 3];
-                        pixelData[i] = new Color(r, g, b, a);
-                    }
-                }
-
-                texture.SetData(pixelData);
-
-                _texture2dCache[path] = texture;
-
-                return texture;
             }
+            else if (textureData.Info.Components == 4)
+            {
+                for (int i = 0; i < pixelData.Length; i++)
+                {
+                    byte r = textureData.Info.Data[i * 4];
+                    byte g = textureData.Info.Data[i * 4 + 1];
+                    byte b = textureData.Info.Data[i * 4 + 2];
+                    byte a = textureData.Info.Data[i * 4 + 3];
+                    pixelData[i] = new Color(r, g, b, a);
+                }
+            }
+
+            texture.SetData(pixelData);
+
+            return texture;
         }
     }
 }

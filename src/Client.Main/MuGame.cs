@@ -54,7 +54,7 @@ namespace Client.Main
 
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
-            ActiveScene = new GameScene();
+            ActiveScene = new LoginScene();
         }
 
         protected override void Initialize()
