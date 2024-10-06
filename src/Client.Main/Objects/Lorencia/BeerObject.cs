@@ -11,11 +11,6 @@ namespace Client.Main.Objects.Lorencia
 {
     public class BeerObject : ModelObject
     {
-        public BeerObject()
-        {
-            LightEnabled = true;
-        }
-
         public override async Task Load(GraphicsDevice graphicsDevice)
         {
             var idx = (Type - (ushort)ModelType.Beer01 + 1).ToString().PadLeft(2, '0');

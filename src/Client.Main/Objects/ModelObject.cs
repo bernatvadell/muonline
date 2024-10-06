@@ -199,7 +199,7 @@ namespace Client.Main.Objects
 
                 var bodyLight = Color.White;
 
-                if (LightEnabled)
+                if (LightEnabled && World.Terrain != null)
                 {
                     var terrainLight = World.Terrain.RequestTerrainLight(Position.X, Position.Y);
                     terrainLight += Light;

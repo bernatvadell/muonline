@@ -1,6 +1,8 @@
 ﻿using Client.Main.Content;
 using Client.Main.Controls;
 using Client.Main.Objects.Effects;
+using Client.Main.Objects.Particles;
+using Client.Main.Objects.Particles.Effects;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -25,14 +27,28 @@ namespace Client.Main.Objects.Login
             });
 
             Children.Add(
-                ParticleIssuerObject
-                    .Create()
-                    .SetDuration(1f, 2f)
-                    .SetGravity(new Vector3(0, -9.8f, 0))
-                    .EnableRotation()
-                    .Use<FireHik01Effect>()
-                    .Use<FireHik02Effect>()
-                    .Use<FireHik03Effect>()
+                ParticleSystem.Create()
+                   .SetMaxParticles(30)
+                   .SetRegeneration(0.01f, 0.05f)
+                   .Register<FireHik01Effect>()
+                       .UseEffect(GravityEffect.Create(new Vector3(0, 0, 0.64f), new Vector3(0, 0, 0.88f), 100f))
+                       .UseEffect(DurationEffect.Create(27, 32))
+                       .UseEffect(BrightEffect.Create())
+                       .SetScale(0.72f, 1.44f)
+                       .EnableRotation()
+                   .System.Register<FireHik02Effect>()
+                       .UseEffect(GravityEffect.Create(new Vector3(0, 0, 0.64f), new Vector3(0, 0, 0.88f), 100f))
+                       .UseEffect(DurationEffect.Create(17, 12))
+                       .UseEffect(BrightEffect.Create())
+                       .SetScale(0.72f, 1.44f)
+                       .EnableRotation()
+                   .System.Register<FireHik03Effect>()
+                       .UseEffect(DurationEffect.Create(17, 22))
+                       .UseEffect(GravityEffect.Create(new Vector3(0, 0, 0.64f), new Vector3(0, 0, 0.88f), 100f))
+                       .UseEffect(BrightEffect.Create())
+                       .SetScale(0.72f, 1.44f)
+                       .EnableRotation()
+                   .System
             );
         }
 

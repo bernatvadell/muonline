@@ -32,9 +32,12 @@ namespace Client.Main.Objects
         public string ObjectName => GetType().Name;
         public BlendState BlendState { get; set; } = BlendState.AlphaBlend;
         public float Alpha { get; set; } = 1f;
+        public float TotalAlpha { get => (Parent?.TotalAlpha ?? 1f) * Alpha; }
         public Vector3 Position { get => _position; set { _position = value; OnPositionChanged(); } }
         public virtual Vector3 Origin { get => (Parent?.Origin ?? Vector3.Zero) + Position; }
         public Vector3 Angle { get => _angle; set { _angle = value; OnAngleChanged(); } }
+        public Vector3 TotalAngle { get => (Parent?.TotalAngle ?? Vector3.Zero) + Angle; }
+
         public float Scale { get => _scale; set { _scale = value; OnScaleChanged(); } }
         public Matrix WorldPosition { get; set; } = Matrix.Identity;
         public Vector3 Light { get; set; } = new Vector3(0.3f, 0.3f, 0.3f);
@@ -118,6 +121,8 @@ namespace Client.Main.Objects
         public virtual void Dispose()
         {
             Ready = false;
+
+            Parent = null;
 
             var children = Children.ToArray();
 

@@ -52,6 +52,10 @@ namespace Client.Main.Controls
 
             var tasks = new List<Task>();
             var worldFolder = $"World{WorldIndex}";
+            var fullPathWorldFolder = Path.Combine(Constants.DataPath, worldFolder);
+
+            if (!Directory.Exists(fullPathWorldFolder))
+                return;
 
             Camera.Instance.AspectRatio = graphicsDevice.Viewport.AspectRatio;
 
@@ -62,38 +66,37 @@ namespace Client.Main.Controls
                 World = Matrix.Identity
             };
 
-
-            tasks.Add(terrainReader.Load(Path.Combine(Constants.DataPath, worldFolder, $"EncTerrain{WorldIndex}.att")).ContinueWith(t => _terrain = t.Result));
-            tasks.Add(ozbReader.Load(Path.Combine(Constants.DataPath, worldFolder, $"TerrainHeight.OZB")).ContinueWith(t => _backTerrainHeight = t.Result.BackTerrainHeight));
-            tasks.Add(mapping.Load(Path.Combine(Constants.DataPath, worldFolder, $"EncTerrain{WorldIndex}.map")).ContinueWith(t => _mapping = t.Result));
+            tasks.Add(terrainReader.Load(Path.Combine(fullPathWorldFolder, $"EncTerrain{WorldIndex}.att")).ContinueWith(t => _terrain = t.Result));
+            tasks.Add(ozbReader.Load(Path.Combine(fullPathWorldFolder, $"TerrainHeight.OZB")).ContinueWith(t => _backTerrainHeight = t.Result.BackTerrainHeight));
+            tasks.Add(mapping.Load(Path.Combine(fullPathWorldFolder, $"EncTerrain{WorldIndex}.map")).ContinueWith(t => _mapping = t.Result));
 
             var textureMapFiles = new string[255];
-            textureMapFiles[0] = Path.Combine(Constants.DataPath, worldFolder, "TileGrass01.ozj");
-            textureMapFiles[1] = Path.Combine(Constants.DataPath, worldFolder, "TileGrass02.ozj");
-            textureMapFiles[2] = Path.Combine(Constants.DataPath, worldFolder, "TileGround01.ozj");
-            textureMapFiles[3] = Path.Combine(Constants.DataPath, worldFolder, "TileGround02.ozj");
-            textureMapFiles[4] = Path.Combine(Constants.DataPath, worldFolder, "TileGround03.ozj");
-            textureMapFiles[5] = Path.Combine(Constants.DataPath, worldFolder, "TileWater01.ozj");
-            textureMapFiles[6] = Path.Combine(Constants.DataPath, worldFolder, "TileWood01.ozj");
-            textureMapFiles[7] = Path.Combine(Constants.DataPath, worldFolder, "TileRock01.ozj");
-            textureMapFiles[8] = Path.Combine(Constants.DataPath, worldFolder, "TileRock02.ozj");
-            textureMapFiles[9] = Path.Combine(Constants.DataPath, worldFolder, "TileRock03.ozj");
-            textureMapFiles[10] = Path.Combine(Constants.DataPath, worldFolder, "AlphaTile01.Tga");
-            textureMapFiles[11] = Path.Combine(Constants.DataPath, worldFolder, "TileRock05.ozj");
-            textureMapFiles[12] = Path.Combine(Constants.DataPath, worldFolder, "TileRock06.ozj");
-            textureMapFiles[13] = Path.Combine(Constants.DataPath, worldFolder, "TileRock07.ozj");
+            textureMapFiles[0] = Path.Combine(fullPathWorldFolder, "TileGrass01.ozj");
+            textureMapFiles[1] = Path.Combine(fullPathWorldFolder, "TileGrass02.ozj");
+            textureMapFiles[2] = Path.Combine(fullPathWorldFolder, "TileGround01.ozj");
+            textureMapFiles[3] = Path.Combine(fullPathWorldFolder, "TileGround02.ozj");
+            textureMapFiles[4] = Path.Combine(fullPathWorldFolder, "TileGround03.ozj");
+            textureMapFiles[5] = Path.Combine(fullPathWorldFolder, "TileWater01.ozj");
+            textureMapFiles[6] = Path.Combine(fullPathWorldFolder, "TileWood01.ozj");
+            textureMapFiles[7] = Path.Combine(fullPathWorldFolder, "TileRock01.ozj");
+            textureMapFiles[8] = Path.Combine(fullPathWorldFolder, "TileRock02.ozj");
+            textureMapFiles[9] = Path.Combine(fullPathWorldFolder, "TileRock03.ozj");
+            textureMapFiles[10] = Path.Combine(fullPathWorldFolder, "AlphaTile01.Tga");
+            textureMapFiles[11] = Path.Combine(fullPathWorldFolder, "TileRock05.ozj");
+            textureMapFiles[12] = Path.Combine(fullPathWorldFolder, "TileRock06.ozj");
+            textureMapFiles[13] = Path.Combine(fullPathWorldFolder, "TileRock07.ozj");
 
             for (int i = 1; i <= 16; i++)
-                textureMapFiles[13 + i] = Path.Combine(Constants.DataPath, worldFolder, $"ExtTile{i.ToString().PadLeft(2, '0')}.ozj");
+                textureMapFiles[13 + i] = Path.Combine(fullPathWorldFolder, $"ExtTile{i.ToString().PadLeft(2, '0')}.ozj");
 
-            textureMapFiles[13] = Path.Combine(Constants.DataPath, worldFolder, "TileRock07.ozj");
+            textureMapFiles[13] = Path.Combine(fullPathWorldFolder, "TileRock07.ozj");
 
-            textureMapFiles[30] = Path.Combine(Constants.DataPath, worldFolder, "TileGrass01.tga");
-            textureMapFiles[31] = Path.Combine(Constants.DataPath, worldFolder, "TileGrass02.tga");
-            textureMapFiles[32] = Path.Combine(Constants.DataPath, worldFolder, "TileGrass03.tga");
+            textureMapFiles[30] = Path.Combine(fullPathWorldFolder, "TileGrass01.tga");
+            textureMapFiles[31] = Path.Combine(fullPathWorldFolder, "TileGrass02.tga");
+            textureMapFiles[32] = Path.Combine(fullPathWorldFolder, "TileGrass03.tga");
 
-            textureMapFiles[100] = Path.Combine(Constants.DataPath, worldFolder, "leaf01.jpg");
-            textureMapFiles[101] = Path.Combine(Constants.DataPath, worldFolder, "leaf02.jpg");
+            textureMapFiles[100] = Path.Combine(fullPathWorldFolder, "leaf01.jpg");
+            textureMapFiles[101] = Path.Combine(fullPathWorldFolder, "leaf02.jpg");
 
             textureMapFiles[102] = Path.Combine(Constants.DataPath, "World1", "rain01.tga");
             textureMapFiles[103] = Path.Combine(Constants.DataPath, "World1", "rain02.tga");
@@ -123,10 +126,12 @@ namespace Client.Main.Controls
         {
             base.Update(time);
 
-            _terrainEffect.Projection = Camera.Instance.Projection;
-            _terrainEffect.View = Camera.Instance.View;
-
-            InitTerrainLight(time);
+            if (_terrainEffect != null)
+            {
+                _terrainEffect.Projection = Camera.Instance.Projection;
+                _terrainEffect.View = Camera.Instance.View;
+                InitTerrainLight(time);
+            }
         }
         public override void Draw(GameTime time)
         {
@@ -319,6 +324,8 @@ namespace Client.Main.Controls
         }
         private void RenderTerrain()
         {
+            if (_terrainEffect == null) return;
+
             int blockSize = 4;
 
             for (int yi = 0; yi <= Constants.TERRAIN_SIZE_MASK; yi += blockSize)

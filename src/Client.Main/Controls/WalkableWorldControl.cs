@@ -88,7 +88,7 @@ namespace Client.Main.Controls
             direction.Normalize();
 
             float deltaTime = (float)time.ElapsedGameTime.TotalSeconds;
-            Vector3 moveVector = direction * 300f * deltaTime;
+            Vector3 moveVector = direction * 1000f * deltaTime;
 
             // Verifica si la distancia a mover excede la distancia restante al objetivo
             if (moveVector.Length() > (_currentTargetPosition - TargetPosition).Length())

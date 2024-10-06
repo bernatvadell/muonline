@@ -25,9 +25,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Client.Data\Client.Data.csproj" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Objects\Particles\" />
-  </ItemGroup>
   <Target Name="RestoreDotnetTools" BeforeTargets="Restore">
     <Message Text="Restoring dotnet tools" Importance="High" />
     <Exec Command="dotnet tool restore" />

@@ -18,7 +18,6 @@ namespace Client.Main.Objects.Effects
             BlendState = BlendState.Additive;
             LightEnabled = true;
             Light = Vector3.One;
-            Alpha = 0;
         }
 
         public override void Update(GameTime gameTime)

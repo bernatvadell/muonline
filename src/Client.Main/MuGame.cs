@@ -35,14 +35,12 @@ namespace Client.Main
             _graphics.PreferredBackBufferWidth = 800;
             _graphics.PreferredBackBufferHeight = 600;
 
-           
-
             InverseDestinationBlend = new BlendState
             {
                 ColorSourceBlend = Blend.InverseDestinationColor,
                 ColorDestinationBlend = Blend.One,
-                AlphaSourceBlend = Blend.One, // Opcional, dependiendo si se desea afectar también el alfa
-                AlphaDestinationBlend = Blend.One, // Mantener el alfa del destino sin cambios
+                AlphaSourceBlend = Blend.One,
+                AlphaDestinationBlend = Blend.One,
                 BlendFactor = Color.White
             };
 
@@ -54,7 +52,7 @@ namespace Client.Main
 
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
-            ActiveScene = new LoginScene();
+            ActiveScene = new GameScene();
         }
 
         protected override void Initialize()

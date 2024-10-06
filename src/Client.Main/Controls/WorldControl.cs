@@ -34,8 +34,6 @@ namespace Client.Main.Controls
         {
             await base.Load(graphicsDevice);
 
-            var tasks = new List<Task>();
-
             CreateMapTileObjects();
 
             var worldFolder = $"World{WorldIndex}";
@@ -44,14 +42,13 @@ namespace Client.Main.Controls
 
             Camera.Instance.AspectRatio = graphicsDevice.Viewport.AspectRatio;
 
-            await Task.WhenAll(tasks);
-
             var objReader = new OBJReader();
 
             var objectPath = Path.Combine(Constants.DataPath, worldFolder, $"EncTerrain{WorldIndex}.obj");
 
             if (File.Exists(objectPath))
             {
+                var tasks = new List<Task>();
                 OBJ obj = await objReader.Load(objectPath);
 
                 foreach (var mapObj in obj.Objects)
@@ -59,9 +56,9 @@ namespace Client.Main.Controls
                     var instance = WorldObjectFactory.CreateMapTileObject(this, mapObj);
                     if (instance != null) tasks.Add(AddObject(instance));
                 }
+                await Task.WhenAll(tasks);
             }
 
-            await Task.WhenAll(tasks);
         }
         public override void Update(GameTime time)
         {
