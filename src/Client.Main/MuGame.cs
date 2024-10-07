@@ -77,7 +77,7 @@ namespace Client.Main
             EffectRenderTarget = new RenderTarget2D(GraphicsDevice, 800, 600);
             SpriteBatch = new SpriteBatch(GraphicsDevice);
             Font = Content.Load<SpriteFont>("Arial");
-            ChangeScene<LoginScene>();
+            ChangeScene<TestScene>();
         }
 
         protected override void Update(GameTime gameTime)

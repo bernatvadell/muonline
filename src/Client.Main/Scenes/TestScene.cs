@@ -33,39 +33,10 @@ namespace Client.Main.Scenes
 
             // await World.AddObject(new StatueTorchObject() { World = World });
 
-            //MessageWindow.Show("Press the button to change scene", () =>
-            //{
-            //    MuGame.Instance.ChangeScene<LoginScene>();
-            //});
-
-            var nonEventGroup = new ServerGroupSelector(false)
+            MessageWindow.Show("Press the button to change scene", () =>
             {
-                X = 100
-            };
-
-            for (byte i = 0; i < 5; i++)
-                nonEventGroup.AddServer(i, $"Server {i + 1}");
-
-            var eventGroup = new ServerGroupSelector(true)
-            {
-                X = 400
-            };
-
-            for (byte i = 0; i < 5; i++)
-                eventGroup.AddServer(i, $"Event {i + 1}");
-
-            nonEventGroup.SelectedIndexChanged += (sender, e) =>
-            {
-                eventGroup.UnselectServer();
-            };
-
-            eventGroup.SelectedIndexChanged += (sender, e) =>
-            {
-                nonEventGroup.UnselectServer();
-            };
-
-            Controls.Add(nonEventGroup);
-            Controls.Add(eventGroup);
+                MuGame.Instance.ChangeScene<LoginScene>();
+            });
         }
 
         public override void Update(GameTime time)

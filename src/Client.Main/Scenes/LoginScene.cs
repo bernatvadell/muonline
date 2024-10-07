@@ -43,18 +43,40 @@ namespace Client.Main.Scenes
             for (byte i = 0; i < 5; i++)
                 eventGroup.AddServer(i, $"Event {i + 1}");
 
+            var serverList = new ServerList();
+            serverList.Visible = false;
+
             nonEventGroup.SelectedIndexChanged += (sender, e) =>
             {
+                serverList.Clear();
+
+                for (var i = 0; i < 10; i++)
+                    serverList.AddServer((byte)i, $"Non Event Server {nonEventGroup.ActiveIndex + 1}", (byte)((i + 1) * 10));
+
+                serverList.X = MuGame.Instance.Width / 2 - serverList.Width / 2;
+                serverList.Y = MuGame.Instance.Height / 2 - serverList.Height / 2;
+                serverList.Visible = true;
+
                 eventGroup.UnselectServer();
             };
 
             eventGroup.SelectedIndexChanged += (sender, e) =>
             {
+                serverList.Clear();
+
+                for (var i = 0; i < 10; i++)
+                    serverList.AddServer((byte)i, $"Event Server {eventGroup.ActiveIndex + 1}", (byte)((i + 1) * 10));
+
+                serverList.X = MuGame.Instance.Width / 2 - serverList.Width / 2;
+                serverList.Y = MuGame.Instance.Height / 2 - serverList.Height / 2;
+                serverList.Visible = true;
+
                 nonEventGroup.UnselectServer();
             };
 
             Controls.Add(nonEventGroup);
             Controls.Add(eventGroup);
+            Controls.Add(serverList);
         }
 
         public override async Task Load()
