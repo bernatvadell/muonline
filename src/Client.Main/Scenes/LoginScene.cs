@@ -23,7 +23,7 @@ namespace Client.Main.Scenes
         public LoginScene()
         {
             Controls.Add(_world = new LoginWorld());
-            Controls.Add(_logo = new MuLogo() { Y = 10 });
+            Controls.Add(_logo = new MuLogo() { Y = 10, Align = ControlAlign.HorizontalCenter });
 
             var nonEventGroup = new ServerGroupSelector(false)
             {
@@ -83,12 +83,6 @@ namespace Client.Main.Scenes
         {
             await base.Load();
             SoundController.Instance.PlayBackgroundMusic("Music/login_theme.mp3");
-        }
-
-        public override void AfterLoad()
-        {
-            base.AfterLoad();
-            _logo.X = ScreenWidth / 2 - _logo.ScreenWidth / 2;
         }
     }
 }

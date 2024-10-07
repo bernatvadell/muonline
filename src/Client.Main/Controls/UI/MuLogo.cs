@@ -31,8 +31,8 @@ namespace Client.Main.Controls.UI
         public override void AfterLoad()
         {
             base.AfterLoad();
-            Width = _logo.Rectangle.Width;
-            Height = _logo.Rectangle.Height;
+            Width = _logo.ScreenLocation.Width;
+            Height = _logo.ScreenLocation.Height;
         }
     }
 }

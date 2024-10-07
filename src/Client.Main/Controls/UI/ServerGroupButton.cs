@@ -16,8 +16,7 @@ namespace Client.Main.Controls.UI
         {
             Controls.Add(_label = new LabelControl
             {
-                Align = Align.Center,
-                Width = 110,
+                Align = ControlAlign.HorizontalCenter,
                 Y = 6
             });
 

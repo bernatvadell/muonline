@@ -21,7 +21,7 @@ namespace Client.Main.Objects
             Model = await BMDLoader.Instance.Prepare(modelPath);
 
             if (Model == null)
-                Debug.WriteLine($"Can load MapObject for model: {modelPath}");
+                Debug.WriteLine($"Can't load MapObject for model: {modelPath}");
 
             await base.Load(graphicsDevice);
         }

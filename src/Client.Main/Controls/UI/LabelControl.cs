@@ -8,42 +8,21 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Controls.UI
 {
-    public enum Align
-    {
-        Left,
-        Center,
-        Right
-    }
-
     public class LabelControl : GameControl
     {
         private string _text;
-        private Vector2 _textSize;
+
         public string Text { get => _text; set { if (_text != value) { _text = value; OnChangeText(); } } }
 
-        public Align Align { get; set; }
+        public LabelControl()
+        {
+            AutoSize = false;
+        }
 
         public override void Draw(GameTime gameTime)
         {
-            var screenX = ScreenX;
-            var screenY = ScreenY;
-
-            // Adjust the position based on the alignment
-            switch (Align)
-            {
-                case Align.Left:
-                    // No adjustment needed for left alignment, it's the default
-                    break;
-                case Align.Center:
-                    screenX = (int)(ScreenX + (Width / 2) - (_textSize.X / 2));
-                    break;
-                case Align.Right:
-                    screenX = (int)(ScreenX + Width - _textSize.X);
-                    break;
-            }
-
             MuGame.Instance.SpriteBatch.Begin();
-            MuGame.Instance.SpriteBatch.DrawString(MuGame.Instance.Font, Text, new Vector2(screenX, screenY), Color.White);
+            MuGame.Instance.SpriteBatch.DrawString(MuGame.Instance.Font, Text, ScreenLocation.Location.ToVector2(), Color.White);
             MuGame.Instance.SpriteBatch.End();
 
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
@@ -57,11 +36,14 @@ namespace Client.Main.Controls.UI
         {
             if (string.IsNullOrEmpty(Text))
             {
-                _textSize = Vector2.Zero;
+                Width = 0;
+                Height = 0;
                 return;
             }
 
-            _textSize = MuGame.Instance.Font.MeasureString(Text);
+            var textSize = MuGame.Instance.Font.MeasureString(Text);
+            Width = (int)textSize.X;
+            Height = (int)textSize.Y;
         }
     }
 }

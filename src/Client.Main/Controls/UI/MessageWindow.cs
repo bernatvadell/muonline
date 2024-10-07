@@ -8,8 +8,9 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Controls.UI
 {
-    public class MessageWindow : TextureControl
+    public class MessageWindow : DialogControl
     {
+        private readonly TextureControl _container;
         private readonly LabelControl _label;
         private readonly OkButton _button;
 
@@ -17,39 +18,26 @@ namespace Client.Main.Controls.UI
 
         private MessageWindow()
         {
-            BlendState = BlendState.AlphaBlend;
-            TexturePath = "Interface/message_back.tga";
-            OffsetWidth = 160;
-            OffsetHeight = 15;
-            Controls.Add(_label = new LabelControl { Align = Align.Center, X = 10, Y = 40 });
-            Controls.Add(_button = new OkButton());
-        }
-       
-        public override void AfterLoad()
-        {
-            base.AfterLoad();
+            Align = ControlAlign.HorizontalCenter & ControlAlign.VerticalCenter;
 
-            X = (MuGame.Instance.Width / 2) - (ScreenWidth / 2);
-            Y = (MuGame.Instance.Height / 2) - (ScreenHeight / 2);
-            _label.Width = ScreenWidth;
-            _button.X = (ScreenWidth / 2) - (_button.ScreenWidth / 2);
-            _button.Y = ScreenHeight - _button.ScreenHeight - 15;
+            Controls.Add(_container = new TextureControl
+            {
+                BlendState = BlendState.AlphaBlend,
+                TexturePath = "Interface/message_back.tga",
+                OffsetWidth = 160,
+                OffsetHeight = 15,
+            });
+            Controls.Add(_label = new LabelControl { Align = ControlAlign.HorizontalCenter, Y = 40 });
+            Controls.Add(_button = new OkButton() { Align = ControlAlign.Bottom | ControlAlign.HorizontalCenter, Margin = new Margin() { Bottom = 15 } });
+            _button.Click += (s, e) => Close();
         }
 
-        public static void Show(string message, Action onClose)
+        public static MessageWindow Show(string text)
         {
-            var control = new MessageWindow
-            {
-                Text = message
-            };
-
-            control._button.Click += (sender, e) =>
-            {
-                onClose?.Invoke();
-                MuGame.Instance.ActiveScene?.Controls.Remove(control);
-            };
-
-            MuGame.Instance.ActiveScene.Controls.Add(control);
+            var window = new MessageWindow { Text = text };
+            MuGame.Instance.ActiveScene.Controls.Add(window);
+            window.ShowDialog();
+            return window;
         }
     }
 }

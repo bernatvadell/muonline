@@ -19,6 +19,8 @@ namespace Client.Main.Objects
         private VertexBuffer[] _boneVertexBuffers;
         private IndexBuffer[] _boneIndexBuffers;
         private Texture2D[] _boneTextures;
+        private TextureScript[] _scriptTextures;
+        private TextureData[] _dataTextures;
 
         private Matrix[] _boneTransform;
         private int _currentAction = 0;
@@ -92,8 +94,18 @@ namespace Client.Main.Objects
         public virtual void DrawModel()
         {
             for (var i = 0; i < Model.Meshes.Length; i++)
-                if (BlendMesh != i)
+            {
+                var script = _scriptTextures[i];
+                var hasBright = script?.Bright ?? false;
+                var hasAlpha = script?.Alpha ?? false;
+                var isRGBA = _dataTextures[i].Components == 4;
+                var isBlendMesh = BlendMesh == i;
+
+                var draw = !isBlendMesh && !hasBright && !hasAlpha && !isRGBA;
+
+                if (draw)
                     DrawMesh(i);
+            }
         }
         public virtual void DrawMesh(int mesh)
         {
@@ -126,12 +138,23 @@ namespace Client.Main.Objects
         {
             if (!Visible) return;
 
-            if (BlendMesh >= 0)
+            for (var i = 0; i < Model.Meshes.Length; i++)
             {
-                BlendState = BlendState.Additive;
-                DrawMesh(BlendMesh);
-                BlendState = BlendState.AlphaBlend;
+                var script = _scriptTextures[i];
+                var hasBright = script?.Bright ?? false;
+                var hasAlpha = script?.Alpha ?? false;
+                var isRGBA = _dataTextures[i].Components == 4;
+                var isBlendMesh = BlendMesh == i;
+                var draw = isBlendMesh || hasBright || hasAlpha || isRGBA;
+
+                if (draw)
+                {
+                    BlendState = hasBright || isBlendMesh ? BlendState.Additive : BlendState;
+                    DrawMesh(i);
+                    BlendState = BlendState.AlphaBlend;
+                }
             }
+
 
             base.DrawAfter(gameTime);
         }
@@ -195,6 +218,8 @@ namespace Client.Main.Objects
             _boneVertexBuffers ??= new VertexBuffer[Model.Meshes.Length];
             _boneIndexBuffers ??= new IndexBuffer[Model.Meshes.Length];
             _boneTextures ??= new Texture2D[Model.Meshes.Length];
+            _scriptTextures ??= new TextureScript[Model.Meshes.Length];
+            _dataTextures ??= new TextureData[Model.Meshes.Length];
 
             for (int meshIndex = 0; meshIndex < Model.Meshes.Length; meshIndex++)
             {
@@ -225,6 +250,8 @@ namespace Client.Main.Objects
                 {
                     var texturePath = BMDLoader.Instance.GetTexturePath(Model, mesh.TexturePath);
                     _boneTextures[meshIndex] = TextureLoader.Instance.GetTexture2D(texturePath);
+                    _scriptTextures[meshIndex] = TextureLoader.Instance.GetScript(texturePath);
+                    _dataTextures[meshIndex] = TextureLoader.Instance.Get(texturePath);
 
                     var script = TextureLoader.Instance.GetScript(texturePath);
 

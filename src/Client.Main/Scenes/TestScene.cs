@@ -33,10 +33,8 @@ namespace Client.Main.Scenes
 
             // await World.AddObject(new StatueTorchObject() { World = World });
 
-            MessageWindow.Show("Press the button to change scene", () =>
-            {
-                MuGame.Instance.ChangeScene<LoginScene>();
-            });
+            var wnd = MessageWindow.Show("Press the button to change scene");
+            wnd.Closed += (s, e) => MuGame.Instance.ChangeScene<GameScene>();
         }
 
         public override void Update(GameTime time)
