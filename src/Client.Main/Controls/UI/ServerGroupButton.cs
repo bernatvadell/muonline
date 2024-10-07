@@ -22,13 +22,12 @@ namespace Client.Main.Controls.UI
             });
 
             Interactive = true;
-            ElementWidth = 110;
-            ElementHeight = 26;
+            TileWidth = 110;
+            TileHeight = 26;
             TileY = 0;
             BlendState = BlendState.AlphaBlend;
             TexturePath = "Interface/cha_bt.tga";
         }
-
 
         public override void Update(GameTime gameTime)
         {

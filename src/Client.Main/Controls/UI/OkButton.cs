@@ -14,13 +14,12 @@ namespace Client.Main.Controls.UI
         public OkButton()
         {
             Interactive = true;
-            ElementWidth = 54;
-            ElementHeight = 30;
+            TileWidth = 54;
+            TileHeight = 30;
             TileY = 0;
             BlendState = BlendState.AlphaBlend;
             TexturePath = "Interface/message_ok_b_all.tga";
         }
-
 
         public override void Update(GameTime gameTime)
         {

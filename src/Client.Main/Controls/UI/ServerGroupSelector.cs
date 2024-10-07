@@ -27,21 +27,21 @@ namespace Client.Main.Controls.UI
             Controls.Add(new SpriteControl
             {
                 TexturePath = "Interface/server_deco_all.tga",
-                ElementWidth = 67,
-                ElementHeight = 97,
+                TileWidth = 67,
+                TileHeight = 97,
                 TileX = eventList ? 1 : 0,
-                X = eventList ? 69 : 0,
+                X = eventList ? 70 : 0,
                 BlendState = BlendState.AlphaBlend,
             });
 
             Controls.Add(IndicatorActive = new SpriteControl
             {
-                X = eventList ? 0 : 110,
+                X = eventList ? 0 : 114,
                 Y = 15,
                 TexturePath = "Interface/server_deco_all.tga",
-                OffsetX = 135,
-                ElementWidth = 28,
-                ElementHeight = 28,
+                OffsetX = 136,
+                TileWidth = 23,
+                TileHeight = 29,
                 TileY = eventList ? 1 : 0,
                 Visible = false,
                 BlendState = BlendState.AlphaBlend,
@@ -56,7 +56,7 @@ namespace Client.Main.Controls.UI
             {
                 Index = index,
                 Name = name,
-                X = IsEventList ? 22 : 8,
+                X = IsEventList ? 23 : 8,
                 Y = 19 + (index * 27),
             };
 
@@ -65,6 +65,8 @@ namespace Client.Main.Controls.UI
             _buttons.Add(button);
 
             Controls.Add(button);
+
+            IndicatorActive.BringToFront();
         }
 
         public void UnselectServer()
@@ -87,7 +89,7 @@ namespace Client.Main.Controls.UI
             ActiveIndex = button.Index;
 
             IndicatorActive.Visible = true;
-            IndicatorActive.Y = 15 + (ActiveIndex * 27);
+            IndicatorActive.Y = 17 + (ActiveIndex * 27);
 
             SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
         }

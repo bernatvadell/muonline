@@ -17,8 +17,8 @@ namespace Client.Main.Scenes
 {
     public class LoginScene : BaseScene
     {
-        private LoginWorld _world;
-        private MuLogo _logo;
+        private readonly LoginWorld _world;
+        private readonly MuLogo _logo;
 
         public LoginScene()
         {
