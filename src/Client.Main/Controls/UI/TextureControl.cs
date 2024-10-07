@@ -25,21 +25,21 @@ namespace Client.Main.Controls.UI
         public string TexturePath { get => _texturePath; set { if (_texturePath != value) { _texturePath = value; OnChangeTexturePath(); } } }
         public BlendState BlendState { get; set; } = BlendState.Opaque;
 
-        public override async Task Initialize(GraphicsDevice graphicsDevice)
+        public override async Task Initialize()
         {
             await TextureLoader.Instance.Prepare(TexturePath);
-            await base.Initialize(graphicsDevice);
+            await base.Initialize();
         }
 
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
             await LoadTexture();
-            await base.Load(graphicsDevice);
+            await base.Load();
         }
 
         public override void Draw(GameTime gameTime)
         {
-            if (!Ready || _texture == null)
+            if (Status != GameControlStatus.Ready || !Visible || _texture == null)
                 return;
 
             MuGame.Instance.SpriteBatch.Begin(blendState: BlendState);
@@ -62,6 +62,10 @@ namespace Client.Main.Controls.UI
         {
             await TextureLoader.Instance.Prepare(TexturePath);
             _texture = TextureLoader.Instance.GetTexture2D(TexturePath);
+            
+            if(_texture == null)
+                return;
+
             Width = _texture.Width;
             Height = _texture.Height;
         }

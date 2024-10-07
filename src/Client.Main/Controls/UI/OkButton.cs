@@ -9,7 +9,6 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Client.Main.Controls.UI
 {
-
     public class OkButton : SpriteControl
     {
         public OkButton()
@@ -17,7 +16,7 @@ namespace Client.Main.Controls.UI
             Interactive = true;
             ElementWidth = 54;
             ElementHeight = 30;
-            Position = 0;
+            TileY = 0;
             BlendState = BlendState.AlphaBlend;
             TexturePath = "Interface/message_ok_b_all.tga";
         }
@@ -27,12 +26,12 @@ namespace Client.Main.Controls.UI
         {
             base.Update(gameTime);
 
-            if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && MuGame.Instance.ActiveScene.MouseControl == this)
-                Position = 2;
+            if (MuGame.Instance.ActiveScene.MouseControl == this && IsMousePressed)
+                TileY = 2;
             else if (MuGame.Instance.ActiveScene.MouseControl == this)
-                Position = 1;
+                TileY = 1;
             else
-                Position = 0;
+                TileY = 0;
         }
     }
 }

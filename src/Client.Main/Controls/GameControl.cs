@@ -3,23 +3,30 @@ using Microsoft.Xna.Framework.Graphics;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Controls
 {
+    public enum GameControlStatus
+    {
+        NonInitialized,
+        Initializing,
+        Ready,
+        Error,
+        Disposed
+    }
+
     public abstract class GameControl : IChildItem<GameControl>, IDisposable
     {
-        private bool _interactive = false;
-
-        public GraphicsDevice GraphicsDevice { get; private set; }
+        public GraphicsDevice GraphicsDevice => MuGame.Instance.GraphicsDevice;
         public GameControl Parent { get; set; }
         public ChildrenCollection<GameControl> Controls { get; private set; }
-        public bool Ready { get; private set; } = false;
+        public GameControlStatus Status { get; private set; } = GameControlStatus.NonInitialized;
 
-        public bool Interactive { get => _interactive; set { _interactive = value; OnChangeInteractive(); } }
-
+        public bool Interactive { get; set; }
         public int X { get; set; }
         public int Y { get; set; }
         public int Width { get; set; }
@@ -32,6 +39,7 @@ namespace Client.Main.Controls
         public int ScreenY => Y + (Parent?.ScreenY ?? 0);
         public int ScreenWidth => Math.Min(Rectangle.Width, (Parent?.ScreenWidth ?? int.MaxValue));
         public int ScreenHeight => Math.Min(Rectangle.Height, (Parent?.ScreenHeight ?? int.MaxValue));
+        public bool Visible { get; set; } = true;
 
         public event EventHandler Click;
 
@@ -50,25 +58,36 @@ namespace Client.Main.Controls
             Click?.Invoke(this, EventArgs.Empty);
         }
 
-        public virtual async Task Initialize(GraphicsDevice graphicsDevice)
+        public virtual async Task Initialize()
         {
-            var tasks = new Task[Controls.Count];
+            if (Status != GameControlStatus.NonInitialized) return;
 
-            await Load(graphicsDevice);
+            try
+            {
+                Status = GameControlStatus.Initializing;
 
-            for (int i = 0; i < Controls.Count; i++)
-                tasks[i] = Controls[i].Initialize(graphicsDevice);
+                var tasks = new Task[Controls.Count];
 
-            await Task.WhenAll(tasks);
+                await Load();
 
-            AfterLoad();
+                for (int i = 0; i < Controls.Count; i++)
+                    tasks[i] = Controls[i].Initialize();
 
-            Ready = true;
+                await Task.WhenAll(tasks);
+
+                AfterLoad();
+
+                Status = GameControlStatus.Ready;
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine(e);
+                Status = GameControlStatus.Error;
+            }
         }
 
-        public virtual Task Load(GraphicsDevice graphicsDevice)
+        public virtual Task Load()
         {
-            GraphicsDevice = graphicsDevice;
             return Task.CompletedTask;
         }
 
@@ -80,10 +99,13 @@ namespace Client.Main.Controls
 
         public virtual void Update(GameTime gameTime)
         {
-            if (!Ready) return;
+            if (Status == GameControlStatus.NonInitialized && (Parent == null || Parent.Status == GameControlStatus.Ready))
+                Task.Run(() => Initialize());
 
-            IsMouseOver = Interactive && MuGame.Instance.Mouse.Position.X >= ScreenX && MuGame.Instance.Mouse.Position.X <= ScreenX + ScreenWidth &&
-                MuGame.Instance.Mouse.Position.Y >= ScreenY && MuGame.Instance.Mouse.Position.Y <= ScreenY + ScreenHeight;
+            if (Status != GameControlStatus.Ready || !Visible) return;
+
+            IsMouseOver = Interactive && MuGame.Instance.Mouse.Position.X >= Rectangle.X && MuGame.Instance.Mouse.Position.X <= Rectangle.X + Rectangle.Width &&
+                MuGame.Instance.Mouse.Position.Y >= Rectangle.Y && MuGame.Instance.Mouse.Position.Y <= Rectangle.Y + Rectangle.Height;
 
             if (IsMouseOver)
                 MuGame.Instance.ActiveScene.MouseControl = this;
@@ -94,7 +116,7 @@ namespace Client.Main.Controls
 
         public virtual void Draw(GameTime gameTime)
         {
-            if (!Ready) return;
+            if (Status != GameControlStatus.Ready || !Visible) return;
 
             for (int i = 0; i < Controls.Count; i++)
                 Controls[i].Draw(gameTime);
@@ -109,12 +131,12 @@ namespace Client.Main.Controls
 
             Controls.Clear();
 
-            Ready = false;
+            Status = GameControlStatus.Disposed;
         }
 
         public void BringToFront()
         {
-            if (!Ready) return;
+            if (Status == GameControlStatus.Disposed) return;
             if (Parent == null) return;
             if (Parent.Controls[^1] == this) return;
             var parent = Parent;
@@ -135,13 +157,6 @@ namespace Client.Main.Controls
             spriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(rectangle.X, rectangle.Y + rectangle.Height - borderWidth, rectangle.Width, borderWidth), borderColor);
             spriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(rectangle.X, rectangle.Y, borderWidth, rectangle.Height), borderColor);
             spriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(rectangle.X + rectangle.Width - borderWidth, rectangle.Y, borderWidth, rectangle.Height), borderColor);
-        }
-
-        private void OnChangeInteractive()
-        {
-            if (Interactive)
-            {
-            }
         }
     }
 }

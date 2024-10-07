@@ -28,16 +28,16 @@ namespace Client.Main.Controls
             Terrain.WorldIndex = worldIndex;
         }
 
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
-            await base.Load(graphicsDevice);
+            await base.Load();
 
             CreateMapTileObjects();
 
             var worldFolder = $"World{WorldIndex}";
 
 
-            Camera.Instance.AspectRatio = graphicsDevice.Viewport.AspectRatio;
+            Camera.Instance.AspectRatio = GraphicsDevice.Viewport.AspectRatio;
 
             var objReader = new OBJReader();
 

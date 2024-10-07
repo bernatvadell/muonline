@@ -23,11 +23,6 @@ namespace Client.Main.Controls.UI
 
         public Align Align { get; set; }
 
-        public override async Task Initialize(GraphicsDevice graphicsDevice)
-        {
-            await base.Initialize(graphicsDevice);
-        }
-
         public override void Draw(GameTime gameTime)
         {
             var screenX = ScreenX;

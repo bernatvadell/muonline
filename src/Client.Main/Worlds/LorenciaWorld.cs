@@ -119,10 +119,9 @@ namespace Client.Main.Worlds
                 MapTileObjects[151 + i] = typeof(BeerObject);
         }
 
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
-            await base.Load(graphicsDevice);
-
+            await base.Load();
             SoundController.Instance.PlayBackgroundMusic("Music/MuTheme.mp3");
         }
     }

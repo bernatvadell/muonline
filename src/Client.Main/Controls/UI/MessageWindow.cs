@@ -38,23 +38,18 @@ namespace Client.Main.Controls.UI
 
         public static void Show(string message, Action onClose)
         {
-            Task.Run(async () =>
+            var control = new MessageWindow
             {
-                var control = new MessageWindow
-                {
-                    Text = message
-                };
+                Text = message
+            };
 
-                control._button.Click += (sender, e) =>
-                {
-                    onClose?.Invoke();
-                    MuGame.Instance.ActiveScene?.Controls.Remove(control);
-                };
+            control._button.Click += (sender, e) =>
+            {
+                onClose?.Invoke();
+                MuGame.Instance.ActiveScene?.Controls.Remove(control);
+            };
 
-                MuGame.Instance.ActiveScene.Controls.Add(control);
-
-                await control.Initialize(MuGame.Instance.GraphicsDevice);
-            });
+            MuGame.Instance.ActiveScene.Controls.Add(control);
         }
     }
 }

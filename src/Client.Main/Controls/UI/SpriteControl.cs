@@ -6,7 +6,8 @@ namespace Client.Main.Controls.UI
     {
         public int ElementWidth { get; set; }
         public int ElementHeight { get; set; }
-        public int Position { get; set; }
-        public override Rectangle SourceRectangle => new(0, Position * ElementHeight, ElementWidth, ElementHeight);
+        public int TileX { get; set; }
+        public int TileY { get; set; }
+        public override Rectangle SourceRectangle => new(OffsetX + TileX * ElementWidth, OffsetY + TileY * ElementHeight, ElementWidth, ElementHeight);
     }
 }

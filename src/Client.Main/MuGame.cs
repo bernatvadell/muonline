@@ -15,8 +15,6 @@ namespace Client.Main
         public static MuGame Instance { get; private set; }
 
         private GraphicsDeviceManager _graphics;
-        private bool _loaded = false;
-
         public static Random Random { get; } = new Random();
 
         public BaseScene ActiveScene;
@@ -61,14 +59,7 @@ namespace Client.Main
         public void ChangeScene<T>() where T : BaseScene, new()
         {
             ActiveScene?.Dispose();
-            ActiveScene = null;
-
-            var scene = new T();
-            Task.Run(async () =>
-            {
-                await scene.Initialize(GraphicsDevice);
-                ActiveScene = scene;
-            });
+            ActiveScene = new T();
         }
 
         protected override void Initialize()
@@ -86,15 +77,14 @@ namespace Client.Main
             EffectRenderTarget = new RenderTarget2D(GraphicsDevice, 800, 600);
             SpriteBatch = new SpriteBatch(GraphicsDevice);
             Font = Content.Load<SpriteFont>("Arial");
-            _loaded = true;
-            ChangeScene<TestScene>();
+            ChangeScene<LoginScene>();
         }
 
         protected override void Update(GameTime gameTime)
         {
             Mouse = Microsoft.Xna.Framework.Input.Mouse.GetState();
 
-            if (_loaded) ActiveScene?.Update(gameTime);
+            ActiveScene?.Update(gameTime);
 
             base.Update(gameTime);
         }
@@ -113,7 +103,7 @@ namespace Client.Main
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
             GraphicsDevice.BlendState = BlendState.Opaque;
 
-            if (_loaded) ActiveScene?.Draw(gameTime);
+            ActiveScene?.Draw(gameTime);
 
             SpriteBatch.Begin();
             SpriteBatch.DrawString(Font, $"FPS: {(int)FPSCounter.Instance.FPS_AVG}", new Vector2(10, 10), Color.White);

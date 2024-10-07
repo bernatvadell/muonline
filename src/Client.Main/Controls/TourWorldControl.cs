@@ -16,9 +16,9 @@ namespace Client.Main.Controls
     {
         private CameraTourController _tourController;
 
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
-            await base.Load(graphicsDevice);
+            await base.Load();
 
             var worldFolder = $"World{WorldIndex}";
             var cameraWalkScriptReader = new CWSReader();

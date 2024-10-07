@@ -18,7 +18,6 @@ namespace Client.Main.Scenes
 {
     public class TestScene : BaseScene
     {
-        private ParticleSystem Particles;
         public WorldControl World { get; private set; }
 
         public TestScene()
@@ -28,15 +27,45 @@ namespace Client.Main.Scenes
             Camera.Instance.Target = new Vector3(1, 1, 1);
         }
 
-        public override async void AfterLoad()
+        public override void AfterLoad()
         {
             base.AfterLoad();
-            await World.AddObject(new StatueTorchObject() { World = World });
 
-            MessageWindow.Show("Press the button to change scene", () =>
+            // await World.AddObject(new StatueTorchObject() { World = World });
+
+            //MessageWindow.Show("Press the button to change scene", () =>
+            //{
+            //    MuGame.Instance.ChangeScene<LoginScene>();
+            //});
+
+            var nonEventGroup = new ServerGroupSelector(false)
             {
-                MuGame.Instance.ChangeScene<LoginScene>();
-            });
+                X = 100
+            };
+
+            for (byte i = 0; i < 5; i++)
+                nonEventGroup.AddServer(i, $"Server {i + 1}");
+
+            var eventGroup = new ServerGroupSelector(true)
+            {
+                X = 400
+            };
+
+            for (byte i = 0; i < 5; i++)
+                eventGroup.AddServer(i, $"Event {i + 1}");
+
+            nonEventGroup.SelectedIndexChanged += (sender, e) =>
+            {
+                eventGroup.UnselectServer();
+            };
+
+            eventGroup.SelectedIndexChanged += (sender, e) =>
+            {
+                nonEventGroup.UnselectServer();
+            };
+
+            Controls.Add(nonEventGroup);
+            Controls.Add(eventGroup);
         }
 
         public override void Update(GameTime time)

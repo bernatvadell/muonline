@@ -37,13 +37,11 @@ namespace Client.Main.Controls
         private Vector3[] _backTerrainLight;
         private Vector3[] _terrainNormal;
         private byte[] _backTerrainHeight;
-        private GraphicsDevice _graphicsDevice;
 
         public short WorldIndex { get; set; }
-        public override async Task Load(GraphicsDevice graphicsDevice)
-        {
-            _graphicsDevice = graphicsDevice;
 
+        public override async Task Load()
+        {
             var terrainReader = new ATTReader();
             var ozbReader = new OZBReader();
             var objReader = new OBJReader();
@@ -57,9 +55,9 @@ namespace Client.Main.Controls
             if (!Directory.Exists(fullPathWorldFolder))
                 return;
 
-            Camera.Instance.AspectRatio = graphicsDevice.Viewport.AspectRatio;
+            Camera.Instance.AspectRatio = GraphicsDevice.Viewport.AspectRatio;
 
-            _terrainEffect = new BasicEffect(graphicsDevice)
+            _terrainEffect = new BasicEffect(GraphicsDevice)
             {
                 TextureEnabled = true,
                 VertexColorEnabled = true,
@@ -120,7 +118,7 @@ namespace Client.Main.Controls
             CreateTerrainNormal();
             CreateTerrainLight();
 
-            await base.Load(graphicsDevice);
+            await base.Load();
         }
         public override void Update(GameTime time)
         {
@@ -135,7 +133,7 @@ namespace Client.Main.Controls
         }
         public override void Draw(GameTime time)
         {
-            _graphicsDevice.BlendState = BlendState.Opaque;
+            GraphicsDevice.BlendState = BlendState.Opaque;
 
             RenderTerrain();
             base.Draw(time);
@@ -480,7 +478,7 @@ namespace Client.Main.Controls
             foreach (var pass in _terrainEffect.CurrentTechnique.Passes)
             {
                 pass.Apply();
-                _graphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, vertices2, 0, 2);
+                GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, vertices2, 0, 2);
             }
         }
 

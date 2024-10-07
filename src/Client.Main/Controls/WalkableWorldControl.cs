@@ -29,11 +29,10 @@ namespace Client.Main.Controls
             }
         }
 
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
             _currentTargetPosition = Vector3.Zero;
-
-            await base.Load(graphicsDevice);
+            await base.Load();
         }
 
         public override void Update(GameTime time)

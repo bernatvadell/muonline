@@ -30,10 +30,5 @@ namespace Client.Main.Worlds
             MapTileObjects[37] = typeof(TorchObject);
             MapTileObjects[79] = typeof(StatueTorchObject);
         }
-
-        public override async Task Load(GraphicsDevice graphicsDevice)
-        {
-            await base.Load(graphicsDevice);
-        }
     }
 }

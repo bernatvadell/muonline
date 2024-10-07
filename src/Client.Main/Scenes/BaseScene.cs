@@ -21,12 +21,11 @@ namespace Client.Main.Scenes
             Controls.Add(Cursor = new CursorControl());
         }
 
-        public override Task Initialize(GraphicsDevice graphicsDevice)
+        public override Task Initialize()
         {
             Width = MuGame.Instance.Width;
             Height = MuGame.Instance.Height;
-
-            return base.Initialize(graphicsDevice);
+            return base.Initialize();
         }
 
         public override void Update(GameTime gameTime)
@@ -34,6 +33,9 @@ namespace Client.Main.Scenes
             var currentMouseControl = MouseControl;
             MouseControl = null;
             base.Update(gameTime);
+
+            if (Status != GameControlStatus.Ready)
+                return;
 
             if (MouseControl != null && MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && !MouseControl.IsMousePressed)
             {
@@ -45,7 +47,7 @@ namespace Client.Main.Scenes
                 MouseControl.OnClick();
                 FocusedControl = MouseControl;
             }
-            else if (currentMouseControl != null && currentMouseControl.IsMousePressed)
+            else if (currentMouseControl != null && currentMouseControl.IsMousePressed && MouseControl != currentMouseControl)
             {
                 currentMouseControl.IsMousePressed = false;
             }
