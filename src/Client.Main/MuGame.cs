@@ -23,6 +23,7 @@ namespace Client.Main
         public SpriteFont Font { get; private set; }
         public RenderTarget2D EffectRenderTarget { get; private set; }
         public BlendState InverseDestinationBlend { get; private set; }
+        public Effect AlphaRGBEffect { get; set; }
 
         public int Width => _graphics.PreferredBackBufferWidth;
         public int Height => _graphics.PreferredBackBufferHeight;
@@ -76,6 +77,7 @@ namespace Client.Main
             Pixel = new Texture2D(GraphicsDevice, 1, 1);
             Pixel.SetData(new[] { Color.White });
             EffectRenderTarget = new RenderTarget2D(GraphicsDevice, 800, 600);
+            AlphaRGBEffect = Content.Load<Effect>("AlphaRGB");
             SpriteBatch = new SpriteBatch(GraphicsDevice);
             Font = Content.Load<SpriteFont>("Arial");
             ChangeScene<GameScene>();
@@ -87,6 +89,12 @@ namespace Client.Main
             ActiveScene?.Update(gameTime);
             base.Update(gameTime);
         }
+
+        public DepthStencilState DisableDepthMask = new()
+        {
+            DepthBufferEnable = true,
+            DepthBufferWriteEnable = false
+        };
 
         protected override void Draw(GameTime gameTime)
         {

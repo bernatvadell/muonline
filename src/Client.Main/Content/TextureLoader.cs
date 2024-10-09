@@ -161,8 +161,8 @@ namespace Client.Main.Content
                     byte r = textureData.Info.Data[i * 3];
                     byte g = textureData.Info.Data[i * 3 + 1];
                     byte b = textureData.Info.Data[i * 3 + 2];
-
-                    pixelData[i] = new Color(r, g, b, (byte)255);
+                    byte a = 255;
+                    pixelData[i] = new Color(r, g, b, a);
                 }
             }
             else if (textureData.Info.Components == 4)
@@ -173,6 +173,7 @@ namespace Client.Main.Content
                     byte g = textureData.Info.Data[i * 4 + 1];
                     byte b = textureData.Info.Data[i * 4 + 2];
                     byte a = textureData.Info.Data[i * 4 + 3];
+
                     pixelData[i] = new Color(r, g, b, a);
                 }
             }

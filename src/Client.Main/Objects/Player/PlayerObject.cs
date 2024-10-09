@@ -13,7 +13,7 @@ namespace Client.Main.Objects.Player
     {
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare("Player/HelmMale01.bmd");
+            Model = await BMDLoader.Instance.Prepare("Player/HelmClass03.bmd");
             await base.Load();
         }
     }
@@ -32,7 +32,7 @@ namespace Client.Main.Objects.Player
     {
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare("Player/ArmorClass01.bmd");
+            Model = await BMDLoader.Instance.Prepare("Player/ArmorClass03.bmd");
             await base.Load();
         }
     }
@@ -41,7 +41,7 @@ namespace Client.Main.Objects.Player
     {
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare("Player/PantClass01.bmd");
+            Model = await BMDLoader.Instance.Prepare("Player/PantClass03.bmd");
             await base.Load();
         }
     }
@@ -50,7 +50,7 @@ namespace Client.Main.Objects.Player
     {
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare("Player/GloveClass01.bmd");
+            Model = await BMDLoader.Instance.Prepare("Player/GloveClass03.bmd");
             await base.Load();
         }
     }
@@ -59,7 +59,7 @@ namespace Client.Main.Objects.Player
     {
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare("Player/BootClass01.bmd");
+            Model = await BMDLoader.Instance.Prepare("Player/BootClass03.bmd");
             await base.Load();
         }
     }
@@ -68,13 +68,15 @@ namespace Client.Main.Objects.Player
     {
         public WingObject()
         {
-            BlendMesh = 0;
-            BlendState = Blendings.Alpha;
+            BlendMesh = -1;
+            BlendMeshState = BlendState.Additive;
+            Alpha = 1f;
+            // se vincula con el hueso 47 (ver zzzCharacter->14628)
         }
 
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare("Item/Wing02.bmd");
+            Model = await BMDLoader.Instance.Prepare("Item/Wing03.bmd");
             await base.Load();
         }
     }
@@ -102,7 +104,7 @@ namespace Client.Main.Objects.Player
             CurrentAction = 4;
             Scale = 0.85f;
 
-            _helm.Hidden = true;
+            _helmMask.Hidden = true;
         }
 
         public override async Task Load()

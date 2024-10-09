@@ -24,7 +24,7 @@ namespace Client.Main.Objects
         private TextureData[] _dataTextures;
 
         private int _priorAction = 0;
-        private AlphaTestEffect _effect;
+        private Effect _effect;
         private bool _invalidatedBuffers = true;
         private float _blendMeshLight = 1f;
         private float _previousFrame = 0;
@@ -36,7 +36,7 @@ namespace Client.Main.Objects
         public float BodyHeight { get; private set; }
         public int HiddenMesh { get; set; } = -1;
         public int BlendMesh { get; set; } = -1;
-        public BlendState BlendMeshState { get; set; } = BlendState.AlphaBlend;
+        public BlendState BlendMeshState { get; set; } = BlendState.Additive;
         public float BlendMeshLight { get => _blendMeshLight; set { _blendMeshLight = value; _invalidatedBuffers = true; } }
 
         public ModelObject()
@@ -61,6 +61,7 @@ namespace Client.Main.Objects
                     AlphaFunction = CompareFunction.Greater,
                     ReferenceAlpha = (int)(255 * 0.25f)
                 };
+                // _effect = MuGame.Instance.AlphaRGBEffect.Clone();
             }
 
             UpdateWorldPosition();
@@ -76,8 +77,16 @@ namespace Client.Main.Objects
 
             if (_effect != null)
             {
-                _effect.View = Camera.Instance.View;
-                _effect.Projection = Camera.Instance.Projection;
+                if (_effect is IEffectMatrices effectMatrices)
+                {
+                    effectMatrices.View = Camera.Instance.View;
+                    effectMatrices.Projection = Camera.Instance.Projection;
+                }
+                else
+                {
+                    _effect.Parameters["View"].SetValue(Camera.Instance.View);
+                    _effect.Parameters["Projection"].SetValue(Camera.Instance.Projection);
+                }
             }
 
             Animation(gameTime);
@@ -86,7 +95,7 @@ namespace Client.Main.Objects
         public override void Draw(GameTime gameTime)
         {
             if (!Visible || _boneIndexBuffers == null) return;
-
+            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
             DrawModel(false);
             base.Draw(gameTime);
         }
@@ -112,16 +121,15 @@ namespace Client.Main.Objects
             if (_boneVertexBuffers == null)
                 return;
 
-            GraphicsDevice.BlendState = BlendMesh == mesh ? BlendMeshState : BlendState;
-
             var texture = _boneTextures[mesh];
 
             var vertexBuffer = _boneVertexBuffers[mesh];
             var indexBuffer = _boneIndexBuffers[mesh];
             var primitiveCount = indexBuffer.IndexCount / 3;
 
-            _effect.Alpha = Alpha;
-            _effect.Texture = texture;
+            GraphicsDevice.BlendState = BlendMesh == mesh ? BlendMeshState : BlendState;
+            // _effect.Parameters["Alpha"].SetValue(Alpha);
+            _effect.Parameters["Texture"].SetValue(texture);
 
             foreach (var pass in _effect.CurrentTechnique.Passes)
             {
@@ -136,6 +144,9 @@ namespace Client.Main.Objects
         public override void DrawAfter(GameTime gameTime)
         {
             if (!Visible) return;
+            GraphicsDevice.DepthStencilState = MuGame.Instance.DisableDepthMask;
+            GraphicsDevice.DepthStencilState = DepthStencilState.DepthRead;
+
             DrawModel(true);
             base.DrawAfter(gameTime);
         }
@@ -156,7 +167,14 @@ namespace Client.Main.Objects
 
             if (_effect != null)
             {
-                _effect.World = WorldPosition;
+                if (_effect is IEffectMatrices effectMatrices)
+                {
+                    effectMatrices.World = WorldPosition;
+                }
+                else
+                {
+                    _effect.Parameters["World"].SetValue(WorldPosition);
+                }
             }
         }
         private void UpdateBoundings()
@@ -331,9 +349,6 @@ namespace Client.Main.Objects
                     _boneTextures[meshIndex] = TextureLoader.Instance.GetTexture2D(texturePath);
                     _scriptTextures[meshIndex] = TextureLoader.Instance.GetScript(texturePath);
                     _dataTextures[meshIndex] = TextureLoader.Instance.Get(texturePath);
-
-                    if (BlendState == BlendState.Opaque && _dataTextures[meshIndex].Components == 4)
-                        BlendState = Blendings.Alpha;
 
                     var script = TextureLoader.Instance.GetScript(texturePath);
 
