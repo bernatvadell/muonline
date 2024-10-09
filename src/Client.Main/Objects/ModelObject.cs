@@ -64,7 +64,7 @@ namespace Client.Main.Objects
             }
 
             UpdateWorldPosition();
-            Animation(0, 0, 0);
+            GenerateBoneMatrix(0, 0, 0, 0);
 
             await base.Load();
         }
@@ -188,16 +188,102 @@ namespace Client.Main.Objects
         {
             if (LinkParent || Model.Actions.Length <= 0) return;
 
+            var currentAction = Model.Actions[CurrentAction];
+
+            if (currentAction.NumAnimationKeys <= 1)
+            {
+                if (_priorAction != CurrentAction || BoneTransform == null)
+                {
+                    GenerateBoneMatrix(CurrentAction, 0, 0, 0);
+                    _priorAction = CurrentAction;
+                }
+                return;
+            }
+
             float animationSpeed = 3f;
             float currentFrame = (float)(gameTime.TotalGameTime.TotalSeconds * animationSpeed);
 
-            currentFrame %= Model.Actions[CurrentAction].NumAnimationKeys;
-            var priorFrame = currentFrame - 1;
-            if (priorFrame < 0) priorFrame = Model.Actions[CurrentAction].NumAnimationKeys - 1 - priorFrame;
+            int totalFrames = currentAction.NumAnimationKeys - 1;
+            currentFrame %= totalFrames;
 
-            Animation(currentFrame, priorFrame, _priorAction);
+            Animation(currentFrame);
 
             _priorAction = CurrentAction;
+        }
+
+        private void Animation(float currentFrame)
+        {
+            if (LinkParent || Model == null || Model.Actions.Length <= 0) return;
+
+            if (CurrentAction >= Model.Actions.Length) CurrentAction = 0;
+
+            int currentAnimationFrame = (int)Math.Floor(currentFrame);
+            float interpolationFactor = currentFrame - currentAnimationFrame;
+
+            var currentActionData = Model.Actions[CurrentAction];
+            int totalFrames = currentActionData.NumAnimationKeys - 1;
+            int nextAnimationFrame = (currentAnimationFrame + 1) % totalFrames;
+
+            GenerateBoneMatrix(CurrentAction, currentAnimationFrame, nextAnimationFrame, interpolationFactor);
+        }
+
+
+        private void GenerateBoneMatrix(int currentAction, int currentAnimationFrame, int nextAnimationFrame, float interpolationFactor)
+        {
+            BoneTransform ??= new Matrix[Model.Bones.Length];
+
+            var currentActionData = Model.Actions[currentAction];
+            var changed = false;
+
+            for (int i = 0; i < Model.Bones.Length; i++)
+            {
+                var bone = Model.Bones[i];
+
+                if (bone == BMDTextureBone.Dummy)
+                    continue;
+
+                var bm = bone.Matrixes[currentAction];
+
+                var q1 = bm.Quaternion[currentAnimationFrame];
+                var q2 = bm.Quaternion[nextAnimationFrame];
+
+                var boneQuaternion = Quaternion.Slerp(q1, q2, interpolationFactor);
+
+                Matrix matrix = Matrix.CreateFromQuaternion(boneQuaternion);
+
+                Vector3 position1 = bm.Position[currentAnimationFrame];
+                Vector3 position2 = bm.Position[nextAnimationFrame];
+                Vector3 interpolatedPosition = Vector3.Lerp(position1, position2, interpolationFactor);
+
+                if (i == 0 && currentActionData.LockPositions)
+                {
+                    matrix.M41 = bm.Position[0].X;
+                    matrix.M42 = bm.Position[0].Y;
+                    matrix.M43 = position1.Z * (1 - interpolationFactor) + position2.Z * interpolationFactor + BodyHeight;
+                }
+                else
+                {
+                    matrix.Translation = interpolatedPosition;
+                }
+
+                Matrix newMatrix;
+
+                if (bone.Parent != -1)
+                    newMatrix = matrix * BoneTransform[bone.Parent];
+                else
+                    newMatrix = matrix;
+
+                if (!changed && BoneTransform[i] != newMatrix)
+                    changed = true;
+
+                BoneTransform[i] = newMatrix;
+            }
+
+            if (changed)
+            {
+                InvalidateBuffers();
+                UpdateBoundings();
+            }
         }
         private void SetDynamicBuffers()
         {
@@ -265,92 +351,7 @@ namespace Client.Main.Objects
             }
         }
 
-        private void Animation(float currentFrame, float priorFrame, int priorAction)
-        {
-            if (LinkParent || Model == null || Model.Actions.Length <= 0) return;
-
-            if (priorAction >= Model.Actions.Length) priorAction = 0;
-            if (CurrentAction >= Model.Actions.Length) CurrentAction = 0;
-
-            int currentAnimationFrame = (int)currentFrame;
-            float interpolationFactor = currentFrame - currentAnimationFrame;
-
-            int priorAnimationFrame = (int)priorFrame;
-            if (priorAnimationFrame < 0) priorAnimationFrame = 0;
-            if (currentAnimationFrame < 0) currentAnimationFrame = 0;
-
-            var priorActionData = Model.Actions[priorAction];
-            var currentActionData = Model.Actions[CurrentAction];
-
-            if (priorAnimationFrame >= priorActionData.NumAnimationKeys) priorAnimationFrame = 0;
-            if (currentAnimationFrame >= currentActionData.NumAnimationKeys) currentAnimationFrame = 0;
-
-            GenerateBoneMatrix(priorAction, CurrentAction, priorAnimationFrame, currentAnimationFrame, interpolationFactor);
-        }
-
-        private void GenerateBoneMatrix(int priorAction, int currentAction, int priorAnimationFrame, int currentAnimationFrame, float interpolationFactor)
-        {
-            BoneTransform ??= new Matrix[Model.Bones.Length];
-
-            var priorActionData = Model.Actions[priorAction];
-            var currentActionData = Model.Actions[currentAction];
-            var changed = false;
-
-            for (int i = 0; i < Model.Bones.Length; i++)
-            {
-                var bone = Model.Bones[i];
-
-                if (bone == BMDTextureBone.Dummy)
-                    continue;
-
-                var bm1 = bone.Matrixes[priorAction];
-                var bm2 = bone.Matrixes[CurrentAction];
-
-                var q1 = bm1.Quaternion[priorAnimationFrame];
-                var q2 = bm2.Quaternion[currentAnimationFrame];
-
-                var boneQuaternion = q1 != q2
-                    ? Quaternion.Slerp(q1, q2, interpolationFactor)
-                    : q1;
-
-                Matrix matrix = Matrix.CreateFromQuaternion(boneQuaternion);
-
-                Vector3 position1 = bm1.Position[priorAnimationFrame];
-                Vector3 position2 = bm2.Position[currentAnimationFrame];
-                Vector3 interpolatedPosition = Vector3.Lerp(position1, position2, interpolationFactor);
-
-                if (i == 0 && (priorActionData.LockPositions || currentActionData.LockPositions))
-                {
-                    matrix.M41 = bm2.Position[0].X;
-                    matrix.M42 = bm2.Position[0].Y;
-                    matrix.M43 = position1.Z * (1 - interpolationFactor) + position2.Z * interpolationFactor + BodyHeight;
-                }
-                else
-                {
-                    matrix.Translation = interpolatedPosition;
-                }
-
-                Matrix newMatrix;
-
-                if (bone.Parent != -1)
-                    newMatrix = matrix * BoneTransform[bone.Parent];
-                else
-                    newMatrix = matrix;
-
-                if (!changed && BoneTransform[i] != newMatrix)
-                    changed = true;
-
-                BoneTransform[i] = newMatrix;
-            }
-
-            if (changed)
-            {
-                InvalidateBuffers();
-                UpdateBoundings();
-            }
-        }
-
-        public void InvalidateBuffers()
+        protected void InvalidateBuffers()
         {
             _invalidatedBuffers = true;
 
