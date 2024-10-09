@@ -46,11 +46,14 @@ namespace Client.Data.Texture
                 {
                     byte b = br.ReadByte(), g = br.ReadByte(), r = br.ReadByte(), a = br.ReadByte();
 
-                    float alphaFactor = a / 255f;
-                    data[dstIndex + 0] = (byte)(r * alphaFactor);
-                    data[dstIndex + 1] = (byte)(g * alphaFactor);
-                    data[dstIndex + 2] = (byte)(b * alphaFactor);
+                    //float alphaFactor = a / 255f;
+                    //data[dstIndex + 0] = (byte)(r * alphaFactor);
+                    //data[dstIndex + 1] = (byte)(g * alphaFactor);
+                    //data[dstIndex + 2] = (byte)(b * alphaFactor);
 
+                    data[dstIndex + 0] = r;
+                    data[dstIndex + 1] = g;
+                    data[dstIndex + 2] = b;
                     data[dstIndex + 3] = a;
 
                     dstIndex += 4;

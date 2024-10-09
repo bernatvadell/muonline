@@ -15,13 +15,17 @@ namespace Client.Main.Objects.Lorencia
         private float _alpha = 0.6f;
         private float _alphaTarget = 1f;
 
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
             LightEnabled = true;
             var idx = (Type - (ushort)ModelType.HouseWall01 + 1).ToString().PadLeft(2, '0');
-            if (idx == "02") BlendMesh = 4;
+            if (idx == "02")
+            {
+                BlendMesh = 4;
+                BlendMeshState = BlendState.Additive;
+            }
             Model = await BMDLoader.Instance.Prepare($"Object1/HouseWall{idx}.bmd");
-            await base.Load(graphicsDevice);
+            await base.Load();
         }
 
         public override void Update(GameTime gameTime)

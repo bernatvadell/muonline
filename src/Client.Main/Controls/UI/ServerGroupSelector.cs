@@ -31,7 +31,7 @@ namespace Client.Main.Controls.UI
                 TileHeight = 97,
                 TileX = eventList ? 1 : 0,
                 X = eventList ? 70 : 0,
-                BlendState = BlendState.AlphaBlend,
+                BlendState = Blendings.Alpha,
             });
 
             Controls.Add(IndicatorActive = new SpriteControl
@@ -44,7 +44,7 @@ namespace Client.Main.Controls.UI
                 TileHeight = 29,
                 TileY = eventList ? 1 : 0,
                 Visible = false,
-                BlendState = BlendState.AlphaBlend,
+                BlendState = Blendings.Alpha,
             });
         }
 

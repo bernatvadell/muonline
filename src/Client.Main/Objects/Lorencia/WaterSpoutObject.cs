@@ -10,13 +10,15 @@ namespace Client.Main.Objects.Lorencia
         public WaterSpoutObject()
         {
             LightEnabled = true;
+            Light = new Microsoft.Xna.Framework.Vector3();
             BlendMesh = 3;
+            BlendMeshState = BlendState.Additive;
         }
 
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
             Model = await BMDLoader.Instance.Prepare($"Object1/Waterspout01.bmd");
-            await base.Load(graphicsDevice);
+            await base.Load();
         }
     }
 }

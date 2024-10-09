@@ -68,13 +68,15 @@ namespace Client.Main.Controls
             try
             {
                 Status = GameControlStatus.Initializing;
+               
+                await Load();
 
                 var tasks = new Task[Controls.Count];
 
-                await Load();
+                var controls = Controls.ToArray();
 
-                for (int i = 0; i < Controls.Count; i++)
-                    tasks[i] = Controls[i].Initialize();
+                for (int i = 0; i < controls.Length; i++)
+                    tasks[i] = controls[i].Initialize();
 
                 await Task.WhenAll(tasks);
 
@@ -122,10 +124,10 @@ namespace Client.Main.Controls
                 control.Update(gameTime);
 
                 if ((control.X + control.Width) > maxWidth)
-                    maxWidth = control.X + control.Width;
+                    maxWidth = control.X + control.ScreenLocation.Width;
 
                 if ((control.Y + control.Height) > maxHeight)
-                    maxHeight = control.Y + control.Height;
+                    maxHeight = control.Y + control.ScreenLocation.Height;
             }
 
             if (AutoSize)
@@ -190,6 +192,16 @@ namespace Client.Main.Controls
             var parent = Parent;
             Parent.Controls.Remove(this);
             parent.Controls.Add(this);
+        }
+
+        public void SendToBack()
+        {
+            if (Status == GameControlStatus.Disposed) return;
+            if (Parent == null) return;
+            if (Parent.Controls[0] == this) return;
+            var parent = Parent;
+            Parent.Controls.Remove(this);
+            parent.Controls.Insert(0, this);
         }
 
         protected void DrawBorder()

@@ -12,11 +12,11 @@ namespace Client.Main.Objects.Lorencia
             LightEnabled = true;
         }
 
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
             var idx = (Type - (ushort)ModelType.Carriage01 + 1).ToString().PadLeft(2, '0');
             Model = await BMDLoader.Instance.Prepare($"Object1/Carriage{idx}.bmd");
-            await base.Load(graphicsDevice);
+            await base.Load();
         }
 
         public override void DrawMesh(int mesh)
@@ -26,7 +26,7 @@ namespace Client.Main.Objects.Lorencia
 
             base.DrawMesh(mesh);
 
-            BlendState = BlendState.AlphaBlend;
+            BlendState = Blendings.Alpha;
         }
     }
 }

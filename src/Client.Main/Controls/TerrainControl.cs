@@ -201,20 +201,23 @@ namespace Client.Main.Controls
                 float left = 0;
                 float right = 0;
 
-                switch (i)
+                if (_backTerrainLight != null)
                 {
-                    case 0:
-                        left = _backTerrainLight[Index1].X + (_backTerrainLight[Index4].X - _backTerrainLight[Index1].X) * yd;
-                        right = _backTerrainLight[Index1].X + (_backTerrainLight[Index4].X - _backTerrainLight[Index1].X) * yd;
-                        break;
-                    case 1:
-                        left = _backTerrainLight[Index1].Y + (_backTerrainLight[Index4].Y - _backTerrainLight[Index1].Y) * yd;
-                        right = _backTerrainLight[Index1].Y + (_backTerrainLight[Index4].Y - _backTerrainLight[Index1].Y) * yd;
-                        break;
-                    case 2:
-                        left = _backTerrainLight[Index1].Z + (_backTerrainLight[Index4].Z - _backTerrainLight[Index1].Z) * yd;
-                        right = _backTerrainLight[Index1].Z + (_backTerrainLight[Index4].Z - _backTerrainLight[Index1].Z) * yd;
-                        break;
+                    switch (i)
+                    {
+                        case 0:
+                            left = _backTerrainLight[Index1].X + (_backTerrainLight[Index4].X - _backTerrainLight[Index1].X) * yd;
+                            right = _backTerrainLight[Index1].X + (_backTerrainLight[Index4].X - _backTerrainLight[Index1].X) * yd;
+                            break;
+                        case 1:
+                            left = _backTerrainLight[Index1].Y + (_backTerrainLight[Index4].Y - _backTerrainLight[Index1].Y) * yd;
+                            right = _backTerrainLight[Index1].Y + (_backTerrainLight[Index4].Y - _backTerrainLight[Index1].Y) * yd;
+                            break;
+                        case 2:
+                            left = _backTerrainLight[Index1].Z + (_backTerrainLight[Index4].Z - _backTerrainLight[Index1].Z) * yd;
+                            right = _backTerrainLight[Index1].Z + (_backTerrainLight[Index4].Z - _backTerrainLight[Index1].Z) * yd;
+                            break;
+                    }
                 }
 
                 output[i] = (left + (right - left) * xd);

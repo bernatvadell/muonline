@@ -24,9 +24,9 @@ namespace Client.Main.Objects
             BoundingBoxColor = Color.Red;
         }
 
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
-            await base.Load(graphicsDevice);
+            await base.Load();
 
             TextureData = await TextureLoader.Instance.Prepare(TexturePath);
 
@@ -34,7 +34,6 @@ namespace Client.Main.Objects
             {
                 SpriteBatch = new SpriteBatch(GraphicsDevice);
                 SpriteTexture = TextureLoader.Instance.GetTexture2D(TexturePath);
-                BoundingBoxLocal = new BoundingBox(new Vector3(-40, -40, 0), new Vector3(40, 40, 80));
             }
         }
 
@@ -74,7 +73,7 @@ namespace Client.Main.Objects
             if (!Ready) return;
 
             var screenPosition = GraphicsDevice.Viewport.Project(
-                Origin,
+                WorldPosition.Translation,
                 Camera.Instance.Projection,
                 Camera.Instance.View,
                 Matrix.Identity

@@ -1,6 +1,7 @@
 ﻿using Client.Main.Content;
 using Client.Main.Controls;
 using Client.Main.Scenes;
+using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -77,15 +78,13 @@ namespace Client.Main
             EffectRenderTarget = new RenderTarget2D(GraphicsDevice, 800, 600);
             SpriteBatch = new SpriteBatch(GraphicsDevice);
             Font = Content.Load<SpriteFont>("Arial");
-            ChangeScene<TestScene>();
+            ChangeScene<GameScene>();
         }
 
         protected override void Update(GameTime gameTime)
         {
             Mouse = Microsoft.Xna.Framework.Input.Mouse.GetState();
-
             ActiveScene?.Update(gameTime);
-
             base.Update(gameTime);
         }
 
@@ -103,12 +102,13 @@ namespace Client.Main
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
             GraphicsDevice.BlendState = BlendState.Opaque;
 
-            ActiveScene?.Draw(gameTime);
+            if (ActiveScene?.Status == GameControlStatus.Ready)
+                ActiveScene?.Draw(gameTime);
 
             SpriteBatch.Begin();
             SpriteBatch.DrawString(Font, $"FPS: {(int)FPSCounter.Instance.FPS_AVG}", new Vector2(10, 10), Color.White);
-            if (ActiveScene is GameScene gameScene)
-                SpriteBatch.DrawString(Font, $"PX: {gameScene.World.PositionX}, PY: {gameScene.World.PositionY}", new Vector2(10, 30), Color.White);
+            if (ActiveScene.World != null && ActiveScene.World is WalkableWorldControl walkableWorld)
+                SpriteBatch.DrawString(Font, $"PX: {walkableWorld.PositionX}, PY: {walkableWorld.PositionY}", new Vector2(10, 30), Color.White);
             SpriteBatch.End();
 
             GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;

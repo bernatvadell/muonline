@@ -11,11 +11,11 @@ namespace Client.Main.Objects.Lorencia
 {
     public class BeerObject : ModelObject
     {
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
             var idx = (Type - (ushort)ModelType.Beer01 + 1).ToString().PadLeft(2, '0');
             Model = await BMDLoader.Instance.Prepare($"Object1/Beer{idx}.bmd");
-            await base.Load(graphicsDevice);
+            await base.Load();
         }
     }
 

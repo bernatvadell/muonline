@@ -11,9 +11,9 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    public class WorldObjectFactory
+    public static class WorldObjectFactory
     {
-        public static WorldObject CreateMapTileObject(WorldControl world, Data.OBJS.MapObject obj)
+        public static WorldObject CreateMapTileObject(this WorldControl world, Data.OBJS.MapObject obj)
         {
             var type = world.MapTileObjects[obj.Type];
 
@@ -25,7 +25,6 @@ namespace Client.Main.Objects
 
             var mapObj = (WorldObject)Activator.CreateInstance(type);
 
-            mapObj.World = world;
             mapObj.Type = obj.Type;
             mapObj.Position = obj.Position;
             mapObj.Scale = obj.Scale;

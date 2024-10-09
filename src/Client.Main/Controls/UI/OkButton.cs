@@ -17,7 +17,7 @@ namespace Client.Main.Controls.UI
             TileWidth = 54;
             TileHeight = 30;
             TileY = 0;
-            BlendState = BlendState.AlphaBlend;
+            BlendState = Blendings.Alpha;
             TexturePath = "Interface/message_ok_b_all.tga";
         }
 

@@ -23,7 +23,7 @@ namespace Client.Main.Controls.UI
             Controls.Add(_logo = new TextureControl
             {
                 TexturePath = "Logo/MU-logo.tga",
-                BlendState = BlendState.AlphaBlend,
+                BlendState = Blendings.Alpha,
                 Scale = 0.5f
             });
         }

@@ -14,7 +14,7 @@ namespace Client.Main.Objects
 {
     public class MapTileObject : ModelObject
     {
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
             var modelPath = Path.Join($"Object{World.WorldIndex}", $"Object{(Type + 1).ToString().PadLeft(2, '0')}.bmd");
 
@@ -23,7 +23,7 @@ namespace Client.Main.Objects
             if (Model == null)
                 Debug.WriteLine($"Can't load MapObject for model: {modelPath}");
 
-            await base.Load(graphicsDevice);
+            await base.Load();
         }
     }
 }

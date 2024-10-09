@@ -34,6 +34,11 @@ namespace Client.Main
             _controls.Add(control);
         }
 
+        public void Insert(int index, T control)
+        {
+            _controls.Insert(index, control);
+        }
+
         public IEnumerator<T> GetEnumerator()
         {
             return _controls.GetEnumerator();

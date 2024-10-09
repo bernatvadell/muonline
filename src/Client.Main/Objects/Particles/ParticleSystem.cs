@@ -47,7 +47,7 @@ namespace Client.Main.Objects.Particles
                 var particleType = _particles[randomIndex];
                 var particle = particleType.Emit();
                 Children.Add(particle);
-                Task.Run(() => particle.Load(GraphicsDevice));
+                Task.Run(() => particle.Load());
             }
         }
 

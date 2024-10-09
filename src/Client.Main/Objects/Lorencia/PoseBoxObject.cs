@@ -7,10 +7,10 @@ namespace Client.Main.Objects.Lorencia
 {
     public class PoseBoxObject : ModelObject
     {
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
             Model = await BMDLoader.Instance.Prepare($"Object1/PoseBox01.bmd");
-            await base.Load(graphicsDevice);
+            await base.Load();
         }
 
         public override void DrawMesh(int mesh)

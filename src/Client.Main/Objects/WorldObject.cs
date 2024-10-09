@@ -19,8 +19,11 @@ namespace Client.Main.Objects
         private Vector3 _position, _angle;
         private float _scale = 1f;
         private BasicEffect _boundingBoxEffect;
-        private BoundingBox _boundingBoxLocal;
+        private BoundingBox _boundingBoxLocal = new BoundingBox(new Vector3(-40, -40, 0), new Vector3(40, 40, 80));
         private WorldObject _parent;
+        private Matrix _worldPosition;
+
+        public bool LinkParent { get; set; }
         public bool OutOfView { get; private set; } = true;
         public ChildrenCollection<WorldObject> Children { get; private set; }
         public WorldObject Parent { get => _parent; set { var prev = _parent; _parent = value; OnParentChanged(value, prev); } }
@@ -29,24 +32,27 @@ namespace Client.Main.Objects
         public BoundingBox BoundingBoxWorld { get; private set; }
 
         public virtual bool Ready { get; private set; }
+        public bool Hidden { get; set; }
         public string ObjectName => GetType().Name;
-        public BlendState BlendState { get; set; } = BlendState.AlphaBlend;
+        public BlendState BlendState { get; set; } = BlendState.Opaque;
         public float Alpha { get; set; } = 1f;
         public float TotalAlpha { get => (Parent?.TotalAlpha ?? 1f) * Alpha; }
         public Vector3 Position { get => _position; set { _position = value; OnPositionChanged(); } }
-        public virtual Vector3 Origin { get => (Parent?.Origin ?? Vector3.Zero) + Position; }
         public Vector3 Angle { get => _angle; set { _angle = value; OnAngleChanged(); } }
         public Vector3 TotalAngle { get => (Parent?.TotalAngle ?? Vector3.Zero) + Angle; }
 
         public float Scale { get => _scale; set { _scale = value; OnScaleChanged(); } }
-        public Matrix WorldPosition { get; set; } = Matrix.Identity;
-        public Vector3 Light { get; set; } = new Vector3(0.3f, 0.3f, 0.3f);
+        public Matrix WorldPosition { get => _worldPosition; set { _worldPosition = value; OnWorldPositionChanged(); } }
+
+        public Vector3 Light { get; set; } = new Vector3(0f, 0f, 0f);
         public bool LightEnabled { get; set; } = true;
-        public bool Visible => Ready && !OutOfView;
-        public WorldControl World { get; set; }
+        public Vector3 BodyLight => LightEnabled ? World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y) * Light * Alpha : Vector3.One;
+        public Vector3 BodyLightMesh => LightEnabled ? World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y) * Light * Alpha : Vector3.One;
+        public bool Visible => Ready && !OutOfView && !Hidden;
+        public WorldControl World => MuGame.Instance.ActiveScene?.World;
         public ushort Type { get; set; }
         public Color BoundingBoxColor { get; set; } = Color.GreenYellow;
-        protected GraphicsDevice GraphicsDevice { get; private set; }
+        protected GraphicsDevice GraphicsDevice => MuGame.Instance.GraphicsDevice;
 
         public event EventHandler MatrixChanged;
 
@@ -55,11 +61,9 @@ namespace Client.Main.Objects
             Children = new ChildrenCollection<WorldObject>(this);
         }
 
-        public virtual async Task Load(GraphicsDevice graphicsDevice)
+        public virtual async Task Load()
         {
-            GraphicsDevice = graphicsDevice;
-
-            lock (graphicsDevice)
+            lock (GraphicsDevice)
             {
                 _boundingBoxEffect = new BasicEffect(GraphicsDevice)
                 {
@@ -73,7 +77,7 @@ namespace Client.Main.Objects
             var tasks = new Task[Children.Count];
 
             for (var i = 0; i < Children.Count; i++)
-                tasks[i] = Children[i].Load(graphicsDevice);
+                tasks[i] = Children[i].Load();
 
             await Task.WhenAll(tasks);
 
@@ -121,6 +125,26 @@ namespace Client.Main.Objects
                 Children[i].DrawAfter(gameTime);
         }
 
+        public void BringToFront()
+        {
+            if (!Ready) return;
+            if (Parent == null) return;
+            if (Parent.Children[^1] == this) return;
+            var parent = Parent;
+            Parent.Children.Remove(this);
+            parent.Children.Add(this);
+        }
+
+        public void SendToBack()
+        {
+            if (!Ready) return;
+            if (Parent == null) return;
+            if (Parent.Children[0] == this) return;
+            var parent = Parent;
+            Parent.Children.Remove(this);
+            parent.Children.Insert(0, this);
+        }
+
         public virtual void Dispose()
         {
             Ready = false;
@@ -154,13 +178,11 @@ namespace Client.Main.Objects
         protected virtual void OnBoundingBoxLocalChanged() => UpdateWorldBoundingBox();
 
         private void OnParentMatrixChanged(Object s, EventArgs e) => RecalculateWorldPosition();
-        private void RecalculateWorldPosition()
+        protected virtual void RecalculateWorldPosition()
         {
             var localMatrix = Matrix.CreateScale(Scale)
                                 * Matrix.CreateFromQuaternion(MathUtils.AngleQuaternion(Angle))
                                 * Matrix.CreateTranslation(Position);
-
-            var changed = false;
 
             if (Parent != null)
             {
@@ -169,23 +191,25 @@ namespace Client.Main.Objects
                 if (WorldPosition != worldMatrix)
                 {
                     WorldPosition = worldMatrix;
-                    changed = true;
                 }
             }
             else if (WorldPosition != localMatrix)
             {
                 WorldPosition = localMatrix;
-                changed = true;
-            }
-
-            if (changed)
-            {
-                UpdateWorldBoundingBox();
-                MatrixChanged?.Invoke(this, EventArgs.Empty);
             }
         }
+
+        private void OnWorldPositionChanged()
+        {
+            UpdateWorldBoundingBox();
+            MatrixChanged?.Invoke(this, EventArgs.Empty);
+        }
+
         private void DrawBoundingBox()
         {
+            if (_boundingBoxEffect == null)
+                return;
+
             Vector3[] corners = BoundingBoxWorld.GetCorners();
 
             int[] indices =

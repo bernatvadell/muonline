@@ -12,10 +12,10 @@ namespace Client.Main.Objects.Logo
             LightEnabled = true;
         }
 
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
             Model = await BMDLoader.Instance.Prepare("Logo/Logo02.bmd");
-            await base.Load(graphicsDevice);
+            await base.Load();
             BlendState = BlendState.Additive;
         }
     }

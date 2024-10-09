@@ -18,9 +18,9 @@ namespace Client.Main.Objects.Particles
             Children.Add(Object);
         }
 
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
-            await base.Load(graphicsDevice);
+            await base.Load();
 
             for (var i = 0; i < Effects.Length; i++)
             {

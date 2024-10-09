@@ -17,15 +17,23 @@ namespace Client.Main.Objects.Lorencia
             LightEnabled = true;
         }
 
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
             var idx = (Type - (ushort)ModelType.House01 + 1).ToString().PadLeft(2, '0');
-            
-            if (idx == "03") BlendMesh = 4;
-            else if (idx == "04") BlendMesh = 8;
+
+            if (idx == "03")
+            {
+                BlendMesh = 4;
+                BlendMeshState = BlendState.Additive;
+            }
+            else if (idx == "04")
+            {
+                BlendMesh = 8;
+                BlendMeshState = BlendState.Additive;
+            }
 
             Model = await BMDLoader.Instance.Prepare($"Object1/House{idx}.bmd");
-            await base.Load(graphicsDevice);
+            await base.Load();
         }
 
         public override void Update(GameTime gameTime)

@@ -12,30 +12,51 @@ namespace Client.Main.Scenes
 {
     public abstract class BaseScene : GameControl
     {
+        public WorldControl World { get; private set; }
+
         public CursorControl Cursor { get; }
         public GameControl MouseControl { get; set; }
         public GameControl FocusedControl { get; set; }
 
         public BaseScene()
         {
+            AutoSize = false;
             Controls.Add(Cursor = new CursorControl());
         }
 
-        public override Task Initialize()
+        public void ChangeWorld<T>() where T : WorldControl, new()
         {
+            World?.Dispose();
+            Controls.Add(World = new T());
+            Task.Run(() => World.Initialize());
+        }
+
+        public async Task ChangeWorldAsync<T>() where T : WorldControl, new()
+        {
+            World?.Dispose();
+            Controls.Add(World = new T());
+            await World.Initialize();
+        }
+
+        public override async Task Load()
+        {
+            await base.Load();
+
             Width = MuGame.Instance.Width;
             Height = MuGame.Instance.Height;
-            return base.Initialize();
         }
 
         public override void Update(GameTime gameTime)
         {
             var currentMouseControl = MouseControl;
             MouseControl = null;
+
             base.Update(gameTime);
 
             if (Status != GameControlStatus.Ready)
                 return;
+
+            if (World == null) return;
 
             if (MouseControl != null && MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && !MouseControl.IsMousePressed)
             {
@@ -53,6 +74,13 @@ namespace Client.Main.Scenes
             }
 
             Cursor.BringToFront();
+        }
+
+        public override void Draw(GameTime gameTime)
+        {
+            if (World == null) return;
+
+            base.Draw(gameTime);
         }
     }
 }

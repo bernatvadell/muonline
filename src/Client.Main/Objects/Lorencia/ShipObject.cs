@@ -16,10 +16,10 @@ namespace Client.Main.Objects.Lorencia
             LightEnabled = true;
         }
 
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
             Model = await BMDLoader.Instance.Prepare($"Object1/Ship01.bmd");
-            await base.Load(graphicsDevice);
+            await base.Load();
         }
     }
 }

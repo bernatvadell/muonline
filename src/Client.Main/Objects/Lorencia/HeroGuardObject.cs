@@ -13,7 +13,7 @@ namespace Client.Main.Objects.Lorencia
             LightEnabled = true;
         }
 
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
             Debug.WriteLine($"Unknown BMD");
         }

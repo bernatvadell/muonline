@@ -3,6 +3,7 @@ using Client.Data.BMD;
 using Client.Data.Texture;
 using Client.Main.Content;
 using Client.Main.Controls;
+using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -22,22 +23,20 @@ namespace Client.Main.Objects
         private TextureScript[] _scriptTextures;
         private TextureData[] _dataTextures;
 
-        private Matrix[] _boneTransform;
-        private int _currentAction = 0;
         private int _priorAction = 0;
-        private BasicEffect _effect;
+        private AlphaTestEffect _effect;
         private bool _invalidatedBuffers = true;
         private float _blendMeshLight = 1f;
+        private float _previousFrame = 0;
 
+        protected Matrix[] BoneTransform { get; set; }
+        public int CurrentAction { get; set; }
         public virtual int OriginBoneIndex => 0;
         public BMD Model { get; set; }
-        public override bool Ready => Model != null;
-
         public float BodyHeight { get; private set; }
-        public override Vector3 Origin => _boneTransform != null && _boneTransform.Length > OriginBoneIndex ? Vector3.Transform(_boneTransform[OriginBoneIndex].Translation, WorldPosition) : Vector3.Zero;
-
         public int HiddenMesh { get; set; } = -1;
         public int BlendMesh { get; set; } = -1;
+        public BlendState BlendMeshState { get; set; } = BlendState.AlphaBlend;
         public float BlendMeshLight { get => _blendMeshLight; set { _blendMeshLight = value; _invalidatedBuffers = true; } }
 
         public ModelObject()
@@ -45,30 +44,29 @@ namespace Client.Main.Objects
             MatrixChanged += (_s, _e) => UpdateWorldPosition();
         }
 
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
-            await base.Load(graphicsDevice);
-
             if (Model == null)
             {
                 Debug.WriteLine($"Model is not assigned for {ObjectName} -> Type: {Type}");
                 return;
             }
 
-            lock (graphicsDevice)
+            lock (GraphicsDevice)
             {
-                _effect = new BasicEffect(graphicsDevice)
+                _effect = new AlphaTestEffect(GraphicsDevice)
                 {
-                    TextureEnabled = true,
                     VertexColorEnabled = true,
                     World = Matrix.Identity,
+                    AlphaFunction = CompareFunction.Greater,
+                    ReferenceAlpha = (int)(255 * 0.25f)
                 };
             }
 
-            _boneTransform = new Matrix[Model.Bones.Length];
-
             UpdateWorldPosition();
-            GenerateBoneMatrix(0, 0, 0, 0, 0);
+            Animation(0, 0, 0);
+
+            await base.Load();
         }
         public override void Update(GameTime gameTime)
         {
@@ -87,24 +85,23 @@ namespace Client.Main.Objects
         }
         public override void Draw(GameTime gameTime)
         {
-            if (!Visible) return;
-            DrawModel();
+            if (!Visible || _boneIndexBuffers == null) return;
+
+            DrawModel(false);
             base.Draw(gameTime);
         }
-        public virtual void DrawModel()
+        public virtual void DrawModel(bool isAfterDraw)
         {
             for (var i = 0; i < Model.Meshes.Length; i++)
             {
-                var script = _scriptTextures[i];
-                var hasBright = script?.Bright ?? false;
-                var hasAlpha = script?.Alpha ?? false;
                 var isRGBA = _dataTextures[i].Components == 4;
                 var isBlendMesh = BlendMesh == i;
+                var draw = isAfterDraw
+                    ? isRGBA || isBlendMesh
+                    : !isRGBA && !isBlendMesh;
 
-                var draw = !isBlendMesh && !hasBright && !hasAlpha && !isRGBA;
-
-                if (draw)
-                    DrawMesh(i);
+                if (!draw) continue;
+                DrawMesh(i);
             }
         }
         public virtual void DrawMesh(int mesh)
@@ -115,19 +112,21 @@ namespace Client.Main.Objects
             if (_boneVertexBuffers == null)
                 return;
 
-            GraphicsDevice.BlendState = BlendState;
+            GraphicsDevice.BlendState = BlendMesh == mesh ? BlendMeshState : BlendState;
 
             var texture = _boneTextures[mesh];
 
-            _effect.Alpha = Alpha;
-            _effect.Texture = texture;
             var vertexBuffer = _boneVertexBuffers[mesh];
             var indexBuffer = _boneIndexBuffers[mesh];
             var primitiveCount = indexBuffer.IndexCount / 3;
 
+            _effect.Alpha = Alpha;
+            _effect.Texture = texture;
+
             foreach (var pass in _effect.CurrentTechnique.Passes)
             {
                 pass.Apply();
+
                 GraphicsDevice.SetVertexBuffer(vertexBuffer);
                 GraphicsDevice.Indices = indexBuffer;
                 GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
@@ -137,25 +136,7 @@ namespace Client.Main.Objects
         public override void DrawAfter(GameTime gameTime)
         {
             if (!Visible) return;
-
-            for (var i = 0; i < Model.Meshes.Length; i++)
-            {
-                var script = _scriptTextures[i];
-                var hasBright = script?.Bright ?? false;
-                var hasAlpha = script?.Alpha ?? false;
-                var isRGBA = _dataTextures[i].Components == 4;
-                var isBlendMesh = BlendMesh == i;
-                var draw = isBlendMesh || hasBright || hasAlpha || isRGBA;
-
-                if (draw)
-                {
-                    BlendState = hasBright || isBlendMesh ? BlendState.Additive : BlendState;
-                    DrawMesh(i);
-                    BlendState = BlendState.AlphaBlend;
-                }
-            }
-
-
+            DrawModel(true);
             base.DrawAfter(gameTime);
         }
 
@@ -165,14 +146,18 @@ namespace Client.Main.Objects
 
             _effect?.Dispose();
             Model = null;
-            _boneTransform = null;
+            BoneTransform = null;
             _invalidatedBuffers = true;
         }
 
         private void UpdateWorldPosition()
         {
             _invalidatedBuffers = true;
-            if (_effect != null) _effect.World = WorldPosition;
+
+            if (_effect != null)
+            {
+                _effect.World = WorldPosition;
+            }
         }
         private void UpdateBoundings()
         {
@@ -187,10 +172,10 @@ namespace Client.Main.Objects
                 {
                     int boneIndex = vertex.Node;
 
-                    if (boneIndex < 0 || boneIndex >= _boneTransform.Length)
+                    if (boneIndex < 0 || boneIndex >= BoneTransform.Length)
                         continue;
 
-                    Matrix boneMatrix = _boneTransform[boneIndex];
+                    Matrix boneMatrix = BoneTransform[boneIndex];
                     Vector3 transformedPosition = Vector3.Transform(vertex.Position, boneMatrix);
                     min = Vector3.Min(min, transformedPosition);
                     max = Vector3.Max(max, transformedPosition);
@@ -201,14 +186,18 @@ namespace Client.Main.Objects
         }
         private void Animation(GameTime gameTime)
         {
+            if (LinkParent || Model.Actions.Length <= 0) return;
+
             float animationSpeed = 3f;
             float currentFrame = (float)(gameTime.TotalGameTime.TotalSeconds * animationSpeed);
 
-            currentFrame %= Model.Actions[_currentAction].NumAnimationKeys;
+            currentFrame %= Model.Actions[CurrentAction].NumAnimationKeys;
             var priorFrame = currentFrame - 1;
-            if (priorFrame < 0) priorFrame = Model.Actions[_currentAction].NumAnimationKeys - 1 - priorFrame;
+            if (priorFrame < 0) priorFrame = Model.Actions[CurrentAction].NumAnimationKeys - 1 - priorFrame;
 
             Animation(currentFrame, priorFrame, _priorAction);
+
+            _priorAction = CurrentAction;
         }
         private void SetDynamicBuffers()
         {
@@ -225,22 +214,26 @@ namespace Client.Main.Objects
             {
                 var mesh = Model.Meshes[meshIndex];
 
-                var bodyLight = Color.White;
+                var bodyLight = Vector3.Zero;
 
                 if (LightEnabled && World.Terrain != null)
                 {
-                    var terrainLight = World.Terrain.RequestTerrainLight(Position.X, Position.Y);
+                    var terrainLight = World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y);
                     terrainLight += Light;
-                    bodyLight = new Color(terrainLight.X, terrainLight.Y, terrainLight.Z);
+                    bodyLight = terrainLight;
                 }
 
                 if (meshIndex == BlendMesh)
-                    bodyLight = new Color(bodyLight.ToVector3() * BlendMeshLight);
+                    bodyLight = bodyLight * BlendMeshLight;
+                else
+                    bodyLight = bodyLight * Alpha;
 
                 _boneVertexBuffers[meshIndex]?.Dispose();
                 _boneIndexBuffers[meshIndex]?.Dispose();
 
-                BMDLoader.Instance.GetModelBuffers(Model, meshIndex, bodyLight, _boneTransform, out var vertexBuffer, out var indexBuffer);
+                var bones = LinkParent && Parent is ModelObject parentModel ? parentModel.BoneTransform : BoneTransform;
+
+                BMDLoader.Instance.GetModelBuffers(Model, meshIndex, Color.White, bones, out var vertexBuffer, out var indexBuffer);
 
                 _boneVertexBuffers[meshIndex] = vertexBuffer;
                 _boneIndexBuffers[meshIndex] = indexBuffer;
@@ -252,6 +245,9 @@ namespace Client.Main.Objects
                     _boneTextures[meshIndex] = TextureLoader.Instance.GetTexture2D(texturePath);
                     _scriptTextures[meshIndex] = TextureLoader.Instance.GetScript(texturePath);
                     _dataTextures[meshIndex] = TextureLoader.Instance.Get(texturePath);
+
+                    if (BlendState == BlendState.Opaque && _dataTextures[meshIndex].Components == 4)
+                        BlendState = Blendings.Alpha;
 
                     var script = TextureLoader.Instance.GetScript(texturePath);
 
@@ -268,13 +264,13 @@ namespace Client.Main.Objects
                 _invalidatedBuffers = false;
             }
         }
+
         private void Animation(float currentFrame, float priorFrame, int priorAction)
         {
-            if (Model.Actions.Length <= 0)
-                return;
+            if (LinkParent || Model == null || Model.Actions.Length <= 0) return;
 
             if (priorAction >= Model.Actions.Length) priorAction = 0;
-            if (_currentAction >= Model.Actions.Length) _currentAction = 0;
+            if (CurrentAction >= Model.Actions.Length) CurrentAction = 0;
 
             int currentAnimationFrame = (int)currentFrame;
             float interpolationFactor = currentFrame - currentAnimationFrame;
@@ -284,16 +280,17 @@ namespace Client.Main.Objects
             if (currentAnimationFrame < 0) currentAnimationFrame = 0;
 
             var priorActionData = Model.Actions[priorAction];
-            var currentActionData = Model.Actions[_currentAction];
+            var currentActionData = Model.Actions[CurrentAction];
 
             if (priorAnimationFrame >= priorActionData.NumAnimationKeys) priorAnimationFrame = 0;
             if (currentAnimationFrame >= currentActionData.NumAnimationKeys) currentAnimationFrame = 0;
 
-            GenerateBoneMatrix(priorAction, _currentAction, priorAnimationFrame, currentAnimationFrame, interpolationFactor);
+            GenerateBoneMatrix(priorAction, CurrentAction, priorAnimationFrame, currentAnimationFrame, interpolationFactor);
         }
+
         private void GenerateBoneMatrix(int priorAction, int currentAction, int priorAnimationFrame, int currentAnimationFrame, float interpolationFactor)
         {
-            if (_boneTransform == null) return;
+            BoneTransform ??= new Matrix[Model.Bones.Length];
 
             var priorActionData = Model.Actions[priorAction];
             var currentActionData = Model.Actions[currentAction];
@@ -307,7 +304,7 @@ namespace Client.Main.Objects
                     continue;
 
                 var bm1 = bone.Matrixes[priorAction];
-                var bm2 = bone.Matrixes[_currentAction];
+                var bm2 = bone.Matrixes[CurrentAction];
 
                 var q1 = bm1.Quaternion[priorAnimationFrame];
                 var q2 = bm2.Quaternion[currentAnimationFrame];
@@ -336,20 +333,50 @@ namespace Client.Main.Objects
                 Matrix newMatrix;
 
                 if (bone.Parent != -1)
-                    newMatrix = matrix * _boneTransform[bone.Parent];
+                    newMatrix = matrix * BoneTransform[bone.Parent];
                 else
                     newMatrix = matrix;
 
-                if (!changed && _boneTransform[i] != newMatrix)
+                if (!changed && BoneTransform[i] != newMatrix)
                     changed = true;
 
-                _boneTransform[i] = newMatrix;
+                BoneTransform[i] = newMatrix;
             }
 
             if (changed)
             {
-                _invalidatedBuffers = true;
+                InvalidateBuffers();
                 UpdateBoundings();
+            }
+        }
+
+        public void InvalidateBuffers()
+        {
+            _invalidatedBuffers = true;
+
+            for (var i = 0; i < Children.Count; i++)
+                if (Children[i] is ModelObject modelObject && modelObject.LinkParent)
+                    modelObject.InvalidateBuffers();
+        }
+
+        protected override void RecalculateWorldPosition()
+        {
+            var localMatrix = Matrix.CreateScale(Scale)
+                                * Matrix.CreateFromQuaternion(MathUtils.AngleQuaternion(Angle))
+                                * Matrix.CreateTranslation(Position);
+
+            if (Parent != null)
+            {
+                var worldMatrix = localMatrix * Parent.WorldPosition;
+
+                if (WorldPosition != worldMatrix)
+                {
+                    WorldPosition = worldMatrix;
+                }
+            }
+            else if (WorldPosition != localMatrix)
+            {
+                WorldPosition = localMatrix;
             }
         }
     }

@@ -25,7 +25,7 @@ namespace Client.Main.Controls.UI
             TileWidth = 192;
             TileHeight = 26;
             TileY = 0;
-            BlendState = BlendState.AlphaBlend;
+            BlendState = Blendings.Alpha;
             TexturePath = "Interface/server_b2_all.tga";
 
             Controls.Add(_label = new LabelControl

@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Controls
 {
-    public class WorldControl : GameControl
+    public abstract class WorldControl : GameControl
     {
         public virtual Vector3 TargetPosition { get; }
         public TerrainControl Terrain { get; }
@@ -26,6 +26,16 @@ namespace Client.Main.Controls
             WorldIndex = worldIndex;
             Controls.Add(Terrain = new TerrainControl());
             Terrain.WorldIndex = worldIndex;
+        }
+
+        public void ChangeWorld(short worldIndex)
+        {
+            WorldIndex = worldIndex;
+
+            if (Status == GameControlStatus.NonInitialized)
+                return;
+
+            Task.Run(() => Initialize());
         }
 
         public override async Task Load()
@@ -51,7 +61,7 @@ namespace Client.Main.Controls
                 foreach (var mapObj in obj.Objects)
                 {
                     var instance = WorldObjectFactory.CreateMapTileObject(this, mapObj);
-                    if (instance != null) tasks.Add(AddObject(instance));
+                    if (instance != null) tasks.Add(AddObjectAsync(instance));
                 }
                 await Task.WhenAll(tasks);
             }
@@ -69,7 +79,8 @@ namespace Client.Main.Controls
             base.Draw(time);
             RenderObjects(time);
         }
-        public async Task AddObject(WorldObject obj)
+
+        public void AddObject(WorldObject obj)
         {
             lock (Objects)
             {
@@ -79,7 +90,20 @@ namespace Client.Main.Controls
                 Objects.Add(obj);
             }
 
-            await obj.Load(GraphicsDevice);
+            Task.Run(() => obj.Load());
+        }
+
+        public async Task AddObjectAsync(WorldObject obj)
+        {
+            lock (Objects)
+            {
+                if (Objects.Contains(obj))
+                    return;
+
+                Objects.Add(obj);
+            }
+
+            await obj.Load();
         }
 
         protected virtual void CreateMapTileObjects()
@@ -92,10 +116,12 @@ namespace Client.Main.Controls
 
         private void RenderObjects(GameTime gameTime)
         {
-            foreach (var obj in Objects)
+            var objs = Objects.ToArray();
+
+            foreach (var obj in objs)
                 obj.Draw(gameTime);
 
-            foreach (var obj in Objects)
+            foreach (var obj in objs)
                 obj.DrawAfter(gameTime);
         }
 
@@ -107,6 +133,11 @@ namespace Client.Main.Controls
 
             for (var i = 0; i < objects.Length; i++)
                 objects[i].Dispose();
+        }
+
+        internal async Task AddObject(object value)
+        {
+            throw new NotImplementedException();
         }
     }
 }

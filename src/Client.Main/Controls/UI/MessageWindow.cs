@@ -22,7 +22,7 @@ namespace Client.Main.Controls.UI
 
             Controls.Add(_container = new TextureControl
             {
-                BlendState = BlendState.AlphaBlend,
+                BlendState = Blendings.Alpha,
                 TexturePath = "Interface/message_back.tga",
                 OffsetWidth = 160,
                 OffsetHeight = 15,

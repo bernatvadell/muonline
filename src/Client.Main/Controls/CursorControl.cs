@@ -29,11 +29,9 @@ namespace Client.Main.Controls
 
     public class CursorControl : TextureControl
     {
-        private CursorStatus Status { get; set; }
-
         public CursorControl()
         {
-            BlendState = BlendState.AlphaBlend;
+            BlendState = Blendings.Alpha;
             TexturePath = "Interface/Cursor.tga";
         }
 

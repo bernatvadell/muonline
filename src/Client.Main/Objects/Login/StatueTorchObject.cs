@@ -49,7 +49,7 @@ namespace Client.Main.Objects.Login
             );
         }
 
-        public override async Task Load(GraphicsDevice graphicsDevice)
+        public override async Task Load()
         {
             var modelPath = Path.Join($"Object74", $"Object80.bmd");
 
@@ -58,7 +58,7 @@ namespace Client.Main.Objects.Login
             if (Model == null)
                 Debug.WriteLine($"Can't load MapObject for model: {modelPath}");
 
-            await base.Load(graphicsDevice);
+            await base.Load();
         }
     }
 }

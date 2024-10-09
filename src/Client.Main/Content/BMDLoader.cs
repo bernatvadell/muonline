@@ -126,7 +126,6 @@ namespace Client.Main.Content
 
                     var normalIndex = triangle.NormalIndex[j];
                     var normal = mesh.Normals[normalIndex].Normal;
-
                     var coordIndex = triangle.TexCoordIndex[j];
                     var texCoord = mesh.TexCoords[coordIndex];
 

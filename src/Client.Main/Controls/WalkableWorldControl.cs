@@ -12,9 +12,9 @@ namespace Client.Main.Controls
 {
     public abstract class WalkableWorldControl(short worldIndex) : WorldControl(worldIndex)
     {
-        private Vector3 _currentTargetPosition;
+        public Vector3 MoveTargetPosition { get; private set; }
 
-        public bool IsMoving => Vector3.Distance(_currentTargetPosition, TargetPosition) > 1f;
+        public bool IsMoving => Vector3.Distance(MoveTargetPosition, TargetPosition) > 1f;
         public byte PositionX { get; set; } = 138;
         public byte PositionY { get; set; } = 124;
 
@@ -31,7 +31,7 @@ namespace Client.Main.Controls
 
         public override async Task Load()
         {
-            _currentTargetPosition = Vector3.Zero;
+            MoveTargetPosition = Vector3.Zero;
             await base.Load();
         }
 
@@ -70,47 +70,48 @@ namespace Client.Main.Controls
 
         private void MoveCameraPosition(GameTime time)
         {
-            if (_currentTargetPosition == Vector3.Zero)
+            if (MoveTargetPosition == Vector3.Zero)
             {
-                _currentTargetPosition = TargetPosition;
-                UpdateCameraPosition(_currentTargetPosition);
+                MoveTargetPosition = TargetPosition;
+                UpdateCameraPosition(MoveTargetPosition);
                 return;
             }
 
             if (!IsMoving)
             {
-                _currentTargetPosition = TargetPosition;
+                MoveTargetPosition = TargetPosition;
                 return;
             }
 
-            Vector3 direction = TargetPosition - _currentTargetPosition;
+            Vector3 direction = TargetPosition - MoveTargetPosition;
             direction.Normalize();
 
             float deltaTime = (float)time.ElapsedGameTime.TotalSeconds;
             Vector3 moveVector = direction * 1000f * deltaTime;
 
             // Verifica si la distancia a mover excede la distancia restante al objetivo
-            if (moveVector.Length() > (_currentTargetPosition - TargetPosition).Length())
+            if (moveVector.Length() > (MoveTargetPosition - TargetPosition).Length())
             {
                 UpdateCameraPosition(TargetPosition);
             }
             else
             {
-                UpdateCameraPosition(_currentTargetPosition + moveVector);
+                UpdateCameraPosition(MoveTargetPosition + moveVector);
             }
         }
 
         private void UpdateCameraPosition(Vector3 position)
         {
-            _currentTargetPosition = position;
+            MoveTargetPosition = position;
 
             var cameraDistance = 1000f;
 
             var p = new Vector3(0, -cameraDistance, 0f);
-            var m = MathUtils.AngleMatrix(new Vector3(0, 0, -45));
+            var m = MathUtils.AngleMatrix(new Vector3(0, 0, -48.5f));
             var t = MathUtils.VectorIRotate(p, m);
 
-            Camera.Instance.Position = position + t + new Vector3(0, 0, cameraDistance - 150f);
+            Camera.Instance.FOV = 35;
+            Camera.Instance.Position = position + t + new Vector3(0, 0, cameraDistance);
             Camera.Instance.Target = position;
         }
     }

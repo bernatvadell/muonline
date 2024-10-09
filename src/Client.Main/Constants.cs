@@ -14,6 +14,6 @@ namespace Client.Main
 
         public static bool DRAW_BOUNDING_BOXES = false;
         public static string DataPath = @"C:\Projects\MuMain\Source Main 5.2\bin\Data\";
-        public static bool UNLIMITED_FPS = true;
+        public static bool UNLIMITED_FPS = false;
     }
 }

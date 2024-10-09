@@ -24,7 +24,7 @@ namespace Client.Main.Controls.UI
             TileWidth = 110;
             TileHeight = 26;
             TileY = 0;
-            BlendState = BlendState.AlphaBlend;
+            BlendState = Blendings.Alpha;
             TexturePath = "Interface/cha_bt.tga";
         }
 
