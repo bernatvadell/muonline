@@ -14,7 +14,7 @@ namespace Client.Main.Controls
     {
         public Vector3 MoveTargetPosition { get; private set; }
 
-        public bool IsMoving => Vector3.Distance(MoveTargetPosition, TargetPosition) > 1f;
+        public bool IsMoving => Vector3.Distance(MoveTargetPosition, TargetPosition) > 0f;
         public byte PositionX { get; set; } = 138;
         public byte PositionY { get; set; } = 124;
 

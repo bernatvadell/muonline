@@ -294,7 +294,7 @@ namespace Client.Main.Objects
                 return;
             }
 
-            float animationSpeed = 3f;
+            float animationSpeed = 4f;
             float currentFrame = (float)(gameTime.TotalGameTime.TotalSeconds * animationSpeed);
 
             int totalFrames = currentAction.NumAnimationKeys - 1;
