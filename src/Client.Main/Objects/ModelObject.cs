@@ -6,6 +6,7 @@ using Client.Main.Controls;
 using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using NAudio.CoreAudioApi;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -28,7 +29,7 @@ namespace Client.Main.Objects
         private bool _invalidatedBuffers = true;
         private float _blendMeshLight = 1f;
         private float _previousFrame = 0;
-
+        public Color Color { get; set; } = Color.White;
         protected Matrix[] BoneTransform { get; set; }
         public int CurrentAction { get; set; }
         public virtual int OriginBoneIndex => 0;
@@ -38,6 +39,7 @@ namespace Client.Main.Objects
         public int BlendMesh { get; set; } = -1;
         public BlendState BlendMeshState { get; set; } = BlendState.Additive;
         public float BlendMeshLight { get => _blendMeshLight; set { _blendMeshLight = value; _invalidatedBuffers = true; } }
+        public bool RenderShadow { get; set; }
 
         public ModelObject()
         {
@@ -99,6 +101,7 @@ namespace Client.Main.Objects
             DrawModel(false);
             base.Draw(gameTime);
         }
+
         public virtual void DrawModel(bool isAfterDraw)
         {
             for (var i = 0; i < Model.Meshes.Length; i++)
@@ -109,10 +112,27 @@ namespace Client.Main.Objects
                     ? isRGBA || isBlendMesh
                     : !isRGBA && !isBlendMesh;
 
+                if (!isAfterDraw && RenderShadow)
+                {
+                    GraphicsDevice.DepthStencilState = MuGame.Instance.DisableDepthMask;
+                    DrawShadowMesh(i);
+                }
+
                 if (!draw) continue;
+
+                if (isAfterDraw)
+                {
+                    GraphicsDevice.DepthStencilState = MuGame.Instance.DisableDepthMask;
+                }
+                else
+                {
+                    GraphicsDevice.DepthStencilState = DepthStencilState.Default;
+                }
+
                 DrawMesh(i);
             }
         }
+
         public virtual void DrawMesh(int mesh)
         {
             if (HiddenMesh == mesh)
@@ -127,9 +147,11 @@ namespace Client.Main.Objects
             var indexBuffer = _boneIndexBuffers[mesh];
             var primitiveCount = indexBuffer.IndexCount / 3;
 
-            GraphicsDevice.BlendState = BlendMesh == mesh ? BlendMeshState : BlendState;
-            // _effect.Parameters["Alpha"].SetValue(Alpha);
             _effect.Parameters["Texture"].SetValue(texture);
+
+            GraphicsDevice.BlendState = BlendMesh == mesh ? BlendMeshState : BlendState;
+            if (_effect is AlphaTestEffect alphaTestEffect)
+                alphaTestEffect.Alpha = Alpha;
 
             foreach (var pass in _effect.CurrentTechnique.Passes)
             {
@@ -141,12 +163,66 @@ namespace Client.Main.Objects
             }
         }
 
+        public virtual void DrawShadowMesh(int mesh)
+        {
+            if (HiddenMesh == mesh)
+                return;
+
+            if (_boneVertexBuffers == null)
+                return;
+
+            var texture = _boneTextures[mesh];
+            var vertexBuffer = _boneVertexBuffers[mesh];
+            var indexBuffer = _boneIndexBuffers[mesh];
+            var primitiveCount = indexBuffer.IndexCount / 3;
+
+            _effect.Parameters["Texture"].SetValue(texture);
+
+            var shadowVertices = new VertexPositionColorNormalTexture[vertexBuffer.VertexCount];
+
+            GraphicsDevice.BlendState = BlendState.AlphaBlend;
+
+            var effect = (AlphaTestEffect)_effect;
+            vertexBuffer.GetData(shadowVertices);
+            var originalWorld = effect.World;
+            var originalView = effect.View;
+            var originalProjection = effect.Projection;
+
+            for (int i = 0; i < shadowVertices.Length; i++)
+            {
+                shadowVertices[i].Color = new Color(0, 0, 0, 128);
+                shadowVertices[i].Position.Y = 0;
+            }
+
+            effect.Projection = originalProjection;
+
+            var world = effect.World;
+
+            world = Matrix.CreateRotationX(MathHelper.ToRadians(10)) * world;
+
+            world = Matrix.CreateScale(0.8f, 1.0f, 0.8f) * world;
+
+            Vector3 lightDirection = new (-1, 0, 1);
+
+            Vector3 shadowOffset = new (0.05f, 0, 0.1f);
+            world.Translation += lightDirection * 0.3f + shadowOffset;
+
+            effect.World = world;
+
+            foreach (var pass in effect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, shadowVertices, 0, primitiveCount);
+            }
+
+            effect.World = originalWorld;
+            effect.View = originalView;
+            effect.Projection = originalProjection;
+        }
+
         public override void DrawAfter(GameTime gameTime)
         {
             if (!Visible) return;
-            GraphicsDevice.DepthStencilState = MuGame.Instance.DisableDepthMask;
-            GraphicsDevice.DepthStencilState = DepthStencilState.DepthRead;
-
             DrawModel(true);
             base.DrawAfter(gameTime);
         }
@@ -337,7 +413,7 @@ namespace Client.Main.Objects
 
                 var bones = LinkParent && Parent is ModelObject parentModel ? parentModel.BoneTransform : BoneTransform;
 
-                BMDLoader.Instance.GetModelBuffers(Model, meshIndex, Color.White, bones, out var vertexBuffer, out var indexBuffer);
+                BMDLoader.Instance.GetModelBuffers(Model, meshIndex, Color, bones, out var vertexBuffer, out var indexBuffer);
 
                 _boneVertexBuffers[meshIndex] = vertexBuffer;
                 _boneIndexBuffers[meshIndex] = indexBuffer;

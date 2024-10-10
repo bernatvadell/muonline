@@ -104,11 +104,11 @@ namespace Client.Main.Content
 
             vertexBuffer = vertexs[meshIndex];
 
-            vertexBuffer ??= vertexs[meshIndex] = new DynamicVertexBuffer(_graphicsDevice, VertexPositionColorNormalTexture.VertexDeclaration, totalVertices, BufferUsage.WriteOnly);
+            vertexBuffer ??= vertexs[meshIndex] = new DynamicVertexBuffer(_graphicsDevice, VertexPositionColorNormalTexture.VertexDeclaration, totalVertices, BufferUsage.None);
 
             indexBuffer = indexs[meshIndex];
 
-            indexBuffer ??= indexs[meshIndex] = new DynamicIndexBuffer(_graphicsDevice, IndexElementSize.ThirtyTwoBits, totalIndices, BufferUsage.WriteOnly);
+            indexBuffer ??= indexs[meshIndex] = new DynamicIndexBuffer(_graphicsDevice, IndexElementSize.ThirtyTwoBits, totalIndices, BufferUsage.None);
 
             var vertices = new VertexPositionColorNormalTexture[totalVertices];
             var indices = new int[totalIndices];

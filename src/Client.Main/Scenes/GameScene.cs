@@ -39,6 +39,7 @@ namespace Client.Main.Scenes
                 return;
 
             _player.BringToFront();
+            _player.CurrentAction = ((WalkableWorldControl)World).IsMoving ? 25 : 3;
             _player.Position = ((WalkableWorldControl)World).MoveTargetPosition + new Vector3(0, 0, World.Terrain.RequestTerrainHeight(World.TargetPosition.X, World.TargetPosition.Y) - 40);
         }
     }
