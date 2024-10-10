@@ -28,6 +28,7 @@ namespace Client.Main.Scenes
         {
             await base.Load();
             await ChangeWorldAsync<LorenciaWorld>();
+            await World.AddObjectAsync(new CursorObject());
             await World.AddObjectAsync(_player = new PlayerObject());
         }
 

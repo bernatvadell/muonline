@@ -37,12 +37,10 @@ namespace Client.Main.Controls
 
         public override void Update(GameTime gameTime)
         {
-            var mouseState = Mouse.GetState();
-            
-            X = mouseState.X;
-            Y = mouseState.Y;
+            X = MuGame.Instance.Mouse.X;
+            Y = MuGame.Instance.Mouse.Y;
 
-            if (mouseState.LeftButton == ButtonState.Pressed)
+            if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed)
                 TexturePath = "Interface/CursorPush.tga";
             else
                 TexturePath = "Interface/Cursor.tga";
