@@ -34,12 +34,14 @@ namespace Client.Main.Objects
         public int CurrentAction { get; set; }
         public virtual int OriginBoneIndex => 0;
         public BMD Model { get; set; }
+        public Matrix BodyOrigin => OriginBoneIndex < BoneTransform.Length ? BoneTransform[OriginBoneIndex] : Matrix.Identity;
         public float BodyHeight { get; private set; }
         public int HiddenMesh { get; set; } = -1;
         public int BlendMesh { get; set; } = -1;
         public BlendState BlendMeshState { get; set; } = BlendState.Additive;
         public float BlendMeshLight { get => _blendMeshLight; set { _blendMeshLight = value; _invalidatedBuffers = true; } }
         public bool RenderShadow { get; set; }
+        public float AnimationSpeed { get; set; } = 4f;
 
         public ModelObject()
         {
@@ -151,7 +153,7 @@ namespace Client.Main.Objects
 
             GraphicsDevice.BlendState = BlendMesh == mesh ? BlendMeshState : BlendState;
             if (_effect is AlphaTestEffect alphaTestEffect)
-                alphaTestEffect.Alpha = Alpha;
+                alphaTestEffect.Alpha = TotalAlpha;
 
             foreach (var pass in _effect.CurrentTechnique.Passes)
             {
@@ -191,20 +193,18 @@ namespace Client.Main.Objects
             for (int i = 0; i < shadowVertices.Length; i++)
             {
                 shadowVertices[i].Color = new Color(0, 0, 0, 128);
-                shadowVertices[i].Position.Y = 0;
             }
 
             effect.Projection = originalProjection;
 
             var world = effect.World;
 
-            world = Matrix.CreateRotationX(MathHelper.ToRadians(10)) * world;
-
+            world = Matrix.CreateRotationX(MathHelper.ToRadians(-45)) * world;
             world = Matrix.CreateScale(0.8f, 1.0f, 0.8f) * world;
 
-            Vector3 lightDirection = new (-1, 0, 1);
+            Vector3 lightDirection = new(-1, 0, 1);
 
-            Vector3 shadowOffset = new (0.05f, 0, 0.1f);
+            Vector3 shadowOffset = new(0.05f, 0, 0.1f);
             world.Translation += lightDirection * 0.3f + shadowOffset;
 
             effect.World = world;
@@ -294,8 +294,7 @@ namespace Client.Main.Objects
                 return;
             }
 
-            float animationSpeed = 4f;
-            float currentFrame = (float)(gameTime.TotalGameTime.TotalSeconds * animationSpeed);
+            float currentFrame = (float)(gameTime.TotalGameTime.TotalSeconds * AnimationSpeed);
 
             int totalFrames = currentAction.NumAnimationKeys - 1;
             currentFrame %= totalFrames;
@@ -406,7 +405,7 @@ namespace Client.Main.Objects
                 if (meshIndex == BlendMesh)
                     bodyLight = bodyLight * BlendMeshLight;
                 else
-                    bodyLight = bodyLight * Alpha;
+                    bodyLight = bodyLight * TotalAlpha;
 
                 _boneVertexBuffers[meshIndex]?.Dispose();
                 _boneIndexBuffers[meshIndex]?.Dispose();

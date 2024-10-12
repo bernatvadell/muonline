@@ -1,6 +1,7 @@
 ﻿using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Objects.Lorencia;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
@@ -14,8 +15,13 @@ namespace Client.Main.Worlds
     {
         public LorenciaWorld() : base(worldIndex: 1)
         {
-            PositionX = 138;
-            PositionY = 124;
+
+        }
+
+        public override void AfterLoad()
+        {
+            base.AfterLoad();
+            Walker.Location = new Vector2(138, 124);
         }
 
         protected override void CreateMapTileObjects()

@@ -17,10 +17,12 @@ namespace Client.Main.Objects.Lorencia
 
         public override async Task Load()
         {
+            BlendState = BlendState.AlphaBlend;
             LightEnabled = true;
             var idx = (Type - (ushort)ModelType.HouseWall01 + 1).ToString().PadLeft(2, '0');
             if (idx == "02")
             {
+                LightEnabled = true;
                 BlendMesh = 4;
                 BlendMeshState = BlendState.Additive;
             }
@@ -35,6 +37,19 @@ namespace Client.Main.Objects.Lorencia
             _alphaTarget = (MuGame.Random.Next() % 4 + 6) * 0.1f;
             _alpha = MathHelper.Lerp(_alpha, _alphaTarget, 0.1f);
             BlendMeshLight = _alpha;
+            Alpha = 1f;
+
+            if (Type == (ushort)ModelType.HouseWall05 || Type == (ushort)ModelType.HouseWall06)
+            {
+                BlendMesh = 0;
+                BlendMeshState = BlendState.AlphaBlend;
+                Alpha = 0.3f;
+            }
+        }
+
+        public override void Draw(GameTime gameTime)
+        {
+            base.Draw(gameTime);
         }
     }
 }

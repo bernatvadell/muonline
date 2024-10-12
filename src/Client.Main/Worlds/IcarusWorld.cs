@@ -2,6 +2,7 @@ using Client.Data.BMD;
 using Client.Main.Content;
 using Client.Main.Controls;
 using Client.Main.Objects;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
@@ -16,8 +17,13 @@ namespace Client.Main.Worlds
     {
         public IcarusWorld() : base(worldIndex: 11)
         {
-            PositionX = 14;
-            PositionX = 12;
+        
+        }
+
+        public override void AfterLoad()
+        {
+            base.AfterLoad();
+            Walker.Location = new Vector2(14, 12);
         }
     }
 }

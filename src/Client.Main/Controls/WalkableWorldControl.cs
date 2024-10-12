@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controllers;
+using Client.Main.Objects;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -12,18 +13,23 @@ namespace Client.Main.Controls
 {
     public abstract class WalkableWorldControl(short worldIndex) : WorldControl(worldIndex)
     {
-        public Vector3 MoveTargetPosition { get; private set; }
+        private CursorObject _cursor;
+        public float _cursorNextMoveTime;
 
+        public WalkerObject Walker { get; set; }
+        public Vector3 MoveTargetPosition { get; private set; }
+        public float MoveSpeed { get; set; } = 250f;
         public bool IsMoving => Vector3.Distance(MoveTargetPosition, TargetPosition) > 0f;
-        public byte PositionX { get; set; } = 138;
-        public byte PositionY { get; set; } = 124;
+
+        public byte MouseTileX { get; set; } = 0;
+        public byte MouseTileY { get; set; } = 0;
 
         public override Vector3 TargetPosition
         {
             get
             {
-                var x = PositionX * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
-                var y = PositionY * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
+                var x = Walker.Location.X * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
+                var y = Walker.Location.Y * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
                 var v = new Vector3(x, y, Terrain.RequestTerrainHeight(x, y));
                 return v;
             }
@@ -31,41 +37,90 @@ namespace Client.Main.Controls
 
         public override async Task Load()
         {
+            await AddObjectAsync(_cursor = new CursorObject());
             MoveTargetPosition = Vector3.Zero;
             await base.Load();
         }
 
         public override void Update(GameTime time)
         {
-            if (!IsMoving)
-            {
-                var state = Keyboard.GetState();
+            if (Status != GameControlStatus.Ready || !Visible) return;
 
-                if (state.IsKeyDown(Keys.W))
-                {
-                    PositionX -= 1;
-                    PositionY += 1;
-                }
-                if (state.IsKeyDown(Keys.A))
-                {
-                    PositionX -= 1;
-                    PositionY -= 1;
-                }
-                if (state.IsKeyDown(Keys.S))
-                {
-                    PositionX += 1;
-                    PositionY -= 1;
-                }
-                if (state.IsKeyDown(Keys.D))
-                {
-                    PositionX += 1;
-                    PositionY += 1;
-                }
+            CalculateMouseTilePos();
+
+            if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && _cursorNextMoveTime <= 0)
+            {
+                _cursorNextMoveTime = 250;
+                Walker.Location = new Vector2(MouseTileX, MouseTileY);
+                var x = Walker.Location.X * Constants.TERRAIN_SCALE;
+                var y = Walker.Location.Y * Constants.TERRAIN_SCALE;
+                var pos = new Vector3(x, y, Terrain.RequestTerrainHeight(x, y));
+                _cursor.Position = pos - new Vector3(-50f, -40f, 0);
+            }
+            else if (_cursorNextMoveTime > 0)
+            {
+                _cursorNextMoveTime -= (float)time.ElapsedGameTime.TotalMilliseconds;
             }
 
             MoveCameraPosition(time);
 
             base.Update(time);
+        }
+
+        private void CalculateMouseTilePos()
+        {
+            var mouseRay = MuGame.Instance.MouseRay;
+
+            float maxDistance = 10000f;
+            float stepSize = Constants.TERRAIN_SCALE / 10f;
+            float currentDistance = 0f;
+
+            Vector3 lastPosition = mouseRay.Position;
+            float lastHeightDifference = lastPosition.Z - Terrain.RequestTerrainHeight(lastPosition.X, lastPosition.Y);
+
+            bool hit = false;
+            Vector3 hitPosition = Vector3.Zero;
+
+            while (currentDistance < maxDistance)
+            {
+                currentDistance += stepSize;
+                Vector3 position = mouseRay.Position + mouseRay.Direction * currentDistance;
+                float terrainHeight = Terrain.RequestTerrainHeight(position.X, position.Y);
+
+                float heightDifference = position.Z - terrainHeight;
+
+                if (lastHeightDifference > 0 && heightDifference <= 0)
+                {
+                    hit = true;
+                    float t = lastHeightDifference / (lastHeightDifference - heightDifference);
+                    hitPosition = Vector3.Lerp(lastPosition, position, t);
+
+                    break;
+                }
+
+                lastPosition = position;
+                lastHeightDifference = heightDifference;
+            }
+
+            if (hit)
+            {
+                float terrainX = hitPosition.X;
+                float terrainY = hitPosition.Y;
+
+                int gridX = (int)(terrainX / Constants.TERRAIN_SCALE);
+                int gridY = (int)(terrainY / Constants.TERRAIN_SCALE);
+
+                gridX = Math.Clamp(gridX, 0, Constants.TERRAIN_SIZE - 1);
+                gridY = Math.Clamp(gridY, 0, Constants.TERRAIN_SIZE - 1);
+
+                MouseTileX = (byte)gridX;
+                MouseTileY = (byte)gridY;
+            }
+            else
+            {
+                MouseTileX = 0;
+                MouseTileY = 0;
+            }
         }
 
         private void MoveCameraPosition(GameTime time)
@@ -87,7 +142,7 @@ namespace Client.Main.Controls
             direction.Normalize();
 
             float deltaTime = (float)time.ElapsedGameTime.TotalSeconds;
-            Vector3 moveVector = direction * 1000f * deltaTime;
+            Vector3 moveVector = direction * MoveSpeed * deltaTime;
 
             // Verifica si la distancia a mover excede la distancia restante al objetivo
             if (moveVector.Length() > (MoveTargetPosition - TargetPosition).Length())

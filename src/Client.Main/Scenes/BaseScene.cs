@@ -12,7 +12,7 @@ namespace Client.Main.Scenes
 {
     public abstract class BaseScene : GameControl
     {
-        public WorldControl World { get; private set; }
+        public WorldControl World { get; protected set; }
 
         public CursorControl Cursor { get; }
         public GameControl MouseControl { get; set; }

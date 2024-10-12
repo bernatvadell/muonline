@@ -17,19 +17,32 @@ namespace Client.Main.Scenes
 {
     public class GameScene : BaseScene
     {
-        private PlayerObject _player;
-
-        public GameScene()
-        {
-            
-        }
+        private readonly PlayerObject _hero = new();
+        public PlayerObject Hero { get => _hero; }
 
         public override async Task Load()
         {
             await base.Load();
-            await ChangeWorldAsync<LorenciaWorld>();
-            await World.AddObjectAsync(new CursorObject());
-            await World.AddObjectAsync(_player = new PlayerObject());
+            await ChangeMapAsync<LorenciaWorld>();
+            await World.AddObjectAsync(_hero);
+        }
+
+        public void ChangeMap<T>() where T : WalkableWorldControl, new()
+        {
+            World?.Dispose();
+            var world = new T() { Walker = _hero };
+            World = world;
+            Controls.Add(world);
+            Task.Run(() => World.Initialize());
+        }
+
+        public async Task ChangeMapAsync<T>() where T : WalkableWorldControl, new()
+        {
+            World?.Dispose();
+            var world = new T() { Walker = _hero };
+            World = world;
+            Controls.Add(world);
+            await World.Initialize();
         }
 
         public override void Update(GameTime gameTime)
@@ -39,9 +52,7 @@ namespace Client.Main.Scenes
             if (Status != GameControlStatus.Ready || !Visible)
                 return;
 
-            _player.BringToFront();
-            _player.CurrentAction = ((WalkableWorldControl)World).IsMoving ? 25 : 3;
-            _player.Position = ((WalkableWorldControl)World).MoveTargetPosition + new Vector3(0, 0, World.Terrain.RequestTerrainHeight(World.TargetPosition.X, World.TargetPosition.Y) - 40);
+            _hero.BringToFront();
         }
     }
 }

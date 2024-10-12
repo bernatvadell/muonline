@@ -44,5 +44,10 @@ namespace Client.Main.Objects.Lorencia
             _alpha = MathHelper.Lerp(_alpha, _alphaTarget, 0.1f);
             BlendMeshLight = _alpha;
         }
+
+        public override void Draw(GameTime gameTime)
+        {
+            base.Draw(gameTime);
+        }
     }
 }

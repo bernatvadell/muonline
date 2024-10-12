@@ -353,7 +353,7 @@ namespace Client.Main.Controls
                         }
                     }
 
-                    BoundingBox blockBounds = new BoundingBox(
+                    var blockBounds = new BoundingBox(
                         new Vector3(xStart, yStart, minZ),
                         new Vector3(xEnd, yEnd, maxZ)
                     );
@@ -363,6 +363,7 @@ namespace Client.Main.Controls
                 }
             }
         }
+
         private void RenderTerrainBlock(float xf, float yf, int xi, int yi)
         {
             int lodi = 1;
@@ -389,8 +390,6 @@ namespace Client.Main.Controls
             var idx2 = GetTerrainIndex(xi + lodi, yi);
             var idx3 = GetTerrainIndex(xi + lodi, yi + lodi);
             var idx4 = GetTerrainIndex(xi, yi + lodi);
-
-
 
             //var alpha1 = _mapping.Alpha[idx1];
             //var alpha2 = _mapping.Alpha[idx2];

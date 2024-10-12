@@ -1,4 +1,5 @@
 ﻿using Client.Main.Content;
+using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,6 +13,9 @@ namespace Client.Main.Objects.Effects
         public override async Task Load()
         {
             Model = await BMDLoader.Instance.Prepare("Effect/MoveTargetPosEffect.bmd");
+            BlendMesh = 0;
+            LightEnabled = true;
+            Light = new Vector3(1f, 0.7f, 0.3f);
             await base.Load();
         }
     }

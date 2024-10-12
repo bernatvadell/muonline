@@ -43,7 +43,6 @@ namespace Client.Main.Objects
 
         public float Scale { get => _scale; set { _scale = value; OnScaleChanged(); } }
         public Matrix WorldPosition { get => _worldPosition; set { _worldPosition = value; OnWorldPositionChanged(); } }
-
         public Vector3 Light { get; set; } = new Vector3(0f, 0f, 0f);
         public bool LightEnabled { get; set; } = true;
         public Vector3 BodyLight => LightEnabled ? World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y) * Light * Alpha : Vector3.One;
@@ -196,6 +195,7 @@ namespace Client.Main.Objects
             else if (WorldPosition != localMatrix)
             {
                 WorldPosition = localMatrix;
+
             }
         }
 
