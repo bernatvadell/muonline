@@ -16,7 +16,6 @@ namespace Client.Main.Objects
         private Vector2 _location;
 
 
-        public new WalkableWorldControl World { get => (WalkableWorldControl)base.World; }
         public Vector2 Location { get => _location; set => OnLocationChanged(_location, value); }
         public Direction Direction { get => _direction; set { _direction = value; OnDirectionChanged(); } }
 

@@ -53,13 +53,16 @@ namespace Client.Main.Objects.Player
         {
             base.Update(gameTime);
 
-            if (this == World.Walker)
-                Position = World.MoveTargetPosition + new Vector3(0, 0, World.Terrain.RequestTerrainHeight(World.TargetPosition.X, World.TargetPosition.Y) - 40);
+            if (World is WalkableWorldControl world)
+            {
+                if (this == world.Walker)
+                    Position = world.MoveTargetPosition + new Vector3(0, 0, World.Terrain.RequestTerrainHeight(world.TargetPosition.X, world.TargetPosition.Y) - 40);
 
-            if (World.IsMoving && this == World.Walker)
-                CurrentAction = PlayerAction.WalkMale;
-            else if (!World.IsMoving)
-                CurrentAction = PlayerAction.StopMale;
+                if (world.IsMoving && this == world.Walker)
+                    CurrentAction = PlayerAction.WalkMale;
+                else if (!world.IsMoving)
+                    CurrentAction = PlayerAction.StopMale;
+            }
         }
 
         public override void Draw(GameTime gameTime)

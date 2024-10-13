@@ -34,7 +34,6 @@ namespace Client.Main.Scenes
         {
             await ChangeWorldAsync<EmptyWorldControl>();
             await World.AddObjectAsync(_player = new PlayerObject());
-            await World.AddObjectAsync(_moveEffect = new MoveTargetPostEffectObject());
             await base.Load();
             //var wnd = MessageWindow.Show("Press the button to change scene");
             //wnd.Closed += (s, e) => MuGame.Instance.ChangeScene<GameScene>();

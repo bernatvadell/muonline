@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using System.Reflection.PortableExecutable;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -24,12 +25,20 @@ namespace Client.Data.BMD
 
             var version = buffer[3];
 
-            if (version == 0x0C)
+            if (version == 12)
             {
                 var size = BitConverter.ToInt32(buffer, 4);
                 var enc = new byte[size];
                 Array.Copy(buffer, 8, enc, 0, size);
                 var dec = FileCryptor.Decrypt(enc);
+                Array.Copy(dec, 0, buffer, 4, size);
+            }
+            else if (version == 15)
+            {
+                var size = BitConverter.ToInt32(buffer, 4);
+                var enc = new byte[size];
+                Array.Copy(buffer, 8, enc, 0, size);
+                var dec = LEACrypto.Decrypt(enc);
                 Array.Copy(dec, 0, buffer, 4, size);
             }
 
@@ -77,7 +86,9 @@ namespace Client.Data.BMD
                 };
 
                 if (action.LockPositions)
+                {
                     action.Positions = br.ReadStructArray<Vector3>(action.NumAnimationKeys);
+                }
             }
 
             for (var i = 0; i < bones.Length; i++)
