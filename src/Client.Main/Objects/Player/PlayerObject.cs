@@ -56,7 +56,7 @@ namespace Client.Main.Objects.Player
             if (World is WalkableWorldControl world)
             {
                 if (this == world.Walker)
-                    Position = world.MoveTargetPosition + new Vector3(0, 0, World.Terrain.RequestTerrainHeight(world.TargetPosition.X, world.TargetPosition.Y) - 40);
+                    Position = world.MoveTargetPosition + new Vector3(0, 0, world.Terrain.RequestTerrainHeight(world.TargetPosition.X, world.TargetPosition.Y) - 40);
 
                 if (world.IsMoving && this == world.Walker)
                     CurrentAction = PlayerAction.WalkMale;
