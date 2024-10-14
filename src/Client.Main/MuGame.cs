@@ -81,7 +81,7 @@ namespace Client.Main
             AlphaRGBEffect = Content.Load<Effect>("AlphaRGB");
             SpriteBatch = new SpriteBatch(GraphicsDevice);
             Font = Content.Load<SpriteFont>("Arial");
-            ChangeScene<TestScene>();
+            ChangeScene<GameScene>();
         }
 
         protected override void Update(GameTime gameTime)

@@ -1,4 +1,6 @@
 ﻿
+using Client.Data.ModulusCryptor;
+
 namespace Client.Data.ATT
 {
     public class ATTReader : BaseReader<TerrainAttribute>
@@ -7,14 +9,23 @@ namespace Client.Data.ATT
 
         protected override TerrainAttribute Read(byte[] buffer)
         {
+            if (buffer.Length > 4 && buffer[0] == 'A' && buffer[1] == 'T' && buffer[2] == 'T' && buffer[3] == 1)
+            {
+                var enc = new byte[buffer.Length - 4];
+                Array.Copy(buffer, 4, enc, 0, enc.Length);
+                buffer = ModulusCryptor.ModulusCryptor.Decrypt(enc);
+            }
+            else
+            {
+                buffer = FileCryptor.Decrypt(buffer);
+            }
+
             var bufferLength = buffer.Length;
             var expectedSize = Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE + 4;
             var expectedExtendedSize = Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE * 2 + 4;
 
             if (bufferLength != expectedSize && bufferLength != expectedExtendedSize)
                 throw new FileLoadException($"Unexpected file size. Expected: {expectedSize} or for extended ver: {expectedExtendedSize}. Current: {bufferLength}");
-
-            buffer = FileCryptor.Decrypt(buffer);
 
             for (int i = 0; i < buffer.Length; ++i)
                 buffer[i] ^= MASK[i % 3];

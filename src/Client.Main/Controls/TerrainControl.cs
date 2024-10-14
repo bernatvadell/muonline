@@ -32,11 +32,11 @@ namespace Client.Main.Controls
         private Texture2D[] _textures;
 
         private float[] _terrainGrassWind;
-        private TextureData _terrainLightTexture;
         private Vector3[] _terrainLight;
         private Vector3[] _backTerrainLight;
         private Vector3[] _terrainNormal;
         private byte[] _backTerrainHeight;
+        private byte[] _terrainLightData;
 
         public short WorldIndex { get; set; }
 
@@ -65,10 +65,11 @@ namespace Client.Main.Controls
             };
 
             tasks.Add(terrainReader.Load(Path.Combine(fullPathWorldFolder, $"EncTerrain{WorldIndex}.att")).ContinueWith(t => _terrain = t.Result));
-            tasks.Add(ozbReader.Load(Path.Combine(fullPathWorldFolder, $"TerrainHeight.OZB")).ContinueWith(t => _backTerrainHeight = t.Result.BackTerrainHeight));
+            tasks.Add(ozbReader.Load(Path.Combine(fullPathWorldFolder, $"TerrainHeight.OZB")).ContinueWith(t => _backTerrainHeight = t.Result.Data));
             tasks.Add(mapping.Load(Path.Combine(fullPathWorldFolder, $"EncTerrain{WorldIndex}.map")).ContinueWith(t => _mapping = t.Result));
 
-            var textureMapFiles = new string[255];
+            var textureMapFiles = new string[256];
+
             textureMapFiles[0] = Path.Combine(fullPathWorldFolder, "TileGrass01.ozj");
             textureMapFiles[1] = Path.Combine(fullPathWorldFolder, "TileGrass02.ozj");
             textureMapFiles[2] = Path.Combine(fullPathWorldFolder, "TileGround01.ozj");
@@ -105,13 +106,13 @@ namespace Client.Main.Controls
             for (int t = 0; t < textureMapFiles.Length; t++)
             {
                 var path = textureMapFiles[t];
-                if (!File.Exists(path)) continue;
+                if (path == null || !File.Exists(path)) continue;
                 var tt = t;
                 tasks.Add(TextureLoader.Instance.Prepare(path).ContinueWith((_) => _textures[tt] = TextureLoader.Instance.GetTexture2D(path)));
             }
 
-            var textureLightPath = Path.Combine(worldFolder, "TerrainLight.jpg");
-            tasks.Add(TextureLoader.Instance.Prepare(textureLightPath).ContinueWith((_) => _terrainLightTexture = TextureLoader.Instance.Get(textureLightPath)));
+            var textureLightPath = Path.Combine(fullPathWorldFolder, "TerrainLight.OZB");
+            tasks.Add(ozbReader.Load(textureLightPath).ContinueWith((ozb) => _terrainLightData = ozb.Result.Data));
 
             await Task.WhenAll(tasks);
 
@@ -235,7 +236,6 @@ namespace Client.Main.Controls
             _mapping = default;
             _textures = null;
             _terrainGrassWind = null;
-            _terrainLightTexture = null;
             _terrainLight = null;
             _backTerrainLight = null;
             _terrainNormal = null;
@@ -276,13 +276,11 @@ namespace Client.Main.Controls
         }
         private void CreateTerrainLight()
         {
-            var lightTextureInfo = _terrainLightTexture;
-
             _terrainLight = new Vector3[Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE];
             _backTerrainLight = new Vector3[Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE];
 
-            for (var i = 0; i < lightTextureInfo.Data.Length; i += 3)
-                _terrainLight[i / 3] = new Vector3(lightTextureInfo.Data[i] / 255f, lightTextureInfo.Data[i + 1] / 255f, lightTextureInfo.Data[i + 2] / 255f);
+            for (var i = 0; i < _terrainLightData.Length; i += 3)
+                _terrainLight[i / 3] = new Vector3(_terrainLightData[i] / 255f, _terrainLightData[i + 1] / 255f, _terrainLightData[i + 2] / 255f);
 
             var _light = new Vector3(0.5f, 0.5f, 0.5f);
             for (int y = 0; y < Constants.TERRAIN_SIZE; y++)
@@ -444,11 +442,17 @@ namespace Client.Main.Controls
             // RenderTexture(alpha ? _mapping.Layer1[idx1] : _mapping.Layer2[idx1], xf, yf, terrainVertex, alpha1);
             // if (alpha) RenderTexture(alpha ? _mapping.Layer2[idx1] : _mapping.Layer1[idx1], xf, yf, terrainVertex, alpha1);
         }
+
+        private bool[] _notifiedNullTextures = new bool[256];
         private void RenderTexture(int textureIndex, float xf, float yf, Vector3[] terrainVertex, Vector3[] terrainLights)
         {
             if (_textures[textureIndex] == null)
             {
-                Debug.WriteLine($"Texture {textureIndex} is null for terrain {WorldIndex}");
+                if (!_notifiedNullTextures[textureIndex])
+                {
+                    _notifiedNullTextures[textureIndex] = true;
+                    Debug.WriteLine($"Texture {textureIndex} is null for terrain {WorldIndex}");
+                }
                 return;
             }
 
