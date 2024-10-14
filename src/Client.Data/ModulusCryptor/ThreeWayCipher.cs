@@ -16,9 +16,6 @@ namespace Client.Data.ModulusCryptor
 
         public ThreeWayCipher(byte[] key, bool isEncryption = false)
         {
-            if (key.Length != BLOCK_SIZE)
-                throw new ArgumentException("La clave debe tener una longitud de 96 bits (12 bytes).");
-
             this.isEncryption = isEncryption;
 
             // Convertir la clave de bytes a uint32
@@ -68,7 +65,7 @@ namespace Client.Data.ModulusCryptor
 
         public void DecryptBlock(byte[] input, byte[] output)
         {
-            // Convertir el bloque de entrada a uint32
+            // Convertir el bloque de entrada a uint32 (Little Endian para el descifrado)
             uint a0 = BitConverter.ToUInt32(input, 0);
             uint a1 = BitConverter.ToUInt32(input, 4);
             uint a2 = BitConverter.ToUInt32(input, 8);
@@ -103,7 +100,6 @@ namespace Client.Data.ModulusCryptor
             Buffer.BlockCopy(BitConverter.GetBytes(a1), 0, output, 4, 4);
             Buffer.BlockCopy(BitConverter.GetBytes(a2), 0, output, 8, 4);
         }
-
 
         public static void Rho(ref uint a0, ref uint a1, ref uint a2)
         {

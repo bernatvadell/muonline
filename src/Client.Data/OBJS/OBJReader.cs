@@ -1,4 +1,6 @@
-﻿namespace Client.Data.OBJS
+﻿using Org.BouncyCastle.Bcpg.OpenPgp;
+
+namespace Client.Data.OBJS
 {
     public class OBJReader : BaseReader<OBJ>
     {
@@ -11,7 +13,14 @@
             var version = br.ReadByte();
             var mapNumber = br.ReadByte();
             var count = br.ReadInt16();
-            var objects = br.ReadStructArray<MapObject>(count);
+
+            IMapObject[] objects = version switch
+            {
+                1 => br.ReadStructArray<MapObjectV1>(count).OfType<IMapObject>().ToArray(),
+                2 => br.ReadStructArray<MapObjectV1>(count).OfType<IMapObject>().ToArray(),
+                3 => br.ReadStructArray<MapObjectV3>(count).OfType<IMapObject>().ToArray(),
+                _ => throw new NotImplementedException($"Version {version} not implemented"),
+            };
 
             return new OBJ
             {

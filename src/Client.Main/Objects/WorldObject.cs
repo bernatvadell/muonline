@@ -49,7 +49,7 @@ namespace Client.Main.Objects
         public Vector3 BodyLightMesh => LightEnabled ? World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y) * Light * Alpha : Vector3.One;
         public bool Visible => Ready && !OutOfView && !Hidden;
         public WorldControl World => MuGame.Instance.ActiveScene?.World;
-        public ushort Type { get; set; }
+        public short Type { get; set; }
         public Color BoundingBoxColor { get; set; } = Color.GreenYellow;
         protected GraphicsDevice GraphicsDevice => MuGame.Instance.GraphicsDevice;
 

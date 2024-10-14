@@ -13,7 +13,7 @@ namespace Client.Main.Objects
 {
     public static class WorldObjectFactory
     {
-        public static WorldObject CreateMapTileObject(this WorldControl world, Data.OBJS.MapObject obj)
+        public static WorldObject CreateMapTileObject(this WorldControl world, Data.OBJS.IMapObject obj)
         {
             var type = world.MapTileObjects[obj.Type];
 

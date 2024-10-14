@@ -1,9 +1,11 @@
-﻿using Client.Data.Texture;
+﻿using Client.Data;
+using Client.Data.Texture;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -48,12 +50,31 @@ namespace Client.Main.Content
                 var ext = Path.GetExtension(path).ToLowerInvariant();
                 TextureData data;
 
+                BaseReader<TextureData> reader;
+                string fullPath = "";
+
                 if (ext == ".ozt" || ext == ".tga")
-                    data = await _tgaReader.Load(Path.ChangeExtension(dataPath, ".ozt"));
+                {
+                    reader = _tgaReader;
+                    fullPath = Path.ChangeExtension(dataPath, ".ozt");
+                }
                 else if (ext == ".ozj" || ext == ".jpg")
-                    data = await _jpgReader.Load(Path.ChangeExtension(dataPath, ".ozj"));
+                {
+                    reader = _jpgReader;
+                    fullPath = Path.ChangeExtension(dataPath, ".ozj");
+                }
                 else
                     throw new NotImplementedException($"Extension {ext} not implemented.");
+
+                if (!File.Exists(fullPath))
+                {
+                    var parentFolder = Directory.GetParent(fullPath);
+                    var newFullPath = Path.Combine(parentFolder.FullName, "texture", Path.GetFileName(fullPath));
+                    if (File.Exists(newFullPath))
+                        fullPath = newFullPath;
+                }
+
+                data = await reader.Load(fullPath);
 
                 var clientTexture = new ClientTexture
                 {
@@ -67,7 +88,7 @@ namespace Client.Main.Content
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Failed to load asset {path}: {e.Message}");
+                Debug.WriteLine($"Failed to load asset {path}: {e.Message}");
                 return null;
             }
         }

@@ -13,7 +13,7 @@ namespace Client.Main.Objects.Player
 
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare("Player/ArmorClass02.bmd");
+            Model = await BMDLoader.Instance.Prepare("Item/ArmorMale4005.bmd");
             await base.Load();
         }
     }

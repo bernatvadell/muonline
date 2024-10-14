@@ -10,8 +10,9 @@ namespace Client.Main.Objects.Player
 
         public WingObject()
         {
-            RenderShadow = true;
+            RenderShadow = false;
             BlendMesh = -1;
+            BlendState = BlendState.AlphaBlend;
             BlendMeshState = BlendState.Additive;
             Alpha = 1f;
             // se vincula con el hueso 47 (ver zzzCharacter->14628)
@@ -19,7 +20,7 @@ namespace Client.Main.Objects.Player
 
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare("Item/Wing03.bmd");
+            Model = await BMDLoader.Instance.Prepare("Item/wing11.bmd");
             await base.Load();
         }
     }

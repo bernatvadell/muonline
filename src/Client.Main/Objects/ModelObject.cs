@@ -108,6 +108,7 @@ namespace Client.Main.Objects
         {
             for (var i = 0; i < Model.Meshes.Length; i++)
             {
+                if (_dataTextures[i] == null) continue;
                 var isRGBA = _dataTextures[i].Components == 4;
                 var isBlendMesh = BlendMesh == i;
                 var draw = isAfterDraw

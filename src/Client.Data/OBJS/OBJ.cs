@@ -7,6 +7,6 @@ namespace Client.Data.OBJS
     {
         public byte Version { get; set; } = 0;
         public int MapNumber { get; set; } = 0;
-        public MapObject[] Objects { get; set; } = [];
+        public IMapObject[] Objects { get; set; } = [];
     }
 }
