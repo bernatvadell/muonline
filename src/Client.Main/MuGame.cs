@@ -161,6 +161,9 @@ namespace Client.Main
             if (ActiveScene?.Status == GameControlStatus.Ready)
                 ActiveScene?.Draw(gameTime);
 
+            if (ActiveScene?.Status == GameControlStatus.Ready)
+                ActiveScene?.DrawAfter(gameTime);
+
             SpriteBatch.Begin();
             SpriteBatch.DrawString(Font, $"FPS: {(int)FPSCounter.Instance.FPS_AVG}, VMX: {Mouse.Position.X}, VMY: {Mouse.Position.Y}", new Vector2(10, 10), Color.White);
 

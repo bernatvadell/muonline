@@ -14,6 +14,11 @@ namespace Client.Main.Objects
 {
     public class MapTileObject : ModelObject
     {
+        public MapTileObject()
+        {
+            BlendState = BlendState.AlphaBlend;
+        }
+
         public override async Task Load()
         {
             var modelPath = Path.Join($"Object{World.WorldIndex}", $"Object{(Type + 1).ToString().PadLeft(2, '0')}.bmd");

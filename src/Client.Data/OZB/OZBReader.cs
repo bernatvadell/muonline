@@ -32,12 +32,35 @@ namespace Client.Data.OZB
 
         private OZB ReadBM8(BinaryReader br, byte version)
         {
-            var bmpHeader = br.ReadBytes(1080);
-            var backTerrainHeight = br.ReadBytes(256 * 256);
+            // header (14 bytes)
+            var type = br.ReadInt16();
+            var size = br.ReadInt32();
+            var res1 = br.ReadInt16();
+            var res2 = br.ReadInt16();
+            var offBits = br.ReadInt32();
+
+            // info (40 bytes)
+            var biSize = br.ReadInt32();
+            var width = br.ReadInt32();
+            var height = br.ReadInt32();
+            var planes = br.ReadInt16();
+            var bitCount = br.ReadInt16();
+            var compression = br.ReadInt32();
+            var sizeImage = br.ReadInt32();
+            var xpelsPerMeter = br.ReadInt32();
+            var ypelsPerMeter = br.ReadInt32();
+            var clrUsed = br.ReadInt32();
+            var clrImportant = br.ReadInt32();
+
+            var bmpHeader = br.ReadBytes(1026);
+
+            var backTerrainHeight = br.ReadBytes(width * height);
 
             return new OZB
             {
                 Version = version,
+                Width = width,
+                Height = height,
                 Data = backTerrainHeight.Select(x => Color.FromArgb(255, x, x, x)).ToArray()
             };
         }
@@ -72,6 +95,8 @@ namespace Client.Data.OZB
             return new OZB
             {
                 Version = version,
+                Width = width,
+                Height = height,
                 Data = data
             };
         }

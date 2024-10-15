@@ -27,7 +27,7 @@ namespace Client.Main.Controls
         private readonly float _specialHeight = 1200f;
 
         private TerrainAttribute _terrain;
-        private BasicEffect _terrainEffect;
+        private AlphaTestEffect _terrainEffect;
 
         private TerrainMapping _mapping;
         private Texture2D[] _textures;
@@ -58,11 +58,19 @@ namespace Client.Main.Controls
 
             Camera.Instance.AspectRatio = GraphicsDevice.Viewport.AspectRatio;
 
-            _terrainEffect = new BasicEffect(GraphicsDevice)
+            //_terrainEffect = new BasicEffect(GraphicsDevice)
+            //{
+            //    TextureEnabled = true,
+            //    VertexColorEnabled = true,
+            //    World = Matrix.Identity
+            //};
+
+            _terrainEffect = new AlphaTestEffect(GraphicsDevice)
             {
-                TextureEnabled = true,
                 VertexColorEnabled = true,
-                World = Matrix.Identity
+                World = Matrix.Identity,
+                AlphaFunction = CompareFunction.Greater,
+                ReferenceAlpha = (int)(255 * 0.25f)
             };
 
             tasks.Add(terrainReader.Load(Path.Combine(fullPathWorldFolder, $"EncTerrain{WorldIndex}.att")).ContinueWith(t => _terrain = t.Result));
@@ -135,10 +143,14 @@ namespace Client.Main.Controls
         }
         public override void Draw(GameTime time)
         {
-            GraphicsDevice.BlendState = BlendState.Opaque;
-
-            RenderTerrain();
+            RenderTerrain(false);
             base.Draw(time);
+        }
+
+        public override void DrawAfter(GameTime gameTime)
+        {
+            RenderTerrain(true);
+            base.DrawAfter(gameTime);
         }
 
         public TWFlags RequestTerraingFlag(int x, int y) => _terrain.TerrainWall[GetTerrainIndex(x, y)];
@@ -327,7 +339,7 @@ namespace Client.Main.Controls
                 }
             }
         }
-        private void RenderTerrain()
+        private void RenderTerrain(bool isAfter)
         {
             if (_terrainEffect == null) return;
 
@@ -363,12 +375,12 @@ namespace Client.Main.Controls
                     );
 
                     if (Camera.Instance.Frustum.Intersects(blockBounds))
-                        RenderTerrainBlock(xStart / Constants.TERRAIN_SCALE, yStart / Constants.TERRAIN_SCALE, xi, yi);
+                        RenderTerrainBlock(xStart / Constants.TERRAIN_SCALE, yStart / Constants.TERRAIN_SCALE, xi, yi, isAfter);
                 }
             }
         }
 
-        private void RenderTerrainBlock(float xf, float yf, int xi, int yi)
+        private void RenderTerrainBlock(float xf, float yf, int xi, int yi, bool isAfter)
         {
             int lodi = 1;
             var lodf = (float)lodi;
@@ -377,15 +389,18 @@ namespace Client.Main.Controls
                 float temp = xf;
                 for (int j = 0; j < 4; j += lodi)
                 {
-                    RenderTerrainTile(xf, yf, xi + j, yi + i, lodf, lodi);
+                    RenderTerrainTile(xf, yf, xi + j, yi + i, lodf, lodi, isAfter);
                     xf += lodf;
                 }
                 xf = temp;
                 yf += lodf;
             }
         }
-        private void RenderTerrainTile(float xf, float yf, int xi, int yi, float lodf, int lodi)
+        private void RenderTerrainTile(float xf, float yf, int xi, int yi, float lodf, int lodi, bool isAfter)
         {
+            if (isAfter) // we need check RenderTerrainFace_After
+                return;
+
             var idx1 = GetTerrainIndex(xi, yi);
 
             if (_terrain.TerrainWall[idx1].HasFlag(TWFlags.NoGround))
@@ -429,42 +444,43 @@ namespace Client.Main.Controls
             if (_terrain.TerrainWall[idx4].HasFlag(TWFlags.Height))
                 terrainVertex[3].Z += 1200f;
 
-            var terrainLights = new Vector3[4];
-            terrainLights[0] = _backTerrainLight[idx1];
-            terrainLights[1] = _backTerrainLight[idx2];
-            terrainLights[2] = _backTerrainLight[idx3];
-            terrainLights[3] = _backTerrainLight[idx4];
+            var terrainLights = new Color[4];
+            terrainLights[0] = new Color(_backTerrainLight[idx1]);
+            terrainLights[1] = new Color(_backTerrainLight[idx2]);
+            terrainLights[2] = new Color(_backTerrainLight[idx3]);
+            terrainLights[3] = new Color(_backTerrainLight[idx4]);
 
-            //var layer = isOpaque
-            //    ? _mapping.Layer2
-            //    : _mapping.Layer1;
-
-            var layer = _mapping.Layer1;
-
-            // layer = _mapping.Layer1;
-            GraphicsDevice.BlendState = BlendState.Opaque;
-            RenderTexture(layer[idx1], xf, yf, terrainVertex, terrainLights);
-
-            if (hasAlpha)
+            if (isOpaque)
             {
-                GraphicsDevice.BlendState = BlendState.AlphaBlend;
-                RenderTexture(layer[idx1], xf, yf, terrainVertex, terrainLights);
+                GraphicsDevice.BlendState = BlendState.Opaque;
+                RenderTexture(_mapping.Layer2[idx1], xf, yf, terrainVertex, terrainLights);
+            }
+            else
+            {
+                GraphicsDevice.BlendState = BlendState.Opaque;
+                RenderTexture(_mapping.Layer1[idx1], xf, yf, terrainVertex, terrainLights);
             }
 
-            // RenderTexture(_mapping.Layer2[idx1], xf, yf, terrainVertex, 255);
+            if (hasAlpha && !isOpaque)
+            {
+                terrainLights[0] *= alpha1 / 255f;
+                terrainLights[1] *= alpha2 / 255f;
+                terrainLights[2] *= alpha3 / 255f;
+                terrainLights[3] *= alpha4 / 255f;
 
-            /*if (alpha1 > 0)
-                RenderTexture(_mapping.Layer1[idx1], xf, yf, terrainVertex, alpha1);
+                terrainLights[0].A = alpha1;
+                terrainLights[1].A = alpha2;
+                terrainLights[2].A = alpha3;
+                terrainLights[3].A = alpha4;
 
-            if (alpha2 > 0)
-                RenderTexture(_mapping.Layer2[idx1], xf, yf, terrainVertex, alpha2);*/
+                GraphicsDevice.BlendState = BlendState.AlphaBlend;
+                RenderTexture(_mapping.Layer2[idx1], xf, yf, terrainVertex, terrainLights);
+            }
 
-            // RenderTexture(alpha ? _mapping.Layer1[idx1] : _mapping.Layer2[idx1], xf, yf, terrainVertex, alpha1);
-            // if (alpha) RenderTexture(alpha ? _mapping.Layer2[idx1] : _mapping.Layer1[idx1], xf, yf, terrainVertex, alpha1);
         }
 
         private bool[] _notifiedNullTextures = new bool[256];
-        private void RenderTexture(int textureIndex, float xf, float yf, Vector3[] terrainVertex, Vector3[] terrainLights)
+        private void RenderTexture(int textureIndex, float xf, float yf, Vector3[] terrainVertex, Color[] terrainLights)
         {
             if (_textures[textureIndex] == null)
             {
@@ -491,13 +507,13 @@ namespace Client.Main.Controls
             terrainTextureCoord[3] = new Vector2(suf, svf + height);
 
             var vertices2 = new VertexPositionColorTexture[6];
-            vertices2[0] = new VertexPositionColorTexture(terrainVertex[0], new Color(terrainLights[0].X, terrainLights[0].Y, terrainLights[0].Z), terrainTextureCoord[0]);
-            vertices2[1] = new VertexPositionColorTexture(terrainVertex[1], new Color(terrainLights[1].X, terrainLights[1].Y, terrainLights[1].Z), terrainTextureCoord[1]);
-            vertices2[2] = new VertexPositionColorTexture(terrainVertex[2], new Color(terrainLights[2].X, terrainLights[2].Y, terrainLights[2].Z), terrainTextureCoord[2]);
+            vertices2[0] = new VertexPositionColorTexture(terrainVertex[0], terrainLights[0], terrainTextureCoord[0]);
+            vertices2[1] = new VertexPositionColorTexture(terrainVertex[1], terrainLights[1], terrainTextureCoord[1]);
+            vertices2[2] = new VertexPositionColorTexture(terrainVertex[2], terrainLights[2], terrainTextureCoord[2]);
 
-            vertices2[3] = new VertexPositionColorTexture(terrainVertex[2], new Color(terrainLights[2].X, terrainLights[2].Y, terrainLights[2].Z), terrainTextureCoord[2]);
-            vertices2[4] = new VertexPositionColorTexture(terrainVertex[3], new Color(terrainLights[3].X, terrainLights[3].Y, terrainLights[3].Z), terrainTextureCoord[3]);
-            vertices2[5] = new VertexPositionColorTexture(terrainVertex[0], new Color(terrainLights[0].X, terrainLights[0].Y, terrainLights[0].Z), terrainTextureCoord[0]);
+            vertices2[3] = new VertexPositionColorTexture(terrainVertex[2], terrainLights[2], terrainTextureCoord[2]);
+            vertices2[4] = new VertexPositionColorTexture(terrainVertex[3], terrainLights[3], terrainTextureCoord[3]);
+            vertices2[5] = new VertexPositionColorTexture(terrainVertex[0], terrainLights[0], terrainTextureCoord[0]);
 
             _terrainEffect.Texture = texture;
 

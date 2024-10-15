@@ -172,6 +172,14 @@ namespace Client.Main.Controls
                 Controls[i].Draw(gameTime);
         }
 
+        public virtual void DrawAfter(GameTime gameTime)
+        {
+            if (Status != GameControlStatus.Ready || !Visible) return;
+
+            for (int i = 0; i < Controls.Count; i++)
+                Controls[i].DrawAfter(gameTime);
+        }
+
         public virtual void Dispose()
         {
             var controls = Controls.ToArray();
