@@ -182,6 +182,8 @@ namespace Client.Main.Controls
             Controls.Clear();
 
             Status = GameControlStatus.Disposed;
+
+            GC.SuppressFinalize(this);
         }
 
         public void BringToFront()

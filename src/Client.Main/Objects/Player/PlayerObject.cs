@@ -37,7 +37,7 @@ namespace Client.Main.Objects.Player
             Children.Add(_pant = new PlayerPantObject() { LinkParent = true, Color = color });
             Children.Add(_glove = new PlayerGloveObject() { LinkParent = true, Color = color });
             Children.Add(_boot = new PlayerBootObject() { LinkParent = true, Color = color });
-            Children.Add(_wing = new WingObject() { Position = new Vector3(0, 5, 140), Color = color, Hidden = false });
+            Children.Add(_wing = new WingObject() { Position = new Vector3(0, 5, 140), Color = color, Hidden = true });
             Scale = 0.85f;
             AnimationSpeed = 5f;
             CurrentAction = PlayerAction.StopMale;

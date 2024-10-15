@@ -159,6 +159,8 @@ namespace Client.Main.Objects
 
             _boundingBoxEffect?.Dispose();
             _boundingBoxEffect = null;
+
+            GC.SuppressFinalize(this);
         }
 
         protected virtual void OnPositionChanged() => RecalculateWorldPosition();

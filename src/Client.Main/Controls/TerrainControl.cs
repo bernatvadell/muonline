@@ -232,6 +232,7 @@ namespace Client.Main.Controls
         public override void Dispose()
         {
             base.Dispose();
+
             _terrainEffect?.Dispose();
 
             _terrain = null;
@@ -242,6 +243,8 @@ namespace Client.Main.Controls
             _backTerrainLight = null;
             _terrainNormal = null;
             _backTerrainHeight = null;
+
+            GC.SuppressFinalize(this);
         }
 
         private static int GetTerrainIndex(int x, int y)

@@ -139,6 +139,8 @@ namespace Client.Main.Controls
 
             for (var i = 0; i < objects.Length; i++)
                 objects[i].Dispose();
+
+            GC.SuppressFinalize(this);
         }
 
         internal async Task AddObject(object value)

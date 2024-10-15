@@ -11,7 +11,7 @@ namespace Client.Main.Objects.Player
         }
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare("Item/PantMale4005.bmd");
+            Model = await BMDLoader.Instance.Prepare("Player/PantClass01.bmd");
             await base.Load();
         }
     }

@@ -236,6 +236,8 @@ namespace Client.Main.Objects
             Model = null;
             BoneTransform = null;
             _invalidatedBuffers = true;
+
+            GC.SuppressFinalize(this);
         }
 
         private void UpdateWorldPosition()

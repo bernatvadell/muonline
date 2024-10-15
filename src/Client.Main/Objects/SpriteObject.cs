@@ -98,6 +98,8 @@ namespace Client.Main.Objects
 
             SpriteBatch?.Dispose();
             SpriteTexture = null;
+
+            GC.SuppressFinalize(this);
         }
     }
 }
