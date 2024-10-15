@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Numerics;
 using System.Text;
@@ -37,14 +38,12 @@ namespace Client.Data.OZB
             return new OZB
             {
                 Version = version,
-                Data = backTerrainHeight
+                Data = backTerrainHeight.Select(x => Color.FromArgb(255, x, x, x)).ToArray()
             };
         }
 
         private OZB ReadBM6(BinaryReader br, byte version)
         {
-
-
             // header
             var type = br.ReadInt16();
             var size = br.ReadInt32();
@@ -65,10 +64,10 @@ namespace Client.Data.OZB
             var clrUsed = br.ReadInt32();
             var clrImportant = br.ReadInt32();
 
-            // var bmpHeader = br.ReadBytes(1080);
+            Color[] data = new Color[width * height];
 
-            var length = (256 * 256) * 3;
-            var data = br.ReadBytes(length);
+            for (var i = 0; i < data.Length; i++)
+                data[i] = Color.FromArgb(255, br.ReadByte(), br.ReadByte(), br.ReadByte());
 
             return new OZB
             {

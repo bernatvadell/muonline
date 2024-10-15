@@ -16,9 +16,9 @@ namespace Client.Data.OBJS
 
             IMapObject[] objects = version switch
             {
-                0 => br.ReadStructArray<MapObjectV1>(count).OfType<IMapObject>().ToArray(),
+                0 => br.ReadStructArray<MapObjectV0>(count).OfType<IMapObject>().ToArray(),
                 1 => br.ReadStructArray<MapObjectV1>(count).OfType<IMapObject>().ToArray(),
-                2 => br.ReadStructArray<MapObjectV1>(count).OfType<IMapObject>().ToArray(),
+                2 => br.ReadStructArray<MapObjectV2>(count).OfType<IMapObject>().ToArray(),
                 3 => br.ReadStructArray<MapObjectV3>(count).OfType<IMapObject>().ToArray(),
                 _ => throw new NotImplementedException($"Version {version} not implemented"),
             };

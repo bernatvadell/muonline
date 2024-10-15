@@ -11,9 +11,30 @@ namespace Client.Data.OBJS
         float Scale { get; }
     }
 
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct MapObjectV0 : IMapObject
+    {
+        public short Type { get; set; }
+        public Vector3 Position { get; set; }
+        public Vector3 Angle { get; set; }
+        public float Scale { get; set; }
+    }
 
-    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
     public struct MapObjectV1 : IMapObject
+    {
+        public short Type { get; set; }
+        public Vector3 Position { get; set; }
+        public Vector3 Angle { get; set; }
+        public float Scale { get; set; }
+
+        public byte UnknownX { get; set; }
+        public byte UnknownY { get; set; }
+    }
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    public struct MapObjectV2 : IMapObject
     {
         public short Type { get; set; }
         public Vector3 Position { get; set; }

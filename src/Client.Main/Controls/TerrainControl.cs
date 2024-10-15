@@ -18,6 +18,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Markup;
 
 namespace Client.Main.Controls
 {
@@ -35,8 +36,8 @@ namespace Client.Main.Controls
         private Vector3[] _terrainLight;
         private Vector3[] _backTerrainLight;
         private Vector3[] _terrainNormal;
-        private byte[] _backTerrainHeight;
-        private byte[] _terrainLightData;
+        private Color[] _backTerrainHeight;
+        private Color[] _terrainLightData;
 
         public short WorldIndex { get; set; }
 
@@ -65,7 +66,7 @@ namespace Client.Main.Controls
             };
 
             tasks.Add(terrainReader.Load(Path.Combine(fullPathWorldFolder, $"EncTerrain{WorldIndex}.att")).ContinueWith(t => _terrain = t.Result));
-            tasks.Add(ozbReader.Load(Path.Combine(fullPathWorldFolder, $"TerrainHeight.OZB")).ContinueWith(t => _backTerrainHeight = t.Result.Data));
+            tasks.Add(ozbReader.Load(Path.Combine(fullPathWorldFolder, $"TerrainHeight.OZB")).ContinueWith(t => _backTerrainHeight = t.Result.Data.Select(x => new Color(x.R, x.G, x.B)).ToArray()));
             tasks.Add(mapping.Load(Path.Combine(fullPathWorldFolder, $"EncTerrain{WorldIndex}.map")).ContinueWith(t => _mapping = t.Result));
 
             var textureMapFiles = new string[256];
@@ -112,7 +113,7 @@ namespace Client.Main.Controls
             }
 
             var textureLightPath = Path.Combine(fullPathWorldFolder, "TerrainLight.OZB");
-            tasks.Add(ozbReader.Load(textureLightPath).ContinueWith((ozb) => _terrainLightData = ozb.Result.Data));
+            tasks.Add(ozbReader.Load(textureLightPath).ContinueWith((ozb) => _terrainLightData = ozb.Result.Data.Select(x => new Color(x.R, x.G, x.B)).ToArray()));
 
             await Task.WhenAll(tasks);
 
@@ -171,8 +172,8 @@ namespace Client.Main.Controls
                 Index3 >= Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE || Index4 >= Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE)
                 return _specialHeight;
 
-            float left = _backTerrainHeight[Index1] + (_backTerrainHeight[Index2] - _backTerrainHeight[Index1]) * yd;
-            float right = _backTerrainHeight[Index3] + (_backTerrainHeight[Index4] - _backTerrainHeight[Index3]) * yd;
+            float left = _backTerrainHeight[Index1].B + (_backTerrainHeight[Index2].B - _backTerrainHeight[Index1].B) * yd;
+            float right = _backTerrainHeight[Index3].B + (_backTerrainHeight[Index4].B - _backTerrainHeight[Index3].B) * yd;
             return left + (right - left) * xd;
         }
         public Vector3 RequestTerrainLight(float xf, float yf)
@@ -267,10 +268,10 @@ namespace Client.Main.Controls
                     int Index = GetTerrainIndex(x, y);
                     Vector3 v1, v2, v3, v4;
 
-                    v4 = new Vector3(x * Constants.TERRAIN_SCALE, y * Constants.TERRAIN_SCALE, _backTerrainHeight[GetTerrainIndexRepeat(x, y)]);
-                    v1 = new Vector3((x + 1) * Constants.TERRAIN_SCALE, y * Constants.TERRAIN_SCALE, _backTerrainHeight[GetTerrainIndexRepeat(x + 1, y)]);
-                    v2 = new Vector3((x + 1) * Constants.TERRAIN_SCALE, (y + 1) * Constants.TERRAIN_SCALE, _backTerrainHeight[GetTerrainIndexRepeat(x + 1, y + 1)]);
-                    v3 = new Vector3((x) * Constants.TERRAIN_SCALE, (y + 1) * Constants.TERRAIN_SCALE, _backTerrainHeight[GetTerrainIndexRepeat(x, y + 1)]);
+                    v4 = new Vector3(x * Constants.TERRAIN_SCALE, y * Constants.TERRAIN_SCALE, _backTerrainHeight[GetTerrainIndexRepeat(x, y)].B);
+                    v1 = new Vector3((x + 1) * Constants.TERRAIN_SCALE, y * Constants.TERRAIN_SCALE, _backTerrainHeight[GetTerrainIndexRepeat(x + 1, y)].B);
+                    v2 = new Vector3((x + 1) * Constants.TERRAIN_SCALE, (y + 1) * Constants.TERRAIN_SCALE, _backTerrainHeight[GetTerrainIndexRepeat(x + 1, y + 1)].B);
+                    v3 = new Vector3((x) * Constants.TERRAIN_SCALE, (y + 1) * Constants.TERRAIN_SCALE, _backTerrainHeight[GetTerrainIndexRepeat(x, y + 1)].B);
 
                     Vector3 faceNormal = MathUtils.FaceNormalize(v1, v2, v3);
                     _terrainNormal[Index] = _terrainNormal[Index] + faceNormal;
@@ -284,8 +285,8 @@ namespace Client.Main.Controls
             _terrainLight = new Vector3[Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE];
             _backTerrainLight = new Vector3[Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE];
 
-            for (var i = 0; i < _terrainLightData.Length; i += 3)
-                _terrainLight[i / 3] = new Vector3(_terrainLightData[i] / 255f, _terrainLightData[i + 1] / 255f, _terrainLightData[i + 2] / 255f);
+            for (var i = 0; i < _terrainLightData.Length; i++)
+                _terrainLight[i] = new Vector3(_terrainLightData[i].R / 255f, _terrainLightData[i].G / 255f, _terrainLightData[i].B / 255f);
 
             var _light = new Vector3(0.5f, 0.5f, 0.5f);
             for (int y = 0; y < Constants.TERRAIN_SIZE; y++)
@@ -349,7 +350,7 @@ namespace Client.Main.Controls
                         for (int x = xi; x < xi + blockSize; x++)
                         {
                             int index = GetTerrainIndexRepeat(x, y);
-                            float height = _backTerrainHeight[index] * 1.5f;
+                            float height = _backTerrainHeight[index].B * 1.5f;
 
                             minZ = Math.Min(minZ, height);
                             maxZ = Math.Max(maxZ, height);
@@ -394,18 +395,18 @@ namespace Client.Main.Controls
             var idx3 = GetTerrainIndex(xi + lodi, yi + lodi);
             var idx4 = GetTerrainIndex(xi, yi + lodi);
 
-            //var alpha1 = _mapping.Alpha[idx1];
-            //var alpha2 = _mapping.Alpha[idx2];
-            //var alpha3 = _mapping.Alpha[idx3];
-            //var alpha4 = _mapping.Alpha[idx4];
+            var alpha1 = _mapping.Alpha[idx1];
+            var alpha2 = _mapping.Alpha[idx2];
+            var alpha3 = _mapping.Alpha[idx3];
+            var alpha4 = _mapping.Alpha[idx4];
 
-            //if (alpha1 == 0 && alpha2 == 0 && alpha3 == 0 && alpha4 == 0)
-            //    return;
+            var isOpaque = alpha1 >= 1 && alpha2 >= 1 && alpha3 >= 1 && alpha4 >= 1;
+            var hasAlpha = alpha1 > 0 || alpha2 > 0 || alpha3 > 0 || alpha4 > 0;
 
-            var terrainHeight1 = _backTerrainHeight[idx1] * 1.5f;
-            var terrainHeight2 = _backTerrainHeight[idx2] * 1.5f;
-            var terrainHeight3 = _backTerrainHeight[idx3] * 1.5f;
-            var terrainHeight4 = _backTerrainHeight[idx4] * 1.5f;
+            var terrainHeight1 = _backTerrainHeight[idx1].B * 1.5f;
+            var terrainHeight2 = _backTerrainHeight[idx2].B * 1.5f;
+            var terrainHeight3 = _backTerrainHeight[idx3].B * 1.5f;
+            var terrainHeight4 = _backTerrainHeight[idx4].B * 1.5f;
 
             float sx = xf * Constants.TERRAIN_SCALE;
             float sy = yf * Constants.TERRAIN_SCALE;
@@ -434,7 +435,21 @@ namespace Client.Main.Controls
             terrainLights[2] = _backTerrainLight[idx3];
             terrainLights[3] = _backTerrainLight[idx4];
 
-            RenderTexture(_mapping.Layer1[idx1], xf, yf, terrainVertex, terrainLights);
+            //var layer = isOpaque
+            //    ? _mapping.Layer2
+            //    : _mapping.Layer1;
+
+            var layer = _mapping.Layer1;
+
+            // layer = _mapping.Layer1;
+            GraphicsDevice.BlendState = BlendState.Opaque;
+            RenderTexture(layer[idx1], xf, yf, terrainVertex, terrainLights);
+
+            if (hasAlpha)
+            {
+                GraphicsDevice.BlendState = BlendState.AlphaBlend;
+                RenderTexture(layer[idx1], xf, yf, terrainVertex, terrainLights);
+            }
 
             // RenderTexture(_mapping.Layer2[idx1], xf, yf, terrainVertex, 255);
 
