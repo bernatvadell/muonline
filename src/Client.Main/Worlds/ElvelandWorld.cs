@@ -13,9 +13,9 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
-    public class World52World : WalkableWorldControl
+    public class ElvelandWorld : WalkableWorldControl
     {
-        public World52World() : base(worldIndex: 52)
+        public ElvelandWorld() : base(worldIndex: 52)
         {
 
         }
@@ -23,7 +23,7 @@ namespace Client.Main.Worlds
         public override void AfterLoad()
         {
             base.AfterLoad();
-            Walker.Location = new Vector2(178, 104);
+            Walker.Location = new Vector2(61, 201);
         }
     }
 }
