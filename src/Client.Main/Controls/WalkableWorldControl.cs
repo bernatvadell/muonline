@@ -17,28 +17,12 @@ namespace Client.Main.Controls
         public float _cursorNextMoveTime;
 
         public WalkerObject Walker { get; set; }
-        public Vector3 MoveTargetPosition { get; private set; }
-        public float MoveSpeed { get; set; } = 250f;
-        public bool IsMoving => Vector3.Distance(MoveTargetPosition, TargetPosition) > 0f;
-
         public byte MouseTileX { get; set; } = 0;
         public byte MouseTileY { get; set; } = 0;
-
-        public override Vector3 TargetPosition
-        {
-            get
-            {
-                var x = Walker.Location.X * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
-                var y = Walker.Location.Y * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
-                var v = new Vector3(x, y, Terrain.RequestTerrainHeight(x, y));
-                return v;
-            }
-        }
 
         public override async Task Load()
         {
             await AddObjectAsync(_cursor = new CursorObject());
-            MoveTargetPosition = Vector3.Zero;
             await base.Load();
         }
 
@@ -51,18 +35,17 @@ namespace Client.Main.Controls
             if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && _cursorNextMoveTime <= 0)
             {
                 _cursorNextMoveTime = 250;
-                Walker.Location = new Vector2(MouseTileX, MouseTileY);
-                var x = Walker.Location.X * Constants.TERRAIN_SCALE;
-                var y = Walker.Location.Y * Constants.TERRAIN_SCALE;
+                var newPosition = new Vector2(MouseTileX, MouseTileY);
+                var x = newPosition.X * Constants.TERRAIN_SCALE;
+                var y = newPosition.Y * Constants.TERRAIN_SCALE;
                 var pos = new Vector3(x, y, Terrain.RequestTerrainHeight(x, y));
                 _cursor.Position = pos - new Vector3(-50f, -40f, 0);
+                Walker.MoveTo(newPosition);
             }
             else if (_cursorNextMoveTime > 0)
             {
                 _cursorNextMoveTime -= (float)time.ElapsedGameTime.TotalMilliseconds;
             }
-
-            MoveCameraPosition(time);
 
             base.Update(time);
         }
@@ -121,53 +104,6 @@ namespace Client.Main.Controls
                 MouseTileX = 0;
                 MouseTileY = 0;
             }
-        }
-
-        private void MoveCameraPosition(GameTime time)
-        {
-            if (MoveTargetPosition == Vector3.Zero)
-            {
-                MoveTargetPosition = TargetPosition;
-                UpdateCameraPosition(MoveTargetPosition);
-                return;
-            }
-
-            if (!IsMoving)
-            {
-                MoveTargetPosition = TargetPosition;
-                return;
-            }
-
-            Vector3 direction = TargetPosition - MoveTargetPosition;
-            direction.Normalize();
-
-            float deltaTime = (float)time.ElapsedGameTime.TotalSeconds;
-            Vector3 moveVector = direction * MoveSpeed * deltaTime;
-
-            // Verifica si la distancia a mover excede la distancia restante al objetivo
-            if (moveVector.Length() > (MoveTargetPosition - TargetPosition).Length())
-            {
-                UpdateCameraPosition(TargetPosition);
-            }
-            else
-            {
-                UpdateCameraPosition(MoveTargetPosition + moveVector);
-            }
-        }
-
-        private void UpdateCameraPosition(Vector3 position)
-        {
-            MoveTargetPosition = position;
-
-            var cameraDistance = 1000f;
-
-            var p = new Vector3(0, -cameraDistance, 0f);
-            var m = MathUtils.AngleMatrix(new Vector3(0, 0, -48.5f));
-            var t = MathUtils.VectorIRotate(p, m);
-
-            Camera.Instance.FOV = 35;
-            Camera.Instance.Position = position + t + new Vector3(0, 0, cameraDistance);
-            Camera.Instance.Target = position;
         }
     }
 }

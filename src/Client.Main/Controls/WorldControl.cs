@@ -1,4 +1,5 @@
-﻿using Client.Data.CWS;
+﻿using Client.Data.ATT;
+using Client.Data.CWS;
 using Client.Data.OBJS;
 using Client.Main.Controllers;
 using Client.Main.Objects;
@@ -15,7 +16,6 @@ namespace Client.Main.Controls
 {
     public abstract class WorldControl : GameControl
     {
-        public virtual Vector3 TargetPosition { get; }
         public TerrainControl Terrain { get; }
         public short WorldIndex { get; private set; }
         public List<WorldObject> Objects { get; private set; } = [];
@@ -78,6 +78,12 @@ namespace Client.Main.Controls
         {
             base.Draw(time);
             RenderObjects(time);
+        }
+
+        public bool IsWalkable(Vector2 position)
+        {
+            var terrainFlag = Terrain.RequestTerraingFlag((int)position.X, (int)position.Y);
+            return !terrainFlag.HasFlag(TWFlags.NoMove);
         }
 
         public void AddObject(WorldObject obj)

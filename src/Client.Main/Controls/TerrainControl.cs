@@ -139,6 +139,8 @@ namespace Client.Main.Controls
             RenderTerrain();
             base.Draw(time);
         }
+
+        public TWFlags RequestTerraingFlag(int x, int y) => _terrain.TerrainWall[GetTerrainIndex(x, y)];
         public float RequestTerrainHeight(float xf, float yf)
         {
             if (_terrain == null || _terrain.TerrainWall == null || xf < 0.0f || yf < 0.0f)
