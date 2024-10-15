@@ -36,6 +36,10 @@ namespace Client.Main.Controls
             {
                 _cursorNextMoveTime = 250;
                 var newPosition = new Vector2(MouseTileX, MouseTileY);
+
+                if (!IsWalkable(newPosition))
+                    return;
+
                 var x = newPosition.X * Constants.TERRAIN_SCALE;
                 var y = newPosition.Y * Constants.TERRAIN_SCALE;
                 var pos = new Vector3(x, y, Terrain.RequestTerrainHeight(x, y));
