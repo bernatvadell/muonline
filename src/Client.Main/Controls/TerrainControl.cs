@@ -122,7 +122,15 @@ namespace Client.Main.Controls
             }
 
             var textureLightPath = Path.Combine(fullPathWorldFolder, "TerrainLight.OZB");
-            tasks.Add(ozbReader.Load(textureLightPath).ContinueWith((ozb) => _terrainLightData = ozb.Result.Data.Select(x => new Color(x.R, x.G, x.B)).ToArray()));
+
+            if (File.Exists(textureLightPath))
+                tasks.Add(ozbReader.Load(textureLightPath).ContinueWith((ozb) => _terrainLightData = ozb.Result.Data.Select(x => new Color(x.R, x.G, x.B)).ToArray()));
+            else
+            {
+                _terrainLightData = new Color[Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE];
+                for (var i = 0; i < _terrainLightData.Length; i++)
+                    _terrainLightData[i] = Color.White;
+            }
 
             await Task.WhenAll(tasks);
 
@@ -423,11 +431,13 @@ namespace Client.Main.Controls
             float sx = xf * Constants.TERRAIN_SCALE;
             float sy = yf * Constants.TERRAIN_SCALE;
 
-            var terrainVertex = new Vector3[4];
-            terrainVertex[0] = new Vector3(sx, sy, terrainHeight1);
-            terrainVertex[1] = new Vector3(sx + Constants.TERRAIN_SCALE, sy, terrainHeight2);
-            terrainVertex[2] = new Vector3(sx + Constants.TERRAIN_SCALE, sy + Constants.TERRAIN_SCALE, terrainHeight3);
-            terrainVertex[3] = new Vector3(sx, sy + Constants.TERRAIN_SCALE, terrainHeight4);
+            var terrainVertex = new Vector3[4]
+            {
+                new (sx, sy, terrainHeight1),
+                new (sx + Constants.TERRAIN_SCALE, sy, terrainHeight2),
+                new (sx + Constants.TERRAIN_SCALE, sy + Constants.TERRAIN_SCALE, terrainHeight3),
+                new (sx, sy + Constants.TERRAIN_SCALE, terrainHeight4)
+            };
 
             if (_terrain.TerrainWall[idx1].HasFlag(TWFlags.Height))
                 terrainVertex[0].Z += 1200f;
@@ -441,11 +451,13 @@ namespace Client.Main.Controls
             if (_terrain.TerrainWall[idx4].HasFlag(TWFlags.Height))
                 terrainVertex[3].Z += 1200f;
 
-            var terrainLights = new Color[4];
-            terrainLights[0] = _backTerrainLight[idx1];
-            terrainLights[1] = _backTerrainLight[idx2];
-            terrainLights[2] = _backTerrainLight[idx3];
-            terrainLights[3] = _backTerrainLight[idx4];
+            var terrainLights = new Color[4]
+            {
+                _backTerrainLight[idx1],
+                _backTerrainLight[idx2],
+                _backTerrainLight[idx3],
+                _backTerrainLight[idx4]
+            };
 
             if (isOpaque)
             {

@@ -23,7 +23,7 @@ namespace Client.Main.Scenes
         public override async Task Load()
         {
             await base.Load();
-            await ChangeMapAsync<DeviasWorld>();
+            await ChangeMapAsync<LostTowerWorld>();
             await World.AddObjectAsync(_hero);
         }
 
