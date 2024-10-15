@@ -28,7 +28,7 @@ namespace Client.Main.Controls
         private readonly float _specialHeight = 1200f;
 
         private TerrainAttribute _terrain;
-        private AlphaTestEffect _terrainEffect;
+        private BasicEffect _terrainEffect;
 
         private TerrainMapping _mapping;
         private Texture2D[] _textures;
@@ -59,20 +59,20 @@ namespace Client.Main.Controls
 
             Camera.Instance.AspectRatio = GraphicsDevice.Viewport.AspectRatio;
 
-            //_terrainEffect = new BasicEffect(GraphicsDevice)
-            //{
-            //    TextureEnabled = true,
-            //    VertexColorEnabled = true,
-            //    World = Matrix.Identity
-            //};
-
-            _terrainEffect = new AlphaTestEffect(GraphicsDevice)
+            _terrainEffect = new BasicEffect(GraphicsDevice)
             {
+                TextureEnabled = true,
                 VertexColorEnabled = true,
-                World = Matrix.Identity,
-                AlphaFunction = CompareFunction.Greater,
-                ReferenceAlpha = (int)(255 * 0.25f)
+                World = Matrix.Identity
             };
+
+            //_terrainEffect = new AlphaTestEffect(GraphicsDevice)
+            //{
+            //    VertexColorEnabled = true,
+            //    World = Matrix.Identity,
+            //    AlphaFunction = CompareFunction.Greater,
+            //    ReferenceAlpha = (int)(255 * 0.25f)
+            //};
 
             tasks.Add(terrainReader.Load(Path.Combine(fullPathWorldFolder, $"EncTerrain{WorldIndex}.att")).ContinueWith(t => _terrain = t.Result));
             tasks.Add(ozbReader.Load(Path.Combine(fullPathWorldFolder, $"TerrainHeight.OZB")).ContinueWith(t => _backTerrainHeight = t.Result.Data.Select(x => new Color(x.R, x.G, x.B)).ToArray()));

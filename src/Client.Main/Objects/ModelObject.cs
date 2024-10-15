@@ -396,13 +396,12 @@ namespace Client.Main.Objects
             {
                 var mesh = Model.Meshes[meshIndex];
 
-                var bodyLight = Vector3.Zero;
+                var bodyLight = Light;
 
                 if (LightEnabled && World.Terrain != null)
                 {
                     var terrainLight = World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y);
-                    terrainLight += Light;
-                    bodyLight = terrainLight;
+                    bodyLight += terrainLight;
                 }
 
                 if (meshIndex == BlendMesh)
@@ -415,7 +414,8 @@ namespace Client.Main.Objects
 
                 var bones = LinkParent && Parent is ModelObject parentModel ? parentModel.BoneTransform : BoneTransform;
 
-                var bodyColor = new Color(Color.R * bodyLight.X, Color.G * bodyLight.Y, Color.B * bodyLight.Y);
+                // var bodyColor = new Color((int)(Color.R * (bodyLight.X / 100)), (int)(Color.G * (bodyLight.Y / 100)), (int)(Color.B * (bodyLight.Y / 100)));
+                var bodyColor = new Color((int)bodyLight.X, (int)bodyLight.Y, (int)bodyLight.Z);
 
                 BMDLoader.Instance.GetModelBuffers(Model, meshIndex, bodyColor, bones, out var vertexBuffer, out var indexBuffer);
 
