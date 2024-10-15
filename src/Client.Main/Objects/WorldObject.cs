@@ -45,8 +45,6 @@ namespace Client.Main.Objects
         public Matrix WorldPosition { get => _worldPosition; set { _worldPosition = value; OnWorldPositionChanged(); } }
         public Vector3 Light { get; set; } = new Vector3(0f, 0f, 0f);
         public bool LightEnabled { get; set; } = true;
-        public Vector3 BodyLight => LightEnabled ? World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y) * Light * Alpha : Vector3.One;
-        public Vector3 BodyLightMesh => LightEnabled ? World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y) * Light * Alpha : Vector3.One;
         public bool Visible => Ready && !OutOfView && !Hidden;
         public WorldControl World => MuGame.Instance.ActiveScene?.World;
         public short Type { get; set; }

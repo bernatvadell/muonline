@@ -415,7 +415,9 @@ namespace Client.Main.Objects
 
                 var bones = LinkParent && Parent is ModelObject parentModel ? parentModel.BoneTransform : BoneTransform;
 
-                BMDLoader.Instance.GetModelBuffers(Model, meshIndex, Color, bones, out var vertexBuffer, out var indexBuffer);
+                var bodyColor = new Color(Color.R * bodyLight.X, Color.G * bodyLight.Y, Color.B * bodyLight.Y);
+
+                BMDLoader.Instance.GetModelBuffers(Model, meshIndex, bodyColor, bones, out var vertexBuffer, out var indexBuffer);
 
                 _boneVertexBuffers[meshIndex] = vertexBuffer;
                 _boneIndexBuffers[meshIndex] = indexBuffer;

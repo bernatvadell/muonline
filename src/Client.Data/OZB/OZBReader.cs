@@ -90,7 +90,12 @@ namespace Client.Data.OZB
             Color[] data = new Color[width * height];
 
             for (var i = 0; i < data.Length; i++)
-                data[i] = Color.FromArgb(255, br.ReadByte(), br.ReadByte(), br.ReadByte());
+            {
+                var b = br.ReadByte();
+                var g = br.ReadByte();
+                var r = br.ReadByte();
+                data[i] = Color.FromArgb(255, r, g, b);
+            }
 
             return new OZB
             {

@@ -9,6 +9,7 @@ using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Objects;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
@@ -33,13 +34,13 @@ namespace Client.Main.Controls
         private Texture2D[] _textures;
 
         private float[] _terrainGrassWind;
-        private Vector3[] _terrainLight;
-        private Vector3[] _backTerrainLight;
+        private Color[] _backTerrainLight;
         private Vector3[] _terrainNormal;
         private Color[] _backTerrainHeight;
         private Color[] _terrainLightData;
 
         public short WorldIndex { get; set; }
+        public Vector3 Light { get; set; } = new Vector3(0.5f, -0.5f, 0.5f);
 
         public override async Task Load()
         {
@@ -154,6 +155,7 @@ namespace Client.Main.Controls
         }
 
         public TWFlags RequestTerraingFlag(int x, int y) => _terrain.TerrainWall[GetTerrainIndex(x, y)];
+
         public float RequestTerrainHeight(float xf, float yf)
         {
             if (_terrain == null || _terrain.TerrainWall == null || xf < 0.0f || yf < 0.0f)
@@ -188,6 +190,7 @@ namespace Client.Main.Controls
             float right = _backTerrainHeight[Index3].B + (_backTerrainHeight[Index4].B - _backTerrainHeight[Index3].B) * yd;
             return left + (right - left) * xd;
         }
+
         public Vector3 RequestTerrainLight(float xf, float yf)
         {
             if (_terrain == null || _terrain.TerrainWall == null || xf < 0.0f || yf < 0.0f)
@@ -201,10 +204,10 @@ namespace Client.Main.Controls
             float xd = xf - xi;
             float yd = yf - yi;
 
-            int Index1 = GetTerrainIndexRepeat(xi, yi);
-            int Index2 = GetTerrainIndexRepeat(xi, yi + 1);
-            int Index3 = GetTerrainIndexRepeat(xi + 1, yi);
-            int Index4 = GetTerrainIndexRepeat(xi + 1, yi + 1);
+            int Index1 = xi + yi * Constants.TERRAIN_SIZE;// GetTerrainIndexRepeat(xi, yi);
+            int Index2 = xi + 1 + yi * Constants.TERRAIN_SIZE; // GetTerrainIndexRepeat(xi, yi + 1);
+            int Index3 = xi + 1 + (yi + 1) * Constants.TERRAIN_SIZE; // GetTerrainIndexRepeat(xi + 1, yi);
+            int Index4 = xi + (yi + 1) * Constants.TERRAIN_SIZE; // GetTerrainIndexRepeat(xi + 1, yi + 1);
 
             if (Index1 >= Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE || Index2 >= Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE ||
                     Index3 >= Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE || Index4 >= Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE)
@@ -222,16 +225,16 @@ namespace Client.Main.Controls
                     switch (i)
                     {
                         case 0:
-                            left = _backTerrainLight[Index1].X + (_backTerrainLight[Index4].X - _backTerrainLight[Index1].X) * yd;
-                            right = _backTerrainLight[Index1].X + (_backTerrainLight[Index4].X - _backTerrainLight[Index1].X) * yd;
+                            left = _backTerrainLight[Index1].R + (_backTerrainLight[Index4].R - _backTerrainLight[Index1].R) * yd;
+                            right = _backTerrainLight[Index2].R + (_backTerrainLight[Index3].R - _backTerrainLight[Index2].R) * yd;
                             break;
                         case 1:
-                            left = _backTerrainLight[Index1].Y + (_backTerrainLight[Index4].Y - _backTerrainLight[Index1].Y) * yd;
-                            right = _backTerrainLight[Index1].Y + (_backTerrainLight[Index4].Y - _backTerrainLight[Index1].Y) * yd;
+                            left = _backTerrainLight[Index1].G + (_backTerrainLight[Index4].G - _backTerrainLight[Index1].G) * yd;
+                            right = _backTerrainLight[Index2].G + (_backTerrainLight[Index3].G - _backTerrainLight[Index2].G) * yd;
                             break;
                         case 2:
-                            left = _backTerrainLight[Index1].Z + (_backTerrainLight[Index4].Z - _backTerrainLight[Index1].Z) * yd;
-                            right = _backTerrainLight[Index1].Z + (_backTerrainLight[Index4].Z - _backTerrainLight[Index1].Z) * yd;
+                            left = _backTerrainLight[Index1].B + (_backTerrainLight[Index4].B - _backTerrainLight[Index1].B) * yd;
+                            right = _backTerrainLight[Index2].B + (_backTerrainLight[Index3].B - _backTerrainLight[Index2].B) * yd;
                             break;
                     }
                 }
@@ -252,7 +255,6 @@ namespace Client.Main.Controls
             _mapping = default;
             _textures = null;
             _terrainGrassWind = null;
-            _terrainLight = null;
             _backTerrainLight = null;
             _terrainNormal = null;
             _backTerrainHeight = null;
@@ -294,25 +296,20 @@ namespace Client.Main.Controls
         }
         private void CreateTerrainLight()
         {
-            _terrainLight = new Vector3[Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE];
-            _backTerrainLight = new Vector3[Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE];
+            _backTerrainLight = new Color[Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE];
 
-            for (var i = 0; i < _terrainLightData.Length; i++)
-                _terrainLight[i] = new Vector3(_terrainLightData[i].R / 255f, _terrainLightData[i].G / 255f, _terrainLightData[i].B / 255f);
-
-            var _light = new Vector3(0.5f, 0.5f, 0.5f);
             for (int y = 0; y < Constants.TERRAIN_SIZE; y++)
             {
                 for (int x = 0; x < Constants.TERRAIN_SIZE; x++)
                 {
                     int Index = GetTerrainIndex(x, y);
-                    float Luminosity = MathUtils.DotProduct(_terrainNormal[Index], _light) + 0.5f;
-                    if (Luminosity < 0f)
-                        Luminosity = 0f;
-                    else if (Luminosity > 1f)
-                        Luminosity = 1f;
+                    float luminosity = MathUtils.DotProduct(_terrainNormal[Index], Light) + 0.5f;
+                    if (luminosity < 0f)
+                        luminosity = 0f;
+                    else if (luminosity > 1f)
+                        luminosity = 1f;
 
-                    _backTerrainLight[Index] = _terrainLight[Index] * Luminosity;
+                    _backTerrainLight[Index] = _terrainLightData[Index] * luminosity;
                 }
             }
         }
@@ -445,10 +442,10 @@ namespace Client.Main.Controls
                 terrainVertex[3].Z += 1200f;
 
             var terrainLights = new Color[4];
-            terrainLights[0] = new Color(_backTerrainLight[idx1]);
-            terrainLights[1] = new Color(_backTerrainLight[idx2]);
-            terrainLights[2] = new Color(_backTerrainLight[idx3]);
-            terrainLights[3] = new Color(_backTerrainLight[idx4]);
+            terrainLights[0] = _backTerrainLight[idx1];
+            terrainLights[1] = _backTerrainLight[idx2];
+            terrainLights[2] = _backTerrainLight[idx3];
+            terrainLights[3] = _backTerrainLight[idx4];
 
             if (isOpaque)
             {
