@@ -1,18 +1,11 @@
-﻿using Client.Data;
-using Client.Data.BMD;
+﻿using Client.Data.BMD;
 using Client.Data.Texture;
 using Client.Main.Content;
-using Client.Main.Controls;
-using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using NAudio.CoreAudioApi;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Threading.Tasks;
-using System.Transactions;
 
 namespace Client.Main.Objects
 {
@@ -29,6 +22,7 @@ namespace Client.Main.Objects
         private bool _invalidatedBuffers = true;
         private float _blendMeshLight = 1f;
         private float _previousFrame = 0;
+        public float ShadowOpacity { get; set; } = 1f;
         public Color Color { get; set; } = Color.White;
         protected Matrix[] BoneTransform { get; set; }
         public int CurrentAction { get; set; }
@@ -39,7 +33,15 @@ namespace Client.Main.Objects
         public int HiddenMesh { get; set; } = -1;
         public int BlendMesh { get; set; } = -1;
         public BlendState BlendMeshState { get; set; } = BlendState.Additive;
-        public float BlendMeshLight { get => _blendMeshLight; set { _blendMeshLight = value; _invalidatedBuffers = true; } }
+        public float BlendMeshLight
+        {
+            get => _blendMeshLight;
+            set
+            {
+                _blendMeshLight = value;
+                _invalidatedBuffers = true;
+            }
+        }
         public bool RenderShadow { get; set; }
         public float AnimationSpeed { get; set; } = 4f;
 
@@ -58,13 +60,16 @@ namespace Client.Main.Objects
 
             lock (GraphicsDevice)
             {
-                _effect = new AlphaTestEffect(GraphicsDevice)
+                if (_effect == null)
                 {
-                    VertexColorEnabled = true,
-                    World = Matrix.Identity,
-                    AlphaFunction = CompareFunction.Greater,
-                    ReferenceAlpha = (int)(255 * 0.25f)
-                };
+                    _effect = new AlphaTestEffect(GraphicsDevice)
+                    {
+                        VertexColorEnabled = true,
+                        World = Matrix.Identity,
+                        AlphaFunction = CompareFunction.Greater,
+                        ReferenceAlpha = (int)(255 * 0.25f)
+                    };
+                }
                 // _effect = MuGame.Instance.AlphaRGBEffect.Clone();
             }
 
@@ -73,6 +78,7 @@ namespace Client.Main.Objects
 
             await base.Load();
         }
+
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
@@ -88,14 +94,15 @@ namespace Client.Main.Objects
                 }
                 else
                 {
-                    _effect.Parameters["View"].SetValue(Camera.Instance.View);
-                    _effect.Parameters["Projection"].SetValue(Camera.Instance.Projection);
+                    _effect.Parameters["View"]?.SetValue(Camera.Instance.View);
+                    _effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
                 }
             }
 
             Animation(gameTime);
             SetDynamicBuffers();
         }
+
         public override void Draw(GameTime gameTime)
         {
             if (!Visible || _boneIndexBuffers == null) return;
@@ -106,12 +113,14 @@ namespace Client.Main.Objects
 
         public virtual void DrawModel(bool isAfterDraw)
         {
-            for (var i = 0; i < Model.Meshes.Length; i++)
+            int meshCount = Model.Meshes.Length; // Cache mesh count
+
+            for (int i = 0; i < meshCount; i++)
             {
                 if (_dataTextures[i] == null) continue;
-                var isRGBA = _dataTextures[i].Components == 4;
-                var isBlendMesh = BlendMesh == i;
-                var draw = isAfterDraw
+                bool isRGBA = _dataTextures[i].Components == 4;
+                bool isBlendMesh = BlendMesh == i;
+                bool draw = isAfterDraw
                     ? isRGBA || isBlendMesh
                     : !isRGBA && !isBlendMesh;
 
@@ -123,14 +132,9 @@ namespace Client.Main.Objects
 
                 if (!draw) continue;
 
-                if (isAfterDraw)
-                {
-                    GraphicsDevice.DepthStencilState = MuGame.Instance.DisableDepthMask;
-                }
-                else
-                {
-                    GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-                }
+                GraphicsDevice.DepthStencilState = isAfterDraw
+                    ? MuGame.Instance.DisableDepthMask
+                    : DepthStencilState.Default;
 
                 DrawMesh(i);
             }
@@ -138,25 +142,21 @@ namespace Client.Main.Objects
 
         public virtual void DrawMesh(int mesh)
         {
-            if (HiddenMesh == mesh)
+            if (HiddenMesh == mesh || _boneVertexBuffers == null)
                 return;
 
-            if (_boneVertexBuffers == null)
-                return;
+            Texture2D texture = _boneTextures[mesh];
+            VertexBuffer vertexBuffer = _boneVertexBuffers[mesh];
+            IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
+            int primitiveCount = indexBuffer.IndexCount / 3;
 
-            var texture = _boneTextures[mesh];
-
-            var vertexBuffer = _boneVertexBuffers[mesh];
-            var indexBuffer = _boneIndexBuffers[mesh];
-            var primitiveCount = indexBuffer.IndexCount / 3;
-
-            _effect.Parameters["Texture"].SetValue(texture);
+            _effect.Parameters["Texture"]?.SetValue(texture);
 
             GraphicsDevice.BlendState = BlendMesh == mesh ? BlendMeshState : BlendState;
             if (_effect is AlphaTestEffect alphaTestEffect)
                 alphaTestEffect.Alpha = TotalAlpha;
 
-            foreach (var pass in _effect.CurrentTechnique.Passes)
+            foreach (EffectPass pass in _effect.CurrentTechnique.Passes)
             {
                 pass.Apply();
 
@@ -168,57 +168,69 @@ namespace Client.Main.Objects
 
         public virtual void DrawShadowMesh(int mesh)
         {
-            if (HiddenMesh == mesh)
+            if (HiddenMesh == mesh || _boneVertexBuffers == null)
                 return;
 
-            if (_boneVertexBuffers == null)
-                return;
+            Texture2D texture = _boneTextures[mesh];
+            VertexBuffer vertexBuffer = _boneVertexBuffers[mesh];
+            IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
+            int primitiveCount = indexBuffer.IndexCount / 3;
 
-            var texture = _boneTextures[mesh];
-            var vertexBuffer = _boneVertexBuffers[mesh];
-            var indexBuffer = _boneIndexBuffers[mesh];
-            var primitiveCount = indexBuffer.IndexCount / 3;
+            _effect.Parameters["Texture"]?.SetValue(texture);
 
-            _effect.Parameters["Texture"].SetValue(texture);
+            VertexPositionColorNormalTexture[] shadowVertices = new VertexPositionColorNormalTexture[vertexBuffer.VertexCount];
 
-            var shadowVertices = new VertexPositionColorNormalTexture[vertexBuffer.VertexCount];
-
+            // Ensure alpha blending is enabled
             GraphicsDevice.BlendState = BlendState.AlphaBlend;
 
-            var effect = (AlphaTestEffect)_effect;
-            vertexBuffer.GetData(shadowVertices);
-            var originalWorld = effect.World;
-            var originalView = effect.View;
-            var originalProjection = effect.Projection;
-
-            for (int i = 0; i < shadowVertices.Length; i++)
+            if (_effect is AlphaTestEffect effect)
             {
-                shadowVertices[i].Color = new Color(0, 0, 0, 128);
+                vertexBuffer.GetData(shadowVertices);
+
+                // Clamp ShadowOpacity to a valid range (0 to 1)
+                float clampedShadowOpacity = MathHelper.Clamp(ShadowOpacity, 0f, 1f);
+
+                // Ensure that ShadowOpacity is being applied to each vertex color
+                for (int i = 0; i < shadowVertices.Length; i++)
+                {
+                    // Apply shadow opacity to the alpha channel, ensuring the value is between 0 and 255
+                    byte shadowAlpha = (byte)(255 * clampedShadowOpacity);
+                    shadowVertices[i].Color = new Color((byte)0, (byte)0, (byte)0, shadowAlpha);  // Apply shadow with calculated alpha
+                }
+
+                Matrix originalWorld = effect.World;
+                Matrix originalView = effect.View;
+                Matrix originalProjection = effect.Projection;
+
+                // Get the model's rotation from the original world matrix
+                Vector3 scale, translation;
+                Quaternion rotation;
+                originalWorld.Decompose(out scale, out rotation, out translation);
+
+                // Create a world matrix for the shadow with the model's rotation
+                Matrix world = Matrix.CreateFromQuaternion(rotation) *
+                               Matrix.CreateRotationX(MathHelper.ToRadians(-20)) *
+                               Matrix.CreateScale(0.8f, 1.0f, 0.8f) *
+                               Matrix.CreateTranslation(translation);
+
+                // Add light and shadow offset
+                Vector3 lightDirection = new Vector3(-1, 0, 1);
+                Vector3 shadowOffset = new Vector3(0.05f, 0, 0.1f);
+                world.Translation += lightDirection * 0.3f + shadowOffset;
+
+                effect.World = world;
+
+                foreach (EffectPass pass in effect.CurrentTechnique.Passes)
+                {
+                    pass.Apply();
+                    GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, shadowVertices, 0, primitiveCount);
+                }
+
+                // Restore original matrices
+                effect.World = originalWorld;
+                effect.View = originalView;
+                effect.Projection = originalProjection;
             }
-
-            effect.Projection = originalProjection;
-
-            var world = effect.World;
-
-            world = Matrix.CreateRotationX(MathHelper.ToRadians(-45)) * world;
-            world = Matrix.CreateScale(0.8f, 1.0f, 0.8f) * world;
-
-            Vector3 lightDirection = new(-1, 0, 1);
-
-            Vector3 shadowOffset = new(0.05f, 0, 0.1f);
-            world.Translation += lightDirection * 0.3f + shadowOffset;
-
-            effect.World = world;
-
-            foreach (var pass in effect.CurrentTechnique.Passes)
-            {
-                pass.Apply();
-                GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, shadowVertices, 0, primitiveCount);
-            }
-
-            effect.World = originalWorld;
-            effect.View = originalView;
-            effect.Projection = originalProjection;
         }
 
         public override void DrawAfter(GameTime gameTime)
@@ -252,16 +264,20 @@ namespace Client.Main.Objects
                 }
                 else
                 {
-                    _effect.Parameters["World"].SetValue(WorldPosition);
+                    _effect.Parameters["World"]?.SetValue(WorldPosition);
                 }
             }
         }
+
         private void UpdateBoundings()
         {
             if (Model == null) return;
 
-            var min = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue);
-            var max = new Vector3(float.MinValue, float.MinValue, float.MinValue);
+            Vector3 min = new Vector3(float.MaxValue);
+            Vector3 max = new Vector3(float.MinValue);
+
+            Matrix[] boneTransforms = BoneTransform; // Cache BoneTransform
+            BMDTextureBone[] modelBones = Model.Bones; // Cache Model.Bones
 
             foreach (var mesh in Model.Meshes)
             {
@@ -269,10 +285,10 @@ namespace Client.Main.Objects
                 {
                     int boneIndex = vertex.Node;
 
-                    if (boneIndex < 0 || boneIndex >= BoneTransform.Length)
+                    if (boneIndex < 0 || boneIndex >= boneTransforms.Length)
                         continue;
 
-                    Matrix boneMatrix = BoneTransform[boneIndex];
+                    Matrix boneMatrix = boneTransforms[boneIndex];
                     Vector3 transformedPosition = Vector3.Transform(vertex.Position, boneMatrix);
                     min = Vector3.Min(min, transformedPosition);
                     max = Vector3.Max(max, transformedPosition);
@@ -281,13 +297,14 @@ namespace Client.Main.Objects
 
             BoundingBoxLocal = new BoundingBox(min, max);
         }
+
         private void Animation(GameTime gameTime)
         {
-            if (LinkParent || Model.Actions.Length <= 0) return;
+            if (LinkParent || Model?.Actions.Length <= 0) return;
 
-            var currentAction = Model.Actions[CurrentAction];
+            var currentActionData = Model.Actions[CurrentAction];
 
-            if (currentAction.NumAnimationKeys <= 1)
+            if (currentActionData.NumAnimationKeys <= 1)
             {
                 if (_priorAction != CurrentAction || BoneTransform == null)
                 {
@@ -298,8 +315,7 @@ namespace Client.Main.Objects
             }
 
             float currentFrame = (float)(gameTime.TotalGameTime.TotalSeconds * AnimationSpeed);
-
-            int totalFrames = currentAction.NumAnimationKeys - 1;
+            int totalFrames = currentActionData.NumAnimationKeys - 1;
             currentFrame %= totalFrames;
 
             Animation(currentFrame);
@@ -311,7 +327,8 @@ namespace Client.Main.Objects
         {
             if (LinkParent || Model == null || Model.Actions.Length <= 0) return;
 
-            if (CurrentAction >= Model.Actions.Length) CurrentAction = 0;
+            if (CurrentAction >= Model.Actions.Length)
+                CurrentAction = 0;
 
             int currentAnimationFrame = (int)Math.Floor(currentFrame);
             float interpolationFactor = currentFrame - currentAnimationFrame;
@@ -323,28 +340,28 @@ namespace Client.Main.Objects
             GenerateBoneMatrix(CurrentAction, currentAnimationFrame, nextAnimationFrame, interpolationFactor);
         }
 
-
         private void GenerateBoneMatrix(int currentAction, int currentAnimationFrame, int nextAnimationFrame, float interpolationFactor)
         {
             BoneTransform ??= new Matrix[Model.Bones.Length];
-
             var currentActionData = Model.Actions[currentAction];
-            var changed = false;
+            bool changed = false;
 
-            for (int i = 0; i < Model.Bones.Length; i++)
+            Matrix[] boneTransforms = BoneTransform; // Cache BoneTransform
+            BMDTextureBone[] modelBones = Model.Bones; // Cache Model.Bones
+
+            for (int i = 0; i < modelBones.Length; i++)
             {
-                var bone = Model.Bones[i];
+                var bone = modelBones[i];
 
                 if (bone == BMDTextureBone.Dummy)
                     continue;
 
                 var bm = bone.Matrixes[currentAction];
 
-                var q1 = bm.Quaternion[currentAnimationFrame];
-                var q2 = bm.Quaternion[nextAnimationFrame];
+                Quaternion q1 = bm.Quaternion[currentAnimationFrame];
+                Quaternion q2 = bm.Quaternion[nextAnimationFrame];
 
-                var boneQuaternion = Quaternion.Slerp(q1, q2, interpolationFactor);
-
+                Quaternion boneQuaternion = Quaternion.Slerp(q1, q2, interpolationFactor);
                 Matrix matrix = Matrix.CreateFromQuaternion(boneQuaternion);
 
                 Vector3 position1 = bm.Position[currentAnimationFrame];
@@ -362,17 +379,14 @@ namespace Client.Main.Objects
                     matrix.Translation = interpolatedPosition;
                 }
 
-                Matrix newMatrix;
+                Matrix newMatrix = bone.Parent != -1
+                    ? matrix * boneTransforms[bone.Parent]
+                    : matrix;
 
-                if (bone.Parent != -1)
-                    newMatrix = matrix * BoneTransform[bone.Parent];
-                else
-                    newMatrix = matrix;
-
-                if (!changed && BoneTransform[i] != newMatrix)
+                if (!changed && boneTransforms[i] != newMatrix)
                     changed = true;
 
-                BoneTransform[i] = newMatrix;
+                boneTransforms[i] = newMatrix;
             }
 
             if (changed)
@@ -381,56 +395,68 @@ namespace Client.Main.Objects
                 UpdateBoundings();
             }
         }
+
         private void SetDynamicBuffers()
         {
             if (!_invalidatedBuffers)
                 return;
 
-            _boneVertexBuffers ??= new VertexBuffer[Model.Meshes.Length];
-            _boneIndexBuffers ??= new IndexBuffer[Model.Meshes.Length];
-            _boneTextures ??= new Texture2D[Model.Meshes.Length];
-            _scriptTextures ??= new TextureScript[Model.Meshes.Length];
-            _dataTextures ??= new TextureData[Model.Meshes.Length];
+            int meshCount = Model.Meshes.Length; // Cache mesh count
 
-            for (int meshIndex = 0; meshIndex < Model.Meshes.Length; meshIndex++)
+            _boneVertexBuffers ??= new VertexBuffer[meshCount];
+            _boneIndexBuffers ??= new IndexBuffer[meshCount];
+            _boneTextures ??= new Texture2D[meshCount];
+            _scriptTextures ??= new TextureScript[meshCount];
+            _dataTextures ??= new TextureData[meshCount];
+
+            for (int meshIndex = 0; meshIndex < meshCount; meshIndex++)
             {
                 var mesh = Model.Meshes[meshIndex];
 
-                var bodyLight = Vector3.Zero;
+                Vector3 bodyLight = Vector3.Zero;
 
                 if (LightEnabled && World.Terrain != null)
                 {
-                    var terrainLight = World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y);
+                    Vector3 terrainLight = World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y);
                     terrainLight += Light;
                     bodyLight = terrainLight;
                 }
 
-                if (meshIndex == BlendMesh)
-                    bodyLight = bodyLight * BlendMeshLight;
-                else
-                    bodyLight = bodyLight * TotalAlpha;
+                bodyLight = meshIndex == BlendMesh
+                    ? bodyLight * BlendMeshLight
+                    : bodyLight * TotalAlpha;
 
                 _boneVertexBuffers[meshIndex]?.Dispose();
                 _boneIndexBuffers[meshIndex]?.Dispose();
 
-                var bones = LinkParent && Parent is ModelObject parentModel ? parentModel.BoneTransform : BoneTransform;
+                Matrix[] bones = (LinkParent && Parent is ModelObject parentModel) ? parentModel.BoneTransform : BoneTransform;
 
-                var bodyColor = new Color(Color.R * bodyLight.X, Color.G * bodyLight.Y, Color.B * bodyLight.Y);
+                // Cache Color.R, Color.G, Color.B
+                byte r = Color.R;
+                byte g = Color.G;
+                byte b = Color.B;
+
+                // Calculate color components considering lighting and clamping values
+                byte bodyR = (byte)Math.Min(r * bodyLight.X, 255);
+                byte bodyG = (byte)Math.Min(g * bodyLight.Y, 255);
+                byte bodyB = (byte)Math.Min(b * bodyLight.Z, 255);
+
+                // Use the constructor with byte parameters
+                Color bodyColor = new Color(bodyR, bodyG, bodyB);
 
                 BMDLoader.Instance.GetModelBuffers(Model, meshIndex, bodyColor, bones, out var vertexBuffer, out var indexBuffer);
 
                 _boneVertexBuffers[meshIndex] = vertexBuffer;
                 _boneIndexBuffers[meshIndex] = indexBuffer;
 
-
                 if (_boneTextures[meshIndex] == null)
                 {
-                    var texturePath = BMDLoader.Instance.GetTexturePath(Model, mesh.TexturePath);
+                    string texturePath = BMDLoader.Instance.GetTexturePath(Model, mesh.TexturePath);
                     _boneTextures[meshIndex] = TextureLoader.Instance.GetTexture2D(texturePath);
                     _scriptTextures[meshIndex] = TextureLoader.Instance.GetScript(texturePath);
                     _dataTextures[meshIndex] = TextureLoader.Instance.Get(texturePath);
 
-                    var script = TextureLoader.Instance.GetScript(texturePath);
+                    var script = _scriptTextures[meshIndex];
 
                     if (script != null)
                     {
@@ -441,29 +467,33 @@ namespace Client.Main.Objects
                             BlendMesh = meshIndex;
                     }
                 }
-
-                _invalidatedBuffers = false;
             }
+
+            _invalidatedBuffers = false;
         }
 
         protected void InvalidateBuffers()
         {
             _invalidatedBuffers = true;
 
-            for (var i = 0; i < Children.Count; i++)
+            for (int i = 0; i < Children.Count; i++)
+            {
                 if (Children[i] is ModelObject modelObject && modelObject.LinkParent)
+                {
                     modelObject.InvalidateBuffers();
+                }
+            }
         }
 
         protected override void RecalculateWorldPosition()
         {
-            var localMatrix = Matrix.CreateScale(Scale)
-                                * Matrix.CreateFromQuaternion(MathUtils.AngleQuaternion(Angle))
-                                * Matrix.CreateTranslation(Position);
+            Matrix localMatrix = Matrix.CreateScale(Scale) *
+                                 Matrix.CreateFromQuaternion(MathUtils.AngleQuaternion(Angle)) *
+                                 Matrix.CreateTranslation(Position);
 
             if (Parent != null)
             {
-                var worldMatrix = localMatrix * Parent.WorldPosition;
+                Matrix worldMatrix = localMatrix * Parent.WorldPosition;
 
                 if (WorldPosition != worldMatrix)
                 {

@@ -1,13 +1,10 @@
 ﻿using Client.Main.Content;
 using Client.Main.Controls;
 using Client.Main.Scenes;
-using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace Client.Main
 {
@@ -32,6 +29,12 @@ namespace Client.Main
         public MouseState Mouse { get; private set; }
         public KeyboardState Keyboard { get; private set; }
         public Ray MouseRay { get; private set; }
+
+        private Rectangle UIPanelRectangle;
+        private Color UIPanelColor = Color.Black * 0.6f;
+        private Color UIBorderColor = Color.White * 0.3f;
+        private int UIBorderThickness = 2;
+        private Vector2 UIFontScale = new Vector2(1.2f, 1.2f);
 
         public MuGame()
         {
@@ -69,7 +72,13 @@ namespace Client.Main
         {
             IsMouseVisible = false;
             base.Initialize();
+
+            int panelWidth = 250;
+            int panelHeight = 120;
+            int padding = 10;
+            UIPanelRectangle = new Rectangle(padding, padding, panelWidth, panelHeight);
         }
+
         protected override void LoadContent()
         {
             BMDLoader.Instance.SetGraphicsDevice(GraphicsDevice);
@@ -165,18 +174,47 @@ namespace Client.Main
                 ActiveScene?.DrawAfter(gameTime);
 
             SpriteBatch.Begin();
-            SpriteBatch.DrawString(Font, $"FPS: {(int)FPSCounter.Instance.FPS_AVG}, VMX: {Mouse.Position.X}, VMY: {Mouse.Position.Y}", new Vector2(10, 10), Color.White);
+
+            DrawUIPanel();
+
+            int padding = 10;
+            Vector2 textPosition = new Vector2(UIPanelRectangle.X + padding, UIPanelRectangle.Y + padding);
+
+            DrawText($"FPS: {(int)FPSCounter.Instance.FPS_AVG}", textPosition, Color.LightGreen);
+            textPosition.Y += Font.LineSpacing * UIFontScale.Y + 5;
+
+            DrawText($"Mouse Position: X:{Mouse.Position.X}, Y:{Mouse.Position.Y}", textPosition, Color.LightBlue);
+            textPosition.Y += Font.LineSpacing * UIFontScale.Y + 5;
 
             if (ActiveScene.World != null && ActiveScene.World is WalkableWorldControl walkableWorld)
             {
-                SpriteBatch.DrawString(Font, $"PX: {walkableWorld.Walker.Location.X}, PY: {walkableWorld.Walker.Location.Y}", new Vector2(10, 30), Color.White);
-                SpriteBatch.DrawString(Font, $"TMX: {walkableWorld.MouseTileX}, TMY: {walkableWorld.MouseTileY}", new Vector2(10, 50), Color.White);
+                DrawText($"Player Cords: X:{walkableWorld.Walker.Location.X}, Y:{walkableWorld.Walker.Location.Y}", textPosition, Color.LightCoral);
+                textPosition.Y += Font.LineSpacing * UIFontScale.Y + 5;
+
+                DrawText($"MAP Tile: X:{walkableWorld.MouseTileX}, Y:{walkableWorld.MouseTileY}", textPosition, Color.LightYellow);
+                textPosition.Y += Font.LineSpacing * UIFontScale.Y + 5;
             }
+
             SpriteBatch.End();
 
             GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
 
             base.Draw(gameTime);
+        }
+
+        private void DrawUIPanel()
+        {
+            SpriteBatch.Draw(Pixel, UIPanelRectangle, UIPanelColor);
+
+            SpriteBatch.Draw(Pixel, new Rectangle(UIPanelRectangle.X, UIPanelRectangle.Y, UIPanelRectangle.Width, UIBorderThickness), UIBorderColor);
+            SpriteBatch.Draw(Pixel, new Rectangle(UIPanelRectangle.X, UIPanelRectangle.Y + UIPanelRectangle.Height - UIBorderThickness, UIPanelRectangle.Width, UIBorderThickness), UIBorderColor);
+            SpriteBatch.Draw(Pixel, new Rectangle(UIPanelRectangle.X, UIPanelRectangle.Y, UIBorderThickness, UIPanelRectangle.Height), UIBorderColor);
+            SpriteBatch.Draw(Pixel, new Rectangle(UIPanelRectangle.X + UIPanelRectangle.Width - UIBorderThickness, UIPanelRectangle.Y, UIBorderThickness, UIPanelRectangle.Height), UIBorderColor);
+        }
+
+        private void DrawText(string text, Vector2 position, Color color)
+        {
+            SpriteBatch.DrawString(Font, text, position, color, 0f, Vector2.Zero, UIFontScale, SpriteEffects.None, 0f);
         }
     }
 }

@@ -1,9 +1,5 @@
 ﻿using Microsoft.Xna.Framework;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Client.Main
 {
@@ -11,24 +7,36 @@ namespace Client.Main
     {
         public static Matrix AngleMatrix(Vector3 angles)
         {
+            // Convert angles to radians
             float yaw = MathHelper.ToRadians(angles.Y);
             float pitch = MathHelper.ToRadians(angles.X);
             float roll = MathHelper.ToRadians(angles.Z);
+
+            // Create rotation matrix
             Matrix rotationMatrix = Matrix.CreateFromYawPitchRoll(yaw, pitch, roll);
+
+            // Transpose the matrix only once
             return Matrix.Transpose(rotationMatrix);
         }
 
-        public static float DotProduct(Vector3 x, Vector3 y) => (x.X * y.X) + (x.Y * y.Y) + (x.Z * y.Z);
+        public static float DotProduct(Vector3 x, Vector3 y)
+        {
+            return Vector3.Dot(x, y);
+        }
 
         public static Vector3 FaceNormalize(Vector3 v1, Vector3 v2, Vector3 v3)
         {
-            float nx, ny, nz;
-            nx = (v2.Y - v1.Y) * (v3.Z - v1.Z) - (v3.Y - v1.Y) * (v2.Z - v1.Z);
-            ny = (v2.Z - v1.Z) * (v3.X - v1.X) - (v3.Z - v1.Z) * (v2.X - v1.X);
-            nz = (v2.X - v1.X) * (v3.Y - v1.Y) - (v3.X - v1.X) * (v2.Y - v1.Y);
-            double dot = Math.Sqrt(nx * nx + ny * ny + nz * nz);
-            if (dot == 0) return Vector3.Zero;
-            return new Vector3(nx / (float)dot, ny / (float)dot, nz / (float)dot);
+            // Minimal optimization by eliminating intermediate variables
+            float nx = (v2.Y - v1.Y) * (v3.Z - v1.Z) - (v3.Y - v1.Y) * (v2.Z - v1.Z);
+            float ny = (v2.Z - v1.Z) * (v3.X - v1.X) - (v3.Z - v1.Z) * (v2.X - v1.X);
+            float nz = (v2.X - v1.X) * (v3.Y - v1.Y) - (v3.X - v1.X) * (v2.Y - v1.Y);
+
+            // Use LengthSquared to check for zero length
+            float lengthSquared = nx * nx + ny * ny + nz * nz;
+            if (lengthSquared == 0) return Vector3.Zero;
+
+            float invLength = 1.0f / (float)Math.Sqrt(lengthSquared);
+            return new Vector3(nx * invLength, ny * invLength, nz * invLength);
         }
 
         public static Vector3 VectorRotate(Vector3 in1, Matrix in2)
@@ -51,18 +59,16 @@ namespace Client.Main
 
         public static Quaternion AngleQuaternion(Vector3 angles)
         {
-            float angle;
-            float sr, sp, sy, cr, cp, cy;
+            float halfRoll = angles.Z * 0.5f;
+            float halfYaw = angles.Y * 0.5f;
+            float halfPitch = angles.X * 0.5f;
 
-            angle = angles.Z * 0.5f;
-            sy = (float)Math.Sin(angle);
-            cy = (float)Math.Cos(angle);
-            angle = angles.Y * 0.5f;
-            sp = (float)Math.Sin(angle);
-            cp = (float)Math.Cos(angle);
-            angle = angles.X * 0.5f;
-            sr = (float)Math.Sin(angle);
-            cr = (float)Math.Cos(angle);
+            float sr = (float)Math.Sin(halfPitch);
+            float cr = (float)Math.Cos(halfPitch);
+            float sp = (float)Math.Sin(halfYaw);
+            float cp = (float)Math.Cos(halfYaw);
+            float sy = (float)Math.Sin(halfRoll);
+            float cy = (float)Math.Cos(halfRoll);
 
             float x = sr * cp * cy - cr * sp * sy;
             float y = cr * sp * cy + sr * cp * sy;
