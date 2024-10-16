@@ -1,4 +1,4 @@
-﻿﻿using Client.Data.BMD;
+﻿using Client.Data.BMD;
 using Client.Data.Texture;
 using Client.Main.Content;
 using Microsoft.Xna.Framework;

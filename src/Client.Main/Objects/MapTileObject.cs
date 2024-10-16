@@ -30,5 +30,10 @@ namespace Client.Main.Objects
 
             await base.Load();
         }
+
+        public override void Draw(GameTime gameTime)
+        {
+            base.Draw(gameTime);
+        }
     }
 }

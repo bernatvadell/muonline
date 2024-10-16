@@ -17,13 +17,12 @@ namespace Client.Main.Scenes
 {
     public class LoginScene : BaseScene
     {
-        private readonly MuLogo _logo;
 
         public LoginScene()
         {
             ChangeWorld<LoginWorld>();
 
-            Controls.Add(_logo = new MuLogo() { Y = 10, Align = ControlAlign.HorizontalCenter });
+            Controls.Add(new MuLogo() { Y = 10, Align = ControlAlign.HorizontalCenter });
 
             var nonEventGroup = new ServerGroupSelector(false)
             {
