@@ -1,126 +1,140 @@
-﻿using Client.Data.ATT;
-using Client.Main.Controls;
+﻿using Client.Main.Controls;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Client.Main
 {
     public class PathNode
     {
         public Vector2 Position { get; }
-        public PathNode Parent { get; set; }
-        public float GCost { get; set; } // Costo desde el nodo de inicio
-        public float HCost { get; set; } // Estimación de costo hacia el objetivo (heurística)
-        public float FCost => GCost + HCost; // Costo total
+        public PathNode? Parent { get; set; }
+        public float GCost { get; set; } // Cost from the start
+        public float HCost { get; set; } // Heuristic to the goal
+        public float FCost => GCost + HCost;
 
         public PathNode(Vector2 position)
         {
             Position = position;
-            GCost = 0;
+            GCost = float.MaxValue;
             HCost = 0;
         }
     }
 
     public static class Pathfinding
     {
-        public static List<Vector2> FindPath(Vector2 start, Vector2 goal, WorldControl world)
+        public static List<Vector2>? FindPath(Vector2 start, Vector2 goal, WorldControl world)
         {
-            List<PathNode> openList = new List<PathNode>();
-            HashSet<PathNode> closedList = new HashSet<PathNode>();
+            var openSet = new PriorityQueue<PathNode, float>();
+            var allNodes = new Dictionary<Vector2, PathNode>();
+            var closedSet = new HashSet<Vector2>();
 
-            PathNode startNode = new PathNode(start);
-            PathNode goalNode = new PathNode(goal);
+            PathNode startNode = GetOrCreateNode(start, allNodes);
+            PathNode goalNode = GetOrCreateNode(goal, allNodes);
 
-            openList.Add(startNode);
+            startNode.GCost = 0;
+            startNode.HCost = Heuristic(start, goal);
+            openSet.Enqueue(startNode, startNode.FCost);
 
-            while (openList.Count > 0)
+            while (openSet.Count > 0)
             {
-                // Encuentra el nodo con el menor FCost
-                PathNode currentNode = openList.OrderBy(n => n.FCost).First();
+                PathNode currentNode = openSet.Dequeue();
 
-                // Si hemos alcanzado el nodo objetivo
                 if (currentNode.Position == goalNode.Position)
                 {
                     return RetracePath(startNode, currentNode);
                 }
 
-                openList.Remove(currentNode);
-                closedList.Add(currentNode);
-
-                // Evalúa nodos vecinos
-                foreach (Vector2 neighborPosition in GetNeighbors(currentNode.Position, world))
+                if (!closedSet.Add(currentNode.Position))
                 {
-                    if (closedList.Any(n => n.Position == neighborPosition)) continue;
+                    continue; // Node has already been processed
+                }
 
-                    PathNode neighborNode = new PathNode(neighborPosition);
-                    float newMovementCost = currentNode.GCost + Vector2.Distance(currentNode.Position, neighborNode.Position);
+                foreach (Vector2 neighborPos in GetNeighbors(currentNode.Position, world))
+                {
+                    if (closedSet.Contains(neighborPos))
+                        continue;
 
-                    if (newMovementCost < neighborNode.GCost || !openList.Contains(neighborNode))
+                    PathNode neighborNode = GetOrCreateNode(neighborPos, allNodes);
+                    float tentativeGCost = currentNode.GCost + Distance(currentNode.Position, neighborPos);
+
+                    if (tentativeGCost < neighborNode.GCost)
                     {
-                        neighborNode.GCost = newMovementCost;
-                        neighborNode.HCost = Vector2.Distance(neighborNode.Position, goalNode.Position);
+                        neighborNode.GCost = tentativeGCost;
+                        neighborNode.HCost = Heuristic(neighborPos, goal);
                         neighborNode.Parent = currentNode;
 
-                        if (!openList.Contains(neighborNode))
-                            openList.Add(neighborNode);
+                        openSet.Enqueue(neighborNode, neighborNode.FCost);
                     }
                 }
             }
 
-            return null;
+            return null; // Path not found
+        }
+
+        private static PathNode GetOrCreateNode(Vector2 position, Dictionary<Vector2, PathNode> allNodes)
+        {
+            if (!allNodes.TryGetValue(position, out PathNode? node))
+            {
+                node = new PathNode(position);
+                allNodes[position] = node;
+            }
+            return node;
+        }
+
+        private static float Heuristic(Vector2 a, Vector2 b)
+        {
+            return Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y);
+        }
+
+        private static float Distance(Vector2 a, Vector2 b)
+        {
+            return Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y);
         }
 
         private static IEnumerable<Vector2> GetNeighbors(Vector2 position, WorldControl world)
         {
-            List<Vector2> neighbors = new List<Vector2>();
-
-            Vector2[] directions = new []
+            Vector2[] directions = new[]
             {
-                new Vector2(0, -1), // Norte
-                new Vector2(0, 1),  // Sur
-                new Vector2(-1, 0), // Oeste
-                new Vector2(1, 0),  // Este
-                new Vector2(-1, -1), // Noroeste
-                new Vector2(1, -1),  // Noreste
-                new Vector2(-1, 1),  // Suroeste
-                new Vector2(1, 1)   // Sureste
+                new Vector2(0, -1), // North
+                new Vector2(0, 1),  // South
+                new Vector2(-1, 0), // West
+                new Vector2(1, 0),  // East
+                new Vector2(-1, -1), // Northwest
+                new Vector2(1, -1),  // Northeast
+                new Vector2(-1, 1),  // Southwest
+                new Vector2(1, 1)   // Southeast
             };
 
-            foreach (Vector2 direction in directions)
+            foreach (var direction in directions)
             {
-                Vector2 neighborPosition = position + direction;
-
-                if (IsWithinMapBounds(neighborPosition, world) && world.IsWalkable(neighborPosition))
+                Vector2 neighbor = position + direction;
+                if (IsWithinMapBounds(neighbor, world) && world.IsWalkable(neighbor))
                 {
-                    neighbors.Add(neighborPosition);
+                    yield return neighbor;
                 }
             }
-
-            return neighbors;
         }
 
         private static bool IsWithinMapBounds(Vector2 position, WorldControl world)
         {
-            return position.X >= 0 && position.X < Constants.TERRAIN_SIZE && position.Y >= 0 && position.Y < Constants.TERRAIN_SIZE;
+            return position.X >= 0 && position.X < Constants.TERRAIN_SIZE &&
+                   position.Y >= 0 && position.Y < Constants.TERRAIN_SIZE;
         }
+
         private static List<Vector2> RetracePath(PathNode startNode, PathNode endNode)
         {
-            List<Vector2> path = new List<Vector2>();
-            PathNode currentNode = endNode;
+            List<Vector2> path = new();
+            PathNode? currentNode = endNode;
 
-            while (currentNode != startNode)
+            while (currentNode != null && currentNode != startNode)
             {
                 path.Add(currentNode.Position);
                 currentNode = currentNode.Parent;
             }
 
-            path.Reverse(); // La ruta se construye hacia atrás, así que la invertimos
+            path.Reverse(); // Reverse the path to go from start to goal
             return path;
         }
-
     }
 }
