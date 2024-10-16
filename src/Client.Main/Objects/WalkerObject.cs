@@ -16,32 +16,32 @@ namespace Client.Main.Objects
         private List<Vector2> _currentPath;
 
         // Camera control variables
-        private float currentCameraDistance = 1500f;
-        private float targetCameraDistance = 1500f;
-        private const float minCameraDistance = 800f;
-        private const float maxCameraDistance = 1800f;
-        private const float zoomSpeed = 4f;
+        private float currentCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
+        private float targetCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
+        private const float minCameraDistance = Constants.MIN_CAMERA_DISTANCE;
+        private const float maxCameraDistance = Constants.MAX_CAMERA_DISTANCE;
+        private const float zoomSpeed = Constants.ZOOM_SPEED;
         private int previousScrollValue = 0;
 
         // Camera rotation variables
-        private float cameraYaw = 30.5f;
-        private float cameraPitch = MathHelper.ToRadians(135);
+        private float cameraYaw = Constants.CAMERA_YAW;
+        private float cameraPitch = Constants.CAMERA_PITCH;
+        private const float rotationSensitivity = Constants.ROTATION_SENSITIVITY;
         private bool isRotating = false;
         private Point lastMousePosition;
-        private const float rotationSensitivity = 0.003f;
 
         // Default camera values
-        private const float defaultCameraDistance = 1500f;
-        private static readonly float defaultCameraPitch = MathHelper.ToRadians(135);
-        private const float defaultCameraYaw = 30.5f;
+        private const float defaultCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
+        private static readonly float defaultCameraPitch = Constants.DEFAULT_CAMERA_PITCH;
+        private const float defaultCameraYaw = Constants.DEFAULT_CAMERA_YAW;
+
+        // Rotation limits
+        private static readonly float maxPitch = Constants.MAX_PITCH;
+        private static readonly float minPitch = Constants.MIN_PITCH;
 
         // Mouse state tracking
         private ButtonState previousMiddleButtonState = ButtonState.Released;
         private bool wasRotating = false;
-
-        // Rotation limits
-        private static readonly float maxPitch = MathHelper.ToRadians(0);   // Limit upward rotation
-        private static readonly float minPitch = MathHelper.ToRadians(135);  // Limit downward rotation
 
         public Vector2 Location
         {
@@ -74,7 +74,7 @@ namespace Client.Main.Objects
         }
 
         public Vector3 MoveTargetPosition { get; private set; }
-        public float MoveSpeed { get; set; } = 350f;
+        public float MoveSpeed { get; set; } = Constants.MOVE_SPEED;
         public bool IsMoving => Vector3.Distance(MoveTargetPosition, TargetPosition) > 0f;
 
         private const float RotationSpeed = 8;
