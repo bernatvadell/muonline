@@ -20,7 +20,6 @@ namespace Client.Data.Texture
         protected override byte[] Read(byte[] buffer)
         {
             buffer = ModulusCryptor.ModulusCryptor.Decrypt(buffer);
-            File.WriteAllBytes("C:\\Users\\dito1\\Downloads\\test1.swf", buffer);
 
             using var ms = new MemoryStream(buffer);
             using var br = new BinaryReader(ms);
@@ -35,8 +34,6 @@ namespace Client.Data.Texture
             dec.CopyTo(uncompressed);
 
             var rawData = uncompressed.ToArray();
-
-            File.WriteAllBytes("C:\\Users\\dito1\\Downloads\\testdec.swf", rawData);
 
             return rawData;
         }
