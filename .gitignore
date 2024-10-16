@@ -310,3 +310,6 @@ doc/*.htm
 
 # Mac OS filesystem files
 .DS_Store
+
+# Others
+.history
