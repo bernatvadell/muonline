@@ -1,4 +1,4 @@
-﻿using Client.Data.BMD;
+﻿﻿using Client.Data.BMD;
 using Client.Data.Texture;
 using Client.Main.Content;
 using Microsoft.Xna.Framework;
@@ -413,6 +413,7 @@ namespace Client.Main.Objects
             {
                 var mesh = Model.Meshes[meshIndex];
 
+                // Resolve the body light conflict
                 Vector3 bodyLight = Vector3.Zero;
 
                 if (LightEnabled && World.Terrain != null)
@@ -420,6 +421,10 @@ namespace Client.Main.Objects
                     Vector3 terrainLight = World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y);
                     terrainLight += Light;
                     bodyLight = terrainLight;
+                }
+                else
+                {
+                    bodyLight = Light;
                 }
 
                 bodyLight = meshIndex == BlendMesh
@@ -431,7 +436,7 @@ namespace Client.Main.Objects
 
                 Matrix[] bones = (LinkParent && Parent is ModelObject parentModel) ? parentModel.BoneTransform : BoneTransform;
 
-                // Cache Color.R, Color.G, Color.B
+                // Use the updated color calculation method from the improvements branch
                 byte r = Color.R;
                 byte g = Color.G;
                 byte b = Color.B;
@@ -441,7 +446,6 @@ namespace Client.Main.Objects
                 byte bodyG = (byte)Math.Min(g * bodyLight.Y, 255);
                 byte bodyB = (byte)Math.Min(b * bodyLight.Z, 255);
 
-                // Use the constructor with byte parameters
                 Color bodyColor = new Color(bodyR, bodyG, bodyB);
 
                 BMDLoader.Instance.GetModelBuffers(Model, meshIndex, bodyColor, bones, out var vertexBuffer, out var indexBuffer);
