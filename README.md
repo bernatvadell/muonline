@@ -14,7 +14,7 @@ Make sure you have the following installed on your system:
 
 Before running the project, you need to download the game data from the official source:
 
-[Download the game data](http://full-wkr.mu.webzen.co.kr/muweb/full/MU_Red_1_20_61_Full.ex)
+[Download the game data](https://full-wkr.mu.webzen.co.kr/muweb/full/MU_Red_1_20_61_Full.zip)
 
 ### Step 2: Modify the `Constants.cs` File
 
