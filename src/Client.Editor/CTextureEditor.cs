@@ -1,4 +1,5 @@
-﻿using Client.Data.Texture;
+﻿using Client.Data.OZB;
+using Client.Data.Texture;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -36,6 +37,33 @@ namespace Client.Editor
                 case ".ozt":
                     {
                         var reader = new OZTReader();
+                        Data = await reader.Load(filePath);
+                        SetData();
+                    }
+                    break;
+                case ".ozb":
+                    {
+                        var reader = new OZBReader();
+                        var texture = await reader.Load(filePath);
+                        Data = new TextureData
+                        {
+                            Components = 4,
+                            Width = texture.Width,
+                            Height = texture.Height,
+                            Data = texture.Data.SelectMany(x => new byte[] { x.R, x.G, x.B, x.A }).ToArray()
+                        };
+                    }
+                    break;
+                case ".ozd":
+                    {
+                        var reader = new OZDReader();
+                        Data = await reader.Load(filePath);
+                        SetData();
+                    }
+                    break;
+                case ".ozp":
+                    {
+                        var reader = new OZPReader();
                         Data = await reader.Load(filePath);
                         SetData();
                     }

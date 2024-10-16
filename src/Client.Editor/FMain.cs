@@ -33,6 +33,9 @@ namespace Client.Editor
             {
                 case ".ozj":
                 case ".ozt":
+                case ".ozb":
+                case ".ozd":
+                case ".ozp":
                     {
                         var editor = new CTextureEditor();
                         Editor = editor;
@@ -83,7 +86,7 @@ namespace Client.Editor
 
         private void ExportToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if(Editor is CTextureEditor editor)
+            if (Editor is CTextureEditor editor)
             {
                 editor.Export();
             }
