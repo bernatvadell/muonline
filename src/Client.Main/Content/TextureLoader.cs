@@ -16,6 +16,8 @@ namespace Client.Main.Content
 
         private readonly OZTReader _tgaReader = new();
         private readonly OZJReader _jpgReader = new();
+        private readonly OZPReader _pngReader = new();
+        private readonly OZDReader _ddsReader = new();
         private readonly ConcurrentDictionary<string, Task<TextureData>> _textureTasks = new ConcurrentDictionary<string, Task<TextureData>>();
         private readonly ConcurrentDictionary<string, ClientTexture> _textures = new ConcurrentDictionary<string, ClientTexture>();
         private GraphicsDevice _graphicsDevice;
@@ -46,20 +48,32 @@ namespace Client.Main.Content
                 BaseReader<TextureData> reader;
                 string fullPath = string.Empty;
 
-                if (ext == ".ozt" || ext == ".tga")
+
+                switch (ext)
                 {
-                    reader = _tgaReader;
-                    fullPath = Path.ChangeExtension(dataPath, ".ozt");
-                }
-                else if (ext == ".ozj" || ext == ".jpg")
-                {
-                    reader = _jpgReader;
-                    fullPath = Path.ChangeExtension(dataPath, ".ozj");
-                }
-                else
-                {
-                    Debug.WriteLine($"Unsupported file extension: {ext}");
-                    throw new NotImplementedException($"Extension {ext} not implemented.");
+                    case ".ozt":
+                    case ".tga":
+                        reader = _tgaReader;
+                        fullPath = Path.ChangeExtension(dataPath, ".ozt");
+                        break;
+                    case ".ozj":
+                    case ".jpg":
+                        reader = _jpgReader;
+                        fullPath = Path.ChangeExtension(dataPath, ".ozj");
+                        break;
+                    case ".ozp":
+                    case ".png":
+                        reader = _pngReader;
+                        fullPath = Path.ChangeExtension(dataPath, ".ozp");
+                        break;
+                    case ".ozd":
+                    case ".dds":
+                        reader = _ddsReader;
+                        fullPath = Path.ChangeExtension(dataPath, ".ozd");
+                        break;
+                    default:
+                        Debug.WriteLine($"Unsupported file extension: {ext}");
+                        throw new NotImplementedException($"Extension {ext} not implemented.");
                 }
 
                 if (!File.Exists(fullPath))

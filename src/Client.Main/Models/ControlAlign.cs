@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Client.Main.Controls
+namespace Client.Main.Models
 {
     [Flags]
     public enum ControlAlign

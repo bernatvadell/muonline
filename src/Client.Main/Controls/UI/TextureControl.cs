@@ -1,15 +1,12 @@
 ﻿using Client.Main.Content;
+using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Controls.UI
 {
-    public class TextureControl : GameControl
+    public class TextureControl : UIControl
     {
         private Texture2D _texture;
         private string _texturePath;
@@ -18,7 +15,7 @@ namespace Client.Main.Controls.UI
         public int OffsetY { get; set; }
         public int OffsetWidth { get; set; }
         public int OffsetHeight { get; set; }
-        public virtual Rectangle SourceRectangle => new(OffsetX, OffsetY, _texture.Width - OffsetWidth, _texture.Height - OffsetHeight);
+        public virtual Rectangle SourceRectangle => new(OffsetX, OffsetY, Width - OffsetWidth, Height - OffsetHeight);
 
         public string TexturePath { get => _texturePath; set { if (_texturePath != value) { _texturePath = value; OnChangeTexturePath(); } } }
         public BlendState BlendState { get; set; } = BlendState.Opaque;
@@ -69,8 +66,11 @@ namespace Client.Main.Controls.UI
             if (_texture == null)
                 return;
 
-            Width = _texture.Width - OffsetWidth;
-            Height = _texture.Height - OffsetHeight;
+            if (AutoSize || Width == 0 || Height == 0)
+            {
+                Width = _texture.Width - OffsetWidth;
+                Height = _texture.Height - OffsetHeight;
+            }
         }
     }
 }

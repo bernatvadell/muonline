@@ -2,8 +2,9 @@ using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Net.NetworkInformation;
+using Client.Main.Models;
 
-namespace Client.Main.Controls.UI
+namespace Client.Main.Controls.UI.Login
 {
     public class ServerButton : SpriteControl
     {

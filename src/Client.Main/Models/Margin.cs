@@ -1,9 +1,9 @@
-﻿namespace Client.Main.Controls
+﻿namespace Client.Main.Models
 {
     public struct Margin
     {
         private static Margin _empty = default;
-        
+
         public int Top;
         public int Right;
         public int Bottom;

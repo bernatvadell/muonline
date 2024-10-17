@@ -1,4 +1,4 @@
-﻿namespace Client.Main.Controls
+﻿namespace Client.Main.Models
 {
     public enum GameControlStatus
     {

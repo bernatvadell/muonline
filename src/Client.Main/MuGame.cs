@@ -1,5 +1,6 @@
 ﻿using Client.Main.Content;
 using Client.Main.Controls;
+using Client.Main.Models;
 using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -41,8 +42,8 @@ namespace Client.Main
             Instance = this;
 
             _graphics = new GraphicsDeviceManager(this);
-            _graphics.PreferredBackBufferWidth = 800;
-            _graphics.PreferredBackBufferHeight = 600;
+            _graphics.PreferredBackBufferWidth = 1280;
+            _graphics.PreferredBackBufferHeight = 720;
 
             InverseDestinationBlend = new BlendState
             {

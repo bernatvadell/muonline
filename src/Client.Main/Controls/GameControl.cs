@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+﻿using Client.Main.Models;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
@@ -17,7 +18,6 @@ namespace Client.Main.Controls
         public GameControl Parent { get; set; }
         public ChildrenCollection<GameControl> Controls { get; private set; }
         public GameControlStatus Status { get; private set; } = GameControlStatus.NonInitialized;
-
         public ControlAlign Align { get; set; }
         public bool AutoSize { get; set; } = true;
         public bool Interactive { get; set; }
@@ -68,7 +68,7 @@ namespace Client.Main.Controls
             try
             {
                 Status = GameControlStatus.Initializing;
-               
+
                 await Load();
 
                 var tasks = new Task[Controls.Count];
@@ -166,7 +166,8 @@ namespace Client.Main.Controls
 
         public virtual void Draw(GameTime gameTime)
         {
-            if (Status != GameControlStatus.Ready || !Visible) return;
+            if (Status != GameControlStatus.Ready || !Visible)
+                return;
 
             for (int i = 0; i < Controls.Count; i++)
                 Controls[i].Draw(gameTime);
@@ -174,11 +175,13 @@ namespace Client.Main.Controls
 
         public virtual void DrawAfter(GameTime gameTime)
         {
-            if (Status != GameControlStatus.Ready || !Visible) return;
+            if (Status != GameControlStatus.Ready || !Visible)
+                return;
 
             for (int i = 0; i < Controls.Count; i++)
                 Controls[i].DrawAfter(gameTime);
         }
+
 
         public virtual void Dispose()
         {

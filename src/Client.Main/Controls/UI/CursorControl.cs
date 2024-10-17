@@ -1,4 +1,4 @@
-﻿using Client.Main.Controls.UI;
+﻿using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -8,24 +8,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Client.Main.Controls
+namespace Client.Main.Controls.UI
 {
-    public enum CursorStatus
-    {
-        Normal,
-        AddIn,
-        Attack,
-        Attack2,
-        DontMove,
-        Eye,
-        Get,
-        Id,
-        LeanAgainst,
-        Push,
-        Repair,
-        SitDown,
-        Talk
-    }
 
     public class CursorControl : TextureControl
     {

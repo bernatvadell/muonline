@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Client.Main.Controls.UI
+namespace Client.Main.Controls.UI.Login
 {
     public class LoginDialog : DialogControl
     {

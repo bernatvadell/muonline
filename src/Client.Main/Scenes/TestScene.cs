@@ -1,19 +1,9 @@
-﻿using Client.Data;
-using Client.Main.Controls;
-using Client.Main.Controls.UI;
+﻿using Client.Main.Controls;
+using Client.Main.Models;
 using Client.Main.Objects.Effects;
-using Client.Main.Objects.Login;
-using Client.Main.Objects.Lorencia;
-using Client.Main.Objects.Particles;
-using Client.Main.Objects.Particles.Effects;
 using Client.Main.Objects.Player;
-using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Scenes

@@ -1,7 +1,7 @@
 ﻿using Client.Data.ATT;
 using Client.Data.CWS;
 using Client.Data.OBJS;
-using Client.Main.Controllers;
+using Client.Main.Models;
 using Client.Main.Objects;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -141,11 +141,6 @@ namespace Client.Main.Controls
                 objects[i].Dispose();
 
             GC.SuppressFinalize(this);
-        }
-
-        internal async Task AddObject(object value)
-        {
-            throw new NotImplementedException();
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controllers;
+using Client.Main.Models;
 using Client.Main.Objects;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;

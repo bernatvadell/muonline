@@ -1,13 +1,15 @@
-﻿using Microsoft.Xna.Framework.Graphics;
+﻿using Client.Main.Models;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Client.Main.Controls.UI
+namespace Client.Main.Controls.UI.Login
 {
-    public class MuLogo : GameControl
+    public class MuLogo : UIControl
     {
         private TextureControl _logo;
 

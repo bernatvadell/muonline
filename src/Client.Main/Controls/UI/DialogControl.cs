@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+﻿using Client.Main.Models;
+using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Controls.UI
 {
-    public abstract class DialogControl : GameControl
+    public abstract class DialogControl : UIControl
     {
         public event EventHandler Closed;
 

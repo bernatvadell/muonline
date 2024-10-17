@@ -1,4 +1,6 @@
-﻿using Microsoft.Xna.Framework.Graphics;
+﻿using Client.Main.Models;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
@@ -6,9 +8,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Client.Main.Controls.UI
+namespace Client.Main.Controls.UI.Login
 {
-    public class ServerGroupSelector : GameControl
+    public class ServerGroupSelector : UIControl
     {
         private List<ServerGroupButton> _buttons = [];
 
@@ -57,7 +59,7 @@ namespace Client.Main.Controls.UI
                 Index = index,
                 Name = name,
                 X = IsEventList ? 23 : 8,
-                Y = 19 + (index * 27),
+                Y = 19 + index * 27,
             };
 
             button.Click += ServerGroupButton_Click;
@@ -89,7 +91,7 @@ namespace Client.Main.Controls.UI
             ActiveIndex = button.Index;
 
             IndicatorActive.Visible = true;
-            IndicatorActive.Y = 17 + (ActiveIndex * 27);
+            IndicatorActive.Y = 17 + ActiveIndex * 27;
 
             SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
         }

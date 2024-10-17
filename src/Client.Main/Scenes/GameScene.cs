@@ -1,16 +1,9 @@
-using Client.Data.BMD;
-using Client.Main.Content;
 using Client.Main.Controls;
-using Client.Main.Objects;
+using Client.Main.Controls.UI.Game;
+using Client.Main.Models;
 using Client.Main.Objects.Player;
 using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Scenes
@@ -18,12 +11,19 @@ namespace Client.Main.Scenes
     public class GameScene : BaseScene
     {
         private readonly PlayerObject _hero = new();
+        private readonly MainControl _main;
+
         public PlayerObject Hero { get => _hero; }
+
+        public GameScene()
+        {
+            Controls.Add(_main = new MainControl());
+        }
 
         public override async Task Load()
         {
             await base.Load();
-            await ChangeMapAsync<LostTowerWorld>();
+            await ChangeMapAsync<LorenciaWorld>();
             await World.AddObjectAsync(_hero);
         }
 
@@ -53,6 +53,7 @@ namespace Client.Main.Scenes
                 return;
 
             _hero.BringToFront();
+            _main.BringToFront();
         }
     }
 }

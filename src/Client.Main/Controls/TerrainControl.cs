@@ -7,6 +7,7 @@ using Client.Data.OZB;
 using Client.Data.Texture;
 using Client.Main.Content;
 using Client.Main.Controllers;
+using Client.Main.Models;
 using Client.Main.Objects;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;

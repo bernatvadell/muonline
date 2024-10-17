@@ -11,7 +11,6 @@ namespace Client.Main.Controls.UI
         public int TileY { get; set; }
         public override Rectangle SourceRectangle => new(OffsetX + TileX * TileWidth, OffsetY + TileY * TileHeight, TileWidth, TileHeight);
 
-
         protected override async Task LoadTexture()
         {
             await base.LoadTexture();
