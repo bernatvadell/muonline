@@ -1,12 +1,13 @@
-﻿using Client.Data;
-using Client.Data.Texture;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
+using Client.Data;
+using Client.Data.Texture;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace Client.Main.Content
 {
@@ -14,18 +15,23 @@ namespace Client.Main.Content
     {
         public static TextureLoader Instance { get; } = new TextureLoader();
 
-        private readonly OZTReader _tgaReader = new();
-        private readonly OZJReader _jpgReader = new();
-        private readonly OZPReader _pngReader = new();
-        private readonly OZDReader _ddsReader = new();
-        private readonly ConcurrentDictionary<string, Task<TextureData>> _textureTasks = new ConcurrentDictionary<string, Task<TextureData>>();
-        private readonly ConcurrentDictionary<string, ClientTexture> _textures = new ConcurrentDictionary<string, ClientTexture>();
+        private readonly ConcurrentDictionary<string, Task<TextureData>> _textureTasks = new();
+        private readonly ConcurrentDictionary<string, ClientTexture> _textures = new();
         private GraphicsDevice _graphicsDevice;
 
-        public void SetGraphicsDevice(GraphicsDevice graphicsDevice)
+        private readonly Dictionary<string, BaseReader<TextureData>> _readers = new()
         {
-            _graphicsDevice = graphicsDevice;
-        }
+            { ".ozt", new OZTReader() },
+            { ".tga", new OZTReader() },
+            { ".ozj", new OZJReader() },
+            { ".jpg", new OZJReader() },
+            { ".ozp", new OZPReader() },
+            { ".png", new OZPReader() },
+            { ".ozd", new OZDReader() },
+            { ".dds", new OZDReader() }
+        };
+
+        public void SetGraphicsDevice(GraphicsDevice graphicsDevice) => _graphicsDevice = graphicsDevice;
 
         public Task<TextureData> Prepare(string path)
         {
@@ -33,7 +39,6 @@ namespace Client.Main.Content
                 throw new ArgumentException("Path cannot be null or whitespace.", nameof(path));
 
             string normalizedPath = path.ToLowerInvariant();
-
             return _textureTasks.GetOrAdd(normalizedPath, InternalPrepare);
         }
 
@@ -43,58 +48,17 @@ namespace Client.Main.Content
             {
                 var dataPath = Path.Combine(Constants.DataPath, normalizedPath);
                 string ext = Path.GetExtension(normalizedPath)?.ToLowerInvariant();
-                TextureData data;
 
-                BaseReader<TextureData> reader;
-                string fullPath = string.Empty;
-
-
-                switch (ext)
+                if (!_readers.TryGetValue(ext, out var reader))
                 {
-                    case ".ozt":
-                    case ".tga":
-                        reader = _tgaReader;
-                        fullPath = Path.ChangeExtension(dataPath, ".ozt");
-                        break;
-                    case ".ozj":
-                    case ".jpg":
-                        reader = _jpgReader;
-                        fullPath = Path.ChangeExtension(dataPath, ".ozj");
-                        break;
-                    case ".ozp":
-                    case ".png":
-                        reader = _pngReader;
-                        fullPath = Path.ChangeExtension(dataPath, ".ozp");
-                        break;
-                    case ".ozd":
-                    case ".dds":
-                        reader = _ddsReader;
-                        fullPath = Path.ChangeExtension(dataPath, ".ozd");
-                        break;
-                    default:
-                        Debug.WriteLine($"Unsupported file extension: {ext}");
-                        throw new NotImplementedException($"Extension {ext} not implemented.");
-                }
-
-                if (!File.Exists(fullPath))
-                {
-                    var parentFolder = Directory.GetParent(fullPath);
-                    if (parentFolder != null)
-                    {
-                        var newFullPath = Path.Combine(parentFolder.FullName, "texture", Path.GetFileName(fullPath));
-                        if (File.Exists(newFullPath))
-                            fullPath = newFullPath;
-                    }
-                }
-
-                if (!File.Exists(fullPath))
-                {
-                    Debug.WriteLine($"Texture file not found: {fullPath}");
+                    Debug.WriteLine($"Unsupported file extension: {ext}");
                     return null;
                 }
 
-                data = await reader.Load(fullPath);
+                string fullPath = FindTexturePath(dataPath, ext);
+                if (fullPath == null) return null;
 
+                var data = await reader.Load(fullPath);
                 if (data == null)
                 {
                     Debug.WriteLine($"Failed to load texture data from: {fullPath}");
@@ -108,7 +72,6 @@ namespace Client.Main.Content
                 };
 
                 _textures.TryAdd(normalizedPath, clientTexture);
-
                 return clientTexture.Info;
             }
             catch (Exception e)
@@ -116,6 +79,30 @@ namespace Client.Main.Content
                 Debug.WriteLine($"Failed to load asset {normalizedPath}: {e.Message}");
                 return null;
             }
+        }
+
+        private string FindTexturePath(string dataPath, string ext)
+        {
+            string fullPath = Path.ChangeExtension(dataPath, _readers[ext].GetType().Name.ToLowerInvariant().Replace("reader", ""));
+
+            if (!File.Exists(fullPath))
+            {
+                var parentFolder = Directory.GetParent(fullPath);
+                if (parentFolder != null)
+                {
+                    var newFullPath = Path.Combine(parentFolder.FullName, "texture", Path.GetFileName(fullPath));
+                    if (File.Exists(newFullPath))
+                        return newFullPath;
+                }
+            }
+
+            if (!File.Exists(fullPath))
+            {
+                Debug.WriteLine($"Texture file not found: {fullPath}");
+                return null;
+            }
+
+            return fullPath;
         }
 
         private static TextureScript ParseScript(string fileName)
@@ -132,29 +119,14 @@ namespace Client.Main.Content
 
                 switch (token)
                 {
-                    case "a":
-                        script.Alpha = true;
-                        break;
-                    case "r":
-                        script.Bright = true;
-                        break;
-                    case "h":
-                        script.HiddenMesh = true;
-                        break;
-                    case "s":
-                        script.StreamMesh = true;
-                        break;
-                    case "n":
-                        script.NoneBlendMesh = true;
-                        break;
-                    case "dc":
-                        script.ShadowMesh = 1; // NoneTexture
-                        break;
-                    case "dt":
-                        script.ShadowMesh = 2; // Texture
-                        break;
-                    default:
-                        return null;
+                    case "a": script.Alpha = true; break;
+                    case "r": script.Bright = true; break;
+                    case "h": script.HiddenMesh = true; break;
+                    case "s": script.StreamMesh = true; break;
+                    case "n": script.NoneBlendMesh = true; break;
+                    case "dc": script.ShadowMesh = 1; break; // NoneTexture
+                    case "dt": script.ShadowMesh = 2; break; // Texture
+                    default: return null;
                 }
 
                 return script;
@@ -163,31 +135,13 @@ namespace Client.Main.Content
             return null;
         }
 
-        public TextureData Get(string path)
-        {
-            if (string.IsNullOrWhiteSpace(path))
-                return null;
+        public TextureData Get(string path) =>
+            string.IsNullOrWhiteSpace(path) ? null :
+            _textures.TryGetValue(path.ToLowerInvariant(), out var value) ? value.Info : null;
 
-            string normalizedPath = path.ToLowerInvariant();
-
-            if (_textures.TryGetValue(normalizedPath, out ClientTexture value))
-                return value.Info;
-
-            return null;
-        }
-
-        public TextureScript GetScript(string path)
-        {
-            if (string.IsNullOrWhiteSpace(path))
-                return null;
-
-            string normalizedPath = path.ToLowerInvariant();
-
-            if (_textures.TryGetValue(normalizedPath, out ClientTexture value))
-                return value.Script;
-
-            return null;
-        }
+        public TextureScript GetScript(string path) =>
+            string.IsNullOrWhiteSpace(path) ? null :
+            _textures.TryGetValue(path.ToLowerInvariant(), out var value) ? value.Script : null;
 
         public Texture2D GetTexture2D(string path)
         {
@@ -208,9 +162,7 @@ namespace Client.Main.Content
             var texture = new Texture2D(_graphicsDevice, (int)textureData.Info.Width, (int)textureData.Info.Height);
             textureData.Texture = texture;
 
-            int width = (int)textureData.Info.Width;
-            int height = (int)textureData.Info.Height;
-            int pixelCount = width * height;
+            int pixelCount = (int)(textureData.Info.Width * textureData.Info.Height);
             int components = textureData.Info.Components;
 
             if (components != 3 && components != 4)
@@ -222,33 +174,17 @@ namespace Client.Main.Content
             Color[] pixelData = new Color[pixelCount];
             byte[] data = textureData.Info.Data;
 
-            if (components == 3)
+            Parallel.For(0, pixelCount, i =>
             {
-                Parallel.For(0, pixelCount, i =>
-                {
-                    int dataIndex = i * 3;
-                    byte r = data[dataIndex];
-                    byte g = data[dataIndex + 1];
-                    byte b = data[dataIndex + 2];
-                    byte a = 255;
-                    pixelData[i] = new Color(r, g, b, a);
-                });
-            }
-            else // components == 4
-            {
-                Parallel.For(0, pixelCount, i =>
-                {
-                    int dataIndex = i * 4;
-                    byte r = data[dataIndex];
-                    byte g = data[dataIndex + 1];
-                    byte b = data[dataIndex + 2];
-                    byte a = data[dataIndex + 3];
-                    pixelData[i] = new Color(r, g, b, a);
-                });
-            }
+                int dataIndex = i * components;
+                byte r = data[dataIndex];
+                byte g = data[dataIndex + 1];
+                byte b = data[dataIndex + 2];
+                byte a = components == 4 ? data[dataIndex + 3] : (byte)255;
+                pixelData[i] = new Color(r, g, b, a);
+            });
 
             texture.SetData(pixelData);
-
             return texture;
         }
     }
