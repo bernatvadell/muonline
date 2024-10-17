@@ -14,6 +14,34 @@ namespace Client.Main.Controls.UI.Game
             {
                 TexturePath = "Interface/GFx/main_IE.ozd",
                 AutoSize = false,
+                OffsetX = 339,
+                OffsetY = 2,
+                Width = 86,
+                Height = 86,
+                X = 151 + 88 + 143 + 78 + 76 + 140,
+                Margin = new Margin { Bottom = 17 },
+                Align = ControlAlign.Bottom,
+                BlendState = BlendState.AlphaBlend
+            });
+
+            Controls.Add(new TextureControl
+            {
+                TexturePath = "Interface/GFx/main_IE.ozd",
+                AutoSize = false,
+                OffsetX = 430,
+                OffsetY = 2,
+                Width = 86,
+                Height = 86,
+                X = 153,
+                Margin = new Margin { Bottom = 17 },
+                Align = ControlAlign.Bottom,
+                BlendState = BlendState.AlphaBlend
+            });
+
+            Controls.Add(new TextureControl
+            {
+                TexturePath = "Interface/GFx/main_IE.ozd",
+                AutoSize = false,
                 OffsetX = 0,
                 OffsetY = 109,
                 Width = 151,
@@ -106,7 +134,7 @@ namespace Client.Main.Controls.UI.Game
                 AutoSize = false,
                 OffsetX = 738,
                 OffsetY = 0,
-                Width = 153,
+                Width = 150,
                 Height = 68,
                 X = 151 + 88 + 143 + 78 + 76 + 142 + 105,
                 Align = ControlAlign.Bottom,
