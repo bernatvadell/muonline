@@ -14,10 +14,12 @@ namespace Client.Main.Scenes
         public CursorControl Cursor { get; }
         public GameControl MouseControl { get; set; }
         public GameControl FocusedControl { get; set; }
+        public DebugPanel DebugPanel { get; }
 
         public BaseScene()
         {
             AutoSize = false;
+            Controls.Add(DebugPanel = new DebugPanel());
             Controls.Add(Cursor = new CursorControl());
         }
 
@@ -69,6 +71,7 @@ namespace Client.Main.Scenes
                 currentMouseControl.IsMousePressed = false;
             }
 
+            DebugPanel.BringToFront();
             Cursor.BringToFront();
         }
 

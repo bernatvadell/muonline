@@ -31,12 +31,6 @@ namespace Client.Main
         public KeyboardState Keyboard { get; private set; }
         public Ray MouseRay { get; private set; }
 
-        private Rectangle UIPanelRectangle;
-        private Color UIPanelColor = Color.Black * 0.6f;
-        private Color UIBorderColor = Color.White * 0.3f;
-        private int UIBorderThickness = 2;
-        private Vector2 UIFontScale = new Vector2(1.2f, 1.2f);
-
         public MuGame()
         {
             Instance = this;
@@ -73,11 +67,6 @@ namespace Client.Main
         {
             IsMouseVisible = false;
             base.Initialize();
-
-            int panelWidth = 250;
-            int panelHeight = 120;
-            int padding = 10;
-            UIPanelRectangle = new Rectangle(padding, padding, panelWidth, panelHeight);
         }
 
         protected override void LoadContent()
@@ -174,48 +163,9 @@ namespace Client.Main
             if (ActiveScene?.Status == GameControlStatus.Ready)
                 ActiveScene?.DrawAfter(gameTime);
 
-            SpriteBatch.Begin();
-
-            DrawUIPanel();
-
-            int padding = 10;
-            Vector2 textPosition = new Vector2(UIPanelRectangle.X + padding, UIPanelRectangle.Y + padding);
-
-            DrawText($"FPS: {(int)FPSCounter.Instance.FPS_AVG}", textPosition, Color.LightGreen);
-            textPosition.Y += Font.LineSpacing * UIFontScale.Y + 5;
-
-            DrawText($"Mouse Position: X:{Mouse.Position.X}, Y:{Mouse.Position.Y}", textPosition, Color.LightBlue);
-            textPosition.Y += Font.LineSpacing * UIFontScale.Y + 5;
-
-            if (ActiveScene.World != null && ActiveScene.World is WalkableWorldControl walkableWorld)
-            {
-                DrawText($"Player Cords: X:{walkableWorld.Walker.Location.X}, Y:{walkableWorld.Walker.Location.Y}", textPosition, Color.LightCoral);
-                textPosition.Y += Font.LineSpacing * UIFontScale.Y + 5;
-
-                DrawText($"MAP Tile: X:{walkableWorld.MouseTileX}, Y:{walkableWorld.MouseTileY}", textPosition, Color.LightYellow);
-                textPosition.Y += Font.LineSpacing * UIFontScale.Y + 5;
-            }
-
-            SpriteBatch.End();
-
             GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
 
             base.Draw(gameTime);
-        }
-
-        private void DrawUIPanel()
-        {
-            SpriteBatch.Draw(Pixel, UIPanelRectangle, UIPanelColor);
-
-            SpriteBatch.Draw(Pixel, new Rectangle(UIPanelRectangle.X, UIPanelRectangle.Y, UIPanelRectangle.Width, UIBorderThickness), UIBorderColor);
-            SpriteBatch.Draw(Pixel, new Rectangle(UIPanelRectangle.X, UIPanelRectangle.Y + UIPanelRectangle.Height - UIBorderThickness, UIPanelRectangle.Width, UIBorderThickness), UIBorderColor);
-            SpriteBatch.Draw(Pixel, new Rectangle(UIPanelRectangle.X, UIPanelRectangle.Y, UIBorderThickness, UIPanelRectangle.Height), UIBorderColor);
-            SpriteBatch.Draw(Pixel, new Rectangle(UIPanelRectangle.X + UIPanelRectangle.Width - UIBorderThickness, UIPanelRectangle.Y, UIBorderThickness, UIPanelRectangle.Height), UIBorderColor);
-        }
-
-        private void DrawText(string text, Vector2 position, Color color)
-        {
-            SpriteBatch.DrawString(Font, text, position, color, 0f, Vector2.Zero, UIFontScale, SpriteEffects.None, 0f);
         }
     }
 }

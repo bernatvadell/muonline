@@ -28,6 +28,10 @@ namespace Client.Main.Controls
         public float Scale { get; set; } = 1f;
         public Margin Margin { get; set; } = Margin.Empty;
 
+        public Color BorderColor { get; set; }
+        public int BorderThickness { get; set; } = 0;
+        public Color BackgroundColor { get; set; } = Color.Transparent;
+
         public virtual Rectangle ScreenLocation => new(
             (Parent?.ScreenLocation.X ?? 0) + X + Margin.Left - Margin.Right,
             (Parent?.ScreenLocation.Y ?? 0) + Y + Margin.Top - Margin.Bottom,
@@ -169,6 +173,17 @@ namespace Client.Main.Controls
             if (Status != GameControlStatus.Ready || !Visible)
                 return;
 
+            MuGame.Instance.SpriteBatch.Begin();
+            DrawBackground();
+            DrawBorder();
+            MuGame.Instance.SpriteBatch.End();
+
+            GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
+            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
+            GraphicsDevice.BlendState = BlendState.Opaque;
+
+
             for (int i = 0; i < Controls.Count; i++)
                 Controls[i].Draw(gameTime);
         }
@@ -217,19 +232,22 @@ namespace Client.Main.Controls
             parent.Controls.Insert(0, this);
         }
 
+        protected void DrawBackground()
+        {
+            if (BackgroundColor == Color.Transparent)
+                return;
+            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(Viewport.X, Viewport.Y, Viewport.Width, Viewport.Height), BackgroundColor);
+        }
+
         protected void DrawBorder()
         {
-            int borderWidth = 2;
-            var fillColor = Color.White;
-            var borderColor = Color.Red;
-            var spriteBatch = MuGame.Instance.SpriteBatch;
+            if (BorderThickness <= 0)
+                return;
 
-
-            spriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(Viewport.X, Viewport.Y, Viewport.Width, Viewport.Height), fillColor);
-            spriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(Viewport.X, Viewport.Y, Viewport.Width, borderWidth), borderColor);
-            spriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(Viewport.X, Viewport.Y + Viewport.Height - borderWidth, Viewport.Width, borderWidth), borderColor);
-            spriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(Viewport.X, Viewport.Y, borderWidth, Viewport.Height), borderColor);
-            spriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(Viewport.X + Viewport.Width - borderWidth, Viewport.Y, borderWidth, Viewport.Height), borderColor);
+            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(Viewport.X, Viewport.Y, Viewport.Width, BorderThickness), BorderColor);
+            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(Viewport.X, Viewport.Y + Viewport.Height - BorderThickness, Viewport.Width, BorderThickness), BorderColor);
+            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(Viewport.X, Viewport.Y, BorderThickness, Viewport.Height), BorderColor);
+            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(Viewport.X + Viewport.Width - BorderThickness, Viewport.Y, BorderThickness, Viewport.Height), BorderColor);
         }
     }
 }

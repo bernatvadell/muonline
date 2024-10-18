@@ -330,9 +330,9 @@ namespace Client.Main.Controls
         {
             if (_terrainEffect == null) return;
 
-            for (int yi = 0; yi <= Constants.TERRAIN_SIZE_MASK; yi += BlockSize)
+            for (int yi = 0; yi < Constants.TERRAIN_SIZE_MASK; yi += BlockSize)
             {
-                for (int xi = 0; xi <= Constants.TERRAIN_SIZE_MASK; xi += BlockSize)
+                for (int xi = 0; xi < Constants.TERRAIN_SIZE_MASK; xi += BlockSize)
                 {
                     float xStart = xi * Constants.TERRAIN_SCALE;
                     float yStart = yi * Constants.TERRAIN_SCALE;
@@ -374,6 +374,7 @@ namespace Client.Main.Controls
             {
                 for (int j = 0; j < BlockSize; j += lodi)
                 {
+
                     RenderTerrainTile(xf + j, yf + i, xi + j, yi + i, lodf, lodi, isAfter);
                 }
             }
