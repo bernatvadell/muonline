@@ -25,9 +25,7 @@ namespace Client.Main.Scenes
 
         public void ChangeWorld<T>() where T : WorldControl, new()
         {
-            World?.Dispose();
-            Controls.Add(World = new T());
-            Task.Run(() => World.Initialize());
+            Task.Run(() => ChangeWorldAsync<T>()).Wait();
         }
 
         public async Task ChangeWorldAsync<T>() where T : WorldControl, new()

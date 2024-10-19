@@ -8,13 +8,14 @@ namespace Client.Main.Controls.UI
 {
     public class TextureControl : UIControl
     {
-        private Texture2D _texture;
+        protected Texture2D Texture { get; private set; }
         private string _texturePath;
 
         public int OffsetX { get; set; }
         public int OffsetY { get; set; }
         public int OffsetWidth { get; set; }
         public int OffsetHeight { get; set; }
+
         public virtual Rectangle SourceRectangle => new(OffsetX, OffsetY, Width - OffsetWidth, Height - OffsetHeight);
 
         public string TexturePath { get => _texturePath; set { if (_texturePath != value) { _texturePath = value; OnChangeTexturePath(); } } }
@@ -39,11 +40,21 @@ namespace Client.Main.Controls.UI
 
         public override void Draw(GameTime gameTime)
         {
-            if (Status != GameControlStatus.Ready || !Visible || _texture == null)
+            if (Status != GameControlStatus.Ready || !Visible || Texture == null)
                 return;
 
-            MuGame.Instance.SpriteBatch.Begin(blendState: BlendState);
-            MuGame.Instance.SpriteBatch.Draw(_texture, ScreenLocation, SourceRectangle, Color.White, 0f, Vector2.Zero, SpriteEffects.None, 0f);
+            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
+            GraphicsDevice.SamplerStates[0] = SamplerState.PointClamp;
+
+
+            MuGame.Instance.SpriteBatch.Begin(
+                blendState: BlendState, 
+                effect: BlendState == BlendState.AlphaBlend ? MuGame.Instance.AlphaTestEffect : null,
+                samplerState: SamplerState.PointClamp, 
+                depthStencilState: DepthStencilState.Default
+            );
+            MuGame.Instance.SpriteBatch.Draw(Texture, ScreenLocation, SourceRectangle, Color.White, 0f, Vector2.Zero, SpriteEffects.None, 0f);
             MuGame.Instance.SpriteBatch.End();
 
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
@@ -61,15 +72,15 @@ namespace Client.Main.Controls.UI
         protected virtual async Task LoadTexture()
         {
             await TextureLoader.Instance.Prepare(TexturePath);
-            _texture = TextureLoader.Instance.GetTexture2D(TexturePath);
+            Texture = TextureLoader.Instance.GetTexture2D(TexturePath);
 
-            if (_texture == null)
+            if (Texture == null)
                 return;
 
             if (AutoSize || Width == 0 || Height == 0)
             {
-                Width = _texture.Width - OffsetWidth;
-                Height = _texture.Height - OffsetHeight;
+                Width = Texture.Width - OffsetWidth;
+                Height = Texture.Height - OffsetHeight;
             }
         }
     }

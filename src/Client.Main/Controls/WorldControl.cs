@@ -23,6 +23,9 @@ namespace Client.Main.Controls
 
         public WorldControl(short worldIndex)
         {
+            AutoSize = false;
+            Width = MuGame.Instance.Width;
+            Height = MuGame.Instance.Height;
             WorldIndex = worldIndex;
             Controls.Add(Terrain = new TerrainControl());
             Terrain.WorldIndex = worldIndex;

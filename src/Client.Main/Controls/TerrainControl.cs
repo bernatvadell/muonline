@@ -36,6 +36,13 @@ namespace Client.Main.Controls
         public short WorldIndex { get; set; }
         public Vector3 Light { get; set; } = new Vector3(0.5f, -0.5f, 0.5f);
 
+        public TerrainControl()
+        {
+            AutoSize = false;
+            Width = MuGame.Instance.Width;
+            Height = MuGame.Instance.Height;
+        }
+
         public override async Task Load()
         {
             var terrainReader = new ATTReader();

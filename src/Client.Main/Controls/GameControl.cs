@@ -127,11 +127,20 @@ namespace Client.Main.Controls
                 var control = Controls[i];
                 control.Update(gameTime);
 
-                if ((control.X + control.Width) > maxWidth)
-                    maxWidth = control.X + control.ScreenLocation.Width;
+                var controlWidth = (int)(control.Width * control.Scale) + control.Margin.Left;
+                var controlHeight = (int)(control.Height * control.Scale) + control.Margin.Top;
 
-                if ((control.Y + control.Height) > maxHeight)
-                    maxHeight = control.Y + control.ScreenLocation.Height;
+                if (!Align.HasFlag(ControlAlign.Left))
+                    controlWidth += control.X;
+
+                if (!Align.HasFlag(ControlAlign.Bottom))
+                    controlHeight += control.Y;
+
+                if (controlWidth > maxWidth)
+                    maxWidth = controlWidth;
+
+                if (controlHeight > maxHeight)
+                    maxHeight = controlHeight;
             }
 
             if (AutoSize)
@@ -153,19 +162,22 @@ namespace Client.Main.Controls
                 return;
             }
 
+            if (Align == ControlAlign.None)
+                return;
+
             if (Align.HasFlag(ControlAlign.Top))
                 Y = 0;
             else if (Align.HasFlag(ControlAlign.Bottom))
-                Y = Parent.Height - Height;
+                Y = (int)(Parent.Height - (Height * Scale));
             else if (Align.HasFlag(ControlAlign.VerticalCenter))
-                Y = (Parent.Height / 2) - (Height / 2);
+                Y = (int)((Parent.Height / 2) - (Height / 2) * Scale);
 
             if (Align.HasFlag(ControlAlign.Left))
                 X = 0;
             else if (Align.HasFlag(ControlAlign.Right))
-                X = Parent.Width - Width;
+                X = (int)(Parent.Width - Width * Scale);
             else if (Align.HasFlag(ControlAlign.HorizontalCenter))
-                X = (Parent.Width / 2) - (Width / 2);
+                X = (int)((Parent.Width / 2) - (Width / 2) * Scale);
         }
 
         public virtual void Draw(GameTime gameTime)
@@ -238,7 +250,7 @@ namespace Client.Main.Controls
                 return;
 
             MuGame.Instance.SpriteBatch.Draw(
-                MuGame.Instance.Pixel, 
+                MuGame.Instance.Pixel,
                 ScreenLocation,
                 BackgroundColor
             );

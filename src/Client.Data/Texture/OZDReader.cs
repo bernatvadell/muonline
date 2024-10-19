@@ -80,32 +80,6 @@ namespace Client.Data.Texture
                 Height = height,
                 Data = decompressedData
             };
-
-            // Crear una imagen de ImageSharp
-            using (Image<Rgba32> image = new Image<Rgba32>(width, height))
-            {
-                // Convertir los datos descomprimidos en píxeles para ImageSharp
-                int bytesPerPixel = 4; // RGBA = 4 bytes por píxel
-                for (int y = 0; y < height; y++)
-                {
-                    for (int x = 0; x < width; x++)
-                    {
-                        int index = (y * width + x) * bytesPerPixel;
-                        byte r = decompressedData[index];
-                        byte g = decompressedData[index + 1];
-                        byte b = decompressedData[index + 2];
-                        byte a = decompressedData[index + 3];
-
-                        // Asignar el color al píxel en la imagen
-                        image[x, y] = new Rgba32(r, g, b, a);
-                    }
-                }
-
-                // Guardar la imagen como PNG
-                image.Save("C:\\Users\\dito1\\Downloads\\test.png");
-            }
-
-            return null;
         }
     }
 }

@@ -162,7 +162,7 @@ namespace Client.Main.Content
             var texture = new Texture2D(_graphicsDevice, (int)textureData.Info.Width, (int)textureData.Info.Height);
             textureData.Texture = texture;
 
-            int pixelCount = (int)(textureData.Info.Width * textureData.Info.Height);
+            int pixelCount = texture.Width * texture.Height;
             int components = textureData.Info.Components;
 
             if (components != 3 && components != 4)
@@ -174,7 +174,7 @@ namespace Client.Main.Content
             Color[] pixelData = new Color[pixelCount];
             byte[] data = textureData.Info.Data;
 
-            Parallel.For(0, pixelCount, i =>
+            Parallel.For(0, pixelData.Length, (i) =>
             {
                 int dataIndex = i * components;
                 byte r = data[dataIndex];

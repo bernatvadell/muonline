@@ -1,6 +1,7 @@
 ﻿using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using System.Net.NetworkInformation;
 
 namespace Client.Main.Controls.UI.Game
 {
@@ -8,34 +9,26 @@ namespace Client.Main.Controls.UI.Game
     {
         public MainControl()
         {
+            AutoSize = true;
             Align = ControlAlign.HorizontalCenter | ControlAlign.Bottom;
 
-            Controls.Add(new TextureControl
+            Controls.Add(new MainMPBackgroundControl
             {
-                TexturePath = "Interface/GFx/main_IE.ozd",
-                AutoSize = false,
-                OffsetX = 339,
-                OffsetY = 2,
-                Width = 86,
-                Height = 86,
                 X = 151 + 88 + 143 + 78 + 76 + 140,
-                Margin = new Margin { Bottom = 17 },
+                Margin = new Margin { Bottom = 16 },
                 Align = ControlAlign.Bottom,
-                BlendState = BlendState.AlphaBlend
+                BlendState = BlendState.AlphaBlend,
+                CurrentMP = 4045,
+                MaxMP= 4500
             });
 
-            Controls.Add(new TextureControl
+            Controls.Add(new MainHPBackgroundControl
             {
-                TexturePath = "Interface/GFx/main_IE.ozd",
-                AutoSize = false,
-                OffsetX = 430,
-                OffsetY = 2,
-                Width = 86,
-                Height = 86,
-                X = 153,
-                Margin = new Margin { Bottom = 17 },
+                X = 154,
+                Margin = new Margin { Bottom = 16 },
                 Align = ControlAlign.Bottom,
-                BlendState = BlendState.AlphaBlend
+                CurrentHP = 200,
+                MaxHP = 854
             });
 
             Controls.Add(new TextureControl

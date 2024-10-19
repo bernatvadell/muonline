@@ -21,6 +21,7 @@ namespace Client.Main
         public SpriteFont Font { get; private set; }
         public RenderTarget2D EffectRenderTarget { get; private set; }
         public BlendState InverseDestinationBlend { get; private set; }
+        public AlphaTestEffect AlphaTestEffect { get; private set; }
         public Effect AlphaRGBEffect { get; set; }
 
         public int Width => _graphics.PreferredBackBufferWidth;
@@ -78,6 +79,13 @@ namespace Client.Main
             Pixel.SetData(new[] { Color.White });
             EffectRenderTarget = new RenderTarget2D(GraphicsDevice, 800, 600);
             AlphaRGBEffect = Content.Load<Effect>("AlphaRGB");
+            AlphaTestEffect = new AlphaTestEffect(GraphicsDevice)
+            {
+                Projection = Matrix.CreateOrthographicOffCenter(0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height, 0, 0, 1),
+                View = Matrix.Identity,
+                World = Matrix.Identity,
+                ReferenceAlpha = (int)(255 * 0.25f)
+            };
             SpriteBatch = new SpriteBatch(GraphicsDevice);
             Font = Content.Load<SpriteFont>("Arial");
             ChangeScene<GameScene>();

@@ -14,9 +14,12 @@ namespace Client.Main.Controls.UI
         private string _text;
         private object[] _textArgs = [];
         private string _renderedText;
+        private float _fontSize = 10f;
+        private float _scaleFactor;
 
         public string Text { get => _text; set { if (_text != value) { _text = value; OnChangeText(); } } }
         public object[] TextArgs { get => _textArgs; set { if (_textArgs != value) { _textArgs = value; OnChangeText(); } } }
+        public float FontSize { get => _fontSize; set { if (_fontSize != value) { _fontSize = value; OnChangeText(); } } }
         public Color TextColor { get; set; } = Color.White;
 
         public LabelControl()
@@ -27,7 +30,17 @@ namespace Client.Main.Controls.UI
         public override void Draw(GameTime gameTime)
         {
             MuGame.Instance.SpriteBatch.Begin();
-            MuGame.Instance.SpriteBatch.DrawString(MuGame.Instance.Font, _renderedText, ScreenLocation.Location.ToVector2(), TextColor);
+            MuGame.Instance.SpriteBatch.DrawString(
+                MuGame.Instance.Font,
+                _renderedText,
+                ScreenLocation.Location.ToVector2(),
+                TextColor,
+                0f,
+                Vector2.Zero,
+                _scaleFactor,
+                SpriteEffects.None,
+                0f
+            );
             MuGame.Instance.SpriteBatch.End();
 
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
@@ -48,10 +61,14 @@ namespace Client.Main.Controls.UI
 
             _renderedText = SafeFormat(Text, TextArgs);
 
+            float baseFontSize = 10f;
             var textSize = MuGame.Instance.Font.MeasureString(_renderedText);
-            Width = (int)textSize.X;
-            Height = (int)textSize.Y;
+            _scaleFactor = FontSize / baseFontSize;
+
+            Width = (int)(textSize.X * _scaleFactor);
+            Height = (int)(textSize.Y * _scaleFactor);
         }
+
 
         private string SafeFormat(string format, params object[] args)
         {
