@@ -236,7 +236,12 @@ namespace Client.Main.Controls
         {
             if (BackgroundColor == Color.Transparent)
                 return;
-            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(Viewport.X, Viewport.Y, Viewport.Width, Viewport.Height), BackgroundColor);
+
+            MuGame.Instance.SpriteBatch.Draw(
+                MuGame.Instance.Pixel, 
+                ScreenLocation,
+                BackgroundColor
+            );
         }
 
         protected void DrawBorder()
@@ -244,10 +249,10 @@ namespace Client.Main.Controls
             if (BorderThickness <= 0)
                 return;
 
-            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(Viewport.X, Viewport.Y, Viewport.Width, BorderThickness), BorderColor);
-            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(Viewport.X, Viewport.Y + Viewport.Height - BorderThickness, Viewport.Width, BorderThickness), BorderColor);
-            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(Viewport.X, Viewport.Y, BorderThickness, Viewport.Height), BorderColor);
-            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(Viewport.X + Viewport.Width - BorderThickness, Viewport.Y, BorderThickness, Viewport.Height), BorderColor);
+            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(ScreenLocation.X, ScreenLocation.Y, ScreenLocation.Width, BorderThickness), BorderColor);
+            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(ScreenLocation.X, ScreenLocation.Y + ScreenLocation.Height - BorderThickness, ScreenLocation.Width, BorderThickness), BorderColor);
+            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(ScreenLocation.X, ScreenLocation.Y, BorderThickness, ScreenLocation.Height), BorderColor);
+            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(ScreenLocation.X + ScreenLocation.Width - BorderThickness, ScreenLocation.Y, BorderThickness, ScreenLocation.Height), BorderColor);
         }
     }
 }

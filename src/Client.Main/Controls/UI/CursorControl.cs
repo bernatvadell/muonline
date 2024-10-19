@@ -29,6 +29,8 @@ namespace Client.Main.Controls.UI
             else
                 TexturePath = "Interface/Cursor.tga";
 
+            BringToFront();
+
             base.Update(gameTime);
         }
     }

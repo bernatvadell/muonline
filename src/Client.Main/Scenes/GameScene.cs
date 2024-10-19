@@ -24,24 +24,22 @@ namespace Client.Main.Scenes
         {
             await base.Load();
             await ChangeMapAsync<LorenciaWorld>();
-            await World.AddObjectAsync(_hero);
         }
 
         public void ChangeMap<T>() where T : WalkableWorldControl, new()
         {
-            World?.Dispose();
-            var world = new T() { Walker = _hero };
-            World = world;
-            Controls.Add(world);
-            Task.Run(() => World.Initialize());
+            Task.Run(() => ChangeMapAsync<T>()).Wait();
         }
 
         public async Task ChangeMapAsync<T>() where T : WalkableWorldControl, new()
         {
             World?.Dispose();
+            
             var world = new T() { Walker = _hero };
+            await world.AddObjectAsync(_hero);
+
             World = world;
-            Controls.Add(world);
+            Controls.Insert(0, world);
             await World.Initialize();
         }
 
@@ -51,9 +49,6 @@ namespace Client.Main.Scenes
 
             if (Status != GameControlStatus.Ready || !Visible)
                 return;
-
-            _hero.BringToFront();
-            _main.BringToFront();
         }
     }
 }

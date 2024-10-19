@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+﻿using Client.Main.Models;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
@@ -19,8 +20,9 @@ namespace Client.Main.Controls.UI
 
         public DebugPanel()
         {
-            X = 10;
-            Y = 10;
+            Align = ControlAlign.Top | ControlAlign.Right;
+            Margin = new Margin { Top = 10, Right = 10 };
+
             AutoSize = false;
             Width = 210;
             Height = 100;
