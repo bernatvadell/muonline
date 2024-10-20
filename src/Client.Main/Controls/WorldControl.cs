@@ -3,6 +3,7 @@ using Client.Data.CWS;
 using Client.Data.OBJS;
 using Client.Main.Models;
 using Client.Main.Objects;
+using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -20,6 +21,7 @@ namespace Client.Main.Controls
         public short WorldIndex { get; private set; }
         public List<WorldObject> Objects { get; private set; } = [];
         public Type[] MapTileObjects { get; } = new Type[Constants.TERRAIN_SIZE];
+        public bool IsKeepHero { get; set; } = false;
 
         public WorldControl(short worldIndex)
         {
@@ -141,7 +143,13 @@ namespace Client.Main.Controls
             var objects = Objects.ToArray();
 
             for (var i = 0; i < objects.Length; i++)
+            {
+                if (objects[i] is PlayerObject && IsKeepHero)
+                {
+                    continue;
+                }
                 objects[i].Dispose();
+            }
 
             GC.SuppressFinalize(this);
         }

@@ -18,6 +18,7 @@ namespace Client.Main.Scenes
         public GameScene()
         {
             Controls.Add(_main = new MainControl());
+            Controls.Add(new MapList());
         }
 
         public override async Task Load()
@@ -33,8 +34,12 @@ namespace Client.Main.Scenes
 
         public async Task ChangeMapAsync<T>() where T : WalkableWorldControl, new()
         {
-            World?.Dispose();
-            
+            if (World != null)
+            {
+                World.IsKeepHero = true;
+                World.Dispose();
+            }
+
             var world = new T() { Walker = _hero };
             await world.AddObjectAsync(_hero);
 
