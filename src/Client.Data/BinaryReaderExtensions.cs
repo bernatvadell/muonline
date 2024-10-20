@@ -5,8 +5,9 @@ namespace Client.Data
 {
     public static class BinaryReaderExtensions
     {
-        public static string ReadString(this System.IO.BinaryReader br, int length)
+        public static string ReadString(this System.IO.BinaryReader br, int length, Encoding? encoding = null)
         {
+            encoding = encoding ?? Encoding.ASCII;
             var buff = br.ReadBytes(length);
             var idx = Array.IndexOf(buff, (byte)0);
             return Encoding.ASCII.GetString(buff, 0, idx > 0 ? idx : buff.Length);

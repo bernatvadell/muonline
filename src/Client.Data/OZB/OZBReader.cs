@@ -18,14 +18,11 @@ namespace Client.Data.OZB
 
             var version = br.ReadByte();
 
-            if (version != 0 && version != 4)
-                throw new FileLoadException($"Invalid OZB version. Expected 0 or 4, Received: {version}");
-
-
             return fileType switch
             {
                 "BM6" => this.ReadBM6(br, version),
                 "BM8" => this.ReadBM8(br, version),
+                "BM\u0018" => this.ReadBM8(br, version),
                 _ => throw new FileLoadException($"Invalid OZB file type. Expected BM6 or BM8, Received: {fileType}"),
             };
         }
