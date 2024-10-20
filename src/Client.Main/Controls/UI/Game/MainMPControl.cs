@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Client.Main.Controls.UI.Game
 {
-    public class MainMPBackgroundControl : TextureControl
+    public class MainMPControl : TextureControl
     {
         private readonly MainMPStatusControl _progress;
         private readonly LabelControl _label;
@@ -13,7 +13,7 @@ namespace Client.Main.Controls.UI.Game
         public int CurrentMP { get => _currentMP; set { _currentMP = value; UpdatePercent(); } }
         public int MaxMP { get => _maxMP; set { _maxMP = value; UpdatePercent(); } }
 
-        public MainMPBackgroundControl()
+        public MainMPControl()
         {
             TexturePath = "Interface/GFx/main_IE.ozd";
             AutoSize = false;

@@ -12,7 +12,7 @@ namespace Client.Main.Controls.UI.Game
             AutoSize = true;
             Align = ControlAlign.HorizontalCenter | ControlAlign.Bottom;
 
-            Controls.Add(new MainMPBackgroundControl
+            Controls.Add(new MainMPControl
             {
                 X = 151 + 88 + 143 + 78 + 76 + 140,
                 Margin = new Margin { Bottom = 16 },
@@ -22,7 +22,7 @@ namespace Client.Main.Controls.UI.Game
                 MaxMP= 4500
             });
 
-            Controls.Add(new MainHPBackgroundControl
+            Controls.Add(new MainHPControl
             {
                 X = 154,
                 Margin = new Margin { Bottom = 16 },
