@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Objects.Arena;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -8,16 +9,21 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
-    public class World007World : WalkableWorldControl
+    public class StadiumWorld : WalkableWorldControl
     {
-        public World007World() : base(worldIndex: 7) // ARENA
+        public StadiumWorld() : base(worldIndex: 7) // ARENA
         {
 
         }
 
+        protected override void CreateMapTileObjects()
+        {
+            base.CreateMapTileObjects();
+        }
+
         public override void AfterLoad()
         {
-            Walker.Location = new Vector2(72, 163);
+            Walker.Location = new Vector2(56, 85);
             base.AfterLoad();
         }
     }

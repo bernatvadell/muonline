@@ -31,6 +31,7 @@ namespace Client.Main.Controls.UI.Game
             Controls.Add(new MapButton<LostTowerWorld> { Name = "Lost Tower", Y = y += spacing });
             Controls.Add(new MapButton<IcarusWorld> { Name = "Icarus", Y = y += spacing });
             Controls.Add(new MapButton<World101World> { Name = "Uruk Mountain", Y = y += spacing });
+            Controls.Add(new MapButton<StadiumWorld> { Name = "Arena", Y = y += spacing });
             Controls.Add(new MapButton<World009World> { Name = "Tarkan", Y = y += spacing });
             Controls.Add(new MapButton<World010World> { Name = "Devil Square", Y = y += spacing });
             Controls.Add(new MapButton<World031World> { Name = "Valley Of Loren", Y = y += spacing });

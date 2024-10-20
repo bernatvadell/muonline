@@ -88,18 +88,18 @@ namespace Client.Main.Controls
                 { 7, "TileRock01.ozj" },
                 { 8, "TileRock02.ozj" },
                 { 9, "TileRock03.ozj" },
-                { 10, "AlphaTile01.Tga" },
+                { 10, "AlphaTile01.ozt" },
                 { 11, "TileRock05.ozj" },
                 { 12, "TileRock06.ozj" },
                 { 13, "TileRock07.ozj" },
-                { 30, "TileGrass01.tga" },
-                { 31, "TileGrass02.tga" },
-                { 32, "TileGrass03.tga" },
-                { 100, "leaf01.jpg" },
-                { 101, "leaf02.jpg" },
-                { 102, Path.Combine("World1", "rain01.tga") },
-                { 103, Path.Combine("World1", "rain02.tga") },
-                { 104, Path.Combine("World1", "rain03.tga") }
+                { 30, "TileGrass01.ozt" },
+                { 31, "TileGrass02.ozt" },
+                { 32, "TileGrass03.ozt" },
+                { 100, "leaf01.ozt" },
+                { 101, "leaf02.ozj" },
+                { 102, "rain01.ozt" },
+                { 103,  "rain02.ozt" },
+                { 104,  "rain03.ozt" }
             };
 
             foreach (var kvp in initialTextures)
@@ -118,6 +118,7 @@ namespace Client.Main.Controls
             {
                 var path = textureMapFiles[t];
                 if (string.IsNullOrEmpty(path) || !File.Exists(path)) continue;
+
                 int textureIndex = t;
                 tasks.Add(TextureLoader.Instance.Prepare(path)
                     .ContinueWith(_ => _textures[textureIndex] = TextureLoader.Instance.GetTexture2D(path)));
@@ -331,9 +332,9 @@ namespace Client.Main.Controls
 
             float windSpeed = (float)((time.TotalGameTime.TotalMilliseconds % 720000) * 0.002); // Upraszczony modulo
 
-            for (int y = 0; y <= Math.Min(253, Constants.TERRAIN_SIZE_MASK); y++)
+            for (int y = 0; y <= Math.Min(255, Constants.TERRAIN_SIZE_MASK); y++)
             {
-                for (int x = 0; x <= Math.Min(253, Constants.TERRAIN_SIZE_MASK); x++)
+                for (int x = 0; x <= Math.Min(255, Constants.TERRAIN_SIZE_MASK); x++)
                 {
                     int index = GetTerrainIndex(x, y);
                     _terrainGrassWind[index] = (float)Math.Sin(windSpeed + x * 5f) * WindScale;
@@ -408,12 +409,20 @@ namespace Client.Main.Controls
             int idx3 = GetTerrainIndex(xi + lodi, yi + lodi);
             int idx4 = GetTerrainIndex(xi, yi + lodi);
 
-            byte alpha1 = idx1 > _mapping.Alpha.Length ? (byte)0 : _mapping.Alpha[idx1];
-            byte alpha2 = idx2 > _mapping.Alpha.Length ? (byte)0 : _mapping.Alpha[idx2];
-            byte alpha3 = idx3 > _mapping.Alpha.Length ? (byte)0 : _mapping.Alpha[idx3];
-            byte alpha4 = idx4 > _mapping.Alpha.Length ? (byte)0 : _mapping.Alpha[idx4];
+            byte alpha1 = idx1 > _mapping.Alpha.Length
+                ? (byte)0
+                : _mapping.Alpha[idx1];
+            byte alpha2 = idx2 > _mapping.Alpha.Length
+                ? (byte)0
+                : _mapping.Alpha[idx2];
+            byte alpha3 = idx3 > _mapping.Alpha.Length
+                ? (byte)0
+                : _mapping.Alpha[idx3];
+            byte alpha4 = idx4 > _mapping.Alpha.Length
+                ? (byte)0
+                : _mapping.Alpha[idx4];
 
-            bool isOpaque = alpha1 >= 1 && alpha2 >= 1 && alpha3 >= 1 && alpha4 >= 1;
+            bool isOpaque = alpha1 >= 255 && alpha2 >= 255 && alpha3 >= 255 && alpha4 >= 255;
             bool hasAlpha = alpha1 > 0 || alpha2 > 0 || alpha3 > 0 || alpha4 > 0;
 
             float terrainHeight1 = idx1 > _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx1].B * 1.5f;
@@ -483,6 +492,9 @@ namespace Client.Main.Controls
         private void RenderTexture(int textureIndex, float xf, float yf, Vector3[] terrainVertex, Color[] terrainLights)
         {
             if (Status != Models.GameControlStatus.Ready)
+                return;
+
+            if (textureIndex == 255)
                 return;
 
             if (textureIndex < 0 || textureIndex >= _textures.Length)
