@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Controls
 {
-    public abstract class WalkableWorldControl(short worldIndex) : WorldControl(worldIndex)
+    public abstract class WalkableWorldControl : WorldControl
     {
         private CursorObject _cursor;
         public float _cursorNextMoveTime;
@@ -21,19 +21,37 @@ namespace Client.Main.Controls
         public byte MouseTileX { get; set; } = 0;
         public byte MouseTileY { get; set; } = 0;
 
+        public WalkableWorldControl(short worldIndex) : base(worldIndex)
+        {
+            Interactive = true;
+        }
+
         public override async Task Load()
         {
             await AddObjectAsync(_cursor = new CursorObject());
             await base.Load();
         }
 
+        public override void AfterLoad()
+        {
+            Walker.Reset();
+            base.AfterLoad();
+        }
+
         public override void Update(GameTime time)
         {
             if (Status != GameControlStatus.Ready || !Visible) return;
 
+            if (Objects[^1] != Walker)
+            {
+                var currentPosition = Objects.IndexOf(Walker);
+                Objects.RemoveAt(currentPosition);
+                Objects.Insert(Objects.Count, Walker);
+            }
+
             CalculateMouseTilePos();
 
-            if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && _cursorNextMoveTime <= 0)
+            if (MuGame.Instance.ActiveScene.MouseHoverControl == this && MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && _cursorNextMoveTime <= 0)
             {
                 _cursorNextMoveTime = 250;
                 var newPosition = new Vector2(MouseTileX, MouseTileY);

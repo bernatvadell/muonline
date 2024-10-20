@@ -67,7 +67,7 @@ namespace Client.Main.Content
                 foreach (var mesh in asset.Meshes)
                 {
                     var fullPath = Path.Combine(dir, mesh.TexturePath);
-                    texturePathMap.Add(mesh.TexturePath.ToLowerInvariant(), fullPath);
+                    texturePathMap.TryAdd(mesh.TexturePath.ToLowerInvariant(), fullPath);
                     tasks.Add(TextureLoader.Instance.Prepare(fullPath));
                 }
 

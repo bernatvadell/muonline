@@ -93,6 +93,11 @@ namespace Client.Main.Objects
             await base.Load();
         }
 
+        public void Reset()
+        {
+            _currentPath = null;
+        }
+
         private void OnDirectionChanged()
         {
             _targetAngle = _direction.ToAngle();

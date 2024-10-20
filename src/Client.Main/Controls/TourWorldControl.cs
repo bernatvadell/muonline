@@ -35,7 +35,7 @@ namespace Client.Main.Controls
         public override void Dispose()
         {
             base.Dispose();
-            _tourController = null; 
+            _tourController = null;
             GC.SuppressFinalize(this);
         }
     }

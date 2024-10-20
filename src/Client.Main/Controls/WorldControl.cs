@@ -3,6 +3,7 @@ using Client.Data.CWS;
 using Client.Data.OBJS;
 using Client.Main.Models;
 using Client.Main.Objects;
+using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -38,7 +39,7 @@ namespace Client.Main.Controls
             if (Status == GameControlStatus.NonInitialized)
                 return;
 
-            Task.Run(() => Initialize());
+            Task.Run(() => Initialize()).ConfigureAwait(false);
         }
 
         public override async Task Load()
@@ -74,11 +75,17 @@ namespace Client.Main.Controls
         {
             base.Update(time);
 
+            if (Status != GameControlStatus.Ready)
+                return;
+
             for (var i = 0; i < Objects.Count; i++)
                 Objects[i].Update(time);
         }
         public override void Draw(GameTime time)
         {
+            if(Status != GameControlStatus.Ready)
+                return;
+
             base.Draw(time);
             RenderObjects(time);
         }
@@ -99,7 +106,7 @@ namespace Client.Main.Controls
                 Objects.Add(obj);
             }
 
-            Task.Run(() => obj.Load());
+            Task.Run(() => obj.Load()).ConfigureAwait(false);
         }
 
         public async Task AddObjectAsync(WorldObject obj)
@@ -136,12 +143,19 @@ namespace Client.Main.Controls
 
         public override void Dispose()
         {
-            base.Dispose();
-
             var objects = Objects.ToArray();
 
             for (var i = 0; i < objects.Length; i++)
+            {
+                if (this is WalkableWorldControl walkeableWorld && objects[i] is PlayerObject player && walkeableWorld.Walker == player)
+                    continue;
+
                 objects[i].Dispose();
+            }
+
+            Objects.Clear();
+
+            base.Dispose();
 
             GC.SuppressFinalize(this);
         }

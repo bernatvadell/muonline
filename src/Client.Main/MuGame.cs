@@ -6,6 +6,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
+using System.Diagnostics;
 
 namespace Client.Main
 {
@@ -93,10 +94,16 @@ namespace Client.Main
 
         protected override void Update(GameTime gameTime)
         {
-            UpdateInputInfo(gameTime);
-
-            ActiveScene?.Update(gameTime);
-            base.Update(gameTime);
+            try
+            {
+                UpdateInputInfo(gameTime);
+                ActiveScene?.Update(gameTime);
+                base.Update(gameTime);
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine(e);
+            }
         }
 
         public DepthStencilState DisableDepthMask = new()
@@ -153,27 +160,34 @@ namespace Client.Main
 
         protected override void Draw(GameTime gameTime)
         {
-            FPSCounter.Instance.CalcFPS(gameTime);
+            try
+            {
+                FPSCounter.Instance.CalcFPS(gameTime);
 
-            GraphicsDevice.SetRenderTarget(EffectRenderTarget);
-            GraphicsDevice.Clear(Color.Black);
-            GraphicsDevice.SetRenderTarget(null);
+                GraphicsDevice.SetRenderTarget(EffectRenderTarget);
+                GraphicsDevice.Clear(Color.Black);
+                GraphicsDevice.SetRenderTarget(null);
 
-            GraphicsDevice.Clear(Color.Black);
+                GraphicsDevice.Clear(Color.Black);
 
-            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
-            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-            GraphicsDevice.BlendState = BlendState.Opaque;
+                GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+                GraphicsDevice.DepthStencilState = DepthStencilState.Default;
+                GraphicsDevice.BlendState = BlendState.Opaque;
 
-            if (ActiveScene?.Status == GameControlStatus.Ready)
-                ActiveScene?.Draw(gameTime);
+                if (ActiveScene?.Status == GameControlStatus.Ready)
+                    ActiveScene?.Draw(gameTime);
 
-            if (ActiveScene?.Status == GameControlStatus.Ready)
-                ActiveScene?.DrawAfter(gameTime);
+                if (ActiveScene?.Status == GameControlStatus.Ready)
+                    ActiveScene?.DrawAfter(gameTime);
 
-            GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
+                GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
 
-            base.Draw(gameTime);
+                base.Draw(gameTime);
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine(e);
+            }
         }
     }
 }
