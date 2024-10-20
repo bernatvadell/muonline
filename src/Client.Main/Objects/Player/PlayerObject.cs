@@ -25,18 +25,18 @@ namespace Client.Main.Objects.Player
 
         public new PlayerAction CurrentAction { get => (PlayerAction)base.CurrentAction; set => base.CurrentAction = (int)value; }
 
-        public PlayerObject()
+        public PlayerObject(int playerClass)
         {
             var color = new Color(255, (byte)(255 * 0.1f), (byte)(255 * 0.1f));
             color = Color.White;
             BoundingBoxLocal = new BoundingBox(new Vector3(-40, -40, 0), new Vector3(40, 40, 120));
             // Children.Add(_shadowObject = new PlayerShadowObject() { LinkParent = true, Hidden = true });
-            Children.Add(_armor = new PlayerArmorObject() { LinkParent = true, Color = color });
+            Children.Add(_armor = new PlayerArmorObject(playerClass) { LinkParent = true, Color = color });
             Children.Add(_helmMask = new PlayerMaskHelmObject() { LinkParent = true, Color = color, Hidden = true });
-            Children.Add(_helm = new PlayerHelmObject() { LinkParent = true, Color = color });
-            Children.Add(_pant = new PlayerPantObject() { LinkParent = true, Color = color });
-            Children.Add(_glove = new PlayerGloveObject() { LinkParent = true, Color = color });
-            Children.Add(_boot = new PlayerBootObject() { LinkParent = true, Color = color });
+            Children.Add(_helm = new PlayerHelmObject(playerClass) { LinkParent = true, Color = color });
+            Children.Add(_pant = new PlayerPantObject(playerClass) { LinkParent = true, Color = color });
+            Children.Add(_glove = new PlayerGloveObject(playerClass) { LinkParent = true, Color = color });
+            Children.Add(_boot = new PlayerBootObject(playerClass) { LinkParent = true, Color = color });
             Children.Add(_wing = new WingObject() { Position = new Vector3(0, 5, 140), Color = color, Hidden = true });
             Scale = 0.85f;
             AnimationSpeed = 8f;

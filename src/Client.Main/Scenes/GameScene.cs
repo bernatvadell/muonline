@@ -12,7 +12,7 @@ namespace Client.Main.Scenes
 {
     public class GameScene : BaseScene
     {
-        private readonly PlayerObject _hero = new();
+        private readonly PlayerObject _hero = new(Constants.Character);
         private readonly MainControl _main;
 
         public PlayerObject Hero { get => _hero; }
@@ -26,7 +26,7 @@ namespace Client.Main.Scenes
         public override async Task Load()
         {
             await base.Load();
-            await ChangeMapAsync<NoriaWorld>();
+            await ChangeMapAsync<LorenciaWorld>();
         }
 
         public void ChangeMap<T>() where T : WalkableWorldControl, new()

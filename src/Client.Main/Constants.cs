@@ -1,4 +1,4 @@
-﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework;
 
 namespace Client.Main
 {
@@ -9,9 +9,15 @@ namespace Client.Main
         public const int TERRAIN_SIZE_MASK = 255;
         public const float TERRAIN_SCALE = 100f;
 
+        public const int Character = (int)Models.PlayerClass.DarkWizard;
+
         // Game settings
         public static bool DRAW_BOUNDING_BOXES = false;
+#if DEBUG
         public static string DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
+#else
+        public static string DataPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
+#endif
         public static bool UNLIMITED_FPS = false;
 
         // Camera control constants

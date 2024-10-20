@@ -5,13 +5,15 @@ namespace Client.Main.Objects.Player
 {
     public class PlayerBootObject : ModelObject
     {
-        public PlayerBootObject()
+        public int PlayerClass { get; set; }
+        public PlayerBootObject(int playerClass)
         {
+            PlayerClass = playerClass;
             RenderShadow = true;
         }
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare("Player/BootClass01.bmd");
+            Model = await BMDLoader.Instance.Prepare($"Player/BootClass{PlayerClass:D2}.bmd");
             await base.Load();
         }
     }
