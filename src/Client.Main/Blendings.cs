@@ -17,6 +17,14 @@ namespace Client.Main
             AlphaDestinationBlend = Blend.InverseSourceColor
         };
 
+        public static readonly BlendState DarkBlendState = new ()
+        {
+            ColorSourceBlend = Blend.Zero,
+            ColorDestinationBlend = Blend.InverseSourceColor,
+            AlphaSourceBlend = Blend.Zero,
+            AlphaDestinationBlend = Blend.InverseSourceAlpha
+        };
+
         public static readonly BlendState Alpha = new()
         {
             ColorSourceBlend = Blend.SourceAlpha,
