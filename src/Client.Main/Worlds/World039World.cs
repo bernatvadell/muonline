@@ -12,7 +12,7 @@ namespace Client.Main.Worlds
     {
         public World039World() : base(worldIndex: 39) // KANTURU REMAIN (RELICS)
         {
-
+            Terrain.TextureMappingFiles[10] = "TileRock04.OZJ";
         }
 
         public override void AfterLoad()

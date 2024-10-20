@@ -36,6 +36,32 @@ namespace Client.Main.Controls
         public short WorldIndex { get; set; }
         public Vector3 Light { get; set; } = new Vector3(0.5f, -0.5f, 0.5f);
 
+        public Dictionary<int, string> TextureMappingFiles { get; set; } = new Dictionary<int, string>
+            {
+                { 0, "TileGrass01.ozj" },
+                { 1, "TileGrass02.ozj" },
+                { 2, "TileGround01.ozj" },
+                { 3, "TileGround02.ozj" },
+                { 4, "TileGround03.ozj" },
+                { 5, "TileWater01.ozj" },
+                { 6, "TileWood01.ozj" },
+                { 7, "TileRock01.ozj" },
+                { 8, "TileRock02.ozj" },
+                { 9, "TileRock03.ozj" },
+                { 10, "AlphaTile01.ozt" },
+                { 11, "TileRock05.ozj" },
+                { 12, "TileRock06.ozj" },
+                { 13, "TileRock07.ozj" },
+                { 30, "TileGrass01.ozt" },
+                { 31, "TileGrass02.ozt" },
+                { 32, "TileGrass03.ozt" },
+                { 100, "leaf01.ozt" },
+                { 101, "leaf02.ozj" },
+                { 102, "rain01.ozt" },
+                { 103,  "rain02.ozt" },
+                { 104,  "rain03.ozt" }
+            };
+
         public TerrainControl()
         {
             AutoSize = false;
@@ -76,33 +102,7 @@ namespace Client.Main.Controls
 
             var textureMapFiles = new string[256];
 
-            var initialTextures = new Dictionary<int, string>
-            {
-                { 0, "TileGrass01.ozj" },
-                { 1, "TileGrass02.ozj" },
-                { 2, "TileGround01.ozj" },
-                { 3, "TileGround02.ozj" },
-                { 4, "TileGround03.ozj" },
-                { 5, "TileWater01.ozj" },
-                { 6, "TileWood01.ozj" },
-                { 7, "TileRock01.ozj" },
-                { 8, "TileRock02.ozj" },
-                { 9, "TileRock03.ozj" },
-                { 10, "AlphaTile01.ozt" },
-                { 11, "TileRock05.ozj" },
-                { 12, "TileRock06.ozj" },
-                { 13, "TileRock07.ozj" },
-                { 30, "TileGrass01.ozt" },
-                { 31, "TileGrass02.ozt" },
-                { 32, "TileGrass03.ozt" },
-                { 100, "leaf01.ozt" },
-                { 101, "leaf02.ozj" },
-                { 102, "rain01.ozt" },
-                { 103,  "rain02.ozt" },
-                { 104,  "rain03.ozt" }
-            };
-
-            foreach (var kvp in initialTextures)
+            foreach (var kvp in TextureMappingFiles)
             {
                 textureMapFiles[kvp.Key] = Path.Combine(fullPathWorldFolder, kvp.Value);
             }
