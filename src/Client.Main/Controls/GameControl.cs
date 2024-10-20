@@ -80,7 +80,14 @@ namespace Client.Main.Controls
                 var controls = Controls.ToArray();
 
                 for (int i = 0; i < controls.Length; i++)
-                    tasks[i] = controls[i].Initialize();
+                {
+                    var control = controls[i];
+
+                    if (control.Status == GameControlStatus.NonInitialized)
+                        tasks[i] = control.Initialize();
+                    else
+                        tasks[i] = Task.CompletedTask;
+                }
 
                 await Task.WhenAll(tasks);
 

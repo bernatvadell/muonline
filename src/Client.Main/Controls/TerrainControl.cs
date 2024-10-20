@@ -149,6 +149,9 @@ namespace Client.Main.Controls
         {
             base.Update(time);
 
+            if (Status != Models.GameControlStatus.Ready)
+                return;
+
             if (_terrainEffect != null)
             {
                 _terrainEffect.Projection = Camera.Instance.Projection;
@@ -159,6 +162,9 @@ namespace Client.Main.Controls
 
         public override void Draw(GameTime time)
         {
+            if (!Visible || Status != Models.GameControlStatus.Ready)
+                return;
+
             RenderTerrain(false);
             base.Draw(time);
         }
@@ -321,6 +327,8 @@ namespace Client.Main.Controls
 
         private void InitTerrainLight(GameTime time)
         {
+            if (_terrainGrassWind == null) return;
+
             float windSpeed = (float)((time.TotalGameTime.TotalMilliseconds % 720000) * 0.002); // Upraszczony modulo
 
             for (int y = 0; y <= Math.Min(253, Constants.TERRAIN_SIZE_MASK); y++)
@@ -335,7 +343,7 @@ namespace Client.Main.Controls
 
         private void RenderTerrain(bool isAfter)
         {
-            if (_terrainEffect == null) return;
+            if (_terrainEffect == null || _backTerrainHeight == null) return;
 
             for (int yi = 0; yi < Constants.TERRAIN_SIZE_MASK; yi += BlockSize)
             {
@@ -354,7 +362,7 @@ namespace Client.Main.Controls
                         for (int x = xi; x < xi + BlockSize; x++)
                         {
                             int index = GetTerrainIndexRepeat(x, y);
-                            float height = _backTerrainHeight[index].B * 1.5f;
+                            float height = _backTerrainHeight == null ? 0f : _backTerrainHeight[index].B * 1.5f;
 
                             if (height < minZ) minZ = height;
                             if (height > maxZ) maxZ = height;
@@ -381,7 +389,6 @@ namespace Client.Main.Controls
             {
                 for (int j = 0; j < BlockSize; j += lodi)
                 {
-
                     RenderTerrainTile(xf + j, yf + i, xi + j, yi + i, lodf, lodi, isAfter);
                 }
             }
@@ -389,7 +396,7 @@ namespace Client.Main.Controls
 
         private void RenderTerrainTile(float xf, float yf, int xi, int yi, float lodf, int lodi, bool isAfter)
         {
-            if (isAfter)
+            if (isAfter || _terrain == null)
                 return;
 
             int idx1 = GetTerrainIndex(xi, yi);
@@ -401,18 +408,18 @@ namespace Client.Main.Controls
             int idx3 = GetTerrainIndex(xi + lodi, yi + lodi);
             int idx4 = GetTerrainIndex(xi, yi + lodi);
 
-            byte alpha1 = _mapping.Alpha[idx1];
-            byte alpha2 = _mapping.Alpha[idx2];
-            byte alpha3 = _mapping.Alpha[idx3];
-            byte alpha4 = _mapping.Alpha[idx4];
+            byte alpha1 = idx1 > _mapping.Alpha.Length ? (byte)0 : _mapping.Alpha[idx1];
+            byte alpha2 = idx2 > _mapping.Alpha.Length ? (byte)0 : _mapping.Alpha[idx2];
+            byte alpha3 = idx3 > _mapping.Alpha.Length ? (byte)0 : _mapping.Alpha[idx3];
+            byte alpha4 = idx4 > _mapping.Alpha.Length ? (byte)0 : _mapping.Alpha[idx4];
 
             bool isOpaque = alpha1 >= 1 && alpha2 >= 1 && alpha3 >= 1 && alpha4 >= 1;
             bool hasAlpha = alpha1 > 0 || alpha2 > 0 || alpha3 > 0 || alpha4 > 0;
 
-            float terrainHeight1 = _backTerrainHeight[idx1].B * 1.5f;
-            float terrainHeight2 = _backTerrainHeight[idx2].B * 1.5f;
-            float terrainHeight3 = _backTerrainHeight[idx3].B * 1.5f;
-            float terrainHeight4 = _backTerrainHeight[idx4].B * 1.5f;
+            float terrainHeight1 = idx1 > _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx1].B * 1.5f;
+            float terrainHeight2 = idx2 > _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx2].B * 1.5f;
+            float terrainHeight3 = idx3 > _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx3].B * 1.5f;
+            float terrainHeight4 = idx4 > _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx4].B * 1.5f;
 
             float sx = xf * Constants.TERRAIN_SCALE;
             float sy = yf * Constants.TERRAIN_SCALE;
@@ -475,6 +482,9 @@ namespace Client.Main.Controls
 
         private void RenderTexture(int textureIndex, float xf, float yf, Vector3[] terrainVertex, Color[] terrainLights)
         {
+            if (Status != Models.GameControlStatus.Ready)
+                return;
+
             if (textureIndex < 0 || textureIndex >= _textures.Length)
                 return;
 

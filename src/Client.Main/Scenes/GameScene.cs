@@ -4,6 +4,8 @@ using Client.Main.Models;
 using Client.Main.Objects.Player;
 using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
+using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 
 namespace Client.Main.Scenes
@@ -18,7 +20,7 @@ namespace Client.Main.Scenes
         public GameScene()
         {
             Controls.Add(_main = new MainControl());
-            Controls.Add(new MapList());
+            Controls.Add(new MapListControl());
         }
 
         public override async Task Load()
@@ -29,16 +31,22 @@ namespace Client.Main.Scenes
 
         public void ChangeMap<T>() where T : WalkableWorldControl, new()
         {
-            Task.Run(() => ChangeMapAsync<T>()).Wait();
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await ChangeMapAsync<T>();
+                }
+                catch (Exception e)
+                {
+                    Debug.WriteLine(e);
+                }
+            }).ConfigureAwait(false);
         }
 
         public async Task ChangeMapAsync<T>() where T : WalkableWorldControl, new()
         {
-            if (World != null)
-            {
-                World.IsKeepHero = true;
-                World.Dispose();
-            }
+            World?.Dispose();
 
             var world = new T() { Walker = _hero };
             await world.AddObjectAsync(_hero);

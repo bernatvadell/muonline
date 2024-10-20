@@ -3,12 +3,13 @@ using Client.Main.Scenes;
 using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using System.Threading.Tasks;
 
 namespace Client.Main.Controls.UI.Game
 {
-    public class MapList : UIControl
+    public class MapListControl : UIControl
     {
-        public MapList()
+        public MapListControl()
         {
             Align = ControlAlign.Top | ControlAlign.Left;
             Margin = new Margin { Top = 10, Left = 10 };
@@ -19,29 +20,20 @@ namespace Client.Main.Controls.UI.Game
 
         public void AddButtons()
         {
-            Controls.Add(new MapButton { Name = "Lorencia" }.Initialize<LorenciaWorld>());
-            Controls.Add(new MapButton { Name = "Noria" }.Initialize<NoriaWorld>());
-            Controls.Add(new MapButton { Name = "Elveland" }.Initialize<ElvelandWorld>());
-            Controls.Add(new MapButton { Name = "Devias" }.Initialize<DeviasWorld>());
-            Controls.Add(new MapButton { Name = "Dungeon" }.Initialize<DungeonWorld>());
-            Controls.Add(new MapButton { Name = "Atlans" }.Initialize<AtlansWorld>());
-            Controls.Add(new MapButton { Name = "Lost Tower" }.Initialize<LostTowerWorld>());
-            Controls.Add(new MapButton { Name = "Icarus" }.Initialize<IcarusWorld>());
-            Controls.Add(new MapButton { Name = "World 101" }.Initialize<World101World>());
-
-            int index = 0;
-            foreach (var control in Controls)
-            {
-                if (control is MapButton)
-                {
-                    control.Y = index * 25;
-                    index++;
-                }
-            }
+            int y = 0;
+            Controls.Add(new MapButton<LorenciaWorld> { Name = "Lorencia", Y = y });
+            Controls.Add(new MapButton<NoriaWorld> { Name = "Noria", Y = y += 25 });
+            Controls.Add(new MapButton<ElvelandWorld> { Name = "Elveland", Y = y += 25 });
+            Controls.Add(new MapButton<DeviasWorld> { Name = "Devias", Y = y += 25 });
+            Controls.Add(new MapButton<DungeonWorld> { Name = "Dungeon", Y = y += 25 });
+            Controls.Add(new MapButton<AtlansWorld> { Name = "Atlans", Y = y += 25 });
+            Controls.Add(new MapButton<LostTowerWorld> { Name = "Lost Tower", Y = y += 25 });
+            Controls.Add(new MapButton<IcarusWorld> { Name = "Icarus", Y = y += 25 });
+            Controls.Add(new MapButton<World101World> { Name = "World 101", Y = y += 25 });
         }
     }
 
-    public class MapButton : UIControl
+    public class MapButton<TWorld> : UIControl where TWorld : WalkableWorldControl, new()
     {
         public string Name { get; set; }
 
@@ -55,17 +47,19 @@ namespace Client.Main.Controls.UI.Game
             Interactive = true;
         }
 
-        public MapButton Initialize<T>() where T : WalkableWorldControl, new()
+        public override async Task Load()
         {
-            Click += async (sender, e) =>
-            {
-                if (MuGame.Instance.ActiveScene is GameScene)
-                {
-                    await (MuGame.Instance.ActiveScene as GameScene).ChangeMapAsync<T>();
-                }
-            };
+            await base.Load();
 
-            return this;
+            Click += MapButton_Click;
+        }
+
+        private void MapButton_Click(object sender, System.EventArgs e)
+        {
+            if (MuGame.Instance.ActiveScene is GameScene gameScene)
+            {
+                gameScene.ChangeMap<TWorld>();
+            }
         }
 
         public override void Draw(GameTime gameTime)
