@@ -8,17 +8,17 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
-    public class World101World : WalkableWorldControl
+    public class World059World : WalkableWorldControl
     {
-        public World101World() : base(worldIndex: 101) // URUK MOUNTAIN (AKERON PART)
+        public World059World() : base(worldIndex: 59) // RAKLION BOSS (SELUPAM)
         {
 
         }
 
         public override void AfterLoad()
         {
+            Walker.Location = new Vector2(146, 130);
             base.AfterLoad();
-            Walker.Location = new Vector2(65, 178);
         }
     }
 }

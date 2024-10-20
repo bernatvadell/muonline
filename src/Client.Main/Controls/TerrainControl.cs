@@ -179,7 +179,7 @@ namespace Client.Main.Controls
 
         public float RequestTerrainHeight(float xf, float yf)
         {
-            if (_terrain?.TerrainWall == null || xf < 0.0f || yf < 0.0f)
+            if (_terrain?.TerrainWall == null || xf < 0.0f || yf < 0.0f || _backTerrainHeight == null)
                 return 0.0f;
 
             xf /= Constants.TERRAIN_SCALE;

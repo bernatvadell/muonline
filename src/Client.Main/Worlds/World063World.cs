@@ -8,17 +8,16 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
-    public class World101World : WalkableWorldControl
+    public class World063World : WalkableWorldControl
     {
-        public World101World() : base(worldIndex: 101) // URUK MOUNTAIN (AKERON PART)
+        public World063World() : base(worldIndex: 63) // SANTATOWN (SANTA VILLAGE)
         {
-
         }
 
         public override void AfterLoad()
         {
+            Walker.Location = new Vector2(220, 30);
             base.AfterLoad();
-            Walker.Location = new Vector2(65, 178);
         }
     }
 }

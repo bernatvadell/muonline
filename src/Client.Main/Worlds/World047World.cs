@@ -8,17 +8,17 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
-    public class World101World : WalkableWorldControl
+    public class World047World : WalkableWorldControl
     {
-        public World101World() : base(worldIndex: 101) // URUK MOUNTAIN (AKERON PART)
+        public World047World() : base(worldIndex: 47) // ILLUSION TEMPLE
         {
 
         }
 
         public override void AfterLoad()
         {
+            Walker.Location = new Vector2(135, 119);
             base.AfterLoad();
-            Walker.Location = new Vector2(65, 178);
         }
     }
 }
