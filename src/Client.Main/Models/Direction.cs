@@ -27,7 +27,7 @@ namespace Client.Main.Models
                 Direction.East => new Vector3(0, 0, MathHelper.ToRadians(135)),
                 Direction.NorthEast => new Vector3(0, 0, MathHelper.ToRadians(180)),
                 Direction.North => new Vector3(0, 0, MathHelper.ToRadians(225)),
-                Direction.NorthWest => new Vector3(0, 0, MathHelper.ToRadians(280)),
+                Direction.NorthWest => new Vector3(0, 0, MathHelper.ToRadians(270)),
                 _ => Vector3.Zero,
             };
         }
