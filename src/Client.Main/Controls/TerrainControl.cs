@@ -107,6 +107,11 @@ namespace Client.Main.Controls
                 textureMapFiles[kvp.Key] = Path.Combine(fullPathWorldFolder, kvp.Value);
             }
 
+            if (WorldIndex == 11)
+            {
+                textureMapFiles = new string[256];
+            }
+
             for (int i = 1; i <= 16; i++)
             {
                 textureMapFiles[13 + i] = Path.Combine(fullPathWorldFolder, $"ExtTile{i:00}.ozj");
