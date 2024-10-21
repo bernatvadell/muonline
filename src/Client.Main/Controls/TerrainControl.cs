@@ -188,7 +188,7 @@ namespace Client.Main.Controls
 
             int index = GetTerrainIndex((int)xf, (int)yf);
 
-            if (index >= Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE || _terrain.TerrainWall[index].HasFlag(TWFlags.Height))
+            if (index >= _backTerrainHeight.Length || _terrain.TerrainWall[index].HasFlag(TWFlags.Height))
                 return SpecialHeight;
 
             int xi = (int)xf;
@@ -201,7 +201,7 @@ namespace Client.Main.Controls
             int index3 = GetTerrainIndexRepeat(xi + 1, yi);
             int index4 = GetTerrainIndexRepeat(xi + 1, yi + 1);
 
-            if (new[] { index1, index2, index3, index4 }.Any(i => i >= Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE))
+            if (new[] { index1, index2, index3, index4 }.Any(i => i >= _backTerrainHeight.Length))
                 return SpecialHeight;
 
             float left = MathHelper.Lerp(_backTerrainHeight[index1].B, _backTerrainHeight[index2].B, yd);
@@ -227,7 +227,7 @@ namespace Client.Main.Controls
             int index3 = (xi + 1) + (yi + 1) * Constants.TERRAIN_SIZE;
             int index4 = xi + (yi + 1) * Constants.TERRAIN_SIZE;
 
-            if (new[] { index1, index2, index3, index4 }.Any(i => i >= Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE))
+            if (new[] { index1, index2, index3, index4 }.Any(i => i < 0 || i >= _backTerrainLight.Length))
                 return Vector3.Zero;
 
             float[] output = new float[3];

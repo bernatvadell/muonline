@@ -43,10 +43,9 @@ namespace Client.Data.Texture
 
         private TextureData ReadDDS(byte[] buffer)
         {
-            var header = new byte[128];
-            Array.Copy(buffer, 0, header, 0, 128);
+            var header = buffer.AsSpan(0, 128);
 
-            using var br = new BinaryReader(new MemoryStream(header));
+            using var br = new BinaryReader(new MemoryStream(header.ToArray()));
             var signature = br.ReadString(4);
             var headerSize = br.ReadInt32();
             var flags = br.ReadInt32();
@@ -68,8 +67,7 @@ namespace Client.Data.Texture
                 _ => throw new ApplicationException($"Invalid pixel format: {pixelFormat}"),
             };
 
-            var data = new byte[buffer.Length - 128];
-            Array.Copy(buffer, 128, data, 0, data.Length);
+            var data = buffer.AsSpan(128).ToArray();
 
             byte[] decompressedData = Squish.DecompressImage(data, width, height, squishFlags);
 
