@@ -20,6 +20,7 @@ namespace Client.Main.Controls
         public WalkerObject Walker { get; set; }
         public byte MouseTileX { get; set; } = 0;
         public byte MouseTileY { get; set; } = 0;
+        public float ExtraHeight { get; set; }
 
         public WalkableWorldControl(short worldIndex) : base(worldIndex)
         {
@@ -61,7 +62,7 @@ namespace Client.Main.Controls
 
                 var x = newPosition.X * Constants.TERRAIN_SCALE;
                 var y = newPosition.Y * Constants.TERRAIN_SCALE;
-                var pos = new Vector3(x, y, Terrain.RequestTerrainHeight(x, y));
+                var pos = new Vector3(x, y, Terrain.RequestTerrainHeight(x, y) + ExtraHeight);
                 _cursor.Position = pos - new Vector3(-50f, -40f, 0);
                 Walker.MoveTo(newPosition);
             }
@@ -82,7 +83,7 @@ namespace Client.Main.Controls
             float currentDistance = 0f;
 
             Vector3 lastPosition = mouseRay.Position;
-            float lastHeightDifference = lastPosition.Z - Terrain.RequestTerrainHeight(lastPosition.X, lastPosition.Y);
+            float lastHeightDifference = lastPosition.Z - Terrain.RequestTerrainHeight(lastPosition.X, lastPosition.Y) + ExtraHeight;
 
             bool hit = false;
             Vector3 hitPosition = Vector3.Zero;
@@ -91,7 +92,7 @@ namespace Client.Main.Controls
             {
                 currentDistance += stepSize;
                 Vector3 position = mouseRay.Position + mouseRay.Direction * currentDistance;
-                float terrainHeight = Terrain.RequestTerrainHeight(position.X, position.Y);
+                float terrainHeight = Terrain.RequestTerrainHeight(position.X, position.Y) + ExtraHeight;
 
                 float heightDifference = position.Z - terrainHeight;
 

@@ -26,7 +26,7 @@ namespace Client.Main.Scenes
         public override async Task Load()
         {
             await base.Load();
-            await ChangeMapAsync<World039World>();
+            await ChangeMapAsync<IcarusWorld>();
         }
 
         public void ChangeMap<T>() where T : WalkableWorldControl, new()

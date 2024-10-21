@@ -206,6 +206,7 @@ namespace Client.Main.Controls
 
             float left = MathHelper.Lerp(_backTerrainHeight[index1].B, _backTerrainHeight[index2].B, yd);
             float right = MathHelper.Lerp(_backTerrainHeight[index3].B, _backTerrainHeight[index4].B, yd);
+            
             return MathHelper.Lerp(left, right, xd);
         }
 

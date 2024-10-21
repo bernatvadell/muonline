@@ -19,7 +19,7 @@ namespace Client.Main.Objects
         private Vector3 _position, _angle;
         private float _scale = 1f;
         private BasicEffect _boundingBoxEffect;
-        private BoundingBox _boundingBoxLocal = new BoundingBox(new Vector3(-40, -40, 0), new Vector3(40, 40, 80));
+        private BoundingBox _boundingBoxLocal = new (new Vector3(-40, -40, 0), new Vector3(40, 40, 80));
         private WorldObject _parent;
         private Matrix _worldPosition;
 
@@ -195,8 +195,11 @@ namespace Client.Main.Objects
             else if (WorldPosition != localMatrix)
             {
                 WorldPosition = localMatrix;
-
             }
+
+            var objects = Children.ToArray();
+            for (var i = 0; i < objects.Length; i++)
+                objects[i].RecalculateWorldPosition();
         }
 
         private void OnWorldPositionChanged()
