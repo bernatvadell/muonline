@@ -162,17 +162,18 @@ namespace Client.Main.Objects
                 _currentPath.RemoveAt(0);
             }
 
+            // Calculate target height based on terrain and scaling
             float baseHeightOffset = 0; // Offset
             float heightScaleFactor = 0.5f;
-
             float terrainHeightAtMoveTarget = World.Terrain.RequestTerrainHeight(MoveTargetPosition.X, MoveTargetPosition.Y);
             float desiredHeightOffset = baseHeightOffset + (heightScaleFactor * terrainHeightAtMoveTarget);
             float targetHeight = terrainHeightAtMoveTarget + desiredHeightOffset;
-            float heightChangeSpeed = 150f;
-            float heightDifference = targetHeight - Position.Z;
-            float maxHeightChange = heightChangeSpeed * deltaTime;
-            float clampedHeightChange = MathHelper.Clamp(heightDifference, -maxHeightChange, maxHeightChange);
-            float newZ = Position.Z + clampedHeightChange;
+
+            // Interpolation using Lerp
+            float interpolationFactor = 15f * deltaTime; // factor
+            float newZ = MathHelper.Lerp(Position.Z, targetHeight, interpolationFactor);
+
+            // update position with the new height
             Position = new Vector3(MoveTargetPosition.X, MoveTargetPosition.Y, newZ);
 
             // Update camera position with rotation
