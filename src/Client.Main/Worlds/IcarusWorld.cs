@@ -9,6 +9,8 @@ namespace Client.Main.Worlds
 {
     public class IcarusWorld : WalkableWorldControl
     {
+        private static readonly Color CLEAR_COLOR = new Color(3f / 256f, 25f / 256f, 44f / 256f, 1f);
+
         public IcarusWorld() : base(worldIndex: 11)
         {
 
@@ -32,6 +34,12 @@ namespace Client.Main.Worlds
         {
             await base.Load();
             SoundController.Instance.PlayBackgroundMusic("Music/icarus.mp3");
+        }
+
+        public override void Draw(GameTime time)
+        {
+            GraphicsDevice.Clear(CLEAR_COLOR);
+            base.Draw(time);
         }
     }
 }
