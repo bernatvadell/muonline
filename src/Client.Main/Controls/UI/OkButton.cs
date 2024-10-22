@@ -25,9 +25,9 @@ namespace Client.Main.Controls.UI
         {
             base.Update(gameTime);
 
-            if (MuGame.Instance.ActiveScene.MouseControl == this && IsMousePressed)
+            if (Scene.MouseControl == this && IsMousePressed)
                 TileY = 2;
-            else if (MuGame.Instance.ActiveScene.MouseControl == this)
+            else if (Scene.MouseControl == this)
                 TileY = 1;
             else
                 TileY = 0;

@@ -15,6 +15,7 @@ namespace Client.Main.Scenes
         private readonly PlayerObject _hero = new(Constants.Character);
         private readonly MainControl _main;
 
+        private WorldControl _nextWorld = null;
         public PlayerObject Hero { get => _hero; }
 
         public GameScene()
@@ -27,6 +28,7 @@ namespace Client.Main.Scenes
         {
             await base.Load();
             await ChangeMapAsync<IcarusWorld>();
+            await _hero.Load();
         }
 
         public void ChangeMap<T>() where T : WalkableWorldControl, new()
@@ -47,21 +49,47 @@ namespace Client.Main.Scenes
         public async Task ChangeMapAsync<T>() where T : WalkableWorldControl, new()
         {
             World?.Dispose();
+            World = null;
 
             var world = new T() { Walker = _hero };
-            await world.AddObjectAsync(_hero);
+            world.AddObject(_hero);
 
-            World = world;
-            Controls.Insert(0, world);
-            await World.Initialize();
+            _nextWorld = world;
+            await _nextWorld.Initialize();
         }
 
         public override void Update(GameTime gameTime)
         {
+            if (_nextWorld != null)
+            {
+                if (_nextWorld.Status == GameControlStatus.Ready)
+                {
+                    World?.Dispose();
+                    World = _nextWorld;
+                    Controls.Insert(0, World);
+                    _nextWorld = null;
+                }
+                else
+                {
+                    return;
+                }
+            }
+
             base.Update(gameTime);
 
             if (Status != GameControlStatus.Ready || !Visible)
                 return;
+        }
+
+        public override void Draw(GameTime gameTime)
+        {
+            if (_nextWorld != null)
+            {
+                // TODO: Show loading screen?
+                return;
+            }
+
+            base.Draw(gameTime);
         }
     }
 }

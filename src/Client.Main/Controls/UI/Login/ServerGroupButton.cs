@@ -35,9 +35,9 @@ namespace Client.Main.Controls.UI.Login
 
             if (Selected)
                 TileY = 3;
-            else if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && MuGame.Instance.ActiveScene.MouseControl == this)
+            else if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && Scene.MouseControl == this)
                 TileY = 2;
-            else if (MuGame.Instance.ActiveScene.MouseControl == this)
+            else if (Scene.MouseControl == this)
                 TileY = 1;
             else
                 TileY = 0;

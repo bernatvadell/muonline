@@ -162,12 +162,19 @@ namespace Client.Main.Objects
                 _currentPath.RemoveAt(0);
             }
 
-            // Update position based on MoveTargetPosition and terrain height with interpolation
-            float targetPlayerHeight = World.Terrain.RequestTerrainHeight(TargetPosition.X, TargetPosition.Y);
-            float currentPlayerHeight = World.Terrain.RequestTerrainHeight(Position.X, Position.Y);
-            float newPlayerHeight = MathHelper.Lerp(currentPlayerHeight, targetPlayerHeight, 5f * deltaTime);
+            // Calculate target height based on terrain and scaling
+            float baseHeightOffset = 0; // Offset
+            float heightScaleFactor = 0.5f;
+            float terrainHeightAtMoveTarget = World.Terrain.RequestTerrainHeight(MoveTargetPosition.X, MoveTargetPosition.Y);
+            float desiredHeightOffset = baseHeightOffset + (heightScaleFactor * terrainHeightAtMoveTarget);
+            float targetHeight = terrainHeightAtMoveTarget + desiredHeightOffset;
 
-            Position = MoveTargetPosition + new Vector3(0, 0, newPlayerHeight - 40);
+            // Interpolation using Lerp
+            float interpolationFactor = 15f * deltaTime; // factor
+            float newZ = MathHelper.Lerp(Position.Z, targetHeight, interpolationFactor);
+
+            // update position with the new height
+            Position = new Vector3(MoveTargetPosition.X, MoveTargetPosition.Y, newZ);
 
             // Update camera position with rotation
             UpdateCameraPosition(MoveTargetPosition);

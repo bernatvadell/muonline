@@ -1,4 +1,5 @@
 ﻿using Client.Main.Models;
+using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using SixLabors.ImageSharp.PixelFormats;
@@ -15,7 +16,11 @@ namespace Client.Main.Controls
     public abstract class GameControl : IChildItem<GameControl>, IDisposable
     {
         public GraphicsDevice GraphicsDevice => MuGame.Instance.GraphicsDevice;
+        public GameControl Root => Parent?.Root ?? this;
         public GameControl Parent { get; set; }
+        public WorldControl World => this is WorldControl worldControl ? worldControl : Parent?.World;
+        public BaseScene Scene => this is BaseScene scene ? scene : Parent?.Scene;
+
         public ChildrenCollection<GameControl> Controls { get; private set; }
         public GameControlStatus Status { get; private set; } = GameControlStatus.NonInitialized;
         public ControlAlign Align { get; set; }
@@ -123,8 +128,8 @@ namespace Client.Main.Controls
             IsMouseOver = Interactive && MuGame.Instance.Mouse.Position.X >= ScreenLocation.X && MuGame.Instance.Mouse.Position.X <= ScreenLocation.X + ScreenLocation.Width &&
                 MuGame.Instance.Mouse.Position.Y >= ScreenLocation.Y && MuGame.Instance.Mouse.Position.Y <= ScreenLocation.Y + ScreenLocation.Height;
 
-            if (IsMouseOver)
-                MuGame.Instance.ActiveScene.MouseControl = this;
+            if (IsMouseOver && Scene != null)
+                Scene.MouseControl = this;
 
             int maxWidth = 0;
             int maxHeight = 0;
@@ -225,6 +230,9 @@ namespace Client.Main.Controls
                 controls[i].Dispose();
 
             Controls.Clear();
+
+            if (Parent != null)
+                Parent.Controls.Remove(this);
 
             Status = GameControlStatus.Disposed;
 

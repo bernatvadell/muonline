@@ -77,7 +77,7 @@ namespace Client.Main.Controls.UI.Game
 
         private void MapButton_Click(object sender, System.EventArgs e)
         {
-            if (MuGame.Instance.ActiveScene is GameScene gameScene)
+            if (Root is GameScene gameScene)
             {
                 gameScene.ChangeMap<TWorld>();
             }
@@ -100,7 +100,7 @@ namespace Client.Main.Controls.UI.Game
         {
             base.Update(gameTime);
 
-            if (MuGame.Instance.ActiveScene.MouseControl == this)
+            if (Scene.MouseControl == this)
             {
                 BackgroundColor = Color.Yellow;
                 TextColor = Color.Black;

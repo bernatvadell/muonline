@@ -9,17 +9,19 @@ namespace Client.Main.Objects.Particles
 {
     public class Particle : WorldObject
     {
-        public WorldObject Object { get; }
+        public WorldObject Object { get; private set; }
         public BaseEffect[] Effects { get; set; } = [];
+        public Type ParticleType { get; }
 
         public Particle(Type particleType)
         {
-            Object = (WorldObject)Activator.CreateInstance(particleType);
-            Children.Add(Object);
+            ParticleType = particleType;
         }
 
         public override async Task Load()
         {
+            Object = World.CreateObject(ParticleType, this);
+
             await base.Load();
 
             for (var i = 0; i < Effects.Length; i++)

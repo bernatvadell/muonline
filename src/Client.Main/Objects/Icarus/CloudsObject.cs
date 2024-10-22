@@ -30,7 +30,7 @@ namespace Client.Main.Objects.Icarus
 
             if (!Ready) return;
 
-            if (MuGame.Instance.ActiveScene.World is WalkableWorldControl walkableWorld)
+            if (World is WalkableWorldControl walkableWorld)
             {
                 Position = new Vector3(
                     walkableWorld.Walker.Position.X + 200 * FPSCounter.Instance.FPS_ANIMATION_FACTOR,

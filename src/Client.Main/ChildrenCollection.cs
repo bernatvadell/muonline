@@ -9,6 +9,16 @@ namespace Client.Main
         T? Parent { get; set; }
     }
 
+    public class ChildrenEventArgs<T> where T : class, IChildItem<T>
+    {
+        public T Control { get; }
+
+        public ChildrenEventArgs(T control)
+        {
+            Control = control;
+        }
+    }
+
     public class ChildrenCollection<T> : ICollection<T> where T : class, IChildItem<T>
     {
         private List<T> _controls = [];
@@ -16,6 +26,9 @@ namespace Client.Main
         public T Parent { get; private set; }
         public int Count => _controls.Count;
         public bool IsReadOnly => false;
+
+        public event EventHandler<ChildrenEventArgs<T>> ControlAdded;
+        public event EventHandler<ChildrenEventArgs<T>> ControlRemoved;
 
         internal ChildrenCollection(T parent)
         {
@@ -25,18 +38,21 @@ namespace Client.Main
         public T this[int index]
         {
             get => _controls[index];
-            set => _controls[index] = value;
+            set => throw new NotImplementedException();
         }
 
         public void Add(T control)
         {
             control.Parent = Parent;
             _controls.Add(control);
+            ControlAdded?.Invoke(this, new ChildrenEventArgs<T>(control));
         }
 
         public void Insert(int index, T control)
         {
+            control.Parent = Parent;
             _controls.Insert(index, control);
+            ControlAdded?.Invoke(this, new ChildrenEventArgs<T>(control));
         }
 
         public IEnumerator<T> GetEnumerator()
@@ -54,7 +70,10 @@ namespace Client.Main
             var controls = _controls.ToArray();
 
             foreach (var control in controls)
+            {
                 control.Parent = null;
+                ControlRemoved?.Invoke(this, new ChildrenEventArgs<T>(control));
+            }
 
             _controls.Clear();
         }
@@ -66,13 +85,20 @@ namespace Client.Main
 
         public void CopyTo(T[] array, int arrayIndex)
         {
-            _controls.CopyTo(array, arrayIndex);
+            throw new NotImplementedException();
         }
 
         public bool Remove(T control)
         {
-            control.Parent = null;
-            return _controls.Remove(control);
+            var removed = _controls.Remove(control);
+
+            if (removed)
+            {
+                control.Parent = null;
+                ControlRemoved?.Invoke(this, new ChildrenEventArgs<T>(control));
+            }
+
+            return removed;
         }
 
         bool ICollection<T>.Remove(T control)

@@ -46,7 +46,7 @@ namespace Client.Main.Objects
         public Vector3 Light { get; set; } = new Vector3(0f, 0f, 0f);
         public bool LightEnabled { get; set; } = true;
         public bool Visible => Ready && !OutOfView && !Hidden;
-        public WorldControl World => MuGame.Instance.ActiveScene?.World;
+        public WorldControl World { get; set; }
         public short Type { get; set; }
         public Color BoundingBoxColor { get; set; } = Color.GreenYellow;
         protected GraphicsDevice GraphicsDevice => MuGame.Instance.GraphicsDevice;
@@ -145,7 +145,6 @@ namespace Client.Main.Objects
         public virtual void Dispose()
         {
             Ready = false;
-
             Parent = null;
 
             var children = Children.ToArray();
@@ -154,6 +153,8 @@ namespace Client.Main.Objects
                 children[i].Dispose();
 
             Children.Clear();
+
+            if (Parent != null) Parent.Children.Remove(this);
 
             _boundingBoxEffect?.Dispose();
             _boundingBoxEffect = null;

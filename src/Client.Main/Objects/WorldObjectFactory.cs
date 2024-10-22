@@ -1,15 +1,10 @@
-﻿using Client.Data;
-using Client.Main.Controls;
+﻿using Client.Main.Controls;
+using Client.Main.Objects;
 using Microsoft.Xna.Framework;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Reflection.Metadata;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Client.Main.Objects
+namespace Client.Main
 {
     public static class WorldObjectFactory
     {
@@ -31,7 +26,7 @@ namespace Client.Main.Objects
                 return null;
             }
 
-            var mapObj = (WorldObject)Activator.CreateInstance(type);
+            var mapObj = CreateObject(world, type, null);
 
             mapObj.Type = objType;
             mapObj.Position = obj.Position;
@@ -42,6 +37,31 @@ namespace Client.Main.Objects
                MathHelper.ToRadians(obj.Angle.Z)
             );
             return mapObj;
+        }
+
+        public static T CreateObject<T>(this WorldControl world, WorldObject parent) where T : WorldObject, new()
+        {
+            return (T)CreateObject(world, typeof(T), parent);
+        }
+
+        public static WorldObject CreateObject(this WorldControl world, Type objectType, WorldObject parent)
+        {
+            var obj = (WorldObject)Activator.CreateInstance(objectType);
+            obj.World = world;
+            obj.Parent = parent;
+
+            if (parent == null)
+                world.Objects.Add(obj);
+            else
+                parent.Children.Add(obj);
+
+            return obj;
+        }
+
+        public static void AddObject(this WorldControl world, WorldObject obj)
+        {
+            obj.World = world;
+            world.Objects.Add(obj);
         }
     }
 }

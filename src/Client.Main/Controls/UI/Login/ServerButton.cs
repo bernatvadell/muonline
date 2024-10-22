@@ -54,7 +54,7 @@ namespace Client.Main.Controls.UI.Login
 
             if (!Available)
                 TileY = 2;
-            else if (MuGame.Instance.ActiveScene.MouseControl == this)
+            else if (Scene.MouseControl == this)
                 TileY = 1;
             else
                 TileY = 0;

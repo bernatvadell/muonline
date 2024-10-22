@@ -74,7 +74,7 @@ namespace Client.Main.Controls.UI
             _fpsLabel.TextArgs = [(int)FPSCounter.Instance.FPS_AVG];
             _mousePosLabel.TextArgs = [MuGame.Instance.Mouse.Position.X, MuGame.Instance.Mouse.Position.Y];
 
-            if (MuGame.Instance.ActiveScene.World != null && MuGame.Instance.ActiveScene.World is WalkableWorldControl walkableWorld)
+            if (Root is WalkableWorldControl walkableWorld)
             {
                 _playerCordsLabel.Visible = true;
                 _playerCordsLabel.TextArgs = [walkableWorld.Walker.Location.X, walkableWorld.Walker.Location.Y];

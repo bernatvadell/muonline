@@ -29,7 +29,7 @@ namespace Client.Main.Controls
 
         public override async Task Load()
         {
-            await AddObjectAsync(_cursor = new CursorObject());
+            _cursor = this.CreateObject<CursorObject>(null);
             await base.Load();
         }
 
@@ -52,7 +52,7 @@ namespace Client.Main.Controls
 
             CalculateMouseTilePos();
 
-            if (MuGame.Instance.ActiveScene.MouseHoverControl == this && MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && _cursorNextMoveTime <= 0)
+            if (Scene.MouseHoverControl == this && MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && _cursorNextMoveTime <= 0)
             {
                 _cursorNextMoveTime = 250;
                 var newPosition = new Vector2(MouseTileX, MouseTileY);

@@ -28,8 +28,7 @@ namespace Client.Main.Controls
             Width = MuGame.Instance.Width;
             Height = MuGame.Instance.Height;
             WorldIndex = worldIndex;
-            Controls.Add(Terrain = new TerrainControl());
-            Terrain.WorldIndex = worldIndex;
+            Controls.Add(Terrain = new TerrainControl() { WorldIndex = worldIndex });
         }
 
         public void ChangeWorld(short worldIndex)
@@ -65,7 +64,7 @@ namespace Client.Main.Controls
                 foreach (var mapObj in obj.Objects)
                 {
                     var instance = WorldObjectFactory.CreateMapTileObject(this, mapObj);
-                    if (instance != null) tasks.Add(AddObjectAsync(instance));
+                    if (instance != null) tasks.Add(instance.Load());
                 }
                 await Task.WhenAll(tasks);
             }
@@ -94,32 +93,6 @@ namespace Client.Main.Controls
         {
             var terrainFlag = Terrain.RequestTerraingFlag((int)position.X, (int)position.Y);
             return !terrainFlag.HasFlag(TWFlags.NoMove);
-        }
-
-        public void AddObject(WorldObject obj)
-        {
-            lock (Objects)
-            {
-                if (Objects.Contains(obj))
-                    return;
-
-                Objects.Add(obj);
-            }
-
-            Task.Run(() => obj.Load()).ConfigureAwait(false);
-        }
-
-        public async Task AddObjectAsync(WorldObject obj)
-        {
-            lock (Objects)
-            {
-                if (Objects.Contains(obj))
-                    return;
-
-                Objects.Add(obj);
-            }
-
-            await obj.Load();
         }
 
         protected virtual void CreateMapTileObjects()

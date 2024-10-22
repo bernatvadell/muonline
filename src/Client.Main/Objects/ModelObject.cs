@@ -81,6 +81,9 @@ namespace Client.Main.Objects
 
         public override void Update(GameTime gameTime)
         {
+            if (World == null)
+                return;
+
             base.Update(gameTime);
 
             if (!Ready || OutOfView) return;
@@ -105,6 +108,9 @@ namespace Client.Main.Objects
 
         public override void Draw(GameTime gameTime)
         {
+            if (World == null)
+                return;
+
             if (!Visible || _boneIndexBuffers == null) return;
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
             DrawModel(false);
