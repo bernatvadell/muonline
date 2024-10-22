@@ -216,7 +216,7 @@ namespace Client.Main.Controls
 
         public Vector3 RequestTerrainLight(float xf, float yf)
         {
-            if (_terrain?.TerrainWall == null || xf < 0.0f || yf < 0.0f)
+            if (_terrain?.TerrainWall == null || xf < 0.0f || yf < 0.0f || _backTerrainLight == null)
                 return Vector3.Zero;
 
             xf /= Constants.TERRAIN_SCALE;
