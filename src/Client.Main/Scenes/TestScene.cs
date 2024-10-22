@@ -23,7 +23,7 @@ namespace Client.Main.Scenes
         public override async Task Load()
         {
             await ChangeWorldAsync<EmptyWorldControl>();
-            World.AddObject(_player = new PlayerObject(Constants.Character));
+            World.Objects.Add(_player = new PlayerObject() { PlayerClass = PlayerClass.DarkWizard });
             await _player.Load();
             await base.Load();
         }

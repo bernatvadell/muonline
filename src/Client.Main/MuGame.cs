@@ -7,6 +7,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Diagnostics;
+using System.Threading.Tasks;
 
 namespace Client.Main
 {
@@ -86,6 +87,7 @@ namespace Client.Main
         {
             ActiveScene?.Dispose();
             ActiveScene = new T();
+            Task.Run(() => ActiveScene.Initialize()).ConfigureAwait(false);
         }
 
         protected override void Initialize()

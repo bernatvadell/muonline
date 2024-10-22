@@ -96,6 +96,7 @@ namespace Client.Main.Objects
         public void Reset()
         {
             _currentPath = null;
+            MoveTargetPosition = Vector3.Zero;
         }
 
         private void OnDirectionChanged()

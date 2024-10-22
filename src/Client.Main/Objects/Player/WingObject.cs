@@ -15,7 +15,7 @@ namespace Client.Main.Objects.Player
             BlendState = BlendState.AlphaBlend;
             BlendMeshState = BlendState.Additive;
             Alpha = 1f;
-            // se vincula con el hueso 47 (ver zzzCharacter->14628)
+            // link with bone 47 (see MuMain source -> file zzzCharacter -> line: 14628)
         }
 
         public override async Task Load()

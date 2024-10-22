@@ -1,20 +1,24 @@
 ﻿using Client.Main.Content;
+using Client.Main.Models;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Player
 {
     public class PlayerHelmObject : ModelObject
     {
-        public int PlayerClass { get; set; }
-        public PlayerHelmObject(int playerClass)
+        private PlayerClass _playerClass;
+        public PlayerClass PlayerClass { get => _playerClass; set { _playerClass = value; OnChangePlayerClass(); } }
+
+        public PlayerHelmObject()
         {
-            PlayerClass = playerClass;
             RenderShadow = true;
         }
-        public override async Task Load()
+     
+        private async void OnChangePlayerClass()
         {
-            Model = await BMDLoader.Instance.Prepare($"Player/HelmClass{PlayerClass:D2}.bmd");
-            await base.Load();
+            Model = await BMDLoader.Instance.Prepare($"Player/HelmClass{(int)PlayerClass:D2}.bmd");
+            if (Model != null && Status == GameControlStatus.Error)
+                Status = GameControlStatus.Ready;
         }
     }
 }

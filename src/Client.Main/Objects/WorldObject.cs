@@ -2,6 +2,7 @@
 using Client.Data.BMD;
 using Client.Main.Content;
 using Client.Main.Controls;
+using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -19,9 +20,10 @@ namespace Client.Main.Objects
         private Vector3 _position, _angle;
         private float _scale = 1f;
         private BasicEffect _boundingBoxEffect;
-        private BoundingBox _boundingBoxLocal = new (new Vector3(-40, -40, 0), new Vector3(40, 40, 80));
+        private BoundingBox _boundingBoxLocal = new(new Vector3(-40, -40, 0), new Vector3(40, 40, 80));
         private WorldObject _parent;
         private Matrix _worldPosition;
+        private WorldControl _world;
 
         public bool LinkParent { get; set; }
         public bool OutOfView { get; private set; } = true;
@@ -31,7 +33,7 @@ namespace Client.Main.Objects
         public BoundingBox BoundingBoxLocal { get => _boundingBoxLocal; set { _boundingBoxLocal = value; OnBoundingBoxLocalChanged(); } }
         public BoundingBox BoundingBoxWorld { get; private set; }
 
-        public virtual bool Ready { get; private set; }
+        public GameControlStatus Status { get; protected set; } = GameControlStatus.NonInitialized;
         public bool Hidden { get; set; }
         public string ObjectName => GetType().Name;
         public BlendState BlendState { get; set; } = BlendState.Opaque;
@@ -45,8 +47,8 @@ namespace Client.Main.Objects
         public Matrix WorldPosition { get => _worldPosition; set { _worldPosition = value; OnWorldPositionChanged(); } }
         public Vector3 Light { get; set; } = new Vector3(0f, 0f, 0f);
         public bool LightEnabled { get; set; } = true;
-        public bool Visible => Ready && !OutOfView && !Hidden;
-        public WorldControl World { get; set; }
+        public bool Visible => Status == GameControlStatus.Ready && !OutOfView && !Hidden;
+        public WorldControl World { get => _world; set { _world = value; OnChangeWorld(); } }
         public short Type { get; set; }
         public Color BoundingBoxColor { get; set; } = Color.GreenYellow;
         protected GraphicsDevice GraphicsDevice => MuGame.Instance.GraphicsDevice;
@@ -56,36 +58,69 @@ namespace Client.Main.Objects
         public WorldObject()
         {
             Children = new ChildrenCollection<WorldObject>(this);
+            Children.ControlAdded += Children_ControlAdded;
+        }
+
+        private void Children_ControlAdded(object sender, ChildrenEventArgs<WorldObject> e)
+        {
+            e.Control.World = World;
+        }
+
+        private void OnChangeWorld()
+        {
+            var children = Children.ToArray();
+            for (var i = 0; i < children.Length; i++)
+                Children[i].World = World;
         }
 
         public virtual async Task Load()
         {
-            lock (GraphicsDevice)
+            if (Status != GameControlStatus.NonInitialized)
+                return;
+
+            try
             {
-                _boundingBoxEffect = new BasicEffect(GraphicsDevice)
+                Status = GameControlStatus.Initializing;
+
+                if (World == null) throw new ApplicationException("World is not assigned to object");
+
+                lock (GraphicsDevice)
                 {
-                    VertexColorEnabled = true,
-                    View = Camera.Instance.View,
-                    Projection = Camera.Instance.Projection,
-                    World = Matrix.Identity
-                };
+                    _boundingBoxEffect = new BasicEffect(GraphicsDevice)
+                    {
+                        VertexColorEnabled = true,
+                        View = Camera.Instance.View,
+                        Projection = Camera.Instance.Projection,
+                        World = Matrix.Identity
+                    };
+                }
+
+                var tasks = new Task[Children.Count];
+
+                for (var i = 0; i < Children.Count; i++)
+                    tasks[i] = Children[i].Load();
+
+                await Task.WhenAll(tasks);
+
+                RecalculateWorldPosition();
+                UpdateWorldBoundingBox();
+
+                Status = GameControlStatus.Ready;
             }
-
-            var tasks = new Task[Children.Count];
-
-            for (var i = 0; i < Children.Count; i++)
-                tasks[i] = Children[i].Load();
-
-            await Task.WhenAll(tasks);
-
-            RecalculateWorldPosition();
-            UpdateWorldBoundingBox();
-
-            Ready = true;
+            catch (Exception e)
+            {
+                Debug.WriteLine(e);
+                Status = GameControlStatus.Error;
+            }
         }
         public virtual void Update(GameTime gameTime)
         {
-            if (!Ready) return;
+            if (Status == GameControlStatus.NonInitialized)
+            {
+                Load().ConfigureAwait(false);
+            }
+
+            if (Status != GameControlStatus.Ready) return;
 
             OutOfView = Camera.Instance.Frustum.Contains(BoundingBoxWorld) == ContainmentType.Disjoint;
 
@@ -124,7 +159,6 @@ namespace Client.Main.Objects
 
         public void BringToFront()
         {
-            if (!Ready) return;
             if (Parent == null) return;
             if (Parent.Children[^1] == this) return;
             var parent = Parent;
@@ -134,7 +168,6 @@ namespace Client.Main.Objects
 
         public void SendToBack()
         {
-            if (!Ready) return;
             if (Parent == null) return;
             if (Parent.Children[0] == this) return;
             var parent = Parent;
@@ -144,22 +177,19 @@ namespace Client.Main.Objects
 
         public virtual void Dispose()
         {
-            Ready = false;
+            Status = GameControlStatus.Disposed;
             Parent = null;
 
             var children = Children.ToArray();
 
-            for (var i = 0; i < children.Length; i++)
-                children[i].Dispose();
-
+            Parallel.For(0, children.Length, i => children[i].Dispose());
+            
             Children.Clear();
 
-            if (Parent != null) Parent.Children.Remove(this);
+            Parent?.Children.Remove(this);
 
             _boundingBoxEffect?.Dispose();
             _boundingBoxEffect = null;
-
-            GC.SuppressFinalize(this);
         }
 
         protected virtual void OnPositionChanged() => RecalculateWorldPosition();

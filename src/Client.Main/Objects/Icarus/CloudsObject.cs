@@ -28,7 +28,7 @@ namespace Client.Main.Objects.Icarus
         {
             base.Update(gameTime);
 
-            if (!Ready) return;
+            if (Status != Models.GameControlStatus.Ready) return;
 
             if (World is WalkableWorldControl walkableWorld)
             {

@@ -29,14 +29,8 @@ namespace Client.Main.Controls
 
         public override async Task Load()
         {
-            _cursor = this.CreateObject<CursorObject>(null);
+            Objects.Add(_cursor = new CursorObject());
             await base.Load();
-        }
-
-        public override void AfterLoad()
-        {
-            Walker.Reset();
-            base.AfterLoad();
         }
 
         public override void Update(GameTime time)

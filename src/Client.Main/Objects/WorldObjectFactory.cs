@@ -26,7 +26,7 @@ namespace Client.Main
                 return null;
             }
 
-            var mapObj = CreateObject(world, type, null);
+            var mapObj = CreateObject(world, type);
 
             mapObj.Type = objType;
             mapObj.Position = obj.Position;
@@ -39,29 +39,20 @@ namespace Client.Main
             return mapObj;
         }
 
-        public static T CreateObject<T>(this WorldControl world, WorldObject parent) where T : WorldObject, new()
+        public static WorldObject CreateObject(this WorldControl world, Type objectType)
         {
-            return (T)CreateObject(world, typeof(T), parent);
-        }
-
-        public static WorldObject CreateObject(this WorldControl world, Type objectType, WorldObject parent)
-        {
+            ArgumentNullException.ThrowIfNull(world);
             var obj = (WorldObject)Activator.CreateInstance(objectType);
-            obj.World = world;
-            obj.Parent = parent;
-
-            if (parent == null)
-                world.Objects.Add(obj);
-            else
-                parent.Children.Add(obj);
-
+            world.Objects.Add(obj);
             return obj;
         }
 
-        public static void AddObject(this WorldControl world, WorldObject obj)
+        public static WorldObject CreateObject(this WorldObject parent, Type objectType)
         {
-            obj.World = world;
-            world.Objects.Add(obj);
+            ArgumentNullException.ThrowIfNull(parent);
+            var obj = (WorldObject)Activator.CreateInstance(objectType);
+            parent.Children.Add(obj);
+            return obj;
         }
     }
 }

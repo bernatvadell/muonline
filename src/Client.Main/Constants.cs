@@ -9,7 +9,7 @@ namespace Client.Main
         public const int TERRAIN_SIZE_MASK = 255;
         public const float TERRAIN_SCALE = 100f;
 
-        public const int Character = (int)Models.PlayerClass.DarkWizard;
+        public const Models.PlayerClass Character = Models.PlayerClass.DarkWizard;
 
         // Game settings
         public static bool DRAW_BOUNDING_BOXES = false;

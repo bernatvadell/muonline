@@ -52,12 +52,6 @@ namespace Client.Main.Objects
 
         public override async Task Load()
         {
-            if (Model == null)
-            {
-                Debug.WriteLine($"Model is not assigned for {ObjectName} -> Type: {Type}");
-                return;
-            }
-
             lock (GraphicsDevice)
             {
                 if (_effect == null)
@@ -70,13 +64,19 @@ namespace Client.Main.Objects
                         ReferenceAlpha = (int)(255 * 0.25f)
                     };
                 }
-                // _effect = MuGame.Instance.AlphaRGBEffect.Clone();
+            }
+
+            await base.Load();
+
+            if (Model == null)
+            {
+                Debug.WriteLine($"Model is not assigned for {ObjectName} -> Type: {Type}");
+                Status = Models.GameControlStatus.Error;
+                return;
             }
 
             UpdateWorldPosition();
             GenerateBoneMatrix(0, 0, 0, 0);
-
-            await base.Load();
         }
 
         public override void Update(GameTime gameTime)
@@ -86,7 +86,7 @@ namespace Client.Main.Objects
 
             base.Update(gameTime);
 
-            if (!Ready || OutOfView) return;
+            if (!Visible) return;
 
             if (_effect != null)
             {
@@ -220,8 +220,8 @@ namespace Client.Main.Objects
                                Matrix.CreateTranslation(translation);
 
                 // Add light and shadow offset
-                Vector3 lightDirection = new Vector3(-1, 0, 1);
-                Vector3 shadowOffset = new Vector3(0.05f, 0, 0.1f);
+                Vector3 lightDirection = new(-1, 0, 1);
+                Vector3 shadowOffset = new(0.05f, 0, 0.1f);
                 world.Translation += lightDirection * 0.3f + shadowOffset;
 
                 effect.World = world;
@@ -254,8 +254,6 @@ namespace Client.Main.Objects
             Model = null;
             BoneTransform = null;
             _invalidatedBuffers = true;
-
-            GC.SuppressFinalize(this);
         }
 
         private void UpdateWorldPosition()

@@ -17,7 +17,6 @@ namespace Client.Main.Objects
         protected TextureData TextureData { get; private set; }
 
         public abstract string TexturePath { get; }
-        public override bool Ready => SpriteTexture != null;
 
         public SpriteObject()
         {
@@ -34,6 +33,10 @@ namespace Client.Main.Objects
             {
                 SpriteBatch = new SpriteBatch(GraphicsDevice);
                 SpriteTexture = TextureLoader.Instance.GetTexture2D(TexturePath);
+            }
+            else
+            {
+                Status = Models.GameControlStatus.Error;
             }
         }
 
@@ -70,7 +73,7 @@ namespace Client.Main.Objects
         {
             base.Update(gameTime);
 
-            if (!Ready) return;
+            if (!Visible) return;
 
             var screenPosition = GraphicsDevice.Viewport.Project(
                 WorldPosition.Translation,
@@ -98,8 +101,6 @@ namespace Client.Main.Objects
 
             SpriteBatch?.Dispose();
             SpriteTexture = null;
-
-            GC.SuppressFinalize(this);
         }
     }
 }

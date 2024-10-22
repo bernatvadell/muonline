@@ -3,6 +3,7 @@ using Client.Main.Scenes;
 using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using System.Diagnostics;
 using System.Threading.Tasks;
 
 namespace Client.Main.Controls.UI.Game

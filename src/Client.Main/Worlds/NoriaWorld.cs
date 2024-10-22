@@ -18,13 +18,13 @@ namespace Client.Main.Worlds
     {
         public NoriaWorld() : base(worldIndex: 4)
         {
-
+            
         }
 
         public override void AfterLoad()
         {
-            base.AfterLoad();
             Walker.Location = new Vector2(178, 104);
+            base.AfterLoad();
         }
 
         protected override void CreateMapTileObjects()

@@ -18,8 +18,8 @@ namespace Client.Main.Controls
         public GraphicsDevice GraphicsDevice => MuGame.Instance.GraphicsDevice;
         public GameControl Root => Parent?.Root ?? this;
         public GameControl Parent { get; set; }
-        public WorldControl World => this is WorldControl worldControl ? worldControl : Parent?.World;
         public BaseScene Scene => this is BaseScene scene ? scene : Parent?.Scene;
+        public virtual WorldControl World => Scene?.World;
 
         public ChildrenCollection<GameControl> Controls { get; private set; }
         public GameControlStatus Status { get; private set; } = GameControlStatus.NonInitialized;
@@ -226,17 +226,13 @@ namespace Client.Main.Controls
         {
             var controls = Controls.ToArray();
 
-            for (int i = 0; i < controls.Length; i++)
-                controls[i].Dispose();
+            Parallel.For(0, controls.Length, i => controls[i].Dispose());
 
             Controls.Clear();
 
-            if (Parent != null)
-                Parent.Controls.Remove(this);
+            Parent?.Controls.Remove(this);
 
             Status = GameControlStatus.Disposed;
-
-            GC.SuppressFinalize(this);
         }
 
         public void BringToFront()

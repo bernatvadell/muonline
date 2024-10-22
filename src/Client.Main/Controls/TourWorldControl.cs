@@ -36,7 +36,6 @@ namespace Client.Main.Controls
         {
             base.Dispose();
             _tourController = null;
-            GC.SuppressFinalize(this);
         }
     }
 }

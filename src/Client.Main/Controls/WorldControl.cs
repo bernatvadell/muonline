@@ -9,6 +9,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,7 +20,7 @@ namespace Client.Main.Controls
     {
         public TerrainControl Terrain { get; }
         public short WorldIndex { get; private set; }
-        public List<WorldObject> Objects { get; private set; } = [];
+        public ChildrenCollection<WorldObject> Objects { get; private set; } = new ChildrenCollection<WorldObject>(null);
         public Type[] MapTileObjects { get; } = new Type[Constants.TERRAIN_SIZE];
 
         public WorldControl(short worldIndex)
@@ -29,6 +30,13 @@ namespace Client.Main.Controls
             Height = MuGame.Instance.Height;
             WorldIndex = worldIndex;
             Controls.Add(Terrain = new TerrainControl() { WorldIndex = worldIndex });
+
+            Objects.ControlAdded += Object_Added;
+        }
+
+        private void Object_Added(object sender, ChildrenEventArgs<WorldObject> e)
+        {
+            e.Control.World = this;
         }
 
         public void ChangeWorld(short worldIndex)
@@ -82,7 +90,7 @@ namespace Client.Main.Controls
         }
         public override void Draw(GameTime time)
         {
-            if(Status != GameControlStatus.Ready)
+            if (Status != GameControlStatus.Ready)
                 return;
 
             base.Draw(time);
@@ -129,8 +137,6 @@ namespace Client.Main.Controls
             Objects.Clear();
 
             base.Dispose();
-
-            GC.SuppressFinalize(this);
         }
     }
 }

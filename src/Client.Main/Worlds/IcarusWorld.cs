@@ -32,8 +32,8 @@ namespace Client.Main.Worlds
 
         public override void AfterLoad()
         {
-            base.AfterLoad();
             Walker.Location = new Vector2(14, 12);
+            base.AfterLoad();
         }
 
         protected override void CreateMapTileObjects()

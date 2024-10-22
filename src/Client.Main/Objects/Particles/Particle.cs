@@ -16,12 +16,12 @@ namespace Client.Main.Objects.Particles
         public Particle(Type particleType)
         {
             ParticleType = particleType;
+            Object = Activator.CreateInstance(ParticleType) as WorldObject;
+            Children.Add(Object);
         }
 
         public override async Task Load()
         {
-            Object = World.CreateObject(ParticleType, this);
-
             await base.Load();
 
             for (var i = 0; i < Effects.Length; i++)
@@ -35,8 +35,10 @@ namespace Client.Main.Objects.Particles
         {
             base.Update(gameTime);
 
+            if (Status != Models.GameControlStatus.Ready) return;
+
             for (var i = 0; i < Effects.Length; i++)
-                if (Ready) Effects[i].Update(gameTime);
+                Effects[i].Update(gameTime);
         }
     }
 }
