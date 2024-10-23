@@ -15,7 +15,7 @@ namespace Client.Main.Scenes
     {
         private readonly PlayerObject _hero = new();
         private readonly MainControl _main;
-        private bool _changingWorld = false;
+        private WorldControl _nextWorld = null;
 
         public PlayerObject Hero { get => _hero; }
 
@@ -28,58 +28,35 @@ namespace Client.Main.Scenes
         public override async Task Load()
         {
             await base.Load();
-            await ChangeMapAsync<NoriaWorld>();
+            ChangeMap<NoriaWorld>();
             await _hero.Load();
         }
 
         public void ChangeMap<T>() where T : WalkableWorldControl, new()
         {
-            Task.Run(async () =>
-            {
-                try
-                {
-                    await ChangeMapAsync<T>();
-                }
-                catch (Exception e)
-                {
-                    Debug.WriteLine(e);
-                }
-            }).ConfigureAwait(false);
+            if (_nextWorld != null) return;
+            _nextWorld = new T() { Walker = _hero };
+            _nextWorld.Objects.Add(_hero);
+            Task.Run(() => _nextWorld.Initialize()).ConfigureAwait(true);
         }
 
-        public async Task ChangeMapAsync<T>() where T : WalkableWorldControl, new()
-        {
-            if (_changingWorld) return;
-
-            _changingWorld = true;
-            var sw = new Stopwatch();
-
-            if (World != null)
-            {
-                sw.Start();
-                World?.Dispose();
-                sw.Stop();
-                Debug.WriteLine($"Time elapsed disposing old world: {sw.ElapsedMilliseconds}ms");
-            }
-
-            sw.Restart();
-            World = new T() { Walker = _hero };
-            _hero.World = World;
-            World.Objects.Add(_hero);
-            Controls.Insert(0, World);
-
-            await World.Initialize();
-
-            _changingWorld = false;
-            _hero.Reset();
-
-            sw.Stop();
-            Debug.WriteLine($"Time elapsed initializing map: {sw.ElapsedMilliseconds}ms");
-        }
 
         public override void Update(GameTime gameTime)
         {
-            if (World == null || _changingWorld)
+            if(_nextWorld != null)
+            {
+                if (_nextWorld.Status == GameControlStatus.Ready)
+                {
+                    World?.Dispose();
+                    World = _nextWorld;
+                    _nextWorld = null;
+
+                    Controls.Insert(0, World);
+                    _hero.Reset();
+                }
+            }
+
+            if (World == null)
                 return;
 
             base.Update(gameTime);

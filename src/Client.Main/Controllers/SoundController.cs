@@ -18,12 +18,25 @@ namespace Client.Main.Controllers
         private Dictionary<string, SoundEffectInstance> _songs = [];
         private SoundEffectInstance _activeGlobalSoundEffect;
 
+        public void StopBackgroundMusic()
+        {
+            _activeGlobalSoundEffect?.Stop();
+            _activeGlobalSoundEffect = null;
+        }
+
         public void PlayBackgroundMusic(string path)
         {
+            if (string.IsNullOrEmpty(path))
+            {
+                StopBackgroundMusic();
+                return;
+            }
+
             var fullPath = Path.Combine(Constants.DataPath, path);
 
             if (!File.Exists(fullPath))
             {
+                StopBackgroundMusic();
                 Debug.WriteLine($"File not found: {fullPath}");
                 return;
             }
@@ -35,9 +48,9 @@ namespace Client.Main.Controllers
                 _songs.Add(path, music);
             }
 
-            _activeGlobalSoundEffect?.Stop();
-            _activeGlobalSoundEffect = music;
+            StopBackgroundMusic();
 
+            _activeGlobalSoundEffect = music;
             music.Play();
         }
 

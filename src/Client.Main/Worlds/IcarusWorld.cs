@@ -19,6 +19,7 @@ namespace Client.Main.Worlds
             // Terrain.TextureMappingFiles.Clear();
             Terrain.TextureMappingFiles[10] = "TileRock04.OZJ";
             ExtraHeight = 90f;
+            BackgroundMusicPath = "Music/icarus.mp3";
         }
 
         public override async Task Load()
@@ -27,7 +28,6 @@ namespace Client.Main.Worlds
             //await AddObjectAsync(_jointThunder = new JointThunderEffect());
             // await AddObjectAsync(new CloudObject());
             await base.Load();
-            SoundController.Instance.PlayBackgroundMusic("Music/icarus.mp3");
         }
 
         public override void AfterLoad()

@@ -15,7 +15,7 @@ namespace Client.Main.Worlds
     {
         public LorenciaWorld() : base(worldIndex: 1)
         {
-
+            BackgroundMusicPath = "Music/MuTheme.mp3";
         }
 
         public override void AfterLoad()
@@ -128,7 +128,6 @@ namespace Client.Main.Worlds
         public override async Task Load()
         {
             await base.Load();
-            SoundController.Instance.PlayBackgroundMusic("Music/MuTheme.mp3");
         }
     }
 }

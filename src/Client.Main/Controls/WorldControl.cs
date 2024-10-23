@@ -1,6 +1,7 @@
 ﻿using Client.Data.ATT;
 using Client.Data.CWS;
 using Client.Data.OBJS;
+using Client.Main.Controllers;
 using Client.Main.Models;
 using Client.Main.Objects;
 using Client.Main.Objects.Player;
@@ -18,6 +19,7 @@ namespace Client.Main.Controls
 {
     public abstract class WorldControl : GameControl
     {
+        public string BackgroundMusicPath { get; set; }
         public TerrainControl Terrain { get; }
         public short WorldIndex { get; private set; }
         public ChildrenCollection<WorldObject> Objects { get; private set; } = new ChildrenCollection<WorldObject>(null);
@@ -37,16 +39,6 @@ namespace Client.Main.Controls
         private void Object_Added(object sender, ChildrenEventArgs<WorldObject> e)
         {
             e.Control.World = this;
-        }
-
-        public void ChangeWorld(short worldIndex)
-        {
-            WorldIndex = worldIndex;
-
-            if (Status == GameControlStatus.NonInitialized)
-                return;
-
-            Task.Run(() => Initialize()).ConfigureAwait(false);
         }
 
         public override async Task Load()
@@ -77,6 +69,7 @@ namespace Client.Main.Controls
                 await Task.WhenAll(tasks);
             }
 
+            SoundController.Instance.PlayBackgroundMusic(BackgroundMusicPath);
         }
         public override void Update(GameTime time)
         {
