@@ -18,7 +18,6 @@ namespace Client.Main.Objects
         private TextureData[] _dataTextures;
 
         private int _priorAction = 0;
-        private Effect _effect;
         private bool _invalidatedBuffers = true;
         private float _blendMeshLight = 1f;
         private float _previousFrame = 0;
@@ -52,20 +51,6 @@ namespace Client.Main.Objects
 
         public override async Task Load()
         {
-            lock (GraphicsDevice)
-            {
-                if (_effect == null)
-                {
-                    _effect = new AlphaTestEffect(GraphicsDevice)
-                    {
-                        VertexColorEnabled = true,
-                        World = Matrix.Identity,
-                        AlphaFunction = CompareFunction.Greater,
-                        ReferenceAlpha = (int)(255 * 0.25f)
-                    };
-                }
-            }
-
             await base.Load();
 
             if (Model == null)
@@ -88,20 +73,6 @@ namespace Client.Main.Objects
 
             if (!Visible) return;
 
-            if (_effect != null)
-            {
-                if (_effect is IEffectMatrices effectMatrices)
-                {
-                    effectMatrices.View = Camera.Instance.View;
-                    effectMatrices.Projection = Camera.Instance.Projection;
-                }
-                else
-                {
-                    _effect.Parameters["View"]?.SetValue(Camera.Instance.View);
-                    _effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
-                }
-            }
-
             Animation(gameTime);
             SetDynamicBuffers();
         }
@@ -110,6 +81,10 @@ namespace Client.Main.Objects
         {
             if (World == null)
                 return;
+
+            MuGame.Instance.AlphaTestEffect3D.View = Camera.Instance.View;
+            MuGame.Instance.AlphaTestEffect3D.Projection = Camera.Instance.Projection;
+            MuGame.Instance.AlphaTestEffect3D.World = WorldPosition;
 
             if (!Visible || _boneIndexBuffers == null) return;
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
@@ -156,13 +131,11 @@ namespace Client.Main.Objects
             IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
             int primitiveCount = indexBuffer.IndexCount / 3;
 
-            _effect.Parameters["Texture"]?.SetValue(texture);
-
+            MuGame.Instance.AlphaTestEffect3D.Texture = texture;
             GraphicsDevice.BlendState = BlendMesh == mesh ? BlendMeshState : BlendState;
-            if (_effect is AlphaTestEffect alphaTestEffect)
-                alphaTestEffect.Alpha = TotalAlpha;
+            MuGame.Instance.AlphaTestEffect3D.Alpha = TotalAlpha;
 
-            foreach (EffectPass pass in _effect.CurrentTechnique.Passes)
+            foreach (EffectPass pass in MuGame.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
             {
                 pass.Apply();
 
@@ -182,66 +155,68 @@ namespace Client.Main.Objects
             IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
             int primitiveCount = indexBuffer.IndexCount / 3;
 
-            _effect.Parameters["Texture"]?.SetValue(texture);
+            MuGame.Instance.AlphaTestEffect3D.Texture = texture;
 
             VertexPositionColorNormalTexture[] shadowVertices = new VertexPositionColorNormalTexture[vertexBuffer.VertexCount];
 
             // Ensure alpha blending is enabled
             GraphicsDevice.BlendState = BlendState.AlphaBlend;
 
-            if (_effect is AlphaTestEffect effect)
+            vertexBuffer.GetData(shadowVertices);
+
+            // Clamp ShadowOpacity to a valid range (0 to 1)
+            float clampedShadowOpacity = MathHelper.Clamp(ShadowOpacity, 0f, 1f);
+
+            // Ensure that ShadowOpacity is being applied to each vertex color
+            for (int i = 0; i < shadowVertices.Length; i++)
             {
-                vertexBuffer.GetData(shadowVertices);
-
-                // Clamp ShadowOpacity to a valid range (0 to 1)
-                float clampedShadowOpacity = MathHelper.Clamp(ShadowOpacity, 0f, 1f);
-
-                // Ensure that ShadowOpacity is being applied to each vertex color
-                for (int i = 0; i < shadowVertices.Length; i++)
-                {
-                    // Apply shadow opacity to the alpha channel, ensuring the value is between 0 and 255
-                    byte shadowAlpha = (byte)(255 * clampedShadowOpacity);
-                    shadowVertices[i].Color = new Color((byte)0, (byte)0, (byte)0, shadowAlpha);  // Apply shadow with calculated alpha
-                }
-
-                Matrix originalWorld = effect.World;
-                Matrix originalView = effect.View;
-                Matrix originalProjection = effect.Projection;
-
-                // Get the model's rotation from the original world matrix
-                Vector3 scale, translation;
-                Quaternion rotation;
-                originalWorld.Decompose(out scale, out rotation, out translation);
-
-                // Create a world matrix for the shadow with the model's rotation
-                Matrix world = Matrix.CreateFromQuaternion(rotation) *
-                               Matrix.CreateRotationX(MathHelper.ToRadians(-20)) *
-                               Matrix.CreateScale(0.8f, 1.0f, 0.8f) *
-                               Matrix.CreateTranslation(translation);
-
-                // Add light and shadow offset
-                Vector3 lightDirection = new(-1, 0, 1);
-                Vector3 shadowOffset = new(0.05f, 0, 0.1f);
-                world.Translation += lightDirection * 0.3f + shadowOffset;
-
-                effect.World = world;
-
-                foreach (EffectPass pass in effect.CurrentTechnique.Passes)
-                {
-                    pass.Apply();
-                    GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, shadowVertices, 0, primitiveCount);
-                }
-
-                // Restore original matrices
-                effect.World = originalWorld;
-                effect.View = originalView;
-                effect.Projection = originalProjection;
+                // Apply shadow opacity to the alpha channel, ensuring the value is between 0 and 255
+                byte shadowAlpha = (byte)(255 * clampedShadowOpacity);
+                shadowVertices[i].Color = new Color((byte)0, (byte)0, (byte)0, shadowAlpha);  // Apply shadow with calculated alpha
             }
+
+            Matrix originalWorld = MuGame.Instance.AlphaTestEffect3D.World;
+            Matrix originalView = MuGame.Instance.AlphaTestEffect3D.View;
+            Matrix originalProjection = MuGame.Instance.AlphaTestEffect3D.Projection;
+
+            // Get the model's rotation from the original world matrix
+            Vector3 scale, translation;
+            Quaternion rotation;
+            originalWorld.Decompose(out scale, out rotation, out translation);
+
+            // Create a world matrix for the shadow with the model's rotation
+            Matrix world = Matrix.CreateFromQuaternion(rotation) *
+                           Matrix.CreateRotationX(MathHelper.ToRadians(-20)) *
+                           Matrix.CreateScale(0.8f, 1.0f, 0.8f) *
+                           Matrix.CreateTranslation(translation);
+
+            // Add light and shadow offset
+            Vector3 lightDirection = new(-1, 0, 1);
+            Vector3 shadowOffset = new(0.05f, 0, 0.1f);
+            world.Translation += lightDirection * 0.3f + shadowOffset;
+
+            MuGame.Instance.AlphaTestEffect3D.World = world;
+
+            foreach (EffectPass pass in MuGame.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, shadowVertices, 0, primitiveCount);
+            }
+
+            // Restore original matrices
+            MuGame.Instance.AlphaTestEffect3D.World = originalWorld;
+            MuGame.Instance.AlphaTestEffect3D.View = originalView;
+            MuGame.Instance.AlphaTestEffect3D.Projection = originalProjection;
         }
 
         public override void DrawAfter(GameTime gameTime)
         {
             if (!Visible) return;
+
+            MuGame.Instance.AlphaTestEffect3D.View = Camera.Instance.View;
+            MuGame.Instance.AlphaTestEffect3D.Projection = Camera.Instance.Projection;
+            MuGame.Instance.AlphaTestEffect3D.World = WorldPosition;
+
             DrawModel(true);
             base.DrawAfter(gameTime);
         }
@@ -250,7 +225,6 @@ namespace Client.Main.Objects
         {
             base.Dispose();
 
-            _effect?.Dispose();
             Model = null;
             BoneTransform = null;
             _invalidatedBuffers = true;
@@ -259,18 +233,6 @@ namespace Client.Main.Objects
         private void UpdateWorldPosition()
         {
             _invalidatedBuffers = true;
-
-            if (_effect != null)
-            {
-                if (_effect is IEffectMatrices effectMatrices)
-                {
-                    effectMatrices.World = WorldPosition;
-                }
-                else
-                {
-                    _effect.Parameters["World"]?.SetValue(WorldPosition);
-                }
-            }
         }
 
         private void UpdateBoundings()

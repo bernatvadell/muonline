@@ -47,10 +47,9 @@ namespace Client.Main.Controls.UI
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
             GraphicsDevice.SamplerStates[0] = SamplerState.PointClamp;
 
-
             MuGame.Instance.SpriteBatch.Begin(
                 blendState: BlendState, 
-                effect: BlendState == BlendState.AlphaBlend ? MuGame.Instance.AlphaTestEffect : null,
+                effect: BlendState == BlendState.AlphaBlend ? MuGame.Instance.AlphaTestEffectUI : null,
                 samplerState: SamplerState.PointClamp, 
                 depthStencilState: DepthStencilState.Default
             );

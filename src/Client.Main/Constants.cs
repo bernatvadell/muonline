@@ -18,7 +18,12 @@ namespace Client.Main
 #else
         public static string DataPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
 #endif
+
+#if DEBUG
+        public static bool UNLIMITED_FPS = true;
+#else
         public static bool UNLIMITED_FPS = false;
+#endif
 
         // Camera control constants
         public const float MIN_CAMERA_DISTANCE = 800f;

@@ -19,7 +19,6 @@ namespace Client.Main.Objects
     {
         private Vector3 _position, _angle;
         private float _scale = 1f;
-        private BasicEffect _boundingBoxEffect;
         private BoundingBox _boundingBoxLocal = new(new Vector3(-40, -40, 0), new Vector3(40, 40, 80));
         private WorldObject _parent;
         private Matrix _worldPosition;
@@ -84,17 +83,6 @@ namespace Client.Main.Objects
 
                 if (World == null) throw new ApplicationException("World is not assigned to object");
 
-                lock (GraphicsDevice)
-                {
-                    _boundingBoxEffect = new BasicEffect(GraphicsDevice)
-                    {
-                        VertexColorEnabled = true,
-                        View = Camera.Instance.View,
-                        Projection = Camera.Instance.Projection,
-                        World = Matrix.Identity
-                    };
-                }
-
                 var tasks = new Task[Children.Count];
 
                 for (var i = 0; i < Children.Count; i++)
@@ -126,13 +114,6 @@ namespace Client.Main.Objects
 
             if (OutOfView)
                 return;
-
-            if (_boundingBoxEffect != null)
-            {
-                _boundingBoxEffect.View = Camera.Instance.View;
-                _boundingBoxEffect.Projection = Camera.Instance.Projection;
-                _boundingBoxEffect.World = Matrix.Identity;
-            }
 
             for (var i = 0; i < Children.Count; i++)
                 Children[i].Update(gameTime);
@@ -178,18 +159,13 @@ namespace Client.Main.Objects
         public virtual void Dispose()
         {
             Status = GameControlStatus.Disposed;
-            Parent = null;
 
             var children = Children.ToArray();
-
             Parallel.For(0, children.Length, i => children[i].Dispose());
-            
             Children.Clear();
 
             Parent?.Children.Remove(this);
-
-            _boundingBoxEffect?.Dispose();
-            _boundingBoxEffect = null;
+            Parent = null;
         }
 
         protected virtual void OnPositionChanged() => RecalculateWorldPosition();
@@ -241,7 +217,7 @@ namespace Client.Main.Objects
 
         private void DrawBoundingBox()
         {
-            if (_boundingBoxEffect == null)
+            if (!Constants.DRAW_BOUNDING_BOXES)
                 return;
 
             Vector3[] corners = BoundingBoxWorld.GetCorners();
@@ -257,7 +233,11 @@ namespace Client.Main.Objects
             for (int i = 0; i < corners.Length; i++)
                 vertexData[i] = new VertexPositionColor(corners[i], BoundingBoxColor);
 
-            foreach (var pass in _boundingBoxEffect.CurrentTechnique.Passes)
+            MuGame.Instance.BoundingBoxEffect3D.View = Camera.Instance.View;
+            MuGame.Instance.BoundingBoxEffect3D.Projection = Camera.Instance.Projection;
+            MuGame.Instance.BoundingBoxEffect3D.World = Matrix.Identity;
+
+            foreach (var pass in MuGame.Instance.BoundingBoxEffect3D.CurrentTechnique.Passes)
             {
                 pass.Apply();
                 GraphicsDevice.DrawUserIndexedPrimitives(PrimitiveType.LineList, vertexData, 0, 8, indices, 0, indices.Length / 2);

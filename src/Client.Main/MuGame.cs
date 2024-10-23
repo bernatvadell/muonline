@@ -35,7 +35,10 @@ namespace Client.Main
         public RenderTarget2D EffectRenderTarget { get; private set; }
         public Texture2D Pixel { get; private set; }
         public BlendState InverseDestinationBlend { get; private set; }
-        public AlphaTestEffect AlphaTestEffect { get; private set; }
+        public AlphaTestEffect AlphaTestEffectUI { get; private set; }
+        public AlphaTestEffect AlphaTestEffect3D { get; private set; }
+        public BasicEffect BasicEffect3D { get; private set; }
+        public BasicEffect BoundingBoxEffect3D { get; private set; }
         public Effect AlphaRGBEffect { get; set; }
         public Effect FXAAEffect { get; private set; }
         public int Width => _graphics.PreferredBackBufferWidth;
@@ -111,12 +114,36 @@ namespace Client.Main
             FXAAEffect = LoadEffect("FXAA");
             InitializeFXAAEffect();
 
-            AlphaTestEffect = new AlphaTestEffect(GraphicsDevice)
+            AlphaTestEffectUI = new AlphaTestEffect(GraphicsDevice)
             {
+                VertexColorEnabled = true,
                 Projection = Matrix.CreateOrthographicOffCenter(0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height, 0, 0, 1),
                 View = Matrix.Identity,
                 World = Matrix.Identity,
                 ReferenceAlpha = (int)(255 * 0.25f)
+            };
+
+            AlphaTestEffect3D = new AlphaTestEffect(GraphicsDevice)
+            {
+                VertexColorEnabled = true,
+                World = Matrix.Identity,
+                AlphaFunction = CompareFunction.Greater,
+                ReferenceAlpha = (int)(255 * 0.25f)
+            };
+
+            BasicEffect3D = new BasicEffect(GraphicsDevice)
+            {
+                TextureEnabled = true,
+                VertexColorEnabled = true,
+                World = Matrix.Identity
+            };
+
+            BoundingBoxEffect3D = new BasicEffect(GraphicsDevice)
+            {
+                VertexColorEnabled = true,
+                View = Camera.Instance.View,
+                Projection = Camera.Instance.Projection,
+                World = Matrix.Identity
             };
 
             SpriteBatch = new SpriteBatch(GraphicsDevice);

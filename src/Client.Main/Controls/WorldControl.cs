@@ -124,6 +124,8 @@ namespace Client.Main.Controls
 
         public override void Dispose()
         {
+            var sw = Stopwatch.StartNew();
+
             var objects = Objects.ToArray();
 
             for (var i = 0; i < objects.Length; i++)
@@ -136,7 +138,19 @@ namespace Client.Main.Controls
 
             Objects.Clear();
 
+            sw.Stop();
+
+            var elapsedDisposingObjects = sw.ElapsedMilliseconds;
+
+            sw.Restart();
+
             base.Dispose();
+
+            sw.Stop();
+
+            var elapsedDisposingBase = sw.ElapsedMilliseconds;
+
+            Debug.WriteLine($"Dispose WorldControl {WorldIndex} - Disposing Objects: {elapsedDisposingObjects}ms - Disposing Base: {elapsedDisposingBase}ms");
         }
     }
 }

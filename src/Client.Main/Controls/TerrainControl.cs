@@ -19,7 +19,6 @@ namespace Client.Main.Controls
         private const float SpecialHeight = 1200f;
         private const int BlockSize = 4; // blockSize
         private TerrainAttribute _terrain;
-        private BasicEffect _terrainEffect;
         private TerrainMapping _mapping;
         private Texture2D[] _textures;
         private float[] _terrainGrassWind;
@@ -86,13 +85,6 @@ namespace Client.Main.Controls
 
             Camera.Instance.AspectRatio = GraphicsDevice.Viewport.AspectRatio;
 
-            _terrainEffect = new BasicEffect(GraphicsDevice)
-            {
-                TextureEnabled = true,
-                VertexColorEnabled = true,
-                World = Matrix.Identity
-            };
-
             tasks.Add(terrainReader.Load(Path.Combine(fullPathWorldFolder, $"EncTerrain{WorldIndex}.att"))
                 .ContinueWith(t => _terrain = t.Result));
             tasks.Add(ozbReader.Load(Path.Combine(fullPathWorldFolder, $"TerrainHeight.OZB"))
@@ -153,12 +145,7 @@ namespace Client.Main.Controls
             if (Status != Models.GameControlStatus.Ready)
                 return;
 
-            if (_terrainEffect != null)
-            {
-                _terrainEffect.Projection = Camera.Instance.Projection;
-                _terrainEffect.View = Camera.Instance.View;
-                InitTerrainLight(time);
-            }
+            InitTerrainLight(time);
         }
 
         public override void Draw(GameTime time)
@@ -206,7 +193,7 @@ namespace Client.Main.Controls
 
             float left = MathHelper.Lerp(_backTerrainHeight[index1].B, _backTerrainHeight[index2].B, yd);
             float right = MathHelper.Lerp(_backTerrainHeight[index3].B, _backTerrainHeight[index4].B, yd);
-            
+
             return MathHelper.Lerp(left, right, xd);
         }
 
@@ -265,8 +252,6 @@ namespace Client.Main.Controls
         public override void Dispose()
         {
             base.Dispose();
-
-            _terrainEffect?.Dispose();
 
             _terrain = null;
             _mapping = default;
@@ -345,7 +330,7 @@ namespace Client.Main.Controls
 
         private void RenderTerrain(bool isAfter)
         {
-            if (_terrainEffect == null || _backTerrainHeight == null) return;
+            if (_backTerrainHeight == null) return;
 
             for (int yi = 0; yi < Constants.TERRAIN_SIZE_MASK; yi += BlockSize)
             {
@@ -528,9 +513,11 @@ namespace Client.Main.Controls
             _terrainVertices[4] = new VertexPositionColorTexture(terrainVertex[3], terrainLights[3], terrainTextureCoord[3]);
             _terrainVertices[5] = new VertexPositionColorTexture(terrainVertex[0], terrainLights[0], terrainTextureCoord[0]);
 
-            _terrainEffect.Texture = texture;
+            MuGame.Instance.BasicEffect3D.Projection = Camera.Instance.Projection;
+            MuGame.Instance.BasicEffect3D.View = Camera.Instance.View;
+            MuGame.Instance.BasicEffect3D.Texture = texture;
 
-            foreach (var pass in _terrainEffect.CurrentTechnique.Passes)
+            foreach (var pass in MuGame.Instance.BasicEffect3D.CurrentTechnique.Passes)
             {
                 pass.Apply();
                 GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, _terrainVertices, 0, 2);
