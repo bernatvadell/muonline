@@ -109,21 +109,27 @@ namespace Client.Main.Objects
             if (oldLocation == newLocation) return;
             _location = newLocation;
 
-            if (newLocation.X < oldLocation.X && newLocation.Y < oldLocation.Y)
+            var oldX = (int)oldLocation.X;
+            var oldY = (int)oldLocation.Y;
+
+            var newX = (int)newLocation.X;
+            var newY = (int)newLocation.Y;
+
+            if (newX < oldX && newY < oldY)
                 Direction = Direction.West;
-            else if (newLocation.X == oldLocation.X && newLocation.Y < oldLocation.Y)
+            else if (newX == oldX && newY < oldY)
                 Direction = Direction.SouthWest;
-            else if (newLocation.X > oldLocation.X && newLocation.Y < oldLocation.Y)
+            else if (newX > oldX && newY < oldY)
                 Direction = Direction.South;
-            else if (newLocation.X < oldLocation.X && newLocation.Y == oldLocation.Y)
+            else if (newX < oldX && newY == oldY)
                 Direction = Direction.NorthWest;
-            else if (newLocation.X > oldLocation.X && newLocation.Y == oldLocation.Y)
+            else if (newX > oldX && newY == oldY)
                 Direction = Direction.SouthEast;
-            else if (newLocation.X < oldLocation.X && newLocation.Y > oldLocation.Y)
+            else if (newX < oldX && newY > oldY)
                 Direction = Direction.North;
-            else if (newLocation.X == oldLocation.X && newLocation.Y > oldLocation.Y)
+            else if (newX == oldX && newY > oldY)
                 Direction = Direction.NorthEast;
-            else if (newLocation.X > oldLocation.X && newLocation.Y > oldLocation.Y)
+            else if (newX > oldX && newY > oldY)
                 Direction = Direction.East;
         }
 
@@ -185,7 +191,7 @@ namespace Client.Main.Objects
 
         public void MoveTo(Vector2 targetLocation)
         {
-            List<Vector2> path = Pathfinding.FindPath(Location, targetLocation, World);
+            List<Vector2> path = Pathfinding.FindPath(new Vector2((int)Location.X, (int)Location.Y), targetLocation, World);
             if (path == null) return;
             _currentPath = path;
         }

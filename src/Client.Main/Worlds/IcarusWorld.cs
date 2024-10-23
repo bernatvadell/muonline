@@ -51,7 +51,7 @@ namespace Client.Main.Worlds
             if (World is WalkableWorldControl walkableWorld)
             {
                 // _cloudLight.Position = walkableWorld.Walker.Position;
-                //_jointThunder.Position = walkableWorld.Walker.Position;
+                // _jointThunder.Position = walkableWorld.Walker.Position;
             }
         }
 
