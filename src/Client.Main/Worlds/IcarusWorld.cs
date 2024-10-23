@@ -16,7 +16,7 @@ namespace Client.Main.Worlds
 
         public IcarusWorld() : base(worldIndex: 11)
         {
-            // Terrain.TextureMappingFiles.Clear();
+            Terrain.TextureMappingFiles.Clear();
             Terrain.TextureMappingFiles[10] = "TileRock04.OZJ";
             ExtraHeight = 90f;
             BackgroundMusicPath = "Music/icarus.mp3";
@@ -25,7 +25,7 @@ namespace Client.Main.Worlds
         public override async Task Load()
         {
             // await AddObjectAsync(_cloudLight = new CloudLightEffect());
-            //await AddObjectAsync(_jointThunder = new JointThunderEffect());
+            // await AddObjectAsync(_jointThunder = new JointThunderEffect());
             // await AddObjectAsync(new CloudObject());
             await base.Load();
         }
