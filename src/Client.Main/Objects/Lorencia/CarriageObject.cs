@@ -21,8 +21,8 @@ namespace Client.Main.Objects.Lorencia
 
         public override void DrawMesh(int mesh)
         {
-            if(mesh == 2)
-                BlendState = MuGame.Instance.InverseDestinationBlend;
+            if (mesh == 2)
+                BlendState = Blendings.InverseDestinationBlend;
 
             base.DrawMesh(mesh);
 

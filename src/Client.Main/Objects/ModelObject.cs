@@ -1,6 +1,7 @@
 ﻿using Client.Data.BMD;
 using Client.Data.Texture;
 using Client.Main.Content;
+using Client.Main.Controllers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -82,9 +83,9 @@ namespace Client.Main.Objects
             if (World == null)
                 return;
 
-            MuGame.Instance.AlphaTestEffect3D.View = Camera.Instance.View;
-            MuGame.Instance.AlphaTestEffect3D.Projection = Camera.Instance.Projection;
-            MuGame.Instance.AlphaTestEffect3D.World = WorldPosition;
+            GraphicsManager.Instance.AlphaTestEffect3D.View = Camera.Instance.View;
+            GraphicsManager.Instance.AlphaTestEffect3D.Projection = Camera.Instance.Projection;
+            GraphicsManager.Instance.AlphaTestEffect3D.World = WorldPosition;
 
             if (!Visible || _boneIndexBuffers == null) return;
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
@@ -131,11 +132,11 @@ namespace Client.Main.Objects
             IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
             int primitiveCount = indexBuffer.IndexCount / 3;
 
-            MuGame.Instance.AlphaTestEffect3D.Texture = texture;
+            GraphicsManager.Instance.AlphaTestEffect3D.Texture = texture;
             GraphicsDevice.BlendState = BlendMesh == mesh ? BlendMeshState : BlendState;
-            MuGame.Instance.AlphaTestEffect3D.Alpha = TotalAlpha;
+            GraphicsManager.Instance.AlphaTestEffect3D.Alpha = TotalAlpha;
 
-            foreach (EffectPass pass in MuGame.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
+            foreach (EffectPass pass in GraphicsManager.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
             {
                 pass.Apply();
 
@@ -155,7 +156,7 @@ namespace Client.Main.Objects
             IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
             int primitiveCount = indexBuffer.IndexCount / 3;
 
-            MuGame.Instance.AlphaTestEffect3D.Texture = texture;
+            GraphicsManager.Instance.AlphaTestEffect3D.Texture = texture;
 
             VertexPositionColorNormalTexture[] shadowVertices = new VertexPositionColorNormalTexture[vertexBuffer.VertexCount];
 
@@ -175,9 +176,9 @@ namespace Client.Main.Objects
                 shadowVertices[i].Color = new Color((byte)0, (byte)0, (byte)0, shadowAlpha);  // Apply shadow with calculated alpha
             }
 
-            Matrix originalWorld = MuGame.Instance.AlphaTestEffect3D.World;
-            Matrix originalView = MuGame.Instance.AlphaTestEffect3D.View;
-            Matrix originalProjection = MuGame.Instance.AlphaTestEffect3D.Projection;
+            Matrix originalWorld = GraphicsManager.Instance.AlphaTestEffect3D.World;
+            Matrix originalView = GraphicsManager.Instance.AlphaTestEffect3D.View;
+            Matrix originalProjection = GraphicsManager.Instance.AlphaTestEffect3D.Projection;
 
             // Get the model's rotation from the original world matrix
             Vector3 scale, translation;
@@ -195,27 +196,27 @@ namespace Client.Main.Objects
             Vector3 shadowOffset = new(0.05f, 0, 0.1f);
             world.Translation += lightDirection * 0.3f + shadowOffset;
 
-            MuGame.Instance.AlphaTestEffect3D.World = world;
+            GraphicsManager.Instance.AlphaTestEffect3D.World = world;
 
-            foreach (EffectPass pass in MuGame.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
+            foreach (EffectPass pass in GraphicsManager.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
             {
                 pass.Apply();
                 GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, shadowVertices, 0, primitiveCount);
             }
 
             // Restore original matrices
-            MuGame.Instance.AlphaTestEffect3D.World = originalWorld;
-            MuGame.Instance.AlphaTestEffect3D.View = originalView;
-            MuGame.Instance.AlphaTestEffect3D.Projection = originalProjection;
+            GraphicsManager.Instance.AlphaTestEffect3D.World = originalWorld;
+            GraphicsManager.Instance.AlphaTestEffect3D.View = originalView;
+            GraphicsManager.Instance.AlphaTestEffect3D.Projection = originalProjection;
         }
 
         public override void DrawAfter(GameTime gameTime)
         {
             if (!Visible) return;
 
-            MuGame.Instance.AlphaTestEffect3D.View = Camera.Instance.View;
-            MuGame.Instance.AlphaTestEffect3D.Projection = Camera.Instance.Projection;
-            MuGame.Instance.AlphaTestEffect3D.World = WorldPosition;
+            GraphicsManager.Instance.AlphaTestEffect3D.View = Camera.Instance.View;
+            GraphicsManager.Instance.AlphaTestEffect3D.Projection = Camera.Instance.Projection;
+            GraphicsManager.Instance.AlphaTestEffect3D.World = WorldPosition;
 
             DrawModel(true);
             base.DrawAfter(gameTime);

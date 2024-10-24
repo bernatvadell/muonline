@@ -1,4 +1,5 @@
-﻿using Client.Main.Models;
+﻿using Client.Main.Controllers;
+using Client.Main.Models;
 using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -197,10 +198,10 @@ namespace Client.Main.Controls
             if (Status != GameControlStatus.Ready || !Visible)
                 return;
 
-            MuGame.Instance.SpriteBatch.Begin();
+            GraphicsManager.Instance.Sprite.Begin();
             DrawBackground();
             DrawBorder();
-            MuGame.Instance.SpriteBatch.End();
+            GraphicsManager.Instance.Sprite.End();
 
             GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
@@ -260,8 +261,8 @@ namespace Client.Main.Controls
             if (BackgroundColor == Color.Transparent)
                 return;
 
-            MuGame.Instance.SpriteBatch.Draw(
-                MuGame.Instance.Pixel,
+            GraphicsManager.Instance.Sprite.Draw(
+                GraphicsManager.Instance.Pixel,
                 ScreenLocation,
                 BackgroundColor
             );
@@ -272,10 +273,10 @@ namespace Client.Main.Controls
             if (BorderThickness <= 0)
                 return;
 
-            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(ScreenLocation.X, ScreenLocation.Y, ScreenLocation.Width, BorderThickness), BorderColor);
-            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(ScreenLocation.X, ScreenLocation.Y + ScreenLocation.Height - BorderThickness, ScreenLocation.Width, BorderThickness), BorderColor);
-            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(ScreenLocation.X, ScreenLocation.Y, BorderThickness, ScreenLocation.Height), BorderColor);
-            MuGame.Instance.SpriteBatch.Draw(MuGame.Instance.Pixel, new Rectangle(ScreenLocation.X + ScreenLocation.Width - BorderThickness, ScreenLocation.Y, BorderThickness, ScreenLocation.Height), BorderColor);
+            GraphicsManager.Instance.Sprite.Draw(GraphicsManager.Instance.Pixel, new Rectangle(ScreenLocation.X, ScreenLocation.Y, ScreenLocation.Width, BorderThickness), BorderColor);
+            GraphicsManager.Instance.Sprite.Draw(GraphicsManager.Instance.Pixel, new Rectangle(ScreenLocation.X, ScreenLocation.Y + ScreenLocation.Height - BorderThickness, ScreenLocation.Width, BorderThickness), BorderColor);
+            GraphicsManager.Instance.Sprite.Draw(GraphicsManager.Instance.Pixel, new Rectangle(ScreenLocation.X, ScreenLocation.Y, BorderThickness, ScreenLocation.Height), BorderColor);
+            GraphicsManager.Instance.Sprite.Draw(GraphicsManager.Instance.Pixel, new Rectangle(ScreenLocation.X + ScreenLocation.Width - BorderThickness, ScreenLocation.Y, BorderThickness, ScreenLocation.Height), BorderColor);
         }
     }
 }

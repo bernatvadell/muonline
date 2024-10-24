@@ -1,4 +1,5 @@
 ﻿using Client.Main.Content;
+using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Models;
 using Client.Main.Scenes;
@@ -19,34 +20,20 @@ namespace Client.Main
         // Global random instance
         public static Random Random { get; } = new Random();
 
-        private GraphicsDeviceManager _graphics;
-        private bool _isFXAAEnabled = false;
-        private bool _isAlphaRGBEnabled = true;
-        private KeyboardState _previousKeyboardState;
-
-        private RenderTarget2D _mainRenderTarget;
-        private RenderTarget2D _tempTarget1;
-        private RenderTarget2D _tempTarget2;
+        private readonly GraphicsDeviceManager _graphics;
 
         // Public properties and objects used globally
         public BaseScene ActiveScene { get; private set; }
-        public SpriteBatch SpriteBatch { get; private set; }
-        public SpriteFont Font { get; private set; }
-        public RenderTarget2D EffectRenderTarget { get; private set; }
-        public Texture2D Pixel { get; private set; }
-        public BlendState InverseDestinationBlend { get; private set; }
-        public AlphaTestEffect AlphaTestEffectUI { get; private set; }
-        public AlphaTestEffect AlphaTestEffect3D { get; private set; }
-        public BasicEffect BasicEffect3D { get; private set; }
-        public BasicEffect BoundingBoxEffect3D { get; private set; }
-        public Effect AlphaRGBEffect { get; set; }
-        public Effect FXAAEffect { get; private set; }
+
         public int Width => _graphics.PreferredBackBufferWidth;
         public int Height => _graphics.PreferredBackBufferHeight;
 
         // Mouse and keyboard states
+        public MouseState PrevMouseState { get; private set; }
         public MouseState Mouse { get; private set; }
+        public KeyboardState PrevKeyboard { get; private set; }
         public KeyboardState Keyboard { get; private set; }
+
         public Ray MouseRay { get; private set; }
 
         // DepthStencilState to disable depth mask
@@ -65,15 +52,6 @@ namespace Client.Main
             {
                 PreferredBackBufferWidth = 1280,
                 PreferredBackBufferHeight = 720
-            };
-
-            InverseDestinationBlend = new BlendState
-            {
-                ColorSourceBlend = Blend.InverseDestinationColor,
-                ColorDestinationBlend = Blend.One,
-                AlphaSourceBlend = Blend.One,
-                AlphaDestinationBlend = Blend.One,
-                BlendFactor = Color.White
             };
 
             // Frame rate settings
@@ -101,94 +79,14 @@ namespace Client.Main
 
         protected override void LoadContent()
         {
-            // Initialize resources needed for the game
-            BMDLoader.Instance.SetGraphicsDevice(GraphicsDevice);
-            TextureLoader.Instance.SetGraphicsDevice(GraphicsDevice);
-
-            Pixel = new Texture2D(GraphicsDevice, 1, 1);
-            Pixel.SetData(new[] { Color.White });
-
-            InitializeRenderTargets();
-
-            AlphaRGBEffect = LoadEffect("AlphaRGB");
-            FXAAEffect = LoadEffect("FXAA");
-            InitializeFXAAEffect();
-
-            AlphaTestEffectUI = new AlphaTestEffect(GraphicsDevice)
-            {
-                VertexColorEnabled = true,
-                Projection = Matrix.CreateOrthographicOffCenter(0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height, 0, 0, 1),
-                View = Matrix.Identity,
-                World = Matrix.Identity,
-                ReferenceAlpha = (int)(255 * 0.25f)
-            };
-
-            AlphaTestEffect3D = new AlphaTestEffect(GraphicsDevice)
-            {
-                VertexColorEnabled = true,
-                World = Matrix.Identity,
-                AlphaFunction = CompareFunction.Greater,
-                ReferenceAlpha = (int)(255 * 0.25f)
-            };
-
-            BasicEffect3D = new BasicEffect(GraphicsDevice)
-            {
-                TextureEnabled = true,
-                VertexColorEnabled = true,
-                World = Matrix.Identity
-            };
-
-            BoundingBoxEffect3D = new BasicEffect(GraphicsDevice)
-            {
-                VertexColorEnabled = true,
-                View = Camera.Instance.View,
-                Projection = Camera.Instance.Projection,
-                World = Matrix.Identity
-            };
-
-            SpriteBatch = new SpriteBatch(GraphicsDevice);
-            Font = Content.Load<SpriteFont>("Arial");
+            GraphicsManager.Instance.Init(GraphicsDevice, Content);
             ChangeScene<GameScene>();
-        }
-
-        private Effect LoadEffect(string effectName)
-        {
-            try
-            {
-                return Content.Load<Effect>(effectName);
-            }
-            catch (Exception)
-            {
-                Console.WriteLine($"{effectName} could not be loaded!");
-                return null;
-            }
-        }
-
-        private void InitializeFXAAEffect()
-        {
-            if (FXAAEffect != null)
-            {
-                FXAAEffect.Parameters["Resolution"]?.SetValue(new Vector2(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height));
-            }
-        }
-
-        private void InitializeRenderTargets()
-        {
-            PresentationParameters pp = GraphicsDevice.PresentationParameters;
-
-            _mainRenderTarget = new RenderTarget2D(GraphicsDevice, pp.BackBufferWidth, pp.BackBufferHeight, false, pp.BackBufferFormat, DepthFormat.Depth24);
-            _tempTarget1 = new RenderTarget2D(GraphicsDevice, pp.BackBufferWidth, pp.BackBufferHeight);
-            _tempTarget2 = new RenderTarget2D(GraphicsDevice, pp.BackBufferWidth, pp.BackBufferHeight);
-
-            EffectRenderTarget = new RenderTarget2D(GraphicsDevice, pp.BackBufferWidth, pp.BackBufferHeight, false, pp.BackBufferFormat, pp.DepthStencilFormat);
         }
 
         protected override void UnloadContent()
         {
             base.UnloadContent();
-            _mainRenderTarget?.Dispose();
-            _tempTarget1?.Dispose();
-            _tempTarget2?.Dispose();
+            GraphicsManager.Instance.Dispose();
         }
 
         protected override void Update(GameTime gameTime)
@@ -208,23 +106,12 @@ namespace Client.Main
 
         private void CheckShaderToggles()
         {
-            KeyboardState currentKeyboardState = Microsoft.Xna.Framework.Input.Keyboard.GetState();
-
-            if (currentKeyboardState.IsKeyDown(Keys.LeftShift))
+            if (Keyboard.IsKeyDown(Keys.LeftShift))
             {
-                ToggleEffect(ref _isAlphaRGBEnabled, Keys.F1, "AlphaRGB", currentKeyboardState);
-                ToggleEffect(ref _isFXAAEnabled, Keys.F2, "FXAA", currentKeyboardState);
-            }
-
-            _previousKeyboardState = currentKeyboardState;
-        }
-
-        private void ToggleEffect(ref bool isEnabled, Keys key, string effectName, KeyboardState currentKeyboardState)
-        {
-            if (currentKeyboardState.IsKeyDown(key) && !_previousKeyboardState.IsKeyDown(key))
-            {
-                isEnabled = !isEnabled;
-                Console.WriteLine($"{effectName} {(isEnabled ? "Enabled" : "Disabled")}");
+                if (PrevKeyboard.IsKeyDown(Keys.F1) && Keyboard.IsKeyUp(Keys.F1))
+                    GraphicsManager.Instance.IsAlphaRGBEnabled = !GraphicsManager.Instance.IsAlphaRGBEnabled;
+                else if (PrevKeyboard.IsKeyDown(Keys.F2) && Keyboard.IsKeyUp(Keys.F2))
+                    GraphicsManager.Instance.IsFXAAEnabled = !GraphicsManager.Instance.IsFXAAEnabled;
             }
         }
 
@@ -232,6 +119,9 @@ namespace Client.Main
         {
             var mouseState = Microsoft.Xna.Framework.Input.Mouse.GetState();
             var windowBounds = Window.ClientBounds;
+
+            PrevMouseState = Mouse;
+            PrevKeyboard = Keyboard;
 
             // Check if the mouse is within the window bounds
             var absoluteMousePosition = new Point(mouseState.X + windowBounds.X, mouseState.Y + windowBounds.Y);
@@ -249,9 +139,7 @@ namespace Client.Main
 
             // Update mouse ray when the mouse moves
             if (Camera.Instance.Position != Vector3.Zero && Camera.Instance.Target != Vector3.Zero)
-            {
                 UpdateMouseRay();
-            }
         }
 
         private void UpdateMouseRay()
@@ -284,7 +172,7 @@ namespace Client.Main
 
         private void DrawSceneToMainRenderTarget(GameTime gameTime)
         {
-            GraphicsDevice.SetRenderTarget(_mainRenderTarget);
+            GraphicsDevice.SetRenderTarget(GraphicsManager.Instance.MainRenderTarget);
             GraphicsDevice.Clear(Color.Black);
 
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
@@ -298,19 +186,19 @@ namespace Client.Main
 
         private void ApplyPostProcessingEffects()
         {
-            RenderTarget2D sourceTarget = _mainRenderTarget;
-            RenderTarget2D destTarget = _tempTarget1;
+            RenderTarget2D sourceTarget = GraphicsManager.Instance.MainRenderTarget;
+            RenderTarget2D destTarget = GraphicsManager.Instance.TempTarget1;
 
-            if (_isAlphaRGBEnabled)
+            if (GraphicsManager.Instance.IsAlphaRGBEnabled && GraphicsManager.Instance.AlphaRGBEffect != null)
             {
-                ApplyEffect(AlphaRGBEffect, sourceTarget, destTarget);
-                SwapTargets(ref sourceTarget, ref destTarget);
+                ApplyEffect(GraphicsManager.Instance.AlphaRGBEffect, sourceTarget, destTarget);
+                GraphicsManager.Instance.SwapTargets(ref sourceTarget, ref destTarget);
             }
 
-            if (_isFXAAEnabled && FXAAEffect != null)
+            if (GraphicsManager.Instance.IsFXAAEnabled && GraphicsManager.Instance.FXAAEffect != null)
             {
-                ApplyEffect(FXAAEffect, sourceTarget, destTarget);
-                SwapTargets(ref sourceTarget, ref destTarget);
+                ApplyEffect(GraphicsManager.Instance.FXAAEffect, sourceTarget, destTarget);
+                GraphicsManager.Instance.SwapTargets(ref sourceTarget, ref destTarget);
             }
 
             DrawFinalImageToScreen(sourceTarget);
@@ -321,19 +209,19 @@ namespace Client.Main
             GraphicsDevice.SetRenderTarget(destination);
             GraphicsDevice.Clear(Color.Transparent);
 
-            if (effect == FXAAEffect)
+            if (effect == GraphicsManager.Instance.FXAAEffect)
             {
                 effect.Parameters["Resolution"]?.SetValue(new Vector2(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height));
             }
-            else if (effect == AlphaRGBEffect)
+            else if (effect == GraphicsManager.Instance.AlphaRGBEffect)
             {
                 Matrix worldViewProjection = Matrix.CreateOrthographicOffCenter(0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height, 0, 0, 1);
                 effect.Parameters["WorldViewProjection"]?.SetValue(worldViewProjection);
             }
 
-            SpriteBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone, effect);
-            SpriteBatch.Draw(source, GraphicsDevice.Viewport.Bounds, Color.White);
-            SpriteBatch.End();
+            GraphicsManager.Instance.Sprite.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone, effect);
+            GraphicsManager.Instance.Sprite.Draw(source, GraphicsDevice.Viewport.Bounds, Color.White);
+            GraphicsManager.Instance.Sprite.End();
 
             // Deactivate render target after each effect
             GraphicsDevice.SetRenderTarget(null);
@@ -342,23 +230,9 @@ namespace Client.Main
         private void DrawFinalImageToScreen(RenderTarget2D sourceTarget)
         {
             GraphicsDevice.Clear(Color.Black);
-            SpriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend);
-            SpriteBatch.Draw(sourceTarget, GraphicsDevice.Viewport.Bounds, Color.White);
-            SpriteBatch.End();
-
-            // Draw shader status text
-            SpriteBatch.Begin();
-            string statusText = $"FXAA: {(_isFXAAEnabled ? "ON" : "OFF")} | AlphaRGB: {(_isAlphaRGBEnabled ? "ON" : "OFF")}";
-            Vector2 textSize = Font.MeasureString(statusText);
-            Vector2 position = new Vector2(GraphicsDevice.Viewport.Width - textSize.X - 10, 10);
-            SpriteBatch.DrawString(Font, statusText, position, Color.Yellow);
-            SpriteBatch.End();
-        }
-
-        private void SwapTargets(ref RenderTarget2D source, ref RenderTarget2D destination)
-        {
-            source = destination;
-            destination = (destination == _tempTarget1) ? _tempTarget2 : _tempTarget1;
+            GraphicsManager.Instance.Sprite.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend);
+            GraphicsManager.Instance.Sprite.Draw(sourceTarget, GraphicsDevice.Viewport.Bounds, Color.White);
+            GraphicsManager.Instance.Sprite.End();
         }
     }
 }

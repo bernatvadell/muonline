@@ -4,6 +4,7 @@ using Client.Data.MAP;
 using Client.Data.OBJS;
 using Client.Data.OZB;
 using Client.Main.Content;
+using Client.Main.Controllers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -513,11 +514,11 @@ namespace Client.Main.Controls
             _terrainVertices[4] = new VertexPositionColorTexture(terrainVertex[3], terrainLights[3], terrainTextureCoord[3]);
             _terrainVertices[5] = new VertexPositionColorTexture(terrainVertex[0], terrainLights[0], terrainTextureCoord[0]);
 
-            MuGame.Instance.BasicEffect3D.Projection = Camera.Instance.Projection;
-            MuGame.Instance.BasicEffect3D.View = Camera.Instance.View;
-            MuGame.Instance.BasicEffect3D.Texture = texture;
+            GraphicsManager.Instance.BasicEffect3D.Projection = Camera.Instance.Projection;
+            GraphicsManager.Instance.BasicEffect3D.View = Camera.Instance.View;
+            GraphicsManager.Instance.BasicEffect3D.Texture = texture;
 
-            foreach (var pass in MuGame.Instance.BasicEffect3D.CurrentTechnique.Passes)
+            foreach (var pass in GraphicsManager.Instance.BasicEffect3D.CurrentTechnique.Passes)
             {
                 pass.Apply();
                 GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, _terrainVertices, 0, 2);

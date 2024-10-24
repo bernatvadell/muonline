@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework.Graphics;
+﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,7 +18,7 @@ namespace Client.Main
             AlphaDestinationBlend = Blend.InverseSourceColor
         };
 
-        public static readonly BlendState DarkBlendState = new ()
+        public static readonly BlendState DarkBlendState = new()
         {
             ColorSourceBlend = Blend.Zero,
             ColorDestinationBlend = Blend.InverseSourceColor,
@@ -33,7 +34,7 @@ namespace Client.Main
             AlphaDestinationBlend = Blend.InverseSourceAlpha
         };
 
-        public static readonly BlendState Color = new()
+        public static readonly BlendState ColorState = new()
         {
             ColorBlendFunction = BlendFunction.Add,
             ColorSourceBlend = Blend.DestinationAlpha,
@@ -50,6 +51,15 @@ namespace Client.Main
             ColorDestinationBlend = Blend.SourceColor,
             AlphaSourceBlend = Blend.Zero,
             AlphaDestinationBlend = Blend.One
+        };
+
+        public static BlendState InverseDestinationBlend = new()
+        {
+            ColorSourceBlend = Blend.InverseDestinationColor,
+            ColorDestinationBlend = Blend.One,
+            AlphaSourceBlend = Blend.One,
+            AlphaDestinationBlend = Blend.One,
+            BlendFactor = Color.White
         };
     }
 }

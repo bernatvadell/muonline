@@ -1,4 +1,5 @@
 ﻿using Client.Main.Content;
+using Client.Main.Controllers;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -47,14 +48,14 @@ namespace Client.Main.Controls.UI
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
             GraphicsDevice.SamplerStates[0] = SamplerState.PointClamp;
 
-            MuGame.Instance.SpriteBatch.Begin(
+            GraphicsManager.Instance.Sprite.Begin(
                 blendState: BlendState, 
-                effect: BlendState == BlendState.AlphaBlend ? MuGame.Instance.AlphaTestEffectUI : null,
+                effect: BlendState == BlendState.AlphaBlend ? GraphicsManager.Instance.AlphaTestEffectUI : null,
                 samplerState: SamplerState.PointClamp, 
                 depthStencilState: DepthStencilState.Default
             );
-            MuGame.Instance.SpriteBatch.Draw(Texture, ScreenLocation, SourceRectangle, Color.White, 0f, Vector2.Zero, SpriteEffects.None, 0f);
-            MuGame.Instance.SpriteBatch.End();
+            GraphicsManager.Instance.Sprite.Draw(Texture, ScreenLocation, SourceRectangle, Color.White, 0f, Vector2.Zero, SpriteEffects.None, 0f);
+            GraphicsManager.Instance.Sprite.End();
 
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;

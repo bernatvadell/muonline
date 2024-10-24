@@ -36,7 +36,7 @@ namespace Client.Main.Objects.Player
             Scale = 0.85f;
             AnimationSpeed = 8f;
             CurrentAction = PlayerAction.StopMale;
-            _playerClass = PlayerClass.DarkWizard;
+            _playerClass = Constants.Character;
 
             Children.Add(_armor = new PlayerArmorObject
             {

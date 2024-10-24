@@ -1,4 +1,5 @@
-﻿using Client.Main.Models;
+﻿using Client.Main.Controllers;
+using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -17,6 +18,7 @@ namespace Client.Main.Controls.UI
         private LabelControl _mousePosLabel;
         private LabelControl _playerCordsLabel;
         private LabelControl _mapTileLabel;
+        private LabelControl _effectsStatusLabel;
 
         public DebugPanel()
         {
@@ -25,7 +27,7 @@ namespace Client.Main.Controls.UI
 
             AutoSize = false;
             Width = 210;
-            Height = 100;
+            Height = 120;
             BackgroundColor = Color.Black * 0.6f;
             BorderColor = Color.White * 0.3f;
             BorderThickness = 2;
@@ -65,6 +67,14 @@ namespace Client.Main.Controls.UI
                 X = posX,
                 Y = posY += labelHeight
             });
+
+            Controls.Add(_effectsStatusLabel = new LabelControl
+            {
+                Text = "FXAA: {0} - AlphaRGB:{1}",
+                TextColor = Color.Yellow,
+                X = posX,
+                Y = posY += labelHeight
+            });
         }
 
         public override void Update(GameTime gameTime)
@@ -73,6 +83,7 @@ namespace Client.Main.Controls.UI
 
             _fpsLabel.TextArgs = [(int)FPSCounter.Instance.FPS_AVG];
             _mousePosLabel.TextArgs = [MuGame.Instance.Mouse.Position.X, MuGame.Instance.Mouse.Position.Y];
+            _effectsStatusLabel.TextArgs = [GraphicsManager.Instance.IsFXAAEnabled ? "ON" : "OFF", GraphicsManager.Instance.IsAlphaRGBEnabled ? "ON" : "OFF"];
 
             if (World is WalkableWorldControl walkableWorld)
             {

@@ -1,4 +1,5 @@
-﻿using Client.Main.Models;
+﻿using Client.Main.Controllers;
+using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -29,9 +30,9 @@ namespace Client.Main.Controls.UI
 
         public override void Draw(GameTime gameTime)
         {
-            MuGame.Instance.SpriteBatch.Begin();
-            MuGame.Instance.SpriteBatch.DrawString(
-                MuGame.Instance.Font,
+            GraphicsManager.Instance.Sprite.Begin();
+            GraphicsManager.Instance.Sprite.DrawString(
+                GraphicsManager.Instance.Font,
                 _renderedText,
                 ScreenLocation.Location.ToVector2(),
                 TextColor,
@@ -41,7 +42,7 @@ namespace Client.Main.Controls.UI
                 SpriteEffects.None,
                 0f
             );
-            MuGame.Instance.SpriteBatch.End();
+            GraphicsManager.Instance.Sprite.End();
 
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
@@ -62,7 +63,7 @@ namespace Client.Main.Controls.UI
             _renderedText = SafeFormat(Text, TextArgs);
 
             float baseFontSize = 10f;
-            var textSize = MuGame.Instance.Font.MeasureString(_renderedText);
+            var textSize = GraphicsManager.Instance.Font.MeasureString(_renderedText);
             _scaleFactor = FontSize / baseFontSize;
 
             Width = (int)(textSize.X * _scaleFactor);

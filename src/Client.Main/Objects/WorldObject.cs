@@ -1,6 +1,7 @@
 ﻿using Client.Data;
 using Client.Data.BMD;
 using Client.Main.Content;
+using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
@@ -233,11 +234,11 @@ namespace Client.Main.Objects
             for (int i = 0; i < corners.Length; i++)
                 vertexData[i] = new VertexPositionColor(corners[i], BoundingBoxColor);
 
-            MuGame.Instance.BoundingBoxEffect3D.View = Camera.Instance.View;
-            MuGame.Instance.BoundingBoxEffect3D.Projection = Camera.Instance.Projection;
-            MuGame.Instance.BoundingBoxEffect3D.World = Matrix.Identity;
+            GraphicsManager.Instance.BoundingBoxEffect3D.View = Camera.Instance.View;
+            GraphicsManager.Instance.BoundingBoxEffect3D.Projection = Camera.Instance.Projection;
+            GraphicsManager.Instance.BoundingBoxEffect3D.World = Matrix.Identity;
 
-            foreach (var pass in MuGame.Instance.BoundingBoxEffect3D.CurrentTechnique.Passes)
+            foreach (var pass in GraphicsManager.Instance.BoundingBoxEffect3D.CurrentTechnique.Passes)
             {
                 pass.Apply();
                 GraphicsDevice.DrawUserIndexedPrimitives(PrimitiveType.LineList, vertexData, 0, 8, indices, 0, indices.Length / 2);

@@ -1,4 +1,5 @@
-﻿using Client.Main.Models;
+﻿using Client.Main.Controllers;
+using Client.Main.Models;
 using Client.Main.Scenes;
 using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
@@ -88,9 +89,9 @@ namespace Client.Main.Controls.UI.Game
         {
             base.Draw(gameTime);
 
-            MuGame.Instance.SpriteBatch.Begin();
-            MuGame.Instance.SpriteBatch.DrawString(MuGame.Instance.Font, Name, new Vector2() { X = ScreenLocation.X + 5, Y = ScreenLocation.Y + 5 }, TextColor, 0f, Vector2.Zero, 0.9f, SpriteEffects.None, 0);
-            MuGame.Instance.SpriteBatch.End();
+            GraphicsManager.Instance.Sprite.Begin();
+            GraphicsManager.Instance.Sprite.DrawString(GraphicsManager.Instance.Font, Name, new Vector2() { X = ScreenLocation.X + 5, Y = ScreenLocation.Y + 5 }, TextColor, 0f, Vector2.Zero, 0.9f, SpriteEffects.None, 0);
+            GraphicsManager.Instance.Sprite.End();
 
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
