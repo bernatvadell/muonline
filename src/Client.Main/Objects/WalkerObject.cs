@@ -1,4 +1,5 @@
-﻿using Client.Main.Models;
+﻿using Client.Main.Controls;
+using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using System;
@@ -107,13 +108,13 @@ namespace Client.Main.Objects
         private void OnLocationChanged(Vector2 oldLocation, Vector2 newLocation)
         {
             if (oldLocation == newLocation) return;
-            _location = newLocation;
+            _location = new Vector2((int)newLocation.X, (int)newLocation.Y);
 
-            var oldX = (int)oldLocation.X;
-            var oldY = (int)oldLocation.Y;
+            var oldX = oldLocation.X;
+            var oldY = oldLocation.Y;
 
-            var newX = (int)newLocation.X;
-            var newY = (int)newLocation.Y;
+            var newX = newLocation.X;
+            var newY = newLocation.Y;
 
             if (newX < oldX && newY < oldY)
                 Direction = Direction.West;
@@ -172,7 +173,8 @@ namespace Client.Main.Objects
             // Calculate target height based on terrain and scaling
             float baseHeightOffset = 0; // Offset
             float heightScaleFactor = 0.5f;
-            float terrainHeightAtMoveTarget = World.Terrain.RequestTerrainHeight(MoveTargetPosition.X, MoveTargetPosition.Y);
+            float extraHeight = World is WalkableWorldControl walkableWorld ? walkableWorld.ExtraHeight : 0f;
+            float terrainHeightAtMoveTarget = World.Terrain.RequestTerrainHeight(MoveTargetPosition.X, MoveTargetPosition.Y) + extraHeight;
             float desiredHeightOffset = baseHeightOffset + (heightScaleFactor * terrainHeightAtMoveTarget);
             float targetHeight = terrainHeightAtMoveTarget + desiredHeightOffset;
 
@@ -249,21 +251,25 @@ namespace Client.Main.Objects
 
         private void MoveTowards(Vector2 target, GameTime gameTime)
         {
-            float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            float speed = MoveSpeed * deltaTime;
+            Location = target;
 
-            Vector2 direction = target - Location;
-            float distance = direction.Length();
+            // TODO: Need to fix this, it's not working properly on some maps when distance <= speed
 
-            if (distance <= speed)
-            {
-                Location = target;
-            }
-            else
-            {
-                direction.Normalize();
-                Location += direction * speed;
-            }
+            //float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            //float speed = MoveSpeed * deltaTime;
+
+            //Vector2 direction = target - Location;
+            //float distance = direction.Length();
+
+            //if (distance <= speed)
+            //{
+            //    Location = target;
+            //}
+            //else
+            //{
+            //    direction.Normalize();
+            //    Location += direction * speed;
+            //}
         }
 
         private void HandleMouseInput()
