@@ -39,7 +39,7 @@ namespace Client.Main.Objects
         public BlendState BlendState { get; set; } = BlendState.Opaque;
         public float Alpha { get; set; } = 1f;
         public float TotalAlpha { get => (Parent?.TotalAlpha ?? 1f) * Alpha; }
-        public Vector3 Position { get => _position; set { _position = value; OnPositionChanged(); } }
+        public Vector3 Position { get => _position; set { if (_position != value) { _position = value; OnPositionChanged(); } } }
         public Vector3 Angle { get => _angle; set { _angle = value; OnAngleChanged(); } }
         public Vector3 TotalAngle { get => (Parent?.TotalAngle ?? Vector3.Zero) + Angle; }
 

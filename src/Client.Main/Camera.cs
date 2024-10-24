@@ -11,17 +11,17 @@ namespace Client.Main
         private float _aspectRatio = 1.4f;
         private float _fov = 35f;
         private float _viewNear = 1f;
-        private float _viewFar = 4000f;
+        private float _viewFar = 1800f;
         private Vector3 _position = Vector3.Zero;
         private Vector3 _target = Vector3.Zero;
 
-        public float AspectRatio { get => _aspectRatio; set { _aspectRatio = value; UpdateProjection(); } }
-        public float FOV { get => _fov; set { _fov = value; UpdateProjection(); } }
-        public float ViewNear { get => _viewNear; set { _viewNear = value; UpdateProjection(); } }
-        public float ViewFar { get => _viewFar; set { _viewFar = value; UpdateProjection(); } }
+        public float AspectRatio { get => _aspectRatio; set { if (_aspectRatio != value) { _aspectRatio = value; UpdateProjection(); } } }
+        public float FOV { get => _fov; set { if (_fov != value) { _fov = value; UpdateProjection(); } } }
+        public float ViewNear { get => _viewNear; set { if (_viewFar != value) { _viewNear = value; UpdateProjection(); } } }
+        public float ViewFar { get => _viewFar; set { if (_viewFar != value) { _viewFar = value; UpdateProjection(); } } }
 
-        public Vector3 Position { get => _position; set { _position = value; UpdateView(); } }
-        public Vector3 Target { get => _target; set { _target = value; UpdateView(); } }
+        public Vector3 Position { get => _position; set { if (_position != value) { _position = value; UpdateView(); } } }
+        public Vector3 Target { get => _target; set { if (_target != value) { _target = value; UpdateView(); } } }
 
         public Matrix View { get; private set; }
         public Matrix Projection { get; private set; }
@@ -49,7 +49,7 @@ namespace Client.Main
                 MathHelper.ToRadians(_fov),
                 _aspectRatio,
                 _viewNear,
-                _viewFar
+                _viewFar + Constants.MAX_CAMERA_DISTANCE
             );
 
             UpdateFrustum();

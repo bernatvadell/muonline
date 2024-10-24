@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using Microsoft.Xna.Framework.Graphics;
 using System.Numerics;
 
-namespace Client.Main.Objects.NPCS
+namespace Client.Main.Objects.NPCS.Effects
 {
     public class Warp03NPCObject : ModelObject
     {

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static Org.BouncyCastle.Asn1.Cmp.Challenge;
 
 namespace Client.Main
 {
@@ -22,6 +23,19 @@ namespace Client.Main
         public float FPS_ANIMATION_FACTOR { get; private set; }
 
         private const float REFERENCE_FPS = 25f;
+
+        public bool RandFPSCheck(int referenceFrames)
+        {
+            double animationFactor = Math.Min(1.0, (double)FPS_ANIMATION_FACTOR);
+
+            double randValue = MuGame.Random.NextDouble();
+
+            double chance = referenceFrames == 1
+                ? animationFactor
+                : (1.0 / referenceFrames) * animationFactor;
+            
+            return randValue <= chance;
+        }
 
         public void CalcFPS(GameTime gameTime)
         {

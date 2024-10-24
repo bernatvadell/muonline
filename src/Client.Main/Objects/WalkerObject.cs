@@ -17,38 +17,40 @@ namespace Client.Main.Objects
         private List<Vector2> _currentPath;
 
         // Camera control variables
-        private float currentCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
-        private float targetCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
-        private const float minCameraDistance = Constants.MIN_CAMERA_DISTANCE;
-        private const float maxCameraDistance = Constants.MAX_CAMERA_DISTANCE;
-        private const float zoomSpeed = Constants.ZOOM_SPEED;
-        private int previousScrollValue = 0;
+        private float _currentCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
+        private float _targetCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
+        private const float _minCameraDistance = Constants.MIN_CAMERA_DISTANCE;
+        private const float _maxCameraDistance = Constants.MAX_CAMERA_DISTANCE;
+        private const float _zoomSpeed = Constants.ZOOM_SPEED;
+        private int _previousScrollValue = 0;
 
         // Camera rotation variables
-        private float cameraYaw = Constants.CAMERA_YAW;
-        private float cameraPitch = Constants.CAMERA_PITCH;
-        private const float rotationSensitivity = Constants.ROTATION_SENSITIVITY;
-        private bool isRotating = false;
-        private Point lastMousePosition;
+        private float _cameraYaw = Constants.CAMERA_YAW;
+        private float _cameraPitch = Constants.CAMERA_PITCH;
+        private const float _rotationSensitivity = Constants.ROTATION_SENSITIVITY;
+        private bool _isRotating = false;
 
         // Default camera values
-        private const float defaultCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
-        private static readonly float defaultCameraPitch = Constants.DEFAULT_CAMERA_PITCH;
-        private const float defaultCameraYaw = Constants.DEFAULT_CAMERA_YAW;
+        private const float _defaultCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
+        private static readonly float _defaultCameraPitch = Constants.DEFAULT_CAMERA_PITCH;
+        private const float _defaultCameraYaw = Constants.DEFAULT_CAMERA_YAW;
 
         // Rotation limits
-        private static readonly float maxPitch = Constants.MAX_PITCH;
-        private static readonly float minPitch = Constants.MIN_PITCH;
+        private static readonly float _maxPitch = Constants.MAX_PITCH;
+        private static readonly float _minPitch = Constants.MIN_PITCH;
 
         // Mouse state tracking
-        private ButtonState previousMiddleButtonState = ButtonState.Released;
-        private bool wasRotating = false;
+        private bool _wasRotating = false;
+
+        public bool IsMainWalker => World is WalkableWorldControl walkableWorld && walkableWorld.Walker == this;
 
         public Vector2 Location
         {
             get => _location;
             set => OnLocationChanged(_location, value);
         }
+
+        public float ExtraHeight { get; set; }
 
         public Direction Direction
         {
@@ -83,14 +85,9 @@ namespace Client.Main.Objects
         public override async Task Load()
         {
             MoveTargetPosition = Vector3.Zero;
-
-            var mouseState = Mouse.GetState();
-            previousScrollValue = mouseState.ScrollWheelValue;
-            previousMiddleButtonState = mouseState.MiddleButton;
-
-            cameraYaw = defaultCameraYaw;
-            cameraPitch = defaultCameraPitch;
-
+            _previousScrollValue = MuGame.Instance.Mouse.ScrollWheelValue;
+            _cameraYaw = _defaultCameraYaw;
+            _cameraPitch = _defaultCameraPitch;
             await base.Load();
         }
 
@@ -136,13 +133,31 @@ namespace Client.Main.Objects
 
         public override void Update(GameTime gameTime)
         {
-            HandleMouseInput();
+            base.Update(gameTime);
+
+            if (IsMainWalker)
+                HandleMouseInput();
+
+            UpdatePosition(gameTime);
+
+            if (_currentPath != null && _currentPath.Count > 0 && !IsMoving)
+            {
+                Vector2 nextStep = _currentPath[0];
+                MoveTowards(nextStep, gameTime);
+                _currentPath.RemoveAt(0);
+            }
+        }
+
+        private void UpdatePosition(GameTime gameTime)
+        {
+            float worldExtraHeight = 0f;
+
+            UpdateMoveTargetPosition(gameTime);
+            worldExtraHeight = ((WalkableWorldControl)World).ExtraHeight;
 
             float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            currentCameraDistance = MathHelper.Lerp(currentCameraDistance, targetCameraDistance, zoomSpeed * deltaTime);
-            currentCameraDistance = MathHelper.Clamp(currentCameraDistance, minCameraDistance, maxCameraDistance);
-
-            MoveCameraPosition(gameTime);
+            _currentCameraDistance = MathHelper.Lerp(_currentCameraDistance, _targetCameraDistance, _zoomSpeed * deltaTime);
+            _currentCameraDistance = MathHelper.Clamp(_currentCameraDistance, _minCameraDistance, _maxCameraDistance);
 
             if (_targetAngle != Angle)
             {
@@ -163,18 +178,10 @@ namespace Client.Main.Objects
                 }
             }
 
-            if (_currentPath != null && _currentPath.Count > 0 && !IsMoving)
-            {
-                Vector2 nextStep = _currentPath[0];
-                MoveTowards(nextStep, gameTime);
-                _currentPath.RemoveAt(0);
-            }
-
             // Calculate target height based on terrain and scaling
             float baseHeightOffset = 0; // Offset
             float heightScaleFactor = 0.5f;
-            float extraHeight = World is WalkableWorldControl walkableWorld ? walkableWorld.ExtraHeight : 0f;
-            float terrainHeightAtMoveTarget = World.Terrain.RequestTerrainHeight(MoveTargetPosition.X, MoveTargetPosition.Y) + extraHeight;
+            float terrainHeightAtMoveTarget = World.Terrain.RequestTerrainHeight(MoveTargetPosition.X, MoveTargetPosition.Y) + worldExtraHeight + ExtraHeight;
             float desiredHeightOffset = baseHeightOffset + (heightScaleFactor * terrainHeightAtMoveTarget);
             float targetHeight = terrainHeightAtMoveTarget + desiredHeightOffset;
 
@@ -184,11 +191,6 @@ namespace Client.Main.Objects
 
             // update position with the new height
             Position = new Vector3(MoveTargetPosition.X, MoveTargetPosition.Y, newZ);
-
-            // Update camera position with rotation
-            UpdateCameraPosition(MoveTargetPosition);
-
-            base.Update(gameTime);
         }
 
         public void MoveTo(Vector2 targetLocation)
@@ -198,7 +200,7 @@ namespace Client.Main.Objects
             _currentPath = path;
         }
 
-        private void MoveCameraPosition(GameTime time)
+        private void UpdateMoveTargetPosition(GameTime time)
         {
             if (MoveTargetPosition == Vector3.Zero)
             {
@@ -234,10 +236,13 @@ namespace Client.Main.Objects
         {
             MoveTargetPosition = position;
 
+            if (!IsMainWalker)
+                return;
+
             // Calculate camera offset using spherical coordinates
-            float x = currentCameraDistance * (float)Math.Cos(cameraPitch) * (float)Math.Sin(cameraYaw);
-            float y = currentCameraDistance * (float)Math.Cos(cameraPitch) * (float)Math.Cos(cameraYaw);
-            float z = currentCameraDistance * (float)Math.Sin(cameraPitch);
+            float x = _currentCameraDistance * (float)Math.Cos(_cameraPitch) * (float)Math.Sin(_cameraYaw);
+            float y = _currentCameraDistance * (float)Math.Cos(_cameraPitch) * (float)Math.Cos(_cameraYaw);
+            float z = _currentCameraDistance * (float)Math.Sin(_cameraPitch);
 
             Vector3 cameraOffset = new Vector3(x, y, z);
 
@@ -274,70 +279,65 @@ namespace Client.Main.Objects
 
         private void HandleMouseInput()
         {
-            MouseState mouseState = Mouse.GetState();
+            MouseState mouseState = MuGame.Instance.Mouse;
 
             // Handle mouse scroll for zooming
             int currentScroll = mouseState.ScrollWheelValue;
-            int scrollDifference = currentScroll - previousScrollValue;
+            int scrollDifference = currentScroll - _previousScrollValue;
 
             if (scrollDifference != 0)
             {
                 float zoomChange = scrollDifference / 120f * 100f; // 100 units for each scroll notch
-                targetCameraDistance -= zoomChange;
-                targetCameraDistance = MathHelper.Clamp(targetCameraDistance, minCameraDistance, maxCameraDistance);
+                _targetCameraDistance -= zoomChange;
+                _targetCameraDistance = MathHelper.Clamp(_targetCameraDistance, _minCameraDistance, _maxCameraDistance);
             }
 
-            previousScrollValue = currentScroll;
+            _previousScrollValue = currentScroll;
 
             // Handle middle mouse button
             if (mouseState.MiddleButton == ButtonState.Pressed)
             {
-                if (!isRotating)
+                if (!_isRotating)
                 {
-                    isRotating = true;
-                    lastMousePosition = mouseState.Position;
-                    wasRotating = false; // Reset flag before starting rotation
+                    _isRotating = true;
+                    _wasRotating = false; // Reset flag before starting rotation
                 }
                 else
                 {
                     // Calculate mouse movement
                     Point currentMousePosition = mouseState.Position;
-                    Vector2 mouseDelta = (currentMousePosition - lastMousePosition).ToVector2();
+                    Vector2 mouseDelta = (currentMousePosition - MuGame.Instance.PrevMouseState.Position).ToVector2();
 
                     if (mouseDelta.LengthSquared() > 0) // Check for actual movement
                     {
                         // Adjust camera rotation
-                        cameraYaw -= mouseDelta.X * rotationSensitivity;
-                        cameraPitch += mouseDelta.Y * rotationSensitivity;
+                        _cameraYaw -= mouseDelta.X * _rotationSensitivity;
+                        _cameraPitch += mouseDelta.Y * _rotationSensitivity;
 
                         // Clamp vertical rotation to prevent camera flipping
-                        cameraPitch = MathHelper.Clamp(cameraPitch, minPitch, maxPitch);
+                        _cameraPitch = MathHelper.Clamp(_cameraPitch, _minPitch, _maxPitch);
 
                         // Wrap horizontal rotation
-                        cameraYaw = MathHelper.WrapAngle(cameraYaw);
+                        _cameraYaw = MathHelper.WrapAngle(_cameraYaw);
 
-                        wasRotating = true; // Flag that rotation occurred
-
-                        lastMousePosition = currentMousePosition;
+                        _wasRotating = true; // Flag that rotation occurred
                     }
                 }
             }
-            else if (mouseState.MiddleButton == ButtonState.Released && previousMiddleButtonState == ButtonState.Pressed)
+            else if (mouseState.MiddleButton == ButtonState.Released && MuGame.Instance.PrevMouseState.MiddleButton == ButtonState.Pressed)
             {
                 // Reset camera only if there was no rotation (i.e., just a click)
-                if (!wasRotating)
+                if (!_wasRotating)
                 {
                     // Reset to default values
-                    targetCameraDistance = defaultCameraDistance;
-                    cameraYaw = defaultCameraYaw;
-                    cameraPitch = defaultCameraPitch;
+                    _targetCameraDistance = _defaultCameraDistance;
+                    _cameraYaw = _defaultCameraYaw;
+                    _cameraPitch = _defaultCameraPitch;
                 }
 
-                isRotating = false;
-                wasRotating = false;
+                _isRotating = false;
+                _wasRotating = false;
             }
-
-            previousMiddleButtonState = mouseState.MiddleButton;
         }
     }
 }

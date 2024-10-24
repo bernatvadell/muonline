@@ -133,7 +133,7 @@ namespace Client.Main
             else
             {
                 // Reset mouse and keyboard states if the window is not active
-                Mouse = new MouseState(mouseState.X, mouseState.Y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, 0);
+                Mouse = new MouseState(mouseState.X, mouseState.Y, mouseState.ScrollWheelValue, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, mouseState.HorizontalScrollWheelValue);
                 Keyboard = new KeyboardState();
             }
 

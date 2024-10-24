@@ -362,7 +362,7 @@ namespace Client.Main.Controls
                         new Vector3(xEnd, yEnd, maxZ)
                     );
 
-                    if (Camera.Instance.Frustum.Intersects(blockBounds))
+                    if (Camera.Instance.Frustum.Contains(blockBounds) != ContainmentType.Disjoint)
                         RenderTerrainBlock(xStart / Constants.TERRAIN_SCALE, yStart / Constants.TERRAIN_SCALE, xi, yi, isAfter);
                 }
             }
@@ -396,26 +396,26 @@ namespace Client.Main.Controls
             int idx3 = GetTerrainIndex(xi + lodi, yi + lodi);
             int idx4 = GetTerrainIndex(xi, yi + lodi);
 
-            byte alpha1 = idx1 > _mapping.Alpha.Length
+            byte alpha1 = idx1 >= _mapping.Alpha.Length
                 ? (byte)0
                 : _mapping.Alpha[idx1];
-            byte alpha2 = idx2 > _mapping.Alpha.Length
+            byte alpha2 = idx2 >= _mapping.Alpha.Length
                 ? (byte)0
                 : _mapping.Alpha[idx2];
-            byte alpha3 = idx3 > _mapping.Alpha.Length
+            byte alpha3 = idx3 >= _mapping.Alpha.Length
                 ? (byte)0
                 : _mapping.Alpha[idx3];
-            byte alpha4 = idx4 > _mapping.Alpha.Length
+            byte alpha4 = idx4 >= _mapping.Alpha.Length
                 ? (byte)0
                 : _mapping.Alpha[idx4];
 
             bool isOpaque = alpha1 >= 255 && alpha2 >= 255 && alpha3 >= 255 && alpha4 >= 255;
             bool hasAlpha = alpha1 > 0 || alpha2 > 0 || alpha3 > 0 || alpha4 > 0;
 
-            float terrainHeight1 = idx1 > _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx1].B * 1.5f;
-            float terrainHeight2 = idx2 > _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx2].B * 1.5f;
-            float terrainHeight3 = idx3 > _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx3].B * 1.5f;
-            float terrainHeight4 = idx4 > _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx4].B * 1.5f;
+            float terrainHeight1 = idx1 >= _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx1].B * 1.5f;
+            float terrainHeight2 = idx2 >= _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx2].B * 1.5f;
+            float terrainHeight3 = idx3 >= _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx3].B * 1.5f;
+            float terrainHeight4 = idx4 >= _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx4].B * 1.5f;
 
             float sx = xf * Constants.TERRAIN_SCALE;
             float sy = yf * Constants.TERRAIN_SCALE;
@@ -428,24 +428,24 @@ namespace Client.Main.Controls
                 new Vector3(sx, sy + Constants.TERRAIN_SCALE * lodf, terrainHeight4)
             };
 
-            if (_terrain.TerrainWall[idx1].HasFlag(TWFlags.Height))
+            if (idx1 < _terrain.TerrainWall.Length && _terrain.TerrainWall[idx1].HasFlag(TWFlags.Height))
                 terrainVertex[0].Z += 1200f;
 
-            if (_terrain.TerrainWall[idx2].HasFlag(TWFlags.Height))
+            if (idx2 < _terrain.TerrainWall.Length && _terrain.TerrainWall[idx2].HasFlag(TWFlags.Height))
                 terrainVertex[1].Z += 1200f;
 
-            if (_terrain.TerrainWall[idx3].HasFlag(TWFlags.Height))
+            if (idx3 < _terrain.TerrainWall.Length && _terrain.TerrainWall[idx3].HasFlag(TWFlags.Height))
                 terrainVertex[2].Z += 1200f;
 
-            if (_terrain.TerrainWall[idx4].HasFlag(TWFlags.Height))
+            if (idx4 < _terrain.TerrainWall.Length && _terrain.TerrainWall[idx4].HasFlag(TWFlags.Height))
                 terrainVertex[3].Z += 1200f;
 
             var terrainLights = new Color[4]
             {
-                _backTerrainLight[idx1],
-                _backTerrainLight[idx2],
-                _backTerrainLight[idx3],
-                _backTerrainLight[idx4]
+                idx1 < _backTerrainLight.Length ? _backTerrainLight[idx1] : Color.Black,
+                idx2 < _backTerrainLight.Length ?_backTerrainLight[idx2] : Color.Black,
+                idx3 < _backTerrainLight.Length ?_backTerrainLight[idx3] : Color.Black,
+                idx4 < _backTerrainLight.Length ?_backTerrainLight[idx4] : Color.Black
             };
 
             if (isOpaque)

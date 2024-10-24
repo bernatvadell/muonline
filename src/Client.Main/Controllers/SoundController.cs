@@ -54,6 +54,23 @@ namespace Client.Main.Controllers
             music.Play();
         }
 
+        public void PlayBuffer(string path)
+        {
+            if (!_songs.TryGetValue(path, out var soundEffectInstance))
+            {
+                var fullPath = Path.Combine(Constants.DataPath, path);
+                if (!File.Exists(fullPath))
+                {
+                    Debug.WriteLine($"File not found: {fullPath}");
+                    return;
+                }
+
+                var soundEffect = SoundEffect.FromFile(fullPath);
+                _songs.Add(path, soundEffectInstance = soundEffect.CreateInstance());
+            }
+
+            soundEffectInstance.Play();
+        }
 
         private SoundEffectInstance LoadMp3FromFile(string filePath)
         {
