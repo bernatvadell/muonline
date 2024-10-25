@@ -57,6 +57,8 @@ namespace Client.Main.Objects
 
         public event EventHandler MatrixChanged;
 
+        public bool IsMouseHover { get; private set; }
+
         public WorldObject()
         {
             Children = new ChildrenCollection<WorldObject>(this);
@@ -117,6 +119,8 @@ namespace Client.Main.Objects
 
             if (OutOfView)
                 return;
+
+            IsMouseHover = (Parent?.IsMouseHover ?? false) || (Interactive && MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld) != null);
 
             for (var i = 0; i < Children.Count; i++)
                 Children[i].Update(gameTime);

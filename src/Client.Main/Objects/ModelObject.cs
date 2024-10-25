@@ -110,7 +110,7 @@ namespace Client.Main.Objects
                     DrawShadowMesh(i);
                 }
 
-                if (!isAfterDraw && Interactive)
+                if (!isAfterDraw && i != BlendMesh && IsMouseHover)
                     DrawMeshHighlight(i);
 
                 if (draw)

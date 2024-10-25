@@ -33,7 +33,7 @@ namespace Client.Main.Worlds
 
         public override void AfterLoad()
         {
-            Walker.Location = new Vector2(173, 108);
+            Walker.Location = new Vector2(174, 123);
             base.AfterLoad();
         }
 
