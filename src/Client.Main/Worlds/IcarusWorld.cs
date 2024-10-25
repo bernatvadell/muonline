@@ -1,8 +1,7 @@
 using Client.Main.Controllers;
 using Client.Main.Controls;
-using Client.Main.Objects.CloudObject;
 using Client.Main.Objects.Effects;
-using Client.Main.Objects.WallObject;
+using Client.Main.Objects.Worlds.Icarus;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
 

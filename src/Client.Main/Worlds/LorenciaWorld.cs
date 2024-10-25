@@ -1,6 +1,6 @@
 ﻿using Client.Main.Controllers;
 using Client.Main.Controls;
-using Client.Main.Objects.Lorencia;
+using Client.Main.Objects.Worlds.Lorencia;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
