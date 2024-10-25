@@ -17,7 +17,6 @@ namespace Client.Main.Objects.NPCS
         {
             ExtraHeight = 90f;
             BlendMesh = 1;
-            CurrentAction = 1;
             Model = await BMDLoader.Instance.Prepare($"NPC/ElfWizard01.bmd");
             await base.Load();
         }
@@ -30,7 +29,10 @@ namespace Client.Main.Objects.NPCS
                 return;
 
             if (FPSCounter.Instance.RandFPSCheck(125))
+            {
                 SoundController.Instance.PlayBuffer("Sound/nHarp.wav");
+                CurrentAction = CurrentAction == 0 ? 1 : 0;
+            }
         }
     }
 }

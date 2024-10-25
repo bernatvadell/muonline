@@ -21,7 +21,7 @@ namespace Client.Main.Objects.Login
         {
             HiddenMesh = 0;
 
-            Children.Add(new LightEffect() { Scale = 2f });
+            Children.Add(new Flare01Effect() { Scale = 2f });
 
             Children.Add(
                 ParticleSystem.Create()

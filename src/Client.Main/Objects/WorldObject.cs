@@ -24,6 +24,7 @@ namespace Client.Main.Objects
         private WorldObject _parent;
         private Matrix _worldPosition;
         private WorldControl _world;
+        private bool _interactive;
 
         public bool LinkParent { get; set; }
         public bool OutOfView { get; private set; } = true;
@@ -45,6 +46,7 @@ namespace Client.Main.Objects
 
         public float Scale { get => _scale; set { _scale = value; OnScaleChanged(); } }
         public Matrix WorldPosition { get => _worldPosition; set { _worldPosition = value; OnWorldPositionChanged(); } }
+        public bool Interactive { get => _interactive || (Parent?.Interactive ?? false); set { _interactive = value; } }
         public Vector3 Light { get; set; } = new Vector3(0f, 0f, 0f);
         public bool LightEnabled { get; set; } = true;
         public bool Visible => Status == GameControlStatus.Ready && !OutOfView && !Hidden;

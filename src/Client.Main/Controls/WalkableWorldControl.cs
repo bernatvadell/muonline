@@ -39,9 +39,9 @@ namespace Client.Main.Controls
 
             if (Objects[^1] != Walker)
             {
-                var currentPosition = Objects.IndexOf(Walker);
-                Objects.RemoveAt(currentPosition);
-                Objects.Insert(Objects.Count, Walker);
+                //var currentPosition = Objects.IndexOf(Walker);
+                //Objects.RemoveAt(currentPosition);
+                //Objects.Insert(Objects.Count, Walker);
             }
 
             CalculateMouseTilePos();

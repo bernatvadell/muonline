@@ -16,7 +16,6 @@ namespace Client.Main.Objects.Particles
 
         public ParticleSystem()
         {
-            RandomRegenerationTime();
         }
 
         private float RandomRegenerationTime()

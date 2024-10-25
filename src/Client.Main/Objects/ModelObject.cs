@@ -102,9 +102,7 @@ namespace Client.Main.Objects
                 if (_dataTextures[i] == null) continue;
                 bool isRGBA = _dataTextures[i].Components == 4;
                 bool isBlendMesh = BlendMesh == i;
-                bool draw = isAfterDraw
-                    ? isRGBA || isBlendMesh
-                    : !isRGBA && !isBlendMesh;
+                bool draw = (isAfterDraw ? isRGBA || isBlendMesh : !isRGBA && !isBlendMesh);
 
                 if (!isAfterDraw && RenderShadow)
                 {
@@ -112,13 +110,18 @@ namespace Client.Main.Objects
                     DrawShadowMesh(i);
                 }
 
-                if (!draw) continue;
+                if (!isAfterDraw && Interactive)
+                    DrawMeshHighlight(i);
 
-                GraphicsDevice.DepthStencilState = isAfterDraw
-                    ? MuGame.Instance.DisableDepthMask
-                    : DepthStencilState.Default;
+                if (draw)
+                {
 
-                DrawMesh(i);
+                    GraphicsDevice.DepthStencilState = isAfterDraw
+                        ? MuGame.Instance.DisableDepthMask
+                        : DepthStencilState.Default;
+
+                    DrawMesh(i);
+                }
             }
         }
 
@@ -145,6 +148,42 @@ namespace Client.Main.Objects
                 GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
             }
         }
+
+        public virtual void DrawMeshHighlight(int mesh)
+        {
+            if (HiddenMesh == mesh || _boneVertexBuffers == null)
+                return;
+
+            Texture2D texture = _boneTextures[mesh];
+            VertexBuffer vertexBuffer = _boneVertexBuffers[mesh];
+            IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
+            int primitiveCount = indexBuffer.IndexCount / 3;
+
+            float scaleFactor = Scale + 0.02f;
+
+            Matrix highlightMatrix = Matrix.CreateScale(scaleFactor) * WorldPosition;
+
+            GraphicsManager.Instance.AlphaTestEffect3D.World = highlightMatrix;
+            GraphicsManager.Instance.AlphaTestEffect3D.DiffuseColor = new Vector3(0, 1, 0);
+
+            GraphicsManager.Instance.AlphaTestEffect3D.Alpha = TotalAlpha;
+
+            GraphicsDevice.DepthStencilState = MuGame.Instance.DisableDepthMask;
+            GraphicsDevice.BlendState = BlendState.Additive;
+
+            foreach (EffectPass pass in GraphicsManager.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+
+                GraphicsDevice.SetVertexBuffer(vertexBuffer);
+                GraphicsDevice.Indices = indexBuffer;
+                GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+            }
+
+            GraphicsManager.Instance.AlphaTestEffect3D.World = WorldPosition;
+            GraphicsManager.Instance.AlphaTestEffect3D.DiffuseColor = Vector3.One;
+        }
+
 
         public virtual void DrawShadowMesh(int mesh)
         {
@@ -219,6 +258,7 @@ namespace Client.Main.Objects
             GraphicsManager.Instance.AlphaTestEffect3D.World = WorldPosition;
 
             DrawModel(true);
+
             base.DrawAfter(gameTime);
         }
 

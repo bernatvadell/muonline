@@ -4,7 +4,7 @@
     {
         public NPCObject()
         {
-            
+            Interactive = true;
         }
     }
 }
