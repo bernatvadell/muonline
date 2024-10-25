@@ -19,6 +19,7 @@ namespace Client.Main.Controls.UI
         private LabelControl _playerCordsLabel;
         private LabelControl _mapTileLabel;
         private LabelControl _effectsStatusLabel;
+        private LabelControl _objectCursorLabel;
 
         public DebugPanel()
         {
@@ -27,7 +28,7 @@ namespace Client.Main.Controls.UI
 
             AutoSize = false;
             Width = 210;
-            Height = 120;
+            Height = 140;
             BackgroundColor = Color.Black * 0.6f;
             BorderColor = Color.White * 0.3f;
             BorderThickness = 2;
@@ -75,6 +76,14 @@ namespace Client.Main.Controls.UI
                 X = posX,
                 Y = posY += labelHeight
             });
+
+            Controls.Add(_objectCursorLabel = new LabelControl
+            {
+                Text = "Cursor Object: {0}",
+                TextColor = Color.CadetBlue,
+                X = posX,
+                Y = posY += labelHeight
+            });
         }
 
         public override void Update(GameTime gameTime)
@@ -84,6 +93,8 @@ namespace Client.Main.Controls.UI
             _fpsLabel.TextArgs = [(int)FPSCounter.Instance.FPS_AVG];
             _mousePosLabel.TextArgs = [MuGame.Instance.Mouse.Position.X, MuGame.Instance.Mouse.Position.Y];
             _effectsStatusLabel.TextArgs = [GraphicsManager.Instance.IsFXAAEnabled ? "ON" : "OFF", GraphicsManager.Instance.IsAlphaRGBEnabled ? "ON" : "OFF"];
+
+            _objectCursorLabel.TextArgs = [World.Scene.MouseHoverObject != null ? World.Scene.MouseHoverObject.GetType().Name : "N/A"];
 
             if (World is WalkableWorldControl walkableWorld)
             {

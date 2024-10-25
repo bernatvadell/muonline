@@ -120,7 +120,11 @@ namespace Client.Main.Objects
             if (OutOfView)
                 return;
 
-            IsMouseHover = (Parent?.IsMouseHover ?? false) || (Interactive && MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld) != null);
+            var parentIsMouseHover = (Parent?.IsMouseHover ?? false);
+            IsMouseHover = parentIsMouseHover || (Interactive && MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld) != null);
+
+            if (!parentIsMouseHover && IsMouseHover)
+                World.Scene.MouseHoverObject = this;
 
             for (var i = 0; i < Children.Count; i++)
                 Children[i].Update(gameTime);

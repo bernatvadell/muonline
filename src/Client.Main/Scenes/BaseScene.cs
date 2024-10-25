@@ -1,6 +1,7 @@
 ﻿using Client.Main.Controls;
 using Client.Main.Controls.UI;
 using Client.Main.Models;
+using Client.Main.Objects;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using System.Threading.Tasks;
@@ -15,6 +16,8 @@ namespace Client.Main.Scenes
         public GameControl MouseControl { get; set; }
         public GameControl MouseHoverControl { get; set; }
         public DebugPanel DebugPanel { get; }
+
+        public WorldObject MouseHoverObject { get; set; }
 
         public BaseScene()
         {
@@ -46,6 +49,7 @@ namespace Client.Main.Scenes
         {
             var currentMouseControl = MouseControl;
             MouseControl = null;
+            MouseHoverObject = null;
 
             base.Update(gameTime);
 
