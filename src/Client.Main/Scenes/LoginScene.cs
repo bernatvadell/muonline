@@ -17,10 +17,30 @@ namespace Client.Main.Scenes
 {
     public class LoginScene : BaseScene
     {
+        private TestDialog _loginDialog;
+        private ServerGroupSelector _nonEventGroup;
+        private ServerGroupSelector _eventGroup;
+        private ServerList _serverList;
 
         public LoginScene()
         {
-            // Controls.Add(new MuLogo() { Y = 10, Align = ControlAlign.HorizontalCenter });
+            Controls.Add(_loginDialog = new TestDialog()
+            {
+                Visible = false,
+                AutoSize = false,
+                Width = 300,
+                Height = 200,
+                Align = ControlAlign.HorizontalCenter | ControlAlign.VerticalCenter
+            });
+
+            var loginButton = new OkButton() { Align = ControlAlign.HorizontalCenter | ControlAlign.VerticalCenter };
+            loginButton.Click += LoginButton_Click;
+            _loginDialog.Controls.Add(loginButton);
+        }
+
+        private void LoginButton_Click(object sender, EventArgs e)
+        {
+            MuGame.Instance.ChangeScene<SelectCharacterScene>();
         }
 
         public override async Task Load()
@@ -59,64 +79,68 @@ namespace Client.Main.Scenes
 
         private void OnConnect()
         {
-            var nonEventGroup = new ServerGroupSelector(false)
+            _nonEventGroup = new ServerGroupSelector(false)
             {
                 Align = ControlAlign.HorizontalCenter | ControlAlign.VerticalCenter,
                 Margin = new Margin { Left = -220 }
             };
 
             for (byte i = 0; i < 4; i++)
-                nonEventGroup.AddServer(i, $"Server {i + 1}");
+                _nonEventGroup.AddServer(i, $"Server {i + 1}");
 
-            var eventGroup = new ServerGroupSelector(true)
+            _eventGroup = new ServerGroupSelector(true)
             {
                 Align = ControlAlign.HorizontalCenter | ControlAlign.VerticalCenter,
                 Margin = new Margin { Right = -220 }
             };
 
             for (byte i = 0; i < 3; i++)
-                eventGroup.AddServer(i, $"Event {i + 1}");
+                _eventGroup.AddServer(i, $"Event {i + 1}");
 
-            var serverList = new ServerList();
-            serverList.Visible = false;
-            serverList.ServerClick += ServerList_ServerClick;
+            _serverList = new ServerList();
+            _serverList.Visible = false;
+            _serverList.ServerClick += ServerList_ServerClick;
 
-            nonEventGroup.SelectedIndexChanged += (sender, e) =>
+            _nonEventGroup.SelectedIndexChanged += (sender, e) =>
             {
-                serverList.Clear();
+                _serverList.Clear();
 
                 for (var i = 0; i < 10; i++)
-                    serverList.AddServer((byte)i, $"Non Event Server {nonEventGroup.ActiveIndex + 1}", (byte)((i + 1) * 10));
+                    _serverList.AddServer((byte)i, $"Non Event Server {_nonEventGroup.ActiveIndex + 1}", (byte)((i + 1) * 10));
 
-                serverList.X = MuGame.Instance.Width / 2 - serverList.Width / 2;
-                serverList.Y = MuGame.Instance.Height / 2 - serverList.Height / 2;
-                serverList.Visible = true;
+                _serverList.X = MuGame.Instance.Width / 2 - _serverList.Width / 2;
+                _serverList.Y = MuGame.Instance.Height / 2 - _serverList.Height / 2;
+                _serverList.Visible = true;
 
-                eventGroup.UnselectServer();
+                _eventGroup.UnselectServer();
             };
 
-            eventGroup.SelectedIndexChanged += (sender, e) =>
+            _eventGroup.SelectedIndexChanged += (sender, e) =>
             {
-                serverList.Clear();
+                _serverList.Clear();
 
                 for (var i = 0; i < 10; i++)
-                    serverList.AddServer((byte)i, $"Event Server {eventGroup.ActiveIndex + 1}", (byte)((i + 1) * 10));
+                    _serverList.AddServer((byte)i, $"Event Server {_eventGroup.ActiveIndex + 1}", (byte)((i + 1) * 10));
 
-                serverList.X = MuGame.Instance.Width / 2 - serverList.Width / 2;
-                serverList.Y = MuGame.Instance.Height / 2 - serverList.Height / 2;
-                serverList.Visible = true;
+                _serverList.X = MuGame.Instance.Width / 2 - _serverList.Width / 2;
+                _serverList.Y = MuGame.Instance.Height / 2 - _serverList.Height / 2;
+                _serverList.Visible = true;
 
-                nonEventGroup.UnselectServer();
+                _nonEventGroup.UnselectServer();
             };
 
-            Controls.Add(nonEventGroup);
-            Controls.Add(eventGroup);
-            Controls.Add(serverList);
+            Controls.Add(_nonEventGroup);
+            Controls.Add(_eventGroup);
+            Controls.Add(_serverList);
         }
 
         private void ServerList_ServerClick(object sender, ServerSelectEventArgs e)
         {
-            MuGame.Instance.ChangeScene<SelectCharacterScene>();
+            _eventGroup.Visible = false;
+            _nonEventGroup.Visible = false;
+            _serverList.Visible = false;
+
+            _loginDialog.Visible = true;
         }
 
         private ValueTask PacketReceived(System.Buffers.ReadOnlySequence<byte> eventArgs)

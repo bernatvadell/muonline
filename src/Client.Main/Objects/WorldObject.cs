@@ -81,6 +81,9 @@ namespace Client.Main.Objects
             var children = Children.ToArray();
             for (var i = 0; i < children.Length; i++)
                 Children[i].World = World;
+
+            if (World is WalkableWorldControl && this is WalkerObject walker)
+                walker.OnDirectionChanged();
         }
 
         public virtual async Task Load()

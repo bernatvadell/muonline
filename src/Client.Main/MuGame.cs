@@ -173,27 +173,6 @@ namespace Client.Main
             }
         }
 
-        private void DrawRay(Ray ray, float length, Color color)
-        {
-            GraphicsManager.Instance.BoundingBoxEffect3D.Projection = Camera.Instance.Projection;
-            GraphicsManager.Instance.BoundingBoxEffect3D.View = Camera.Instance.View;
-
-            Vector3 endPoint = ray.Position + ray.Direction * length;
-
-            VertexPositionColor[] vertices = new VertexPositionColor[2];
-            vertices[0] = new VertexPositionColor(ray.Position, color);
-            vertices[1] = new VertexPositionColor(endPoint, color);
-
-            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
-            GraphicsDevice.DepthStencilState = DepthStencilState.None;
-
-            foreach (EffectPass pass in GraphicsManager.Instance.BoundingBoxEffect3D.CurrentTechnique.Passes)
-            {
-                pass.Apply();
-                GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, vertices, 0, 1);
-            }
-        }
-
         private void DrawSceneToMainRenderTarget(GameTime gameTime)
         {
             GraphicsDevice.SetRenderTarget(GraphicsManager.Instance.MainRenderTarget);
@@ -205,7 +184,6 @@ namespace Client.Main
 
             ActiveScene?.Draw(gameTime);
             ActiveScene?.DrawAfter(gameTime);
-            DrawRay(MouseRay, 1000, Color.Red);
 
             GraphicsDevice.SetRenderTarget(null);
         }

@@ -40,7 +40,7 @@ namespace Client.Main.Content
 
             string normalizedPath = path.ToLowerInvariant();
 
-            if(_textureTasks.TryGetValue(normalizedPath, out var task))
+            if (_textureTasks.TryGetValue(normalizedPath, out var task))
                 return task;
 
             task = InternalPrepare(normalizedPath);
@@ -48,6 +48,12 @@ namespace Client.Main.Content
             _textureTasks.TryAdd(normalizedPath, task);
 
             return task;
+        }
+
+        public async Task<Texture2D> PrepareAndGetTexture(string path)
+        {
+            await Prepare(path);
+            return GetTexture2D(path);
         }
 
         private async Task<TextureData> InternalPrepare(string normalizedPath)

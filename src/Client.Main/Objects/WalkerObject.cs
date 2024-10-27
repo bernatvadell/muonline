@@ -98,7 +98,7 @@ namespace Client.Main.Objects
             MoveTargetPosition = Vector3.Zero;
         }
 
-        private void OnDirectionChanged()
+        public void OnDirectionChanged()
         {
             if (World is WalkableWorldControl)
                 _targetAngle = _direction.ToAngle();
@@ -110,6 +110,9 @@ namespace Client.Main.Objects
         {
             if (oldLocation == newLocation) return;
             _location = new Vector2((int)newLocation.X, (int)newLocation.Y);
+
+            if (oldLocation == Vector2.Zero)
+                return;
 
             var oldX = oldLocation.X;
             var oldY = oldLocation.Y;

@@ -95,6 +95,14 @@ namespace Client.Main.Controls
 
             SoundController.Instance.PlayBackgroundMusic(BackgroundMusicPath);
         }
+
+        public override void AfterLoad()
+        {
+            base.AfterLoad();
+
+            SendToBack();
+        }
+
         public override void Update(GameTime time)
         {
             base.Update(time);
