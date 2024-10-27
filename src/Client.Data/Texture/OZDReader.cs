@@ -57,19 +57,19 @@ namespace Client.Data.Texture
             br.BaseStream.Seek(84, SeekOrigin.Begin);
             var pixelFormat = br.ReadString(4);
 
-            var squishFlags = SquishFlags.Dxt1;
-
-            squishFlags = pixelFormat switch
+            SquishFlags? squishFlags = pixelFormat switch
             {
                 "DXT1" => SquishFlags.Dxt1,
                 "DXT3" => SquishFlags.Dxt3,
                 "DXT5" => SquishFlags.Dxt5,
-                _ => throw new ApplicationException($"Invalid pixel format: {pixelFormat}"),
+                _ => null
             };
 
             var data = buffer.AsSpan(128).ToArray();
 
-            byte[] decompressedData = Squish.DecompressImage(data, width, height, squishFlags);
+            byte[] decompressedData = squishFlags != null
+                ? Squish.DecompressImage(data, width, height, squishFlags.Value)
+                : data;
 
             return new TextureData
             {

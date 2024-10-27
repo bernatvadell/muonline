@@ -30,20 +30,20 @@ namespace Client.Main.Content
             _graphicsDevice = graphicsDevice;
         }
 
-        public Task<BMD> Prepare(string path)
+        public Task<BMD> Prepare(string path, string textureFolder = null)
         {
             lock (_bmds)
             {
                 if (_bmds.TryGetValue(path, out Task<BMD> modelTask))
                     return modelTask;
 
-                modelTask = LoadAssetAsync(path);
+                modelTask = LoadAssetAsync(path, textureFolder);
                 _bmds.Add(path, modelTask);
                 return modelTask;
             }
         }
 
-        private async Task<BMD> LoadAssetAsync(string path)
+        private async Task<BMD> LoadAssetAsync(string path, string textureFolder = null)
         {
             try
             {
@@ -61,7 +61,9 @@ namespace Client.Main.Content
                 lock (_texturePathMap)
                     _texturePathMap.Add(asset, texturePathMap);
 
-                var dir = Path.GetRelativePath(Constants.DataPath, Path.GetDirectoryName(path));
+                var dir = string.IsNullOrEmpty(textureFolder)
+                    ? Path.GetRelativePath(Constants.DataPath, Path.GetDirectoryName(path))
+                    : null;
 
                 var tasks = new List<Task>();
                 foreach (var mesh in asset.Meshes)
