@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Logo
 {
-    public class LogoObject : ModelObject
+    public class WaterObject : ModelObject
     {
-        public LogoObject()
+        public WaterObject()
         {
             LightEnabled = true;
         }

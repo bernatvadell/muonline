@@ -39,7 +39,15 @@ namespace Client.Main.Content
                 throw new ArgumentException("Path cannot be null or whitespace.", nameof(path));
 
             string normalizedPath = path.ToLowerInvariant();
-            return _textureTasks.GetOrAdd(normalizedPath, InternalPrepare);
+
+            if(_textureTasks.TryGetValue(normalizedPath, out var task))
+                return task;
+
+            task = InternalPrepare(normalizedPath);
+
+            _textureTasks.TryAdd(normalizedPath, task);
+
+            return task;
         }
 
         private async Task<TextureData> InternalPrepare(string normalizedPath)

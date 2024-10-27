@@ -1,5 +1,6 @@
 ﻿using Client.Data.ATT;
 using Client.Data.BMD;
+using Client.Data.CAP;
 using Client.Data.MAP;
 using Client.Data.OBJS;
 using Client.Data.OZB;
@@ -48,7 +49,7 @@ namespace Client.Main.Controls
                 { 7, "TileRock01.ozj" },
                 { 8, "TileRock02.ozj" },
                 { 9, "TileRock03.ozj" },
-                { 10, "AlphaTile01.ozt" },
+                { 10, "TileRock04.ozj" },
                 { 11, "TileRock05.ozj" },
                 { 12, "TileRock06.ozj" },
                 { 13, "TileRock07.ozj" },
@@ -201,7 +202,7 @@ namespace Client.Main.Controls
         public Vector3 RequestTerrainLight(float xf, float yf)
         {
             if (_terrain?.TerrainWall == null || xf < 0.0f || yf < 0.0f || _backTerrainLight == null)
-                return Vector3.Zero;
+                return Vector3.One;
 
             xf /= Constants.TERRAIN_SCALE;
             yf /= Constants.TERRAIN_SCALE;

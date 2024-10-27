@@ -100,7 +100,10 @@ namespace Client.Main.Objects
 
         private void OnDirectionChanged()
         {
-            _targetAngle = _direction.ToAngle();
+            if (World is WalkableWorldControl)
+                _targetAngle = _direction.ToAngle();
+            else
+                Angle = _direction.ToAngle();
         }
 
         private void OnLocationChanged(Vector2 oldLocation, Vector2 newLocation)
@@ -151,11 +154,12 @@ namespace Client.Main.Objects
 
         private void UpdatePosition(GameTime gameTime)
         {
-            float worldExtraHeight = 0f;
+            if (World is not WalkableWorldControl walkableWorld)
+                return;
 
             UpdateMoveTargetPosition(gameTime);
-            worldExtraHeight = ((WalkableWorldControl)World).ExtraHeight;
 
+            float worldExtraHeight = walkableWorld.ExtraHeight;
             float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
             _currentCameraDistance = MathHelper.Lerp(_currentCameraDistance, _targetCameraDistance, _zoomSpeed * deltaTime);
             _currentCameraDistance = MathHelper.Clamp(_currentCameraDistance, _minCameraDistance, _maxCameraDistance);

@@ -176,5 +176,10 @@ namespace Client.Main
         {
             return this.Remove(control);
         }
+
+        internal void Add(object value)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

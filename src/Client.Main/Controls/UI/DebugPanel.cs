@@ -90,6 +90,9 @@ namespace Client.Main.Controls.UI
         {
             base.Update(gameTime);
 
+            if (!Visible)
+                return;
+
             _fpsLabel.TextArgs = [(int)FPSCounter.Instance.FPS_AVG];
             _mousePosLabel.TextArgs = [MuGame.Instance.Mouse.Position.X, MuGame.Instance.Mouse.Position.Y];
             _effectsStatusLabel.TextArgs = [GraphicsManager.Instance.IsFXAAEnabled ? "ON" : "OFF", GraphicsManager.Instance.IsAlphaRGBEnabled ? "ON" : "OFF"];

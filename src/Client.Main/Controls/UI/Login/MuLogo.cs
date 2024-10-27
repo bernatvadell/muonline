@@ -15,18 +15,18 @@ namespace Client.Main.Controls.UI.Login
 
         public MuLogo()
         {
-            Controls.Add(new TextureControl
-            {
-                TexturePath = "Logo/MU-logo_g.jpg",
-                BlendState = BlendState.Additive,
-                Scale = 0.5f
-            });
+            //Controls.Add(new TextureControl
+            //{
+            //    TexturePath = "Logo/MU-logo_g.jpg",
+            //    BlendState = BlendState.Additive,
+            //    Scale = 0.5f
+            //});
 
             Controls.Add(_logo = new TextureControl
             {
                 TexturePath = "Logo/MU-logo.tga",
                 BlendState = Blendings.Alpha,
-                Scale = 0.5f
+                Scale = 1f
             });
         }
 

@@ -16,10 +16,10 @@ namespace Client.Main.Objects.Worlds.Lorencia
             LightEnabled = true;
         }
 
-        public override async Task Load()
+        public override async Task LoadContent()
         {
             Model = await BMDLoader.Instance.Prepare($"Object1/Ship01.bmd");
-            await base.Load();
+            await base.LoadContent();
         }
     }
 }

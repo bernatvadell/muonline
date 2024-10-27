@@ -49,9 +49,9 @@ namespace Client.Main.Controls.UI
             GraphicsDevice.SamplerStates[0] = SamplerState.PointClamp;
 
             GraphicsManager.Instance.Sprite.Begin(
-                blendState: BlendState, 
-                effect: BlendState == BlendState.AlphaBlend ? GraphicsManager.Instance.AlphaTestEffectUI : null,
-                samplerState: SamplerState.PointClamp, 
+                blendState: BlendState,
+                effect: GraphicsManager.Instance.AlphaTestEffectUI,
+                samplerState: SamplerState.PointClamp,
                 depthStencilState: DepthStencilState.Default
             );
             GraphicsManager.Instance.Sprite.Draw(Texture, ScreenLocation, SourceRectangle, Color.White, 0f, Vector2.Zero, SpriteEffects.None, 0f);

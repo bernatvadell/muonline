@@ -10,13 +10,13 @@ namespace Client.Main.Objects.Logo
         public WaveByShipObject()
         {
             LightEnabled = true;
+            BlendState = BlendState.Additive;
         }
 
-        public override async Task Load()
+        public override async Task LoadContent()
         {
             Model = await BMDLoader.Instance.Prepare("Logo/Logo02.bmd");
-            await base.Load();
-            BlendState = BlendState.Additive;
+            await base.LoadContent();
         }
     }
 

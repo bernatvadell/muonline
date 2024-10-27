@@ -6,7 +6,7 @@ namespace Client.Main.Scenes
     {
         public SelectCharacterScene()
         {
-            ChangeWorld<SelectCharacterWorld>();
+            ChangeWorld<SelectWorld>();
         }
     }
 }

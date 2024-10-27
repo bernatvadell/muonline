@@ -2,6 +2,7 @@
 using Client.Main.Models;
 using Client.Main.Objects.Effects;
 using Client.Main.Objects.Player;
+using Client.Main.Objects.Worlds.Lorencia;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Threading.Tasks;
@@ -23,8 +24,9 @@ namespace Client.Main.Scenes
         public override async Task Load()
         {
             await ChangeWorldAsync<EmptyWorldControl>();
+            World.Objects.Add(new ShipObject() { Position = new Vector3(0, 0, 0) });
             World.Objects.Add(_player = new PlayerObject() { PlayerClass = PlayerClass.DarkWizard });
-            await _player.Load();
+            //await _player.Load();
             await base.Load();
         }
 
@@ -36,11 +38,11 @@ namespace Client.Main.Scenes
 
             nextTime -= gameTime.ElapsedGameTime.TotalMilliseconds;
 
-            if (nextTime <= 0)
-            {
-                _player.CurrentAction++;
-                nextTime = 5000;
-            }
+            //if (nextTime <= 0)
+            //{
+            //    _player.CurrentAction++;
+            //    nextTime = 5000;
+            //}
 
             float angle = (float)gameTime.TotalGameTime.TotalSeconds;
             Camera.Instance.Position = new Vector3(500, 500, 400);

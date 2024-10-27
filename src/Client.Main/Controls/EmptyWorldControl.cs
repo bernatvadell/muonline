@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Controls
 {
-    public sealed class EmptyWorldControl : WorldControl
+    public class EmptyWorldControl : WorldControl
     {
         public EmptyWorldControl() : base(-1)
         {

@@ -26,6 +26,9 @@ namespace Client.Main.Controllers
 
         public void PlayBackgroundMusic(string path)
         {
+            if (!Constants.BACKGROUND_MUSIC)
+                return;
+
             if (string.IsNullOrEmpty(path))
             {
                 StopBackgroundMusic();
@@ -56,6 +59,9 @@ namespace Client.Main.Controllers
 
         public void PlayBuffer(string path)
         {
+            if (!Constants.SOUND_EFFECTS)
+                return;
+
             if (!_songs.TryGetValue(path, out var soundEffectInstance))
             {
                 var fullPath = Path.Combine(Constants.DataPath, path);
@@ -74,16 +80,15 @@ namespace Client.Main.Controllers
 
         private SoundEffectInstance LoadMp3FromFile(string filePath)
         {
-            using (var mp3Reader = new Mp3FileReader(filePath))
-            using (var waveStream = WaveFormatConversionStream.CreatePcmStream(mp3Reader))
-            using (var memoryStream = new MemoryStream())
-            {
-                waveStream.CopyTo(memoryStream);
-                var bytes = memoryStream.ToArray();
+            using var mp3Reader = new Mp3FileReader(filePath);
+            using var waveStream = WaveFormatConversionStream.CreatePcmStream(mp3Reader);
+            using var memoryStream = new MemoryStream();
 
-                var soundEffect = new SoundEffect(bytes, waveStream.WaveFormat.SampleRate, (AudioChannels)waveStream.WaveFormat.Channels);
-                return soundEffect.CreateInstance();
-            }
+            waveStream.CopyTo(memoryStream);
+            var bytes = memoryStream.ToArray();
+
+            var soundEffect = new SoundEffect(bytes, waveStream.WaveFormat.SampleRate, (AudioChannels)waveStream.WaveFormat.Channels);
+            return soundEffect.CreateInstance();
         }
     }
 }

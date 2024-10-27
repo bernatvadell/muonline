@@ -79,8 +79,6 @@ namespace Client.Main.Controls
             {
                 Status = GameControlStatus.Initializing;
 
-                await Load();
-
                 var tasks = new Task[Controls.Count];
 
                 var controls = Controls.ToArray();
@@ -96,6 +94,8 @@ namespace Client.Main.Controls
                 }
 
                 await Task.WhenAll(tasks);
+
+                await Load();
 
                 AfterLoad();
 

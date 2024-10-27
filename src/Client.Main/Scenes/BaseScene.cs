@@ -28,7 +28,7 @@ namespace Client.Main.Scenes
 
         public void ChangeWorld<T>() where T : WorldControl, new()
         {
-            Task.Run(() => ChangeWorldAsync<T>()).Wait();
+            Task.Run(() => ChangeWorldAsync<T>()).ConfigureAwait(false);
         }
 
         public async Task ChangeWorldAsync<T>() where T : WorldControl, new()
@@ -71,6 +71,11 @@ namespace Client.Main.Scenes
             else if (currentMouseControl != null && currentMouseControl.IsMousePressed && MouseControl != currentMouseControl)
             {
                 currentMouseControl.IsMousePressed = false;
+            }
+
+            if (MouseHoverObject != null && MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Pressed && MuGame.Instance.Mouse.LeftButton == ButtonState.Released)
+            {
+                MouseHoverObject.OnClick();
             }
 
             DebugPanel.BringToFront();

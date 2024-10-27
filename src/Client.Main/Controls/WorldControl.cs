@@ -1,6 +1,9 @@
 ﻿using Client.Data.ATT;
+using Client.Data.BMD;
+using Client.Data.CAP;
 using Client.Data.CWS;
 using Client.Data.OBJS;
+using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Models;
 using Client.Main.Objects;
@@ -49,16 +52,16 @@ namespace Client.Main.Controls
 
             var worldFolder = $"World{WorldIndex}";
 
-
             Camera.Instance.AspectRatio = GraphicsDevice.Viewport.AspectRatio;
 
-            var objReader = new OBJReader();
+            var tasks = new List<Task>();
 
+            var objReader = new OBJReader();
             var objectPath = Path.Combine(Constants.DataPath, worldFolder, $"EncTerrain{WorldIndex}.obj");
 
             if (File.Exists(objectPath))
             {
-                var tasks = new List<Task>();
+
                 OBJ obj = await objReader.Load(objectPath);
 
                 foreach (var mapObj in obj.Objects)
@@ -66,7 +69,28 @@ namespace Client.Main.Controls
                     var instance = WorldObjectFactory.CreateMapTileObject(this, mapObj);
                     if (instance != null) tasks.Add(instance.Load());
                 }
-                await Task.WhenAll(tasks);
+            }
+
+            await Task.WhenAll(tasks);
+
+            var cameraAnglePositionPath = Path.Combine(Constants.DataPath, worldFolder, "Camera_Angle_Position.bmd");
+            if (File.Exists(cameraAnglePositionPath))
+            {
+                var capReader = new CAPReader();
+                var data = await capReader.Load(cameraAnglePositionPath);
+
+                //float x = data.CameraDistance * (float)Math.Cos(data.CameraAngle.X) * (float)Math.Sin(data.CameraAngle.Z);
+                //float y = data.CameraDistance * (float)Math.Cos(data.CameraAngle.X) * (float)Math.Cos(data.CameraAngle.Z);
+                //float z = data.CameraDistance * (float)Math.Sin(data.CameraAngle.X) + data.CameraZDistance;
+
+                //var cameraOffset = new Vector3(x, y, z + 150);
+
+                //var terrainHeight = Terrain.RequestTerrainHeight(data.HeroPosition.X, data.HeroPosition.Y);
+                //var targetOffset = new Vector3(0, 0, terrainHeight);
+
+                Camera.Instance.FOV = data.CameraFOV;
+                Camera.Instance.Position = data.CameraPosition;
+                Camera.Instance.Target = data.HeroPosition;
             }
 
             SoundController.Instance.PlayBackgroundMusic(BackgroundMusicPath);

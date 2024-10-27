@@ -8,9 +8,17 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Controls.UI.Login
 {
+    public class ServerSelectEventArgs : EventArgs
+    {
+        public byte Index { get; set; }
+        public string Name { get; set; }
+    }
+
     public class ServerList : UIControl
     {
         private readonly List<ServerButton> _serverButtons = new();
+
+        public event EventHandler<ServerSelectEventArgs> ServerClick;
 
         public ServerList()
         {
@@ -27,6 +35,7 @@ namespace Client.Main.Controls.UI.Login
                 Y = index * 26,
                 Gauge = gauge
             };
+            button.Click += (s, e) => ServerClick?.Invoke(this, new ServerSelectEventArgs { Index = index, Name = name });
             _serverButtons.Add(button);
             Controls.Add(button);
             Height = _serverButtons.Count * 26;

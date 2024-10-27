@@ -4,6 +4,9 @@ namespace Client.Main
 {
     public static class Constants
     {
+        public static string IPAddress = "127.0.0.1";
+        public static int Port = 44405;
+
         // Terrain constants
         public const int TERRAIN_SIZE = 256;
         public const int TERRAIN_SIZE_MASK = 255;
@@ -12,7 +15,11 @@ namespace Client.Main
         public const Models.PlayerClass Character = Models.PlayerClass.DarkWizard;
 
         // Game settings
+        public static bool BACKGROUND_MUSIC = false;
+        public static bool SOUND_EFFECTS = false;
         public static bool DRAW_BOUNDING_BOXES = false;
+        public static bool DRAW_BOUNDING_BOXES_INTERACTIVES = false;
+
 #if DEBUG
         public static string DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
 #else

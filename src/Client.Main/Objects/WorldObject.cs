@@ -56,13 +56,19 @@ namespace Client.Main.Objects
         protected GraphicsDevice GraphicsDevice => MuGame.Instance.GraphicsDevice;
 
         public event EventHandler MatrixChanged;
-
         public bool IsMouseHover { get; private set; }
+
+        public event EventHandler Click;
 
         public WorldObject()
         {
             Children = new ChildrenCollection<WorldObject>(this);
             Children.ControlAdded += Children_ControlAdded;
+        }
+
+        public virtual void OnClick()
+        {
+            Click?.Invoke(this, EventArgs.Empty);
         }
 
         private void Children_ControlAdded(object sender, ChildrenEventArgs<WorldObject> e)
@@ -88,10 +94,12 @@ namespace Client.Main.Objects
 
                 if (World == null) throw new ApplicationException("World is not assigned to object");
 
-                var tasks = new Task[Children.Count];
+                var tasks = new Task[Children.Count + 1];
+
+                tasks[0] = LoadContent();
 
                 for (var i = 0; i < Children.Count; i++)
-                    tasks[i] = Children[i].Load();
+                    tasks[i + 1] = Children[i].Load();
 
                 await Task.WhenAll(tasks);
 
@@ -106,6 +114,12 @@ namespace Client.Main.Objects
                 Status = GameControlStatus.Error;
             }
         }
+
+        public virtual Task LoadContent()
+        {
+            return Task.CompletedTask;
+        }
+
         public virtual void Update(GameTime gameTime)
         {
             if (Status == GameControlStatus.NonInitialized)
@@ -121,7 +135,26 @@ namespace Client.Main.Objects
                 return;
 
             var parentIsMouseHover = (Parent?.IsMouseHover ?? false);
-            IsMouseHover = parentIsMouseHover || (Interactive && MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld) != null);
+            ContainmentType contains = BoundingBoxWorld.Contains(MuGame.Instance.MouseRay.Position);
+            float? intersectionDistance = MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld);
+            IsMouseHover = parentIsMouseHover || (Interactive && (intersectionDistance != null || contains == ContainmentType.Contains));
+
+            //var parentIsMouseHover = (Parent?.IsMouseHover ?? false);
+            //IsMouseHover = parentIsMouseHover || (Interactive && MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld) != null);
+
+            if (!parentIsMouseHover && IsMouseHover)
+            {
+                // ContainmentType contains = BoundingBoxWorld.Contains(MuGame.Instance.MouseRay.Position);
+                Debug.WriteLine($"Object Type: {GetType().Name}");
+                Debug.WriteLine($"El origen del rayo está: {contains}");
+                Debug.WriteLine($"Intersection length: {MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld)}");
+                Debug.WriteLine($"MouseRay: {MuGame.Instance.MouseRay.Position}");
+                Debug.WriteLine($"Local Bounding Box Min: {BoundingBoxWorld.Min}");
+                Debug.WriteLine($"Local Bounding Box Max: {BoundingBoxWorld.Max}");
+                Debug.WriteLine($"World Bounding Box Min: {BoundingBoxWorld.Min}");
+                Debug.WriteLine($"World Bounding Box Max: {BoundingBoxWorld.Max}");
+                Debug.WriteLine($"WorldPosition: {WorldPosition}");
+            }
 
             if (!parentIsMouseHover && IsMouseHover)
                 World.Scene.MouseHoverObject = this;
@@ -134,8 +167,7 @@ namespace Client.Main.Objects
         {
             if (!Visible) return;
 
-            if (Constants.DRAW_BOUNDING_BOXES)
-                DrawBoundingBox();
+            DrawBoundingBox();
 
             for (var i = 0; i < Children.Count; i++)
                 Children[i].Draw(gameTime);
@@ -228,8 +260,9 @@ namespace Client.Main.Objects
 
         private void DrawBoundingBox()
         {
-            if (!Constants.DRAW_BOUNDING_BOXES)
-                return;
+            var draw = Constants.DRAW_BOUNDING_BOXES || (Interactive && Constants.DRAW_BOUNDING_BOXES_INTERACTIVES);
+
+            if (!draw) return;
 
             Vector3[] corners = BoundingBoxWorld.GetCorners();
 

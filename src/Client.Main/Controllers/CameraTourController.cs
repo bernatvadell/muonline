@@ -154,6 +154,5 @@ namespace Client.Main.Controllers
                 }
             }
         }
-
     }
 }

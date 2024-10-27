@@ -90,6 +90,9 @@ namespace Client.Main.Objects.Player
         {
             base.Update(gameTime);
 
+            if (World is not WalkableWorldControl)
+                return;
+
             if (IsMoving)
                 CurrentAction = PlayerAction.WalkMale;
             else if (!IsMoving)

@@ -80,7 +80,7 @@ namespace Client.Main
         protected override void LoadContent()
         {
             GraphicsManager.Instance.Init(GraphicsDevice, Content);
-            ChangeScene<GameScene>();
+            ChangeScene<LoginScene>();
         }
 
         protected override void UnloadContent()
@@ -132,24 +132,27 @@ namespace Client.Main
             }
             else
             {
-                // Reset mouse and keyboard states if the window is not active
                 Mouse = new MouseState(mouseState.X, mouseState.Y, mouseState.ScrollWheelValue, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, mouseState.HorizontalScrollWheelValue);
                 Keyboard = new KeyboardState();
             }
 
-            // Update mouse ray when the mouse moves
-            if (Camera.Instance.Position != Vector3.Zero && Camera.Instance.Target != Vector3.Zero)
+            if (PrevMouseState.Position != Mouse.Position)
                 UpdateMouseRay();
         }
 
         private void UpdateMouseRay()
         {
-            var nearPoint = GraphicsDevice.Viewport.Unproject(new Vector3(Mouse.Position.X, Mouse.Position.Y, 0), Camera.Instance.Projection, Camera.Instance.View, Matrix.Identity);
-            var farPoint = GraphicsDevice.Viewport.Unproject(new Vector3(Mouse.Position.X, Mouse.Position.Y, 1), Camera.Instance.Projection, Camera.Instance.View, Matrix.Identity);
+            Vector2 mousePosition = Mouse.Position.ToVector2();
+            Vector3 farSource = new Vector3(mousePosition, 1f);
+            Vector3 farPoint = GraphicsDevice.Viewport.Unproject(
+                farSource,
+                Camera.Instance.Projection,
+                Camera.Instance.View,
+                Matrix.Identity);
 
+            Vector3 nearPoint = Camera.Instance.Position;
             Vector3 direction = farPoint - nearPoint;
             direction.Normalize();
-
             MouseRay = new Ray(nearPoint, direction);
         }
 
@@ -170,6 +173,27 @@ namespace Client.Main
             }
         }
 
+        private void DrawRay(Ray ray, float length, Color color)
+        {
+            GraphicsManager.Instance.BoundingBoxEffect3D.Projection = Camera.Instance.Projection;
+            GraphicsManager.Instance.BoundingBoxEffect3D.View = Camera.Instance.View;
+
+            Vector3 endPoint = ray.Position + ray.Direction * length;
+
+            VertexPositionColor[] vertices = new VertexPositionColor[2];
+            vertices[0] = new VertexPositionColor(ray.Position, color);
+            vertices[1] = new VertexPositionColor(endPoint, color);
+
+            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+            GraphicsDevice.DepthStencilState = DepthStencilState.None;
+
+            foreach (EffectPass pass in GraphicsManager.Instance.BoundingBoxEffect3D.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                GraphicsDevice.DrawUserPrimitives(PrimitiveType.LineList, vertices, 0, 1);
+            }
+        }
+
         private void DrawSceneToMainRenderTarget(GameTime gameTime)
         {
             GraphicsDevice.SetRenderTarget(GraphicsManager.Instance.MainRenderTarget);
@@ -181,6 +205,8 @@ namespace Client.Main
 
             ActiveScene?.Draw(gameTime);
             ActiveScene?.DrawAfter(gameTime);
+            DrawRay(MouseRay, 1000, Color.Red);
+
             GraphicsDevice.SetRenderTarget(null);
         }
 
