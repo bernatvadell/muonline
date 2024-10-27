@@ -1,4 +1,5 @@
 ﻿using Client.Main.Models;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace Client.Main.Controls.UI.Game
@@ -16,14 +17,12 @@ namespace Client.Main.Controls.UI.Game
         public MainMPControl()
         {
             TexturePath = "Interface/GFx/main_IE.ozd";
-            AutoSize = false;
-            OffsetX = 339;
-            OffsetY = 4;
-            Width = 86;
-            Height = 86;
+            AutoViewSize = false;
+            TextureRectangle = new Rectangle(339, 4, 86, 86);
+            ViewSize = new Point(86, 86);
             Align = ControlAlign.Bottom;
             BlendState = BlendState.AlphaBlend;
-            Controls.Add(_progress = new MainMPStatusControl { Align = ControlAlign.Bottom });
+            Controls.Add(_progress = new MainMPStatusControl { Align = ControlAlign.Bottom, Margin = new Margin { Bottom = 3 } });
             Controls.Add(_label = new LabelControl { Align = ControlAlign.VerticalCenter | ControlAlign.HorizontalCenter, FontSize = 8 });
         }
 

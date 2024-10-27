@@ -15,7 +15,7 @@ public class CursorControl : SpriteControl
 
     public CursorControl()
     {
-        AutoSize = false;
+        AutoViewSize = false;
         BlendState = Blendings.Alpha;
         TexturePath = "Interface/Cursor.tga";
         TileWidth = 32;

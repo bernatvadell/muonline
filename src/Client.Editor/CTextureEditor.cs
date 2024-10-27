@@ -19,6 +19,7 @@ namespace Client.Editor
         public CTextureEditor()
         {
             InitializeComponent();
+            pictureBox1.BackColor = Color.White;
         }
 
         public async void Init(string filePath)

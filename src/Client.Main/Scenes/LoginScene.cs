@@ -17,25 +17,18 @@ namespace Client.Main.Scenes
 {
     public class LoginScene : BaseScene
     {
-        private TestDialog _loginDialog;
+        private LoginDialog _loginDialog;
         private ServerGroupSelector _nonEventGroup;
         private ServerGroupSelector _eventGroup;
         private ServerList _serverList;
 
         public LoginScene()
         {
-            Controls.Add(_loginDialog = new TestDialog()
+            Controls.Add(_loginDialog = new LoginDialog()
             {
                 Visible = false,
-                AutoSize = false,
-                Width = 300,
-                Height = 200,
                 Align = ControlAlign.HorizontalCenter | ControlAlign.VerticalCenter
             });
-
-            var loginButton = new OkButton() { Align = ControlAlign.HorizontalCenter | ControlAlign.VerticalCenter };
-            loginButton.Click += LoginButton_Click;
-            _loginDialog.Controls.Add(loginButton);
         }
 
         private void LoginButton_Click(object sender, EventArgs e)
@@ -98,6 +91,7 @@ namespace Client.Main.Scenes
                 _eventGroup.AddServer(i, $"Event {i + 1}");
 
             _serverList = new ServerList();
+            _serverList.Align = ControlAlign.VerticalCenter | ControlAlign.HorizontalCenter;
             _serverList.Visible = false;
             _serverList.ServerClick += ServerList_ServerClick;
 
@@ -108,8 +102,6 @@ namespace Client.Main.Scenes
                 for (var i = 0; i < 10; i++)
                     _serverList.AddServer((byte)i, $"Non Event Server {_nonEventGroup.ActiveIndex + 1}", (byte)((i + 1) * 10));
 
-                _serverList.X = MuGame.Instance.Width / 2 - _serverList.Width / 2;
-                _serverList.Y = MuGame.Instance.Height / 2 - _serverList.Height / 2;
                 _serverList.Visible = true;
 
                 _eventGroup.UnselectServer();
@@ -122,8 +114,8 @@ namespace Client.Main.Scenes
                 for (var i = 0; i < 10; i++)
                     _serverList.AddServer((byte)i, $"Event Server {_eventGroup.ActiveIndex + 1}", (byte)((i + 1) * 10));
 
-                _serverList.X = MuGame.Instance.Width / 2 - _serverList.Width / 2;
-                _serverList.Y = MuGame.Instance.Height / 2 - _serverList.Height / 2;
+                _serverList.X = MuGame.Instance.Width / 2 - _serverList.DisplaySize.X / 2;
+                _serverList.Y = MuGame.Instance.Height / 2 - _serverList.DisplaySize.Y / 2;
                 _serverList.Visible = true;
 
                 _nonEventGroup.UnselectServer();
@@ -139,7 +131,6 @@ namespace Client.Main.Scenes
             _eventGroup.Visible = false;
             _nonEventGroup.Visible = false;
             _serverList.Visible = false;
-
             _loginDialog.Visible = true;
         }
 

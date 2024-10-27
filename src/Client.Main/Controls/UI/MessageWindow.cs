@@ -25,8 +25,9 @@ namespace Client.Main.Controls.UI
             {
                 BlendState = Blendings.Alpha,
                 TexturePath = "Interface/message_back.tga",
-                OffsetWidth = 160,
-                OffsetHeight = 15,
+                TextureRectangle = new Rectangle(0, 0, 160, 15),
+                AutoViewSize = false,
+                ViewSize = new Point(160, 15)
             });
             Controls.Add(_label = new LabelControl { Align = ControlAlign.HorizontalCenter, Y = 40 });
             Controls.Add(_button = new OkButton() { Align = ControlAlign.Bottom | ControlAlign.HorizontalCenter, Margin = new Margin() { Bottom = 15 } });
@@ -36,7 +37,6 @@ namespace Client.Main.Controls.UI
         public static MessageWindow Show(string text)
         {
             var window = new MessageWindow { Text = text };
-            MuGame.Instance.ActiveScene.Controls.Add(window);
             window.ShowDialog();
             return window;
         }

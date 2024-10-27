@@ -12,17 +12,15 @@ namespace Client.Main.Controls.UI
     {
         public event EventHandler Closed;
 
+        public DialogControl()
+        {
+            Align = ControlAlign.HorizontalCenter | ControlAlign.VerticalCenter;
+        }
+
         public void Close()
         {
             Closed?.Invoke(this, EventArgs.Empty);
             Dispose();
-        }
-
-        public override void Update(GameTime gameTime)
-        {
-            base.Update(gameTime);
-            X = (int)(GraphicsDevice.Viewport.Width - Width) / 2;
-            Y = (int)(GraphicsDevice.Viewport.Height - Height) / 2;
         }
 
         public void ShowDialog()

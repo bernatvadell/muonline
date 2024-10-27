@@ -21,7 +21,9 @@ namespace Client.Main.Scenes
 
         public BaseScene()
         {
-            AutoSize = false;
+            AutoViewSize = false;
+            ViewSize = new(MuGame.Instance.Width, MuGame.Instance.Height);
+
             Controls.Add(DebugPanel = new DebugPanel());
             Controls.Add(Cursor = new CursorControl());
         }
@@ -36,13 +38,6 @@ namespace Client.Main.Scenes
             World?.Dispose();
             Controls.Add(World = new T());
             await World.Initialize();
-        }
-
-        public override async Task Load()
-        {
-            Width = MuGame.Instance.Width;
-            Height = MuGame.Instance.Height;
-            await base.Load();
         }
 
         public override void Update(GameTime gameTime)

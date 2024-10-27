@@ -65,9 +65,8 @@ namespace Client.Main.Controls
 
         public TerrainControl()
         {
-            AutoSize = false;
-            Width = MuGame.Instance.Width;
-            Height = MuGame.Instance.Height;
+            AutoViewSize = false;
+            ViewSize = new Point(MuGame.Instance.Width, MuGame.Instance.Height);
         }
 
         public override async Task Load()
@@ -169,7 +168,7 @@ namespace Client.Main.Controls
 
         public float RequestTerrainHeight(float xf, float yf)
         {
-            if (_terrain?.TerrainWall == null || xf < 0.0f || yf < 0.0f || _backTerrainHeight == null)
+            if (_terrain?.TerrainWall == null || xf < 0.0f || yf < 0.0f || _backTerrainHeight == null || float.IsNaN(xf) || float.IsNaN(yf))
                 return 0.0f;
 
             xf /= Constants.TERRAIN_SCALE;

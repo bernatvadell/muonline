@@ -19,8 +19,8 @@ namespace Client.Main.Controls.UI.Login
 
         public ServerButton()
         {
-            Height = 26;
-            Width = 192;
+            AutoViewSize = false;
+            ViewSize = new Point(192, 26);
 
             Interactive = true;
             TileWidth = 192;

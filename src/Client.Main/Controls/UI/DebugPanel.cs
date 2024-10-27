@@ -26,9 +26,7 @@ namespace Client.Main.Controls.UI
             Align = ControlAlign.Top | ControlAlign.Right;
             Margin = new Margin { Top = 10, Right = 10 };
 
-            AutoSize = false;
-            Width = 210;
-            Height = 140;
+            ControlSize = new Point(210, 140);
             BackgroundColor = Color.Black * 0.6f;
             BorderColor = Color.White * 0.3f;
             BorderThickness = 2;

@@ -30,12 +30,10 @@ namespace Client.Main.Controls
 
         public WorldControl(short worldIndex)
         {
-            AutoSize = false;
-            Width = MuGame.Instance.Width;
-            Height = MuGame.Instance.Height;
+            AutoViewSize = false;
+            ViewSize = new(MuGame.Instance.Width, MuGame.Instance.Height);
             WorldIndex = worldIndex;
             Controls.Add(Terrain = new TerrainControl() { WorldIndex = worldIndex });
-
             Objects.ControlAdded += Object_Added;
         }
 

@@ -1,5 +1,6 @@
 ﻿using Client.Main.Controls;
 using Client.Main.Controls.UI;
+using Client.Main.Controls.UI.Login;
 using Client.Main.Models;
 using Client.Main.Objects.Effects;
 using Client.Main.Objects.Player;
@@ -13,26 +14,23 @@ namespace Client.Main.Scenes
 {
     public class TestScene : BaseScene
     {
-        private TestDialog _testDialog;
+        private LoginDialog _loginDialog;
 
         public TestScene()
         {
-            //Camera.Instance.Position = new Vector3(300, 300, 300);
-            //Camera.Instance.Target = new Vector3(150, 150, 150);
-            ChangeWorld<NewLoginWorld>();
+            Controls.Add(_loginDialog = new LoginDialog()
+            {
+                Visible = false,
+                Align = ControlAlign.HorizontalCenter | ControlAlign.VerticalCenter
+            });
         }
 
         public override async Task Load()
         {
+            await ChangeWorldAsync<EmptyWorldControl>();
             await base.Load();
+
+            _loginDialog.Visible = true;
         }
-
-        public override void Update(GameTime gameTime)
-        {
-            base.Update(gameTime);
-
-            if (Status != GameControlStatus.Ready || !Visible) return;
-        }
-
     }
 }

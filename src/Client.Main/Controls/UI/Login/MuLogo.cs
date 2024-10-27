@@ -11,18 +11,9 @@ namespace Client.Main.Controls.UI.Login
 {
     public class MuLogo : UIControl
     {
-        private TextureControl _logo;
-
         public MuLogo()
         {
-            //Controls.Add(new TextureControl
-            //{
-            //    TexturePath = "Logo/MU-logo_g.jpg",
-            //    BlendState = BlendState.Additive,
-            //    Scale = 0.5f
-            //});
-
-            Controls.Add(_logo = new TextureControl
+            Controls.Add(new TextureControl
             {
                 TexturePath = "Logo/MU-logo.tga",
                 BlendState = Blendings.Alpha,
@@ -30,11 +21,5 @@ namespace Client.Main.Controls.UI.Login
             });
         }
 
-        public override void AfterLoad()
-        {
-            base.AfterLoad();
-            Width = _logo.ScreenLocation.Width;
-            Height = _logo.ScreenLocation.Height;
-        }
     }
 }

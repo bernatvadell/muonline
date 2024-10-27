@@ -66,8 +66,13 @@ namespace Client.Main
 
         public void ChangeScene<T>() where T : BaseScene, new()
         {
+            ChangeScene(typeof(T));
+        }
+
+        public void ChangeScene(Type sceneType)
+        {
             ActiveScene?.Dispose();
-            ActiveScene = new T();
+            ActiveScene = (BaseScene)Activator.CreateInstance(sceneType);
             Task.Run(() => ActiveScene.Initialize()).ConfigureAwait(false);
         }
 
@@ -80,7 +85,7 @@ namespace Client.Main
         protected override void LoadContent()
         {
             GraphicsManager.Instance.Init(GraphicsDevice, Content);
-            ChangeScene<LoginScene>();
+            ChangeScene(Constants.ENTRY_SCENE);
         }
 
         protected override void UnloadContent()
@@ -132,7 +137,9 @@ namespace Client.Main
             }
             else
             {
-                Mouse = new MouseState(mouseState.X, mouseState.Y, mouseState.ScrollWheelValue, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, mouseState.HorizontalScrollWheelValue);
+                Mouse = PrevMouseState.X != 0 || PrevMouseState.Y != 0
+                    ? new MouseState(PrevMouseState.X, PrevMouseState.Y, PrevMouseState.ScrollWheelValue, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, PrevMouseState.HorizontalScrollWheelValue)
+                    : new MouseState(0, 0, mouseState.ScrollWheelValue, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, mouseState.HorizontalScrollWheelValue);
                 Keyboard = new KeyboardState();
             }
 

@@ -22,19 +22,25 @@ namespace Client.Main.Controls.UI
         public object[] TextArgs { get => _textArgs; set { if (_textArgs != value) { _textArgs = value; OnChangeText(); } } }
         public float FontSize { get => _fontSize; set { if (_fontSize != value) { _fontSize = value; OnChangeText(); } } }
         public Color TextColor { get; set; } = Color.White;
-
-        public LabelControl()
-        {
-            AutoSize = false;
-        }
+        public HorizontalAlign TextAlign { get; set; } = HorizontalAlign.Left;
 
         public override void Draw(GameTime gameTime)
         {
             GraphicsManager.Instance.Sprite.Begin();
+
+            var location = DisplayRectangle.Location.ToVector2();
+
+            if (TextAlign == HorizontalAlign.Center)
+                location.X += (ViewSize.X - ControlSize.X) / 2;
+            else if (TextAlign == HorizontalAlign.Right)
+                location.X += (ViewSize.X - ControlSize.X);
+
+            location.Y += (ViewSize.Y - ControlSize.Y) / 2;
+
             GraphicsManager.Instance.Sprite.DrawString(
                 GraphicsManager.Instance.Font,
                 _renderedText,
-                ScreenLocation.Location.ToVector2(),
+                location,
                 TextColor,
                 0f,
                 Vector2.Zero,
@@ -55,8 +61,7 @@ namespace Client.Main.Controls.UI
         {
             if (string.IsNullOrEmpty(Text))
             {
-                Width = 0;
-                Height = 0;
+                ControlSize = Point.Zero;
                 return;
             }
 
@@ -66,8 +71,7 @@ namespace Client.Main.Controls.UI
             var textSize = GraphicsManager.Instance.Font.MeasureString(_renderedText);
             _scaleFactor = FontSize / baseFontSize;
 
-            Width = (int)(textSize.X * _scaleFactor);
-            Height = (int)(textSize.Y * _scaleFactor);
+            ControlSize = new Point((int)(textSize.X * _scaleFactor), (int)(textSize.Y * _scaleFactor));
         }
 
 

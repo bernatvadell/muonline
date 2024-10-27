@@ -24,7 +24,6 @@ namespace Client.Main.Controls.UI.Login
         {
             IsEventList = eventList;
             Visible = false;
-            Width = 200;
 
             Controls.Add(new SpriteControl
             {
@@ -41,7 +40,7 @@ namespace Client.Main.Controls.UI.Login
                 X = eventList ? 0 : 114,
                 Y = 15,
                 TexturePath = "Interface/server_deco_all.tga",
-                OffsetX = 136,
+                TileOffset = new Point(136, 0),
                 TileWidth = 23,
                 TileHeight = 29,
                 TileY = eventList ? 1 : 0,

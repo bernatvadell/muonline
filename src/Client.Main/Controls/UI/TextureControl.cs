@@ -11,21 +11,12 @@ namespace Client.Main.Controls.UI
     {
         protected Texture2D Texture { get; private set; }
         private string _texturePath;
+        public Rectangle TextureRectangle { get; set; }
+        public virtual Rectangle SourceRectangle => TextureRectangle;
 
-        public int OffsetX { get; set; }
-        public int OffsetY { get; set; }
-        public int OffsetWidth { get; set; }
-        public int OffsetHeight { get; set; }
-
-        public virtual Rectangle SourceRectangle => new(OffsetX, OffsetY, Width - OffsetWidth, Height - OffsetHeight);
-
+        public float Alpha { get; set; } = 1f;
         public string TexturePath { get => _texturePath; set { if (_texturePath != value) { _texturePath = value; OnChangeTexturePath(); } } }
-        public BlendState BlendState { get; set; } = BlendState.Opaque;
-
-        public TextureControl()
-        {
-            AutoSize = false;
-        }
+        public BlendState BlendState { get; set; } = BlendState.AlphaBlend;
 
         public override async Task Initialize()
         {
@@ -54,7 +45,7 @@ namespace Client.Main.Controls.UI
                 samplerState: SamplerState.PointClamp,
                 depthStencilState: DepthStencilState.Default
             );
-            GraphicsManager.Instance.Sprite.Draw(Texture, ScreenLocation, SourceRectangle, Color.White, 0f, Vector2.Zero, SpriteEffects.None, 0f);
+            GraphicsManager.Instance.Sprite.Draw(Texture, DisplayRectangle, SourceRectangle, Color.White * Alpha, 0f, Vector2.Zero, SpriteEffects.None, 0f);
             GraphicsManager.Instance.Sprite.End();
 
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
@@ -77,11 +68,10 @@ namespace Client.Main.Controls.UI
             if (Texture == null)
                 return;
 
-            if (AutoSize || Width == 0 || Height == 0)
-            {
-                Width = Texture.Width - OffsetWidth;
-                Height = Texture.Height - OffsetHeight;
-            }
+            ControlSize = new Point(Texture.Width, Texture.Height);
+
+            if (TextureRectangle == Rectangle.Empty)
+                TextureRectangle = new Rectangle(0, 0, Texture.Width, Texture.Height);
         }
     }
 }

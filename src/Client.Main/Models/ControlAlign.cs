@@ -2,6 +2,20 @@
 
 namespace Client.Main.Models
 {
+    public enum HorizontalAlign
+    {
+        Left = 0,
+        Center = 1,
+        Right = 2,
+    }
+
+    public enum VerticalAlign
+    {
+        Top = 0,
+        Center = 1,
+        Bottom = 2,
+    }
+
     [Flags]
     public enum ControlAlign
     {

@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Controls.UI
 {
-    public class TestDialog : DialogControl
+    public abstract class PopupFieldDialog : DialogControl
     {
         private Texture2D _cornerTopLeftTexture;
         private Texture2D _topLineTexture;
@@ -29,7 +29,7 @@ namespace Client.Main.Controls.UI
             await base.Load();
 
             var windowName = "popupfield";
-
+            
             _cornerTopLeftTexture = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/{windowName}01.ozd");
             _topLineTexture = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/{windowName}02.ozd");
             _cornerTopRightTexture = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/{windowName}03.ozd");
@@ -60,15 +60,15 @@ namespace Client.Main.Controls.UI
                 depthStencilState: DepthStencilState.Default
             );
 
-            sprite.Draw(_cornerTopLeftTexture, new Rectangle(ScreenLocation.X, ScreenLocation.Y, _cornerTopLeftTexture.Width, _cornerTopLeftTexture.Height), Color.White);
-            sprite.Draw(_cornerTopRightTexture, new Rectangle(ScreenLocation.X + Width - _cornerTopRightTexture.Width, ScreenLocation.Y, _cornerTopRightTexture.Width, _cornerTopRightTexture.Height), Color.White);
-            sprite.Draw(_cornerBottomLeftTexture, new Rectangle(ScreenLocation.X, ScreenLocation.Y + Height - _cornerBottomLeftTexture.Height, _cornerBottomLeftTexture.Width, _cornerBottomLeftTexture.Height), Color.White);
-            sprite.Draw(_cornerBottomRightTexture, new Rectangle(ScreenLocation.X + Width - _cornerBottomRightTexture.Width, ScreenLocation.Y + Height - _cornerBottomRightTexture.Height, _cornerBottomRightTexture.Width, _cornerBottomRightTexture.Height), Color.White);
-            sprite.Draw(_topLineTexture, new Rectangle(ScreenLocation.X + _cornerTopLeftTexture.Width, ScreenLocation.Y, Width - _cornerTopLeftTexture.Width - _cornerTopRightTexture.Width, _topLineTexture.Height), Color.White);
-            sprite.Draw(_bottomLineTexture, new Rectangle(ScreenLocation.X + _cornerBottomLeftTexture.Width, ScreenLocation.Y + Height - _bottomLineTexture.Height, Width - _cornerBottomLeftTexture.Width - _cornerBottomRightTexture.Width, _bottomLineTexture.Height), Color.White);
-            sprite.Draw(_leftLineTexture, new Rectangle(ScreenLocation.X, ScreenLocation.Y + _cornerTopLeftTexture.Height, _leftLineTexture.Width, Height - _cornerTopLeftTexture.Height - _cornerBottomLeftTexture.Height), Color.White);
-            sprite.Draw(_rightLineTexture, new Rectangle(ScreenLocation.X + Width - _rightLineTexture.Width, ScreenLocation.Y + _cornerTopRightTexture.Height, _rightLineTexture.Width, Height - _cornerTopRightTexture.Height - _cornerBottomRightTexture.Height), Color.White);
-            sprite.Draw(_backgroundTexture, new Rectangle(ScreenLocation.X + _leftLineTexture.Width, ScreenLocation.Y + _topLineTexture.Height, Width - _leftLineTexture.Width - _rightLineTexture.Width, Height - _topLineTexture.Height - _bottomLineTexture.Height), Color.White);
+            sprite.Draw(_cornerTopLeftTexture, new Rectangle(DisplayRectangle.X, DisplayRectangle.Y, _cornerTopLeftTexture.Width, _cornerTopLeftTexture.Height), Color.White);
+            sprite.Draw(_cornerTopRightTexture, new Rectangle(DisplayRectangle.X + DisplayRectangle.Width - _cornerTopRightTexture.Width, DisplayRectangle.Y, _cornerTopRightTexture.Width, _cornerTopRightTexture.Height), Color.White);
+            sprite.Draw(_cornerBottomLeftTexture, new Rectangle(DisplayRectangle.X, DisplayRectangle.Y + DisplayRectangle.Height - _cornerBottomLeftTexture.Height, _cornerBottomLeftTexture.Width, _cornerBottomLeftTexture.Height), Color.White);
+            sprite.Draw(_cornerBottomRightTexture, new Rectangle(DisplayRectangle.X + DisplayRectangle.Width - _cornerBottomRightTexture.Width, DisplayRectangle.Y + DisplayRectangle.Height - _cornerBottomRightTexture.Height, _cornerBottomRightTexture.Width, _cornerBottomRightTexture.Height), Color.White);
+            sprite.Draw(_topLineTexture, new Rectangle(DisplayRectangle.X + _cornerTopLeftTexture.Width, DisplayRectangle.Y, DisplayRectangle.Width - _cornerTopLeftTexture.Width - _cornerTopRightTexture.Width, _topLineTexture.Height), Color.White);
+            sprite.Draw(_bottomLineTexture, new Rectangle(DisplayRectangle.X + _cornerBottomLeftTexture.Width, DisplayRectangle.Y + DisplayRectangle.Height - _bottomLineTexture.Height, DisplayRectangle.Width - _cornerBottomLeftTexture.Width - _cornerBottomRightTexture.Width, _bottomLineTexture.Height), Color.White);
+            sprite.Draw(_leftLineTexture, new Rectangle(DisplayRectangle.X, DisplayRectangle.Y + _cornerTopLeftTexture.Height, _leftLineTexture.Width, DisplayRectangle.Height - _cornerTopLeftTexture.Height - _cornerBottomLeftTexture.Height), Color.White);
+            sprite.Draw(_rightLineTexture, new Rectangle(DisplayRectangle.X + DisplayRectangle.Width - _rightLineTexture.Width, DisplayRectangle.Y + _cornerTopRightTexture.Height, _rightLineTexture.Width, DisplayRectangle.Height - _cornerTopRightTexture.Height - _cornerBottomRightTexture.Height), Color.White);
+            sprite.Draw(_backgroundTexture, new Rectangle(DisplayRectangle.X + _leftLineTexture.Width, DisplayRectangle.Y + _topLineTexture.Height, DisplayRectangle.Width - _leftLineTexture.Width - _rightLineTexture.Width, DisplayRectangle.Height - _topLineTexture.Height - _bottomLineTexture.Height), Color.White);
 
             sprite.End();
 

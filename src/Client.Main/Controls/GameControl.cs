@@ -3,12 +3,8 @@ using Client.Main.Models;
 using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using SixLabors.ImageSharp.PixelFormats;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Controls
@@ -16,6 +12,8 @@ namespace Client.Main.Controls
 
     public abstract class GameControl : IChildItem<GameControl>, IDisposable
     {
+        private Point _controlSize, _viewSize;
+
         public GraphicsDevice GraphicsDevice => MuGame.Instance.GraphicsDevice;
         public GameControl Root => Parent?.Root ?? this;
         public GameControl Parent { get; set; }
@@ -25,12 +23,12 @@ namespace Client.Main.Controls
         public ChildrenCollection<GameControl> Controls { get; private set; }
         public GameControlStatus Status { get; private set; } = GameControlStatus.NonInitialized;
         public ControlAlign Align { get; set; }
-        public bool AutoSize { get; set; } = true;
+        public bool AutoViewSize { get; set; } = true;
         public bool Interactive { get; set; }
         public int X { get; set; }
         public int Y { get; set; }
-        public int Width { get; set; }
-        public int Height { get; set; }
+        public Point ControlSize { get => _controlSize; set => _controlSize = value; }
+        public Point ViewSize { get => _viewSize; set { if (_viewSize != value) { _viewSize = value; OnScreenSizeChanged(); } } }
         public float Scale { get; set; } = 1f;
         public Margin Margin { get; set; } = Margin.Empty;
 
@@ -38,23 +36,19 @@ namespace Client.Main.Controls
         public int BorderThickness { get; set; } = 0;
         public Color BackgroundColor { get; set; } = Color.Transparent;
 
-        public virtual Rectangle ScreenLocation => new(
-            (Parent?.ScreenLocation.X ?? 0) + X + Margin.Left - Margin.Right,
-            (Parent?.ScreenLocation.Y ?? 0) + Y + Margin.Top - Margin.Bottom,
-            (int)(Width * Scale),
-            (int)(Height * Scale)
-        );
+        public Point Offset { get; set; }
 
-        public virtual Rectangle Viewport => new(
-            ScreenLocation.X,
-            ScreenLocation.Y,
-            ScreenLocation.Width + Margin.Right,
-            ScreenLocation.Height + Margin.Bottom
+        public virtual Point DisplayPosition => new(
+            (Parent?.DisplayRectangle.X ?? 0) + X + Margin.Left - Margin.Right + Offset.X,
+            (Parent?.DisplayRectangle.Y ?? 0) + Y + Margin.Top - Margin.Bottom + Offset.Y
         );
+        public virtual Point DisplaySize => new((int)(ViewSize.X * Scale), (int)(ViewSize.Y * Scale));
+        public virtual Rectangle DisplayRectangle => new(DisplayPosition, DisplaySize);
 
         public bool Visible { get; set; } = true;
 
         public event EventHandler Click;
+        public event EventHandler SizeChanged;
 
         public bool IsMouseOver { get; set; }
         public bool IsMousePressed { get; set; }
@@ -126,8 +120,8 @@ namespace Client.Main.Controls
 
             if (Status != GameControlStatus.Ready || !Visible) return;
 
-            IsMouseOver = Interactive && MuGame.Instance.Mouse.Position.X >= ScreenLocation.X && MuGame.Instance.Mouse.Position.X <= ScreenLocation.X + ScreenLocation.Width &&
-                MuGame.Instance.Mouse.Position.Y >= ScreenLocation.Y && MuGame.Instance.Mouse.Position.Y <= ScreenLocation.Y + ScreenLocation.Height;
+            IsMouseOver = Interactive && MuGame.Instance.Mouse.Position.X >= DisplayRectangle.X && MuGame.Instance.Mouse.Position.X <= DisplayRectangle.X + DisplayRectangle.Width &&
+                MuGame.Instance.Mouse.Position.Y >= DisplayRectangle.Y && MuGame.Instance.Mouse.Position.Y <= DisplayRectangle.Y + DisplayRectangle.Height;
 
             if (IsMouseOver && Scene != null)
                 Scene.MouseControl = this;
@@ -140,8 +134,8 @@ namespace Client.Main.Controls
                 var control = Controls[i];
                 control.Update(gameTime);
 
-                var controlWidth = (int)(control.Width * control.Scale) + control.Margin.Left;
-                var controlHeight = (int)(control.Height * control.Scale) + control.Margin.Top;
+                var controlWidth = control.DisplaySize.X + control.Margin.Left;
+                var controlHeight = control.DisplaySize.Y + control.Margin.Top;
 
                 if (!Align.HasFlag(ControlAlign.Left))
                     controlWidth += control.X;
@@ -156,11 +150,8 @@ namespace Client.Main.Controls
                     maxHeight = controlHeight;
             }
 
-            if (AutoSize)
-            {
-                Width = maxWidth;
-                Height = maxHeight;
-            }
+            if (AutoViewSize)
+                ViewSize = new(Math.Max(ControlSize.X, maxWidth), Math.Max(ControlSize.Y, maxHeight));
 
             if (Align != ControlAlign.None)
                 AlignControl();
@@ -181,16 +172,16 @@ namespace Client.Main.Controls
             if (Align.HasFlag(ControlAlign.Top))
                 Y = 0;
             else if (Align.HasFlag(ControlAlign.Bottom))
-                Y = (int)(Parent.Height - (Height * Scale));
+                Y = (int)(Parent.DisplaySize.Y - DisplaySize.Y);
             else if (Align.HasFlag(ControlAlign.VerticalCenter))
-                Y = (int)((Parent.Height / 2) - (Height / 2) * Scale);
+                Y = (int)((Parent.DisplaySize.Y / 2) - (DisplaySize.Y / 2));
 
             if (Align.HasFlag(ControlAlign.Left))
                 X = 0;
             else if (Align.HasFlag(ControlAlign.Right))
-                X = (int)(Parent.Width - Width * Scale);
+                X = (int)(Parent.DisplaySize.X - DisplaySize.X);
             else if (Align.HasFlag(ControlAlign.HorizontalCenter))
-                X = (int)((Parent.Width / 2) - (Width / 2) * Scale);
+                X = (int)((Parent.DisplaySize.X / 2) - (DisplaySize.X / 2));
         }
 
         public virtual void Draw(GameTime gameTime)
@@ -263,7 +254,7 @@ namespace Client.Main.Controls
 
             GraphicsManager.Instance.Sprite.Draw(
                 GraphicsManager.Instance.Pixel,
-                ScreenLocation,
+                DisplayRectangle,
                 BackgroundColor
             );
         }
@@ -273,10 +264,15 @@ namespace Client.Main.Controls
             if (BorderThickness <= 0)
                 return;
 
-            GraphicsManager.Instance.Sprite.Draw(GraphicsManager.Instance.Pixel, new Rectangle(ScreenLocation.X, ScreenLocation.Y, ScreenLocation.Width, BorderThickness), BorderColor);
-            GraphicsManager.Instance.Sprite.Draw(GraphicsManager.Instance.Pixel, new Rectangle(ScreenLocation.X, ScreenLocation.Y + ScreenLocation.Height - BorderThickness, ScreenLocation.Width, BorderThickness), BorderColor);
-            GraphicsManager.Instance.Sprite.Draw(GraphicsManager.Instance.Pixel, new Rectangle(ScreenLocation.X, ScreenLocation.Y, BorderThickness, ScreenLocation.Height), BorderColor);
-            GraphicsManager.Instance.Sprite.Draw(GraphicsManager.Instance.Pixel, new Rectangle(ScreenLocation.X + ScreenLocation.Width - BorderThickness, ScreenLocation.Y, BorderThickness, ScreenLocation.Height), BorderColor);
+            GraphicsManager.Instance.Sprite.Draw(GraphicsManager.Instance.Pixel, new Rectangle(DisplayRectangle.X, DisplayRectangle.Y, DisplayRectangle.Width, BorderThickness), BorderColor);
+            GraphicsManager.Instance.Sprite.Draw(GraphicsManager.Instance.Pixel, new Rectangle(DisplayRectangle.X, DisplayRectangle.Y + DisplayRectangle.Height - BorderThickness, DisplayRectangle.Width, BorderThickness), BorderColor);
+            GraphicsManager.Instance.Sprite.Draw(GraphicsManager.Instance.Pixel, new Rectangle(DisplayRectangle.X, DisplayRectangle.Y, BorderThickness, DisplayRectangle.Height), BorderColor);
+            GraphicsManager.Instance.Sprite.Draw(GraphicsManager.Instance.Pixel, new Rectangle(DisplayRectangle.X + DisplayRectangle.Width - BorderThickness, DisplayRectangle.Y, BorderThickness, DisplayRectangle.Height), BorderColor);
+        }
+
+        protected virtual void OnScreenSizeChanged()
+        {
+            SizeChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 }

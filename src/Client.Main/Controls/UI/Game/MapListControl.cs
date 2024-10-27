@@ -1,11 +1,7 @@
-﻿using Client.Main.Controllers;
-using Client.Main.Models;
-using Client.Main.Scenes;
+﻿using Client.Main.Models;
 using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using System.Diagnostics;
-using System.Threading.Tasks;
 
 namespace Client.Main.Controls.UI.Game
 {
@@ -19,7 +15,6 @@ namespace Client.Main.Controls.UI.Game
 
             AddButtons();
         }
-
         public void AddButtons()
         {
             int y = 0;
@@ -55,63 +50,15 @@ namespace Client.Main.Controls.UI.Game
             Controls.Add(new MapButton<World065World> { Name = "Duel Arena", Y = y += spacing });
             Controls.Add(new MapButton<World066World> { Name = "Doppelganger Ice Zone", Y = y += spacing });
         }
-    }
 
-    public class MapButton<TWorld> : UIControl where TWorld : WalkableWorldControl, new()
-    {
-        public string Name { get; set; }
-        public Color TextColor { get; set; } = Color.White;
-
-        public MapButton()
+        public override void Update(GameTime gameTime)
         {
-            Height = 20;
-            Width = 190;
-            AutoSize = false;
-            Interactive = true;
-        }
-
-        public override async Task Load()
-        {
-            await base.Load();
-
-            Click += MapButton_Click;
-        }
-
-        private void MapButton_Click(object sender, System.EventArgs e)
-        {
-            if (Root is GameScene gameScene)
-            {
-                gameScene.ChangeMap<TWorld>();
-            }
+            base.Update(gameTime);
         }
 
         public override void Draw(GameTime gameTime)
         {
             base.Draw(gameTime);
-
-            GraphicsManager.Instance.Sprite.Begin();
-            GraphicsManager.Instance.Sprite.DrawString(GraphicsManager.Instance.Font, Name, new Vector2() { X = ScreenLocation.X + 5, Y = ScreenLocation.Y + 5 }, TextColor, 0f, Vector2.Zero, 0.9f, SpriteEffects.None, 0);
-            GraphicsManager.Instance.Sprite.End();
-
-            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
-            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-            GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
-        }
-
-        public override void Update(GameTime gameTime)
-        {
-            base.Update(gameTime);
-
-            if (Scene.MouseControl == this)
-            {
-                BackgroundColor = Color.Yellow;
-                TextColor = Color.Black;
-            }
-            else
-            {
-                BackgroundColor = Color.Transparent;
-                TextColor = Color.White;
-            }
         }
     }
 }

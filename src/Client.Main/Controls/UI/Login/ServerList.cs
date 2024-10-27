@@ -20,11 +20,6 @@ namespace Client.Main.Controls.UI.Login
 
         public event EventHandler<ServerSelectEventArgs> ServerClick;
 
-        public ServerList()
-        {
-            Width = 192;
-        }
-
         public void AddServer(byte index, string name, byte gauge)
         {
             var button = new ServerButton
@@ -38,14 +33,12 @@ namespace Client.Main.Controls.UI.Login
             button.Click += (s, e) => ServerClick?.Invoke(this, new ServerSelectEventArgs { Index = index, Name = name });
             _serverButtons.Add(button);
             Controls.Add(button);
-            Height = _serverButtons.Count * 26;
         }
 
         public void Clear()
         {
             _serverButtons.Clear();
             Controls.Clear();
-            Height = 0;
         }
     }
 }

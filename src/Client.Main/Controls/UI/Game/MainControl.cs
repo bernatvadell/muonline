@@ -9,7 +9,6 @@ namespace Client.Main.Controls.UI.Game
     {
         public MainControl()
         {
-            AutoSize = true;
             Align = ControlAlign.HorizontalCenter | ControlAlign.Bottom;
 
             Controls.Add(new MainMPControl
@@ -18,8 +17,8 @@ namespace Client.Main.Controls.UI.Game
                 Margin = new Margin { Bottom = 16 },
                 Align = ControlAlign.Bottom,
                 BlendState = BlendState.AlphaBlend,
-                CurrentMP = 4045,
-                MaxMP= 4500
+                CurrentMP = 4500,
+                MaxMP = 4500
             });
 
             Controls.Add(new MainHPControl
@@ -27,18 +26,16 @@ namespace Client.Main.Controls.UI.Game
                 X = 154,
                 Margin = new Margin { Bottom = 16 },
                 Align = ControlAlign.Bottom,
-                CurrentHP = 200,
+                CurrentHP = 500,
                 MaxHP = 854
             });
 
             Controls.Add(new TextureControl
             {
                 TexturePath = "Interface/GFx/main_IE.ozd",
-                AutoSize = false,
-                OffsetX = 0,
-                OffsetY = 109,
-                Width = 151,
-                Height = 64,
+                TextureRectangle = new Rectangle(0, 109, 151, 64),
+                AutoViewSize = false,
+                ViewSize = new(151, 64),
                 Align = ControlAlign.Bottom,
                 BlendState = BlendState.AlphaBlend
             });
@@ -46,11 +43,9 @@ namespace Client.Main.Controls.UI.Game
             Controls.Add(new TextureControl
             {
                 TexturePath = "Interface/GFx/main_IE.ozd",
-                AutoSize = false,
-                OffsetX = 105,
-                OffsetY = 0,
-                Width = 88,
-                Height = 107,
+                TextureRectangle = new Rectangle(105, 0, 88, 107),
+                AutoViewSize = false,
+                ViewSize = new(88, 107),
                 X = 151,
                 Align = ControlAlign.Bottom,
                 BlendState = BlendState.AlphaBlend
@@ -59,11 +54,9 @@ namespace Client.Main.Controls.UI.Game
             Controls.Add(new TextureControl
             {
                 TexturePath = "Interface/GFx/main_IE.ozd",
-                AutoSize = false,
-                OffsetX = 193,
-                OffsetY = 0,
-                Width = 143,
-                Height = 91,
+                TextureRectangle = new Rectangle(193, 0, 143, 91),
+                AutoViewSize = false,
+                ViewSize = new(143, 91),
                 X = 151 + 88,
                 Align = ControlAlign.Bottom,
                 BlendState = BlendState.AlphaBlend
@@ -72,11 +65,9 @@ namespace Client.Main.Controls.UI.Game
             Controls.Add(new TextureControl
             {
                 TexturePath = "Interface/GFx/main_IE.ozd",
-                AutoSize = false,
-                OffsetX = 660,
-                OffsetY = 0,
-                Width = 78,
-                Height = 70,
+                TextureRectangle = new Rectangle(660, 0, 78, 70),
+                AutoViewSize = false,
+                ViewSize = new(78, 70),
                 X = 151 + 88 + 143,
                 Align = ControlAlign.Bottom,
                 BlendState = BlendState.AlphaBlend
@@ -85,11 +76,9 @@ namespace Client.Main.Controls.UI.Game
             Controls.Add(new TextureControl
             {
                 TexturePath = "Interface/GFx/main_IE.ozd",
-                AutoSize = false,
-                OffsetX = 891,
-                OffsetY = 0,
-                Width = 76,
-                Height = 67,
+                TextureRectangle = new Rectangle(891, 0, 76, 67),
+                AutoViewSize = false,
+                ViewSize = new(76, 67),
                 X = 151 + 88 + 143 + 78,
                 Align = ControlAlign.Bottom,
                 BlendState = BlendState.AlphaBlend
@@ -98,11 +87,9 @@ namespace Client.Main.Controls.UI.Game
             Controls.Add(new TextureControl
             {
                 TexturePath = "Interface/GFx/main_IE.ozd",
-                AutoSize = false,
-                OffsetX = 518,
-                OffsetY = 0,
-                Width = 142,
-                Height = 89,
+                TextureRectangle = new Rectangle(518, 0, 142, 89),
+                AutoViewSize = false,
+                ViewSize = new(142, 89),
                 X = 151 + 88 + 143 + 78 + 76,
                 Align = ControlAlign.Bottom,
                 BlendState = BlendState.AlphaBlend
@@ -111,11 +98,9 @@ namespace Client.Main.Controls.UI.Game
             Controls.Add(new TextureControl
             {
                 TexturePath = "Interface/GFx/main_IE.ozd",
-                AutoSize = false,
-                OffsetX = 0,
-                OffsetY = 0,
-                Width = 105,
-                Height = 107,
+                AutoViewSize = false,
+                TextureRectangle = new Rectangle(0, 0, 105, 107),
+                ViewSize = new(105, 107),
                 X = 151 + 88 + 143 + 78 + 76 + 142,
                 Align = ControlAlign.Bottom,
                 BlendState = BlendState.AlphaBlend
@@ -124,11 +109,9 @@ namespace Client.Main.Controls.UI.Game
             Controls.Add(new TextureControl
             {
                 TexturePath = "Interface/GFx/main_IE.ozd",
-                AutoSize = false,
-                OffsetX = 738,
-                OffsetY = 0,
-                Width = 150,
-                Height = 68,
+                TextureRectangle = new Rectangle(738, 0, 150, 68),
+                AutoViewSize = false,
+                ViewSize = new(150, 68),
                 X = 151 + 88 + 143 + 78 + 76 + 142 + 105,
                 Align = ControlAlign.Bottom,
                 BlendState = BlendState.AlphaBlend
