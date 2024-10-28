@@ -49,10 +49,12 @@ namespace Client.Main.Controls
 
         public event EventHandler Click;
         public event EventHandler SizeChanged;
+        public event EventHandler Focus;
+        public event EventHandler Blur;
 
         public bool IsMouseOver { get; set; }
         public bool IsMousePressed { get; set; }
-        public bool HasFocus { get; set; }
+        public bool HasFocus => Scene?.FocusControl == this;
 
         protected GameControl()
         {
@@ -61,8 +63,18 @@ namespace Client.Main.Controls
 
         public virtual void OnClick()
         {
-            HasFocus = true;
+            MuGame.Instance.ActiveScene.FocusControl = this;
             Click?.Invoke(this, EventArgs.Empty);
+        }
+
+        public virtual void OnFocus()
+        {
+            Focus?.Invoke(this, EventArgs.Empty);
+        }
+
+        public virtual void OnBlur()
+        {
+            Blur?.Invoke(this, EventArgs.Empty);
         }
 
         public virtual async Task Initialize()

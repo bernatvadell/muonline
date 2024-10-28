@@ -114,7 +114,7 @@ namespace Client.Main.Controls.UI.Game
                 ViewSize = new(150, 68),
                 X = 151 + 88 + 143 + 78 + 76 + 142 + 105,
                 Align = ControlAlign.Bottom,
-                BlendState = BlendState.AlphaBlend
+                BlendState = BlendState.AlphaBlend,
             });
         }
     }

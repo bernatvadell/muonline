@@ -15,6 +15,7 @@ namespace Client.Main.Scenes
         public CursorControl Cursor { get; }
         public GameControl MouseControl { get; set; }
         public GameControl MouseHoverControl { get; set; }
+        public GameControl FocusControl { get; set; }
         public DebugPanel DebugPanel { get; }
 
         public WorldObject MouseHoverObject { get; set; }
@@ -42,7 +43,9 @@ namespace Client.Main.Scenes
 
         public override void Update(GameTime gameTime)
         {
+            var currentFocusControl = FocusControl;
             var currentMouseControl = MouseControl;
+
             MouseControl = null;
             MouseHoverObject = null;
 
@@ -52,6 +55,12 @@ namespace Client.Main.Scenes
                 return;
 
             if (World == null) return;
+
+            if (FocusControl != currentFocusControl)
+            {
+                currentFocusControl?.OnBlur();
+                FocusControl?.OnFocus();
+            }
 
             if (MouseControl != null && MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && !MouseControl.IsMousePressed)
             {

@@ -36,6 +36,8 @@ namespace Client.Main
 
         public Ray MouseRay { get; private set; }
 
+        public GameTime GameTime { get; private set; }
+
         // DepthStencilState to disable depth mask
         public DepthStencilState DisableDepthMask { get; } = new DepthStencilState
         {
@@ -98,6 +100,7 @@ namespace Client.Main
         {
             try
             {
+                GameTime = gameTime;
                 UpdateInputInfo(gameTime);
                 CheckShaderToggles();
                 ActiveScene?.Update(gameTime);
