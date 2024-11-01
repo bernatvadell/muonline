@@ -26,7 +26,7 @@ namespace Client.Main.Objects
         private WorldControl _world;
         private bool _interactive;
 
-        public bool LinkParent { get; set; }
+        public bool LinkParentAnimation { get; set; }
         public bool OutOfView { get; private set; } = true;
         public ChildrenCollection<WorldObject> Children { get; private set; }
         public WorldObject Parent { get => _parent; set { var prev = _parent; _parent = value; OnParentChanged(value, prev); } }
@@ -45,6 +45,7 @@ namespace Client.Main.Objects
         public Vector3 TotalAngle { get => (Parent?.TotalAngle ?? Vector3.Zero) + Angle; }
 
         public float Scale { get => _scale; set { _scale = value; OnScaleChanged(); } }
+        public float TotalScale { get => (Parent?.Scale ?? 1f) * Scale; }
         public Matrix WorldPosition { get => _worldPosition; set { _worldPosition = value; OnWorldPositionChanged(); } }
         public bool Interactive { get => _interactive || (Parent?.Interactive ?? false); set { _interactive = value; } }
         public Vector3 Light { get; set; } = new Vector3(0f, 0f, 0f);

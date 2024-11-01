@@ -32,7 +32,7 @@ namespace Client.Main.Objects
         public int ParentBoneLink { get; set; } = -1;
         public BMD Model { get; set; }
 
-        public Matrix ParentBodyOrigin => ParentBoneLink >= 0 
+        public Matrix ParentBodyOrigin => ParentBoneLink >= 0
             && Parent != null
             && Parent is ModelObject modelObject
             && modelObject.BoneTransform != null
@@ -125,7 +125,7 @@ namespace Client.Main.Objects
                     DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, MuGame.Instance.GameTime);
                 }
 
-                if (!isAfterDraw && !isBlendMesh && IsMouseHover)
+                if (!isAfterDraw && IsMouseHover)
                     DrawMeshHighlight(i);
 
                 if (draw)
@@ -198,14 +198,17 @@ namespace Client.Main.Objects
             IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
             int primitiveCount = indexBuffer.IndexCount / 3;
 
-            float scaleFactor = Scale + 0.02f;
+            float scaleHightlight = 0.015f;
+            float scaleFactor = Scale + scaleHightlight;
 
-            Matrix highlightMatrix = Matrix.CreateScale(scaleFactor) * WorldPosition;
+            var highlightMatrix = Matrix.CreateScale(scaleFactor) 
+                * Matrix.CreateTranslation(-scaleHightlight, -scaleHightlight, -scaleHightlight)
+                * WorldPosition;
 
             GraphicsManager.Instance.AlphaTestEffect3D.World = highlightMatrix;
+            GraphicsManager.Instance.AlphaTestEffect3D.Texture = _boneTextures[mesh];
             GraphicsManager.Instance.AlphaTestEffect3D.DiffuseColor = new Vector3(0, 1, 0);
-
-            GraphicsManager.Instance.AlphaTestEffect3D.Alpha = TotalAlpha;
+            GraphicsManager.Instance.AlphaTestEffect3D.Alpha = 1f;
 
             GraphicsDevice.DepthStencilState = MuGame.Instance.DisableDepthMask;
             GraphicsDevice.BlendState = BlendState.Additive;
@@ -252,6 +255,10 @@ namespace Client.Main.Objects
                 if (vertexBuffer == null || indexBuffer == null)
                     return;
 
+                var originalWorld = GraphicsManager.Instance.BasicEffect3D.World;
+                var originalProjection = GraphicsManager.Instance.BasicEffect3D.Projection;
+                var originalView = GraphicsManager.Instance.BasicEffect3D.View;
+
                 int primitiveCount = indexBuffer.IndexCount / 3;
 
                 Matrix shadowWorld;
@@ -259,29 +266,18 @@ namespace Client.Main.Objects
                 float heightAboveTerrain = 0f;
                 try
                 {
-                    Matrix originalWorld = WorldPosition;
-                    Vector3 scale, translation;
-                    Quaternion rotation;
-
-                    originalWorld.Decompose(out scale, out rotation, out translation);
-
-                    scale = new Vector3(
-                        float.IsNaN(scale.X) ? 1.0f : scale.X,
-                        float.IsNaN(scale.Y) ? 1.0f : scale.Y,
-                        float.IsNaN(scale.Z) ? 1.0f : scale.Z
-                    );
-
-                    float modelRotationZ = this.TotalAngle.Z;
-                    Vector3 position = originalWorld.Translation;
+                    Vector3 position = WorldPosition.Translation;
 
                     float terrainHeight = World.Terrain.RequestTerrainHeight(position.X, position.Y);
+                    terrainHeight += terrainHeight * 0.5f;
 
-                    float shadowHeightOffset = originalWorld.Translation.Z - terrainHeight + 10f;
+                    float shadowHeightOffset = WorldPosition.Translation.Z;
+                    float relativeHeightOverTerrain = shadowHeightOffset - terrainHeight;
 
-                    Vector3 shadowPosition = new Vector3(
-                        position.X,
-                        position.Y,
-                        terrainHeight + shadowHeightOffset
+                    Vector3 shadowPosition = new(
+                        position.X - (relativeHeightOverTerrain / 2),
+                        position.Y - (relativeHeightOverTerrain / 4.5f),
+                        terrainHeight + 1f
                     );
 
                     heightAboveTerrain = WorldPosition.Translation.Z - terrainHeight;
@@ -299,20 +295,18 @@ namespace Client.Main.Objects
                     float terrainSlopeX = (float)Math.Atan2(heightX2 - heightX1, sampleDistance * 0.4f);
                     float terrainSlopeZ = (float)Math.Atan2(heightZ2 - heightZ1, sampleDistance * 0.4f);
 
-
-                    float adjustedYaw = this.TotalAngle.Y + MathHelper.ToRadians(110) - terrainSlopeX/2;
-                    float adjustedPitch = this.TotalAngle.X + MathHelper.ToRadians(120);
-                    float adjustedRoll = this.TotalAngle.Z + MathHelper.ToRadians(90);
+                    float adjustedYaw = TotalAngle.Y + MathHelper.ToRadians(110) - terrainSlopeX / 2;
+                    float adjustedPitch = TotalAngle.X + MathHelper.ToRadians(120);
+                    float adjustedRoll = TotalAngle.Z + MathHelper.ToRadians(90);
 
                     Quaternion rotationQuat = Quaternion.CreateFromYawPitchRoll(adjustedYaw, adjustedPitch, adjustedRoll);
-
                     Matrix rotationMatrix = Matrix.CreateFromQuaternion(rotationQuat);
 
-                    shadowWorld = Matrix.Identity * rotationMatrix;
-                    shadowWorld *= Matrix.CreateScale(1.0f, 0.01f, 1.0f);
-                    shadowWorld *= Matrix.CreateRotationX(Math.Max(-MathHelper.PiOver2, -MathHelper.PiOver2 - terrainSlopeX));
-                    shadowWorld *= Matrix.CreateRotationZ(MathHelper.ToRadians(45));
-                    shadowWorld *= Matrix.CreateTranslation(shadowPosition);
+                    shadowWorld = rotationMatrix
+                        * Matrix.CreateScale(1.0f * TotalScale, 0.01f * TotalScale, 1.0f * TotalScale)
+                        * Matrix.CreateRotationX(Math.Max(-MathHelper.PiOver2, -MathHelper.PiOver2 - terrainSlopeX))
+                        * Matrix.CreateRotationZ(angleRad)
+                        * Matrix.CreateTranslation(shadowPosition);
                 }
                 catch (Exception ex)
                 {
@@ -328,29 +322,31 @@ namespace Client.Main.Objects
                     GraphicsDevice.BlendState = Blendings.ShadowBlend;
                     GraphicsDevice.DepthStencilState = DepthStencilState.DepthRead;
 
-                    var effect = GraphicsManager.Instance.ShadowEffect;
+                    var effect = GraphicsManager.Instance.BasicEffect3D;// GraphicsManager.Instance.ShadowEffect;
 
-                    Matrix worldViewProjection = shadowWorld * view * projection;
+                    effect.World = shadowWorld;
+                    effect.View = view;
+                    effect.Projection = projection;
+                    effect.Texture = _boneTextures[mesh];
+                    effect.DiffuseColor = Vector3.Zero;
 
-                    effect.Parameters["WorldViewProj"].SetValue(worldViewProjection);
+                    //float maxShadowHeight = 100f;
+                    //float shadowIntensity = Math.Max(0, 1 - (heightAboveTerrain / maxShadowHeight));
 
-                    float maxShadowHeight = 100f;
-                    float shadowIntensity = Math.Max(0, 1 - (heightAboveTerrain / maxShadowHeight));
+                    //float baseOpacity = 0.3f;
+                    //float finalOpacity = Math.Min(baseOpacity, shadowIntensity * 0.4f);
 
-                    float baseOpacity = 0.3f;
-                    float finalOpacity = Math.Min(baseOpacity, shadowIntensity * 0.4f);
+                    //string modelId = this.GetType().Name.Contains("Player") ? "Player" : this.GetType().Name;
 
-                    string modelId = this.GetType().Name.Contains("Player") ? "Player" : this.GetType().Name;
+                    //if (!_shadowOpacityCache.ContainsKey(modelId))
+                    //{
+                    //    baseOpacity = 0.3f;
+                    //    shadowIntensity = Math.Max(0, 1 - (heightAboveTerrain / maxShadowHeight));
+                    //    finalOpacity = Math.Min(baseOpacity, shadowIntensity * 0.6f);
 
-                    if (!_shadowOpacityCache.ContainsKey(modelId))
-                    {
-                        baseOpacity = 0.3f;
-                        shadowIntensity = Math.Max(0, 1 - (heightAboveTerrain / maxShadowHeight));
-                        finalOpacity = Math.Min(baseOpacity, shadowIntensity * 0.6f);
-
-                        // Add to cache with "Player" key if it's a player model
-                        _shadowOpacityCache[modelId] = finalOpacity;
-                    }
+                    //    // Add to cache with "Player" key if it's a player model
+                    //    _shadowOpacityCache[modelId] = finalOpacity;
+                    //}
 
                     //effect.Parameters["ShadowOpacity"].SetValue(1f);
                     //effect.Parameters["HeightAboveTerrain"].SetValue(heightAboveTerrain);
@@ -367,11 +363,16 @@ namespace Client.Main.Objects
                             primitiveCount
                         );
                     }
+
+                    effect.DiffuseColor = Vector3.One;
                 }
                 finally
                 {
                     GraphicsDevice.BlendState = previousBlendState;
                     GraphicsDevice.DepthStencilState = previousDepthStencilState;
+                    GraphicsManager.Instance.BasicEffect3D.World = originalWorld;
+                    GraphicsManager.Instance.BasicEffect3D.View = originalView;
+                    GraphicsManager.Instance.BasicEffect3D.Projection = originalProjection;
                 }
             }
             catch (Exception ex)
@@ -406,7 +407,7 @@ namespace Client.Main.Objects
         {
             foreach (var obj in Children)
             {
-                if (obj is ModelObject modelObj && modelObj.LinkParent)
+                if (obj is ModelObject modelObj && modelObj.LinkParentAnimation)
                     modelObj.RenderShadow = RenderShadow;
             }
         }
@@ -447,7 +448,7 @@ namespace Client.Main.Objects
 
         private void Animation(GameTime gameTime)
         {
-            if (LinkParent || Model == null || Model.Actions.Length <= 0) return;
+            if (LinkParentAnimation || Model == null || Model.Actions.Length <= 0) return;
 
             var currentActionData = Model.Actions[CurrentAction];
 
@@ -472,7 +473,7 @@ namespace Client.Main.Objects
 
         private void Animation(float currentFrame)
         {
-            if (LinkParent || Model == null || Model.Actions.Length <= 0) return;
+            if (LinkParentAnimation || Model == null || Model.Actions.Length <= 0) return;
 
             if (CurrentAction >= Model.Actions.Length)
                 CurrentAction = 0;
@@ -581,7 +582,9 @@ namespace Client.Main.Objects
                 _boneVertexBuffers[meshIndex]?.Dispose();
                 _boneIndexBuffers[meshIndex]?.Dispose();
 
-                Matrix[] bones = (LinkParent && Parent is ModelObject parentModel) ? parentModel.BoneTransform : BoneTransform;
+                Matrix[] bones = (LinkParentAnimation && Parent is ModelObject parentModel)
+                    ? parentModel.BoneTransform
+                    : BoneTransform;
 
                 // Use the updated color calculation method from the improvements branch
                 byte r = Color.R;
@@ -620,7 +623,7 @@ namespace Client.Main.Objects
 
             for (int i = 0; i < Children.Count; i++)
             {
-                if (Children[i] is ModelObject modelObject && modelObject.LinkParent)
+                if (Children[i] is ModelObject modelObject && modelObject.LinkParentAnimation)
                 {
                     modelObject.InvalidateBuffers();
                 }

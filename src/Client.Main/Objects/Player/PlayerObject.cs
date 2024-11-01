@@ -40,38 +40,38 @@ namespace Client.Main.Objects.Player
 
             Children.Add(_armor = new PlayerArmorObject
             {
-                LinkParent = true
+                LinkParentAnimation = true
             });
 
             Children.Add(_helmMask = new PlayerMaskHelmObject
             {
-                LinkParent = true,
+                LinkParentAnimation = true,
                 Hidden = true
             });
 
             Children.Add(_helm = new PlayerHelmObject
             {
-                LinkParent = true
+                LinkParentAnimation = true
             });
 
             Children.Add(_pant = new PlayerPantObject
             {
-                LinkParent = true
+                LinkParentAnimation = true
             });
 
             Children.Add(_glove = new PlayerGloveObject
             {
-                LinkParent = true
+                LinkParentAnimation = true
             });
 
             Children.Add(_boot = new PlayerBootObject
             {
-                LinkParent = true
+                LinkParentAnimation = true
             });
 
             Children.Add(_wing = new WingObject
             {
-                LinkParent = false,
+                LinkParentAnimation = false,
                 Hidden = false,
                 // Position = new Vector3(0, 5, 140)
             });

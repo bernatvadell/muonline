@@ -16,7 +16,7 @@ namespace Client.Main
         public const Models.PlayerClass Character = Models.PlayerClass.DarkWizard;
 
         // Game settings
-        public static Type ENTRY_SCENE = typeof(Scenes.GameScene);
+        public static Type ENTRY_SCENE = typeof(Scenes.LoginScene);
         public static bool BACKGROUND_MUSIC = false;
         public static bool SOUND_EFFECTS = false;
         public static bool DRAW_BOUNDING_BOXES = false;

@@ -187,10 +187,9 @@ namespace Client.Main.Objects
             }
 
             // Calculate target height based on terrain and scaling
-            float baseHeightOffset = 0; // Offset
             float heightScaleFactor = 0.5f;
-            float terrainHeightAtMoveTarget = World.Terrain.RequestTerrainHeight(MoveTargetPosition.X, MoveTargetPosition.Y) + worldExtraHeight + ExtraHeight;
-            float desiredHeightOffset = baseHeightOffset + (heightScaleFactor * terrainHeightAtMoveTarget);
+            float terrainHeightAtMoveTarget = MoveTargetPosition.Z + worldExtraHeight + ExtraHeight;
+            float desiredHeightOffset = heightScaleFactor * terrainHeightAtMoveTarget;
             float targetHeight = terrainHeightAtMoveTarget + desiredHeightOffset;
 
             // Interpolation using Lerp
