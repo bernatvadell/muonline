@@ -4,7 +4,9 @@ using Client.Main.Content;
 using Client.Main.Controllers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using MUnique.OpenMU.Network.Packets.ServerToClient;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 
@@ -34,6 +36,14 @@ namespace Client.Main.Objects
         public int HiddenMesh { get; set; } = -1;
         public int BlendMesh { get; set; } = -1;
         public BlendState BlendMeshState { get; set; } = BlendState.Additive;
+        public Vector3 ShadowDirection { get; set; } = new Vector3(-1, -1, -1);
+        public Color ShadowColor { get; set; } = Color.Black;
+        public Vector3 ShadowOffset { get; set; } = new Vector3(0.05f, 0.01f, 0.1f);
+        public float ShadowScale { get; set; } = 0.85f;
+        public float ShadowRotationX { get; set; } = -20f;
+
+        private Dictionary<string, float> _shadowOpacityCache = new Dictionary<string, float>();
+
         public float BlendMeshLight
         {
             get => _blendMeshLight;
@@ -99,8 +109,7 @@ namespace Client.Main.Objects
         {
             if (Model == null) return;
 
-            int meshCount = Model.Meshes.Length; // Cache mesh count
-
+            int meshCount = Model.Meshes.Length;
             for (int i = 0; i < meshCount; i++)
             {
                 if (_dataTextures[i] == null) continue;
@@ -110,8 +119,7 @@ namespace Client.Main.Objects
 
                 if (!isAfterDraw && RenderShadow)
                 {
-                    GraphicsDevice.DepthStencilState = MuGame.Instance.DisableDepthMask;
-                    DrawShadowMesh(i);
+                    DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, new GameTime());
                 }
 
                 if (!isAfterDraw && !isBlendMesh && IsMouseHover)
@@ -119,11 +127,9 @@ namespace Client.Main.Objects
 
                 if (draw)
                 {
-
                     GraphicsDevice.DepthStencilState = isAfterDraw
                         ? MuGame.Instance.DisableDepthMask
                         : DepthStencilState.Default;
-
                     DrawMesh(i);
                 }
             }
@@ -214,69 +220,164 @@ namespace Client.Main.Objects
             GraphicsManager.Instance.AlphaTestEffect3D.DiffuseColor = Vector3.One;
         }
 
-
-        public virtual void DrawShadowMesh(int mesh)
+        private bool ValidateWorldMatrix(Matrix matrix)
         {
-            if (IsHiddenMesh(mesh) || _boneVertexBuffers == null)
-                return;
-
-            Texture2D texture = _boneTextures[mesh];
-            VertexBuffer vertexBuffer = _boneVertexBuffers[mesh];
-            IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
-            int primitiveCount = indexBuffer.IndexCount / 3;
-
-            GraphicsManager.Instance.AlphaTestEffect3D.Texture = texture;
-
-            VertexPositionColorNormalTexture[] shadowVertices = new VertexPositionColorNormalTexture[vertexBuffer.VertexCount];
-
-            // Ensure alpha blending is enabled
-            GraphicsDevice.BlendState = BlendState.AlphaBlend;
-
-            vertexBuffer.GetData(shadowVertices);
-
-            // Clamp ShadowOpacity to a valid range (0 to 1)
-            float clampedShadowOpacity = MathHelper.Clamp(ShadowOpacity, 0f, 1f);
-
-            // Ensure that ShadowOpacity is being applied to each vertex color
-            for (int i = 0; i < shadowVertices.Length; i++)
+            for (int i = 0; i < 16; i++)
             {
-                // Apply shadow opacity to the alpha channel, ensuring the value is between 0 and 255
-                byte shadowAlpha = (byte)(255 * clampedShadowOpacity);
-                shadowVertices[i].Color = new Color((byte)0, (byte)0, (byte)0, shadowAlpha);  // Apply shadow with calculated alpha
+                if (float.IsNaN(matrix[i]))
+                    return false;
             }
+            return true;
+        }
 
-            Matrix originalWorld = GraphicsManager.Instance.AlphaTestEffect3D.World;
-            Matrix originalView = GraphicsManager.Instance.AlphaTestEffect3D.View;
-            Matrix originalProjection = GraphicsManager.Instance.AlphaTestEffect3D.Projection;
-
-            // Get the model's rotation from the original world matrix
-            Vector3 scale, translation;
-            Quaternion rotation;
-            originalWorld.Decompose(out scale, out rotation, out translation);
-
-            // Create a world matrix for the shadow with the model's rotation
-            Matrix world = Matrix.CreateFromQuaternion(rotation) *
-                           Matrix.CreateRotationX(MathHelper.ToRadians(-20)) *
-                           Matrix.CreateScale(0.8f, 1.0f, 0.8f) *
-                           Matrix.CreateTranslation(translation);
-
-            // Add light and shadow offset
-            Vector3 lightDirection = new(-1, 0, 1);
-            Vector3 shadowOffset = new(0.05f, 0, 0.1f);
-            world.Translation += lightDirection * 0.3f + shadowOffset;
-
-            GraphicsManager.Instance.AlphaTestEffect3D.World = world;
-
-            foreach (EffectPass pass in GraphicsManager.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
+        public virtual void DrawShadowMesh(int mesh, Matrix view, Matrix projection, GameTime gameTime)
+        {
+            try
             {
-                pass.Apply();
-                GraphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, shadowVertices, 0, primitiveCount);
-            }
+                if (IsHiddenMesh(mesh) || _boneVertexBuffers == null)
+                    return;
 
-            // Restore original matrices
-            GraphicsManager.Instance.AlphaTestEffect3D.World = originalWorld;
-            GraphicsManager.Instance.AlphaTestEffect3D.View = originalView;
-            GraphicsManager.Instance.AlphaTestEffect3D.Projection = originalProjection;
+                if (!ValidateWorldMatrix(WorldPosition))
+                {
+                    Debug.WriteLine("Invalid WorldPosition matrix detected - skipping shadow rendering");
+                    return;
+                }
+
+                VertexBuffer vertexBuffer = _boneVertexBuffers[mesh];
+                IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
+
+                if (vertexBuffer == null || indexBuffer == null)
+                    return;
+
+                var customBlendState = new BlendState
+                {
+                    ColorSourceBlend = Blend.SourceAlpha,
+                    ColorDestinationBlend = Blend.InverseSourceAlpha,
+                    AlphaSourceBlend = Blend.One,
+                    AlphaDestinationBlend = Blend.One,
+                    ColorBlendFunction = BlendFunction.Add,
+                    AlphaBlendFunction = BlendFunction.Max
+                };
+
+                int primitiveCount = indexBuffer.IndexCount / 3;
+
+                Matrix shadowWorld;
+
+                float heightAboveTerrain = 0f;
+                try
+                {
+                    Matrix originalWorld = WorldPosition;
+                    Vector3 scale, translation;
+                    Quaternion rotation;
+
+                    originalWorld.Decompose(out scale, out rotation, out translation);
+
+                    scale = new Vector3(
+                        float.IsNaN(scale.X) ? 1.0f : scale.X,
+                        float.IsNaN(scale.Y) ? 1.0f : scale.Y,
+                        float.IsNaN(scale.Z) ? 1.0f : scale.Z
+                    );
+
+                    float modelRotationY = this.TotalAngle.Z;
+                    Vector3 position = originalWorld.Translation;
+
+                    float terrainHeight = World.Terrain.RequestTerrainHeight(position.X, position.Y);
+
+                    float shadowHeightOffset = originalWorld.Translation.Z - terrainHeight + 5f;
+                    Vector3 shadowPosition = new Vector3(
+                        position.X,
+                        position.Y,
+                        terrainHeight + shadowHeightOffset
+                    );
+
+                    heightAboveTerrain = WorldPosition.Translation.Z - terrainHeight;
+                    float sampleDistance = heightAboveTerrain + 60f;
+                    float angleRad = MathHelper.ToRadians(-45);
+
+                    float offsetX = sampleDistance * (float)Math.Cos(angleRad);
+                    float offsetY = sampleDistance * (float)Math.Sin(angleRad);
+
+                    float heightX1 = World.Terrain.RequestTerrainHeight(position.X - offsetX, position.Y - offsetY);
+                    float heightX2 = World.Terrain.RequestTerrainHeight(position.X + offsetX, position.Y + offsetY);
+                    float heightZ1 = World.Terrain.RequestTerrainHeight(position.X - offsetY, position.Y + offsetX);
+                    float heightZ2 = World.Terrain.RequestTerrainHeight(position.X + offsetY, position.Y - offsetX);
+
+                    float terrainSlopeX = (float)Math.Atan2(heightX2 - heightX1, sampleDistance * 0.4f);
+                    float terrainSlopeZ = (float)Math.Atan2(heightZ2 - heightZ1, sampleDistance * 0.4f);
+
+                    Matrix rotationMatrix = Matrix.CreateRotationZ(modelRotationY - MathHelper.ToRadians(45));
+
+                    shadowWorld = Matrix.Identity;
+                    shadowWorld *= rotationMatrix;
+                    shadowWorld *= Matrix.CreateScale(1.0f + (Math.Min(0, terrainSlopeX / 2)), 0.01f, 1.0f + (Math.Min(0, terrainSlopeX / 2)));
+                    shadowWorld *= Matrix.CreateRotationX(Math.Max(-MathHelper.PiOver2, -MathHelper.PiOver2 - terrainSlopeX));
+                    shadowWorld *= Matrix.CreateRotationZ(MathHelper.ToRadians(45));
+                    shadowWorld *= Matrix.CreateTranslation(shadowPosition);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error creating shadow matrix: {ex.Message}");
+                    return;
+                }
+
+                var previousBlendState = GraphicsDevice.BlendState;
+                var previousDepthStencilState = GraphicsDevice.DepthStencilState;
+
+                try
+                {
+                    GraphicsDevice.BlendState = customBlendState;
+                    GraphicsDevice.DepthStencilState = DepthStencilState.DepthRead;
+
+                    var effect = GraphicsManager.Instance.ShadowEffect;
+
+                    Matrix worldViewProjection = shadowWorld * view * projection;
+
+                    effect.Parameters["WorldViewProj"].SetValue(worldViewProjection);
+
+                    float maxShadowHeight = 100f;
+                    float shadowIntensity = Math.Max(0, 1 - (heightAboveTerrain / maxShadowHeight));
+
+                    float baseOpacity = 0.3f;
+                    float finalOpacity = Math.Min(baseOpacity, shadowIntensity * 0.4f);
+
+                    string modelId = this.GetType().Name.Contains("Player") ? "Player" : this.GetType().Name;
+
+                    if (!_shadowOpacityCache.ContainsKey(modelId))
+                    {
+                        baseOpacity = 0.3f;
+                        shadowIntensity = Math.Max(0, 1 - (heightAboveTerrain / maxShadowHeight));
+                        finalOpacity = Math.Min(baseOpacity, shadowIntensity * 0.6f);
+
+                        // Add to cache with "Player" key if it's a player model
+                        _shadowOpacityCache[modelId] = finalOpacity;
+                    }
+
+                    effect.Parameters["ShadowOpacity"].SetValue(_shadowOpacityCache[modelId]);
+                    effect.Parameters["HeightAboveTerrain"].SetValue(heightAboveTerrain);
+
+                    foreach (EffectPass pass in effect.CurrentTechnique.Passes)
+                    {
+                        pass.Apply();
+                        GraphicsDevice.SetVertexBuffer(vertexBuffer);
+                        GraphicsDevice.Indices = indexBuffer;
+                        GraphicsDevice.DrawIndexedPrimitives(
+                            PrimitiveType.TriangleList,
+                            0,
+                            0,
+                            primitiveCount
+                        );
+                    }
+                }
+                finally
+                {
+                    GraphicsDevice.BlendState = previousBlendState;
+                    GraphicsDevice.DepthStencilState = previousDepthStencilState;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in DrawShadowMesh: {ex.Message}");
+            }
         }
 
         public override void DrawAfter(GameTime gameTime)

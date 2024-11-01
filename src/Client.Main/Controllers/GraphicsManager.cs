@@ -35,6 +35,8 @@ namespace Client.Main.Controllers
         public RenderTarget2D TempTarget1 { get; private set; }
         public RenderTarget2D TempTarget2 { get; private set; }
 
+        public Effect ShadowEffect { get; private set; }
+
         public void Init(GraphicsDevice graphicsDevice, ContentManager content)
         {
             _graphicsDevice = graphicsDevice;
@@ -51,6 +53,8 @@ namespace Client.Main.Controllers
 
             AlphaRGBEffect = LoadEffect("AlphaRGB");
             FXAAEffect = LoadEffect("FXAA");
+            ShadowEffect = LoadEffect("Shadow");
+
             InitializeFXAAEffect();
 
             AlphaTestEffectUI = new AlphaTestEffect(_graphicsDevice)
