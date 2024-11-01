@@ -36,11 +36,6 @@ namespace Client.Main.Objects
         public int HiddenMesh { get; set; } = -1;
         public int BlendMesh { get; set; } = -1;
         public BlendState BlendMeshState { get; set; } = BlendState.Additive;
-        public Vector3 ShadowDirection { get; set; } = new Vector3(-1, -1, -1);
-        public Color ShadowColor { get; set; } = Color.Black;
-        public Vector3 ShadowOffset { get; set; } = new Vector3(0.05f, 0.01f, 0.1f);
-        public float ShadowScale { get; set; } = 0.85f;
-        public float ShadowRotationX { get; set; } = -20f;
 
         private Dictionary<string, float> _shadowOpacityCache = new Dictionary<string, float>();
 

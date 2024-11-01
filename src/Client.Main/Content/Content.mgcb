@@ -6,7 +6,7 @@
 /platform:DesktopGL
 /config:
 /profile:HiDef
-/compress:True
+/compress:False
 
 #-------------------------------- References --------------------------------#
 
