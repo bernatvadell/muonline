@@ -1,8 +1,12 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace Client.Data.Texture
 {
@@ -13,39 +17,48 @@ namespace Client.Data.Texture
 
         protected override TextureData Read(byte[] buffer)
         {
-            using var br = new BinaryReader(new MemoryStream(buffer));
+            // Carregar o buffer sem necessidade de conversão adicional para array
+            var spanBuffer = buffer.AsSpan();
 
-            var magicNumber = br.ReadUInt32();
-            var version = br.ReadInt16();
-            var format = br.ReadString(4);
+            // Ler informações diretamente do buffer
+            uint magicNumber = BitConverter.ToUInt32(spanBuffer.Slice(0, 4));
+            short version = BitConverter.ToInt16(spanBuffer.Slice(4, 2));
+            string format = Encoding.ASCII.GetString(spanBuffer.Slice(6, 4));
 
-            var u1 = br.ReadBytes(3);
-            var isTopDownSort = br.ReadBoolean();
-            var u2 = br.ReadBytes(10);
+            bool isTopDownSort = BitConverter.ToBoolean(spanBuffer.Slice(17, 1));
 
-            var jpgBuff = br.ReadBytes(buffer.Length - 24);
+            // Extrair dados JPEG a partir do buffer
+            var jpgBuffer = spanBuffer.Slice(24);
 
-            using var image = SixLabors.ImageSharp.Image.Load<SixLabors.ImageSharp.PixelFormats.Rgb24>(jpgBuff);
-
+            using var image = Image.Load<Rgb24>(jpgBuffer);
             int jpegWidth = image.Width;
             int jpegHeight = image.Height;
 
             if (jpegWidth > MAX_WIDTH || jpegHeight > MAX_HEIGHT)
-                throw new FileLoadException("Invalid OZJ Dimensions");
+            {
+                throw new FileLoadException($"Invalid OZJ Dimensions: Width={jpegWidth}, Height={jpegHeight}");
+            }
 
+            // Copiar dados de imagem
             var data = new byte[jpegWidth * jpegHeight * 3];
             image.CopyPixelDataTo(data);
 
+            // Verificar necessidade de ordenação top-down
             if (!isTopDownSort)
             {
-                var topDown = new byte[data.Length];
-
-                int rowSize = (int)jpegWidth * 3;
-
+                int rowSize = jpegWidth * 3;
                 for (int y = 0; y < jpegHeight; y++)
-                    Buffer.BlockCopy(data, y * rowSize, topDown, ((int)jpegHeight - y - 1) * rowSize, rowSize);
+                {
+                    int topIndex = y * rowSize;
+                    int bottomIndex = (jpegHeight - y - 1) * rowSize;
 
-                data = topDown;
+                    for (int i = 0; i < rowSize; i++)
+                    {
+                        byte temp = data[topIndex + i];
+                        data[topIndex + i] = data[bottomIndex + i];
+                        data[bottomIndex + i] = temp;
+                    }
+                }
             }
 
             return new TextureData

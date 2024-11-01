@@ -10,53 +10,36 @@ namespace Client.Data.Texture
     {
         public const int MAX_WIDTH = 1024;
         public const int MAX_HEIGHT = 1024;
+        private const int HEADER_SIZE = 16;
+        private const string INVALID_OZT_MESSAGE = "Invalid OZT file";
+        private const int COMPONENTS = 4;
 
         protected override TextureData Read(byte[] buffer)
         {
             using var br = new BinaryReader(new MemoryStream(buffer));
-            var header = br.ReadBytes(16);
+            br.BaseStream.Seek(HEADER_SIZE, SeekOrigin.Begin);
+
             short nx = br.ReadInt16();
             short ny = br.ReadInt16();
             byte depth = br.ReadByte();
             byte u1 = br.ReadByte();
-
             if (depth != 32 || nx > MAX_WIDTH || ny > MAX_HEIGHT)
-                throw new FileLoadException("Invalid OZT file");
+                throw new FileLoadException(INVALID_OZT_MESSAGE);
 
-            int width = 0, height = 0;
-            for (int i = 1; i <= MAX_WIDTH; i <<= 1)
-            {
-                width = i;
-                if (i >= nx) break;
-            }
-            for (int i = 1; i <= MAX_HEIGHT; i <<= 1)
-            {
-                height = i;
-                if (i >= ny) break;
-            }
-
-            int bufferSize = width * height * 4;
-            var data = new byte[bufferSize];
+            int width = GetNearestPowerOfTwo(nx);
+            int height = GetNearestPowerOfTwo(ny);
+            var data = new byte[width * height * COMPONENTS];
 
             for (int y = 0; y < ny; y++)
             {
-                int dstIndex = (ny - 1 - y) * width * 4;
-
+                int dstIndex = (ny - 1 - y) * width * COMPONENTS;
                 for (int x = 0; x < nx; x++)
                 {
-                    byte b = br.ReadByte(), g = br.ReadByte(), r = br.ReadByte(), a = br.ReadByte();
-
-                    //float alphaFactor = a / 255f;
-                    //data[dstIndex + 0] = (byte)(r * alphaFactor);
-                    //data[dstIndex + 1] = (byte)(g * alphaFactor);
-                    //data[dstIndex + 2] = (byte)(b * alphaFactor);
-
-                    data[dstIndex + 0] = r;
-                    data[dstIndex + 1] = g;
-                    data[dstIndex + 2] = b;
-                    data[dstIndex + 3] = a;
-
-                    dstIndex += 4;
+                    data[dstIndex + 2] = br.ReadByte();    // Red
+                    data[dstIndex + 1] = br.ReadByte();    // Green
+                    data[dstIndex + 0] = br.ReadByte();    // Blue
+                    data[dstIndex + 3] = br.ReadByte();    // Alpha
+                    dstIndex += COMPONENTS;
                 }
             }
 
@@ -64,9 +47,14 @@ namespace Client.Data.Texture
             {
                 Width = width,
                 Height = height,
-                Components = 4,
+                Components = COMPONENTS,
                 Data = data
             };
+        }
+
+        private static int GetNearestPowerOfTwo(int value)
+        {
+            return (int)Math.Pow(2, Math.Ceiling(Math.Log(value, 2)));
         }
     }
 }
