@@ -286,8 +286,8 @@ namespace Client.Main.Objects
                     );
 
                     heightAboveTerrain = WorldPosition.Translation.Z - terrainHeight;
-                    float sampleDistance = heightAboveTerrain + 60f;
-                    float angleRad = MathHelper.ToRadians(-25);
+                    float sampleDistance = heightAboveTerrain + 10f;
+                    float angleRad = MathHelper.ToRadians(45);
 
                     float offsetX = sampleDistance * (float)Math.Cos(angleRad);
                     float offsetY = sampleDistance * (float)Math.Sin(angleRad);
@@ -301,19 +301,16 @@ namespace Client.Main.Objects
                     float terrainSlopeZ = (float)Math.Atan2(heightZ2 - heightZ1, sampleDistance * 0.4f);
 
 
-                    float adjustedYaw = this.TotalAngle.Y + MathHelper.ToRadians(110);
+                    float adjustedYaw = this.TotalAngle.Y + MathHelper.ToRadians(110) - terrainSlopeX/2;
                     float adjustedPitch = this.TotalAngle.X + MathHelper.ToRadians(120);
                     float adjustedRoll = this.TotalAngle.Z + MathHelper.ToRadians(90);
 
-                    // Tworzenie quaternion z kątów rotacji
                     Quaternion rotationQuat = Quaternion.CreateFromYawPitchRoll(adjustedYaw, adjustedPitch, adjustedRoll);
 
-                    // Konwersja quaternion na macierz rotacji
                     Matrix rotationMatrix = Matrix.CreateFromQuaternion(rotationQuat);
 
-                    // Ustawienie macierzy światowej dla cienia
                     shadowWorld = Matrix.Identity * rotationMatrix;
-                    shadowWorld *= Matrix.CreateScale(1.0f + (Math.Min(0, terrainSlopeX / 2)), 0.01f, 1.0f + (Math.Min(0, terrainSlopeX / 2)));
+                    shadowWorld *= Matrix.CreateScale(1.0f, 0.01f, 1.0f);
                     shadowWorld *= Matrix.CreateRotationX(Math.Max(-MathHelper.PiOver2, -MathHelper.PiOver2 - terrainSlopeX));
                     shadowWorld *= Matrix.CreateRotationZ(MathHelper.ToRadians(45));
                     shadowWorld *= Matrix.CreateTranslation(shadowPosition);
