@@ -71,9 +71,9 @@ namespace Client.Main.Objects.Player
 
             Children.Add(_wing = new WingObject
             {
-                LinkParent = true,
-                Hidden = true,
-                Position = new Vector3(0, 5, 140)
+                LinkParent = false,
+                Hidden = false,
+                // Position = new Vector3(0, 5, 140)
             });
         }
 

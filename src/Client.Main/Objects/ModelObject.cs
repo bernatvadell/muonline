@@ -29,9 +29,17 @@ namespace Client.Main.Objects
         public Color Color { get; set; } = Color.White;
         protected Matrix[] BoneTransform { get; set; }
         public int CurrentAction { get; set; }
-        public virtual int OriginBoneIndex => 0;
+        public int ParentBoneLink { get; set; } = -1;
         public BMD Model { get; set; }
-        public Matrix BodyOrigin => OriginBoneIndex < BoneTransform.Length ? BoneTransform[OriginBoneIndex] : Matrix.Identity;
+
+        public Matrix ParentBodyOrigin => ParentBoneLink >= 0 
+            && Parent != null
+            && Parent is ModelObject modelObject
+            && modelObject.BoneTransform != null
+            && ParentBoneLink < modelObject.BoneTransform.Length
+                ? modelObject.BoneTransform[ParentBoneLink]
+                : Matrix.Identity;
+
         public float BodyHeight { get; private set; }
         public int HiddenMesh { get; set; } = -1;
         public int BlendMesh { get; set; } = -1;
@@ -114,7 +122,7 @@ namespace Client.Main.Objects
 
                 if (!isAfterDraw && RenderShadow)
                 {
-                    DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, new GameTime());
+                    DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, MuGame.Instance.GameTime);
                 }
 
                 if (!isAfterDraw && !isBlendMesh && IsMouseHover)
@@ -244,16 +252,6 @@ namespace Client.Main.Objects
                 if (vertexBuffer == null || indexBuffer == null)
                     return;
 
-                var customBlendState = new BlendState
-                {
-                    ColorSourceBlend = Blend.SourceAlpha,
-                    ColorDestinationBlend = Blend.InverseSourceAlpha,
-                    AlphaSourceBlend = Blend.One,
-                    AlphaDestinationBlend = Blend.One,
-                    ColorBlendFunction = BlendFunction.Add,
-                    AlphaBlendFunction = BlendFunction.Max
-                };
-
                 int primitiveCount = indexBuffer.IndexCount / 3;
 
                 Matrix shadowWorld;
@@ -279,6 +277,7 @@ namespace Client.Main.Objects
                     float terrainHeight = World.Terrain.RequestTerrainHeight(position.X, position.Y);
 
                     float shadowHeightOffset = originalWorld.Translation.Z - terrainHeight + 10f;
+
                     Vector3 shadowPosition = new Vector3(
                         position.X,
                         position.Y,
@@ -326,7 +325,7 @@ namespace Client.Main.Objects
 
                 try
                 {
-                    GraphicsDevice.BlendState = customBlendState;
+                    GraphicsDevice.BlendState = Blendings.ShadowBlend;
                     GraphicsDevice.DepthStencilState = DepthStencilState.DepthRead;
 
                     var effect = GraphicsManager.Instance.ShadowEffect;
@@ -594,7 +593,7 @@ namespace Client.Main.Objects
                 byte bodyG = (byte)Math.Min(g * bodyLight.Y, 255);
                 byte bodyB = (byte)Math.Min(b * bodyLight.Z, 255);
 
-                Color bodyColor = new Color(bodyR, bodyG, bodyB);
+                Color bodyColor = new(bodyR, bodyG, bodyB);
 
                 BMDLoader.Instance.GetModelBuffers(Model, meshIndex, bodyColor, bones, out var vertexBuffer, out var indexBuffer);
 
@@ -611,6 +610,8 @@ namespace Client.Main.Objects
             }
 
             _invalidatedBuffers = false;
+
+            RecalculateWorldPosition();
         }
 
         protected void InvalidateBuffers()
@@ -634,7 +635,7 @@ namespace Client.Main.Objects
 
             if (Parent != null)
             {
-                Matrix worldMatrix = localMatrix * Parent.WorldPosition;
+                Matrix worldMatrix = ParentBodyOrigin * localMatrix * Parent.WorldPosition;
 
                 if (WorldPosition != worldMatrix)
                 {
