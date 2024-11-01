@@ -34,6 +34,16 @@ namespace Client.Main
             AlphaDestinationBlend = Blend.InverseSourceAlpha
         };
 
+        public static readonly BlendState ShadowBlend = new()
+        {
+            ColorSourceBlend = Blend.SourceAlpha,
+            ColorDestinationBlend = Blend.InverseSourceAlpha,
+            AlphaSourceBlend = Blend.One,
+            AlphaDestinationBlend = Blend.One,
+            ColorBlendFunction = BlendFunction.Add,
+            AlphaBlendFunction = BlendFunction.Max
+        };
+
         public static readonly BlendState ColorState = new()
         {
             ColorBlendFunction = BlendFunction.Add,

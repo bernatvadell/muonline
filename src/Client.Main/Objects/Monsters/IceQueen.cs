@@ -12,7 +12,7 @@ namespace Client.Main.Objects.Monsters
     {
         public IceQueen()
         {
-            RenderShadow = false; 
+            RenderShadow = true; 
             BlendMesh = 2;
         }
 

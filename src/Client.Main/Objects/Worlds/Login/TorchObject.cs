@@ -14,11 +14,10 @@ namespace Client.Main.Objects.Worlds.Login
 {
     public class TorchObject : ModelObject
     {
-        public override int OriginBoneIndex => 1;
-
         public TorchObject()
         {
             BoundingBoxColor = Color.Blue;
+            ParentBoneLink = 1;
             Children.Add(new FlareEffect()
             {
                 Scale = 4f
