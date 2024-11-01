@@ -273,12 +273,12 @@ namespace Client.Main.Objects
                         float.IsNaN(scale.Z) ? 1.0f : scale.Z
                     );
 
-                    float modelRotationY = this.TotalAngle.Z;
+                    float modelRotationZ = this.TotalAngle.Z;
                     Vector3 position = originalWorld.Translation;
 
                     float terrainHeight = World.Terrain.RequestTerrainHeight(position.X, position.Y);
 
-                    float shadowHeightOffset = originalWorld.Translation.Z - terrainHeight + 5f;
+                    float shadowHeightOffset = originalWorld.Translation.Z - terrainHeight + 10f;
                     Vector3 shadowPosition = new Vector3(
                         position.X,
                         position.Y,
@@ -287,7 +287,7 @@ namespace Client.Main.Objects
 
                     heightAboveTerrain = WorldPosition.Translation.Z - terrainHeight;
                     float sampleDistance = heightAboveTerrain + 60f;
-                    float angleRad = MathHelper.ToRadians(-45);
+                    float angleRad = MathHelper.ToRadians(-25);
 
                     float offsetX = sampleDistance * (float)Math.Cos(angleRad);
                     float offsetY = sampleDistance * (float)Math.Sin(angleRad);
@@ -300,10 +300,19 @@ namespace Client.Main.Objects
                     float terrainSlopeX = (float)Math.Atan2(heightX2 - heightX1, sampleDistance * 0.4f);
                     float terrainSlopeZ = (float)Math.Atan2(heightZ2 - heightZ1, sampleDistance * 0.4f);
 
-                    Matrix rotationMatrix = Matrix.CreateRotationZ(modelRotationY - MathHelper.ToRadians(45));
 
-                    shadowWorld = Matrix.Identity;
-                    shadowWorld *= rotationMatrix;
+                    float adjustedYaw = this.TotalAngle.Y + MathHelper.ToRadians(110);
+                    float adjustedPitch = this.TotalAngle.X + MathHelper.ToRadians(120);
+                    float adjustedRoll = this.TotalAngle.Z + MathHelper.ToRadians(90);
+
+                    // Tworzenie quaternion z kątów rotacji
+                    Quaternion rotationQuat = Quaternion.CreateFromYawPitchRoll(adjustedYaw, adjustedPitch, adjustedRoll);
+
+                    // Konwersja quaternion na macierz rotacji
+                    Matrix rotationMatrix = Matrix.CreateFromQuaternion(rotationQuat);
+
+                    // Ustawienie macierzy światowej dla cienia
+                    shadowWorld = Matrix.Identity * rotationMatrix;
                     shadowWorld *= Matrix.CreateScale(1.0f + (Math.Min(0, terrainSlopeX / 2)), 0.01f, 1.0f + (Math.Min(0, terrainSlopeX / 2)));
                     shadowWorld *= Matrix.CreateRotationX(Math.Max(-MathHelper.PiOver2, -MathHelper.PiOver2 - terrainSlopeX));
                     shadowWorld *= Matrix.CreateRotationZ(MathHelper.ToRadians(45));
@@ -347,8 +356,8 @@ namespace Client.Main.Objects
                         _shadowOpacityCache[modelId] = finalOpacity;
                     }
 
-                    effect.Parameters["ShadowOpacity"].SetValue(_shadowOpacityCache[modelId]);
-                    effect.Parameters["HeightAboveTerrain"].SetValue(heightAboveTerrain);
+                    //effect.Parameters["ShadowOpacity"].SetValue(1f);
+                    //effect.Parameters["HeightAboveTerrain"].SetValue(heightAboveTerrain);
 
                     foreach (EffectPass pass in effect.CurrentTechnique.Passes)
                     {

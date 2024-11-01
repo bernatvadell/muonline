@@ -42,7 +42,7 @@ float4 MainPS(VertexShaderOutput input) : COLOR0
 
     float heightFactor = saturate(1.0 - HeightAboveTerrain / 100.0);
 
-    float finalOpacity = ShadowOpacity * heightFactor * shadow;
+    float finalOpacity = 1.0;;
 
     return float4(0, 0, 0, finalOpacity);
 }
