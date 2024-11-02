@@ -19,7 +19,7 @@ namespace Client.Main.Controls
     public class TerrainControl : GameControl
     {
         private const float SpecialHeight = 1200f;
-        private const int BlockSize = 4; // blockSize
+        private const int BlockSize = 4;
         private TerrainAttribute _terrain;
         private TerrainMapping _mapping;
         private Texture2D[] _textures;
@@ -29,7 +29,12 @@ namespace Client.Main.Controls
         private Color[] _backTerrainHeight;
         private Color[] _terrainLightData;
 
-        // Pre-allocated buffer for vertices to reduce memory allocations
+        // LOD configuration
+        private const int MAX_LOD_LEVELS = 2;
+        private const float LOD_DISTANCE_MULTIPLIER = 3000f;
+        private readonly int[] LOD_STEPS = { 1, 4 };
+
+        // Pre-allocated buffer for vertices
         private readonly VertexPositionColorTexture[] _terrainVertices = new VertexPositionColorTexture[6];
 
         private const float WindScale = 10f;
@@ -333,6 +338,8 @@ namespace Client.Main.Controls
         {
             if (_backTerrainHeight == null) return;
 
+            var cameraPosition = new Vector2(Camera.Instance.Position.X, Camera.Instance.Position.Y);
+
             for (int yi = 0; yi < Constants.TERRAIN_SIZE_MASK; yi += BlockSize)
             {
                 for (int xi = 0; xi < Constants.TERRAIN_SIZE_MASK; xi += BlockSize)
@@ -341,6 +348,18 @@ namespace Client.Main.Controls
                     float yStart = yi * Constants.TERRAIN_SCALE;
                     float xEnd = (xi + BlockSize) * Constants.TERRAIN_SCALE;
                     float yEnd = (yi + BlockSize) * Constants.TERRAIN_SCALE;
+
+                    // Calculate block center
+                    Vector2 blockCenter = new Vector2(
+                        (xStart + xEnd) * 0.5f,
+                        (yStart + yEnd) * 0.5f
+                    );
+
+                    // Calculate distance to camera
+                    float distanceToCamera = Vector2.Distance(blockCenter, cameraPosition);
+
+                    // Determine LOD level based on distance
+                    int lodLevel = GetLODLevel(distanceToCamera);
 
                     float minZ = float.MaxValue;
                     float maxZ = float.MinValue;
@@ -363,21 +382,34 @@ namespace Client.Main.Controls
                     );
 
                     if (Camera.Instance.Frustum.Contains(blockBounds) != ContainmentType.Disjoint)
-                        RenderTerrainBlock(xStart / Constants.TERRAIN_SCALE, yStart / Constants.TERRAIN_SCALE, xi, yi, isAfter);
+                        RenderTerrainBlock(xStart / Constants.TERRAIN_SCALE, yStart / Constants.TERRAIN_SCALE, xi, yi, isAfter, LOD_STEPS[lodLevel]);
                 }
             }
         }
 
-        private void RenderTerrainBlock(float xf, float yf, int xi, int yi, bool isAfter)
+        private int GetLODLevel(float distance)
         {
-            int lodi = 1;
-            var lodf = (float)lodi;
+            float levelF = distance / LOD_DISTANCE_MULTIPLIER;
+            int level = (int)Math.Floor(levelF);
 
-            for (int i = 0; i < BlockSize; i += lodi)
+            float blend = levelF - level;
+            level = (int)MathHelper.Lerp(level, level + 1, blend);
+
+            return Math.Min(level, MAX_LOD_LEVELS - 1);
+        }
+
+        private void RenderTerrainBlock(float xf, float yf, int xi, int yi, bool isAfter, int lodStep)
+        {
+            if (BlockSize % lodStep != 0)
             {
-                for (int j = 0; j < BlockSize; j += lodi)
+                lodStep = 1;
+            }
+
+            for (int i = 0; i < BlockSize; i += lodStep)
+            {
+                for (int j = 0; j < BlockSize; j += lodStep)
                 {
-                    RenderTerrainTile(xf + j, yf + i, xi + j, yi + i, lodf, lodi, isAfter);
+                    RenderTerrainTile(xf + j, yf + i, xi + j, yi + i, (float)lodStep, lodStep, isAfter);
                 }
             }
         }
@@ -429,34 +461,33 @@ namespace Client.Main.Controls
             };
 
             if (idx1 < _terrain.TerrainWall.Length && _terrain.TerrainWall[idx1].HasFlag(TWFlags.Height))
-                terrainVertex[0].Z += 1200f;
-
+                terrainVertex[0].Z += SpecialHeight;
             if (idx2 < _terrain.TerrainWall.Length && _terrain.TerrainWall[idx2].HasFlag(TWFlags.Height))
-                terrainVertex[1].Z += 1200f;
-
+                terrainVertex[1].Z += SpecialHeight;
             if (idx3 < _terrain.TerrainWall.Length && _terrain.TerrainWall[idx3].HasFlag(TWFlags.Height))
-                terrainVertex[2].Z += 1200f;
-
+                terrainVertex[2].Z += SpecialHeight;
             if (idx4 < _terrain.TerrainWall.Length && _terrain.TerrainWall[idx4].HasFlag(TWFlags.Height))
-                terrainVertex[3].Z += 1200f;
+                terrainVertex[3].Z += SpecialHeight;
 
             var terrainLights = new Color[4]
             {
                 idx1 < _backTerrainLight.Length ? _backTerrainLight[idx1] : Color.Black,
-                idx2 < _backTerrainLight.Length ?_backTerrainLight[idx2] : Color.Black,
-                idx3 < _backTerrainLight.Length ?_backTerrainLight[idx3] : Color.Black,
-                idx4 < _backTerrainLight.Length ?_backTerrainLight[idx4] : Color.Black
+                idx2 < _backTerrainLight.Length ? _backTerrainLight[idx2] : Color.Black,
+                idx3 < _backTerrainLight.Length ? _backTerrainLight[idx3] : Color.Black,
+                idx4 < _backTerrainLight.Length ? _backTerrainLight[idx4] : Color.Black
             };
+
+            float lodScale = lodf;
 
             if (isOpaque)
             {
                 GraphicsDevice.BlendState = BlendState.Opaque;
-                RenderTexture(_mapping.Layer2[idx1], xf, yf, terrainVertex, terrainLights);
+                RenderTexture(_mapping.Layer2[idx1], xf, yf, terrainVertex, terrainLights, lodScale);
             }
             else
             {
                 GraphicsDevice.BlendState = BlendState.Opaque;
-                RenderTexture(_mapping.Layer1[idx1], xf, yf, terrainVertex, terrainLights);
+                RenderTexture(_mapping.Layer1[idx1], xf, yf, terrainVertex, terrainLights, lodScale);
             }
 
             if (hasAlpha && !isOpaque)
@@ -472,11 +503,11 @@ namespace Client.Main.Controls
                 terrainLights[3].A = alpha4;
 
                 GraphicsDevice.BlendState = BlendState.AlphaBlend;
-                RenderTexture(_mapping.Layer2[idx1], xf, yf, terrainVertex, terrainLights);
+                RenderTexture(_mapping.Layer2[idx1], xf, yf, terrainVertex, terrainLights, lodScale);
             }
         }
 
-        private void RenderTexture(int textureIndex, float xf, float yf, Vector3[] terrainVertex, Color[] terrainLights)
+        private void RenderTexture(int textureIndex, float xf, float yf, Vector3[] terrainVertex, Color[] terrainLights, float lodScale = 1.0f)
         {
             if (Status != Models.GameControlStatus.Ready)
                 return;
@@ -492,18 +523,21 @@ namespace Client.Main.Controls
 
             var texture = _textures[textureIndex];
 
-            var width = 64f / texture.Width;
-            var height = 64f / texture.Height;
+            var baseWidth = 64f / texture.Width;
+            var baseHeight = 64f / texture.Height;
 
-            float suf = xf * width;
-            float svf = yf * height;
+            float suf = xf * baseWidth;
+            float svf = yf * baseHeight;
+
+            float uvWidth = baseWidth * lodScale;
+            float uvHeight = baseHeight * lodScale;
 
             var terrainTextureCoord = new Vector2[4]
             {
                 new Vector2(suf, svf),
-                new Vector2(suf + width, svf),
-                new Vector2(suf + width, svf + height),
-                new Vector2(suf, svf + height)
+                new Vector2(suf + uvWidth, svf),
+                new Vector2(suf + uvWidth, svf + uvHeight),
+                new Vector2(suf, svf + uvHeight)
             };
 
             _terrainVertices[0] = new VertexPositionColorTexture(terrainVertex[0], terrainLights[0], terrainTextureCoord[0]);
