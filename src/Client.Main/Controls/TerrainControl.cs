@@ -20,6 +20,12 @@ namespace Client.Main.Controls
     {
         private const float SpecialHeight = 1200f;
         private const int BlockSize = 4;
+        private const int MAX_LOD_LEVELS = 2;
+        private const float LOD_DISTANCE_MULTIPLIER = 3000f;
+        private const float WindScale = 10f;
+        private const int UPDATE_INTERVAL_MS = 32;
+        private const float CAMERA_MOVE_THRESHOLD = 32f;
+
         private TerrainAttribute _terrain;
         private TerrainMapping _mapping;
         private Texture2D[] _textures;
@@ -29,49 +35,58 @@ namespace Client.Main.Controls
         private Color[] _backTerrainHeight;
         private Color[] _terrainLightData;
 
-        // LOD configuration
-        private const int MAX_LOD_LEVELS = 2;
-        private const float LOD_DISTANCE_MULTIPLIER = 3000f;
-        private readonly int[] LOD_STEPS = { 1, 4 };
-
-        // Pre-allocated buffer for vertices
-        private readonly VertexPositionColorTexture[] _terrainVertices = new VertexPositionColorTexture[6];
-
-        private const float WindScale = 10f;
-
         public short WorldIndex { get; set; }
         public Vector3 Light { get; set; } = new Vector3(0.5f, -0.5f, 0.5f);
-
         public Dictionary<int, string> TextureMappingFiles { get; set; } = new Dictionary<int, string>
-            {
-                { 0, "TileGrass01.ozj" },
-                { 1, "TileGrass02.ozj" },
-                { 2, "TileGround01.ozj" },
-                { 3, "TileGround02.ozj" },
-                { 4, "TileGround03.ozj" },
-                { 5, "TileWater01.ozj" },
-                { 6, "TileWood01.ozj" },
-                { 7, "TileRock01.ozj" },
-                { 8, "TileRock02.ozj" },
-                { 9, "TileRock03.ozj" },
-                { 10, "TileRock04.ozj" },
-                { 11, "TileRock05.ozj" },
-                { 12, "TileRock06.ozj" },
-                { 13, "TileRock07.ozj" },
-                { 30, "TileGrass01.ozt" },
-                { 31, "TileGrass02.ozt" },
-                { 32, "TileGrass03.ozt" },
-                { 100, "leaf01.ozt" },
-                { 101, "leaf02.ozj" },
-                { 102, "rain01.ozt" },
-                { 103,  "rain02.ozt" },
-                { 104,  "rain03.ozt" }
-            };
+        {
+            { 0, "TileGrass01.ozj" },
+            { 1, "TileGrass02.ozj" },
+            { 2, "TileGround01.ozj" },
+            { 3, "TileGround02.ozj" },
+            { 4, "TileGround03.ozj" },
+            { 5, "TileWater01.ozj" },
+            { 6, "TileWood01.ozj" },
+            { 7, "TileRock01.ozj" },
+            { 8, "TileRock02.ozj" },
+            { 9, "TileRock03.ozj" },
+            { 10, "TileRock04.ozj" },
+            { 11, "TileRock05.ozj" },
+            { 12, "TileRock06.ozj" },
+            { 13, "TileRock07.ozj" },
+            { 30, "TileGrass01.ozt" },
+            { 31, "TileGrass02.ozt" },
+            { 32, "TileGrass03.ozt" },
+            { 100, "leaf01.ozt" },
+            { 101, "leaf02.ozj" },
+            { 102, "rain01.ozt" },
+            { 103,  "rain02.ozt" },
+            { 104,  "rain03.ozt" }
+        };
+
+        private readonly VertexPositionColorTexture[] _terrainVertices = new VertexPositionColorTexture[6];
+        private readonly Vector2[] _terrainTextureCoord;
+        private readonly Vector3[] _tempTerrainVertex;
+        private readonly Color[] _tempTerrainLights;
+
+        private float _lastWindSpeed = float.MinValue;
+        private double _lastUpdateTime;
+
+        private readonly int[] LOD_STEPS = { 1, 4 };
+        private readonly WindCache _windCache = new WindCache();
+
+        private readonly TerrainBlockCache _blockCache;
+        private readonly Queue<TerrainBlock> _visibleBlocks = new Queue<TerrainBlock>(64);
+        private Vector2 _lastCameraPosition;
 
         public TerrainControl()
         {
             AutoViewSize = false;
             ViewSize = new Point(MuGame.Instance.Width, MuGame.Instance.Height);
+            _blockCache = new TerrainBlockCache(BlockSize, Constants.TERRAIN_SIZE);
+            _terrainVertices = new VertexPositionColorTexture[6];
+            _terrainTextureCoord = new Vector2[4];
+            _tempTerrainVertex = new Vector3[4];
+            _tempTerrainLights = new Color[4];
         }
 
         public override async Task Load()
@@ -318,18 +333,85 @@ namespace Client.Main.Controls
             }
         }
 
+        private class WindCache
+        {
+            private readonly float[] _sinLookupTable;
+            private const int TABLE_SIZE = 720;
+            private const float TWO_PI = (float)(Math.PI * 2);
+
+            public WindCache()
+            {
+                _sinLookupTable = new float[TABLE_SIZE];
+                for (int i = 0; i < TABLE_SIZE; i++)
+                {
+                    float angle = (i * TWO_PI) / TABLE_SIZE;
+                    _sinLookupTable[i] = (float)Math.Sin(angle);
+                }
+            }
+
+            public float FastSin(float x)
+            {
+                x = x % TWO_PI;
+                if (x < 0) x += TWO_PI;
+
+                float indexF = x * TABLE_SIZE / TWO_PI;
+                int index = (int)indexF;
+
+                float fraction = indexF - index;
+                int nextIndex = (index + 1) % TABLE_SIZE;
+
+                return _sinLookupTable[index] + (_sinLookupTable[nextIndex] - _sinLookupTable[index]) * fraction;
+            }
+        }
+
         private void InitTerrainLight(GameTime time)
         {
             if (_terrainGrassWind == null) return;
 
-            float windSpeed = (float)((time.TotalGameTime.TotalMilliseconds % 720000) * 0.002); // Upraszczony modulo
-
-            for (int y = 0; y <= Math.Min(255, Constants.TERRAIN_SIZE_MASK); y++)
+            if (time.TotalGameTime.TotalMilliseconds - _lastUpdateTime < UPDATE_INTERVAL_MS)
             {
-                for (int x = 0; x <= Math.Min(255, Constants.TERRAIN_SIZE_MASK); x++)
+                return;
+            }
+
+            float windSpeed = (float)(time.TotalGameTime.TotalMilliseconds % 720000 * 0.002);
+
+            if (Math.Abs(windSpeed - _lastWindSpeed) < 0.01f)
+            {
+                return;
+            }
+
+            _lastWindSpeed = windSpeed;
+            _lastUpdateTime = time.TotalGameTime.TotalMilliseconds;
+
+            var camera = Camera.Instance;
+            int startX = Math.Max(0, (int)(camera.Position.X / Constants.TERRAIN_SCALE) - 32);
+            int startY = Math.Max(0, (int)(camera.Position.Y / Constants.TERRAIN_SCALE) - 32);
+            int endX = Math.Min(255, startX + 64);
+            int endY = Math.Min(255, startY + 64);
+
+            System.Numerics.Vector<float> windScaleVector = new System.Numerics.Vector<float>(WindScale);
+            int vectorSize = System.Numerics.Vector<float>.Count;
+
+            for (int y = startY; y <= endY; y++)
+            {
+                int baseIndex = GetTerrainIndex(startX, y);
+
+                for (int x = startX; x <= endX - vectorSize; x += vectorSize)
+                {
+                    var phases = new float[vectorSize];
+                    for (int i = 0; i < vectorSize; i++)
+                    {
+                        phases[i] = _windCache.FastSin(windSpeed + (x + i) * 5f);
+                    }
+
+                    var windVector = new System.Numerics.Vector<float>(phases) * windScaleVector;
+                    windVector.CopyTo(_terrainGrassWind, baseIndex + x - startX);
+                }
+
+                for (int x = endX - (endX % vectorSize); x <= endX; x++)
                 {
                     int index = GetTerrainIndex(x, y);
-                    _terrainGrassWind[index] = (float)Math.Sin(windSpeed + x * 5f) * WindScale;
+                    _terrainGrassWind[index] = _windCache.FastSin(windSpeed + x * 5f) * WindScale;
                 }
             }
         }
@@ -339,50 +421,21 @@ namespace Client.Main.Controls
             if (_backTerrainHeight == null) return;
 
             var cameraPosition = new Vector2(Camera.Instance.Position.X, Camera.Instance.Position.Y);
+            UpdateVisibleBlocks(cameraPosition);
 
-            for (int yi = 0; yi < Constants.TERRAIN_SIZE_MASK; yi += BlockSize)
+            foreach (var block in _visibleBlocks)
             {
-                for (int xi = 0; xi < Constants.TERRAIN_SIZE_MASK; xi += BlockSize)
+                if (block.IsVisible)
                 {
-                    float xStart = xi * Constants.TERRAIN_SCALE;
-                    float yStart = yi * Constants.TERRAIN_SCALE;
-                    float xEnd = (xi + BlockSize) * Constants.TERRAIN_SCALE;
-                    float yEnd = (yi + BlockSize) * Constants.TERRAIN_SCALE;
-
-                    // Calculate block center
-                    Vector2 blockCenter = new Vector2(
-                        (xStart + xEnd) * 0.5f,
-                        (yStart + yEnd) * 0.5f
+                    float xStart = block.Xi * Constants.TERRAIN_SCALE;
+                    RenderTerrainBlock(
+                        xStart / Constants.TERRAIN_SCALE,
+                        block.Yi * Constants.TERRAIN_SCALE / Constants.TERRAIN_SCALE,
+                        block.Xi,
+                        block.Yi,
+                        isAfter,
+                        LOD_STEPS[block.LODLevel]
                     );
-
-                    // Calculate distance to camera
-                    float distanceToCamera = Vector2.Distance(blockCenter, cameraPosition);
-
-                    // Determine LOD level based on distance
-                    int lodLevel = GetLODLevel(distanceToCamera);
-
-                    float minZ = float.MaxValue;
-                    float maxZ = float.MinValue;
-
-                    for (int y = yi; y < yi + BlockSize; y++)
-                    {
-                        for (int x = xi; x < xi + BlockSize; x++)
-                        {
-                            int index = GetTerrainIndexRepeat(x, y);
-                            float height = _backTerrainHeight == null ? 0f : _backTerrainHeight[index].B * 1.5f;
-
-                            if (height < minZ) minZ = height;
-                            if (height > maxZ) maxZ = height;
-                        }
-                    }
-
-                    var blockBounds = new BoundingBox(
-                        new Vector3(xStart, yStart, minZ),
-                        new Vector3(xEnd, yEnd, maxZ)
-                    );
-
-                    if (Camera.Instance.Frustum.Contains(blockBounds) != ContainmentType.Disjoint)
-                        RenderTerrainBlock(xStart / Constants.TERRAIN_SCALE, yStart / Constants.TERRAIN_SCALE, xi, yi, isAfter, LOD_STEPS[lodLevel]);
                 }
             }
         }
@@ -398,12 +451,137 @@ namespace Client.Main.Controls
             return Math.Min(level, MAX_LOD_LEVELS - 1);
         }
 
+        private class TerrainBlock
+        {
+            public BoundingBox Bounds;
+            public float MinZ;
+            public float MaxZ;
+            public int LODLevel;
+            public Vector2 Center;
+            public bool IsVisible;
+            public int Xi;
+            public int Yi;
+        }
+
+        private class TerrainBlockCache
+        {
+            private readonly TerrainBlock[,] _blocks;
+            private readonly int _blockSize;
+            private readonly int _gridSize;
+
+            public TerrainBlockCache(int blockSize, int terrainSize)
+            {
+                _blockSize = blockSize;
+                _gridSize = terrainSize / blockSize;
+                _blocks = new TerrainBlock[_gridSize, _gridSize];
+
+                for (int y = 0; y < _gridSize; y++)
+                {
+                    for (int x = 0; x < _gridSize; x++)
+                    {
+                        _blocks[y, x] = new TerrainBlock
+                        {
+                            Xi = x * blockSize,
+                            Yi = y * blockSize
+                        };
+                    }
+                }
+            }
+
+            public TerrainBlock GetBlock(int x, int y) => _blocks[y, x];
+        }
+
+        private void UpdateVisibleBlocks(Vector2 cameraPosition)
+        {
+            if (Vector2.Distance(_lastCameraPosition, cameraPosition) < CAMERA_MOVE_THRESHOLD)
+                return;
+
+            _lastCameraPosition = cameraPosition;
+            _visibleBlocks.Clear();
+
+            int startX = Math.Max(0, (int)((cameraPosition.X - Camera.Instance.ViewFar) / (Constants.TERRAIN_SCALE * BlockSize)));
+            int startY = Math.Max(0, (int)((cameraPosition.Y - Camera.Instance.ViewFar) / (Constants.TERRAIN_SCALE * BlockSize)));
+            int endX = Math.Min(Constants.TERRAIN_SIZE / BlockSize - 1, (int)((cameraPosition.X + Camera.Instance.ViewFar) / (Constants.TERRAIN_SCALE * BlockSize)));
+            int endY = Math.Min(Constants.TERRAIN_SIZE / BlockSize - 1, (int)((cameraPosition.Y + Camera.Instance.ViewFar) / (Constants.TERRAIN_SCALE * BlockSize)));
+
+            var vectorSize = System.Numerics.Vector<float>.Count;
+            var heightBuffer = new float[BlockSize * BlockSize];
+
+            for (int gridY = startY; gridY <= endY; gridY++)
+            {
+                for (int gridX = startX; gridX <= endX; gridX++)
+                {
+                    var block = _blockCache.GetBlock(gridX, gridY);
+
+                    float xStart = block.Xi * Constants.TERRAIN_SCALE;
+                    float yStart = block.Yi * Constants.TERRAIN_SCALE;
+                    float xEnd = (block.Xi + BlockSize) * Constants.TERRAIN_SCALE;
+                    float yEnd = (block.Yi + BlockSize) * Constants.TERRAIN_SCALE;
+
+                    block.Center = new Vector2((xStart + xEnd) * 0.5f, (yStart + yEnd) * 0.5f);
+                    float distanceToCamera = Vector2.Distance(block.Center, cameraPosition);
+                    block.LODLevel = GetLODLevel(distanceToCamera);
+
+                    if (distanceToCamera <= Camera.Instance.ViewFar * 1.5f)
+                    {
+                        int idx = 0;
+                        for (int y = 0; y < BlockSize; y++)
+                        {
+                            for (int x = 0; x < BlockSize; x++)
+                            {
+                                int terrainIndex = GetTerrainIndexRepeat(block.Xi + x, block.Yi + y);
+                                heightBuffer[idx++] = _backTerrainHeight[terrainIndex].B * 1.5f;
+                            }
+                        }
+
+                        var minVector = new System.Numerics.Vector<float>(float.MaxValue);
+                        var maxVector = new System.Numerics.Vector<float>(float.MinValue);
+
+                        for (int i = 0; i < heightBuffer.Length; i += vectorSize)
+                        {
+                            var heightVector = new System.Numerics.Vector<float>(heightBuffer, i);
+                            minVector = System.Numerics.Vector.Min(minVector, heightVector);
+                            maxVector = System.Numerics.Vector.Max(maxVector, heightVector);
+                        }
+
+                        block.MinZ = minVector[0];
+                        block.MaxZ = maxVector[0];
+                        for (int i = 1; i < vectorSize; i++)
+                        {
+                            block.MinZ = Math.Min(block.MinZ, minVector[i]);
+                            block.MaxZ = Math.Max(block.MaxZ, maxVector[i]);
+                        }
+
+                        block.Bounds = new BoundingBox(
+                            new Vector3(xStart, yStart, block.MinZ),
+                            new Vector3(xEnd, yEnd, block.MaxZ)
+                        );
+
+                        block.IsVisible = Camera.Instance.Frustum.Contains(block.Bounds) != ContainmentType.Disjoint;
+                        if (block.IsVisible)
+                        {
+                            _visibleBlocks.Enqueue(block);
+                        }
+                    }
+                    else
+                    {
+                        block.IsVisible = false;
+                    }
+                }
+            }
+        }
+
         private void RenderTerrainBlock(float xf, float yf, int xi, int yi, bool isAfter, int lodStep)
         {
             if (BlockSize % lodStep != 0)
             {
                 lodStep = 1;
             }
+
+            GraphicsDevice.BlendState = BlendState.Opaque;
+            var effect = GraphicsManager.Instance.BasicEffect3D;
+            effect.Projection = Camera.Instance.Projection;
+            effect.View = Camera.Instance.View;
 
             for (int i = 0; i < BlockSize; i += lodStep)
             {
@@ -428,22 +606,38 @@ namespace Client.Main.Controls
             int idx3 = GetTerrainIndex(xi + lodi, yi + lodi);
             int idx4 = GetTerrainIndex(xi, yi + lodi);
 
-            byte alpha1 = idx1 >= _mapping.Alpha.Length
-                ? (byte)0
-                : _mapping.Alpha[idx1];
-            byte alpha2 = idx2 >= _mapping.Alpha.Length
-                ? (byte)0
-                : _mapping.Alpha[idx2];
-            byte alpha3 = idx3 >= _mapping.Alpha.Length
-                ? (byte)0
-                : _mapping.Alpha[idx3];
-            byte alpha4 = idx4 >= _mapping.Alpha.Length
-                ? (byte)0
-                : _mapping.Alpha[idx4];
+            PrepareTileVertices(xi, yi, xf, yf, idx1, idx2, idx3, idx4, lodf);
+            PrepareTileLights(idx1, idx2, idx3, idx4);
+
+            float lodScale = lodf;
+
+            byte alpha1 = idx1 >= _mapping.Alpha.Length ? (byte)0 : _mapping.Alpha[idx1];
+            byte alpha2 = idx2 >= _mapping.Alpha.Length ? (byte)0 : _mapping.Alpha[idx2];
+            byte alpha3 = idx3 >= _mapping.Alpha.Length ? (byte)0 : _mapping.Alpha[idx3];
+            byte alpha4 = idx4 >= _mapping.Alpha.Length ? (byte)0 : _mapping.Alpha[idx4];
 
             bool isOpaque = alpha1 >= 255 && alpha2 >= 255 && alpha3 >= 255 && alpha4 >= 255;
             bool hasAlpha = alpha1 > 0 || alpha2 > 0 || alpha3 > 0 || alpha4 > 0;
 
+            if (isOpaque)
+            {
+                RenderTexture(_mapping.Layer2[idx1], xf, yf, lodScale);
+            }
+            else
+            {
+                RenderTexture(_mapping.Layer1[idx1], xf, yf, lodScale);
+            }
+
+            if (hasAlpha && !isOpaque)
+            {
+                ApplyAlphaToLights(alpha1, alpha2, alpha3, alpha4);
+                GraphicsDevice.BlendState = BlendState.AlphaBlend;
+                RenderTexture(_mapping.Layer2[idx1], xf, yf, lodScale);
+            }
+        }
+
+        private void PrepareTileVertices(int xi, int yi, float xf, float yf, int idx1, int idx2, int idx3, int idx4, float lodf)
+        {
             float terrainHeight1 = idx1 >= _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx1].B * 1.5f;
             float terrainHeight2 = idx2 >= _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx2].B * 1.5f;
             float terrainHeight3 = idx3 >= _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx3].B * 1.5f;
@@ -451,107 +645,107 @@ namespace Client.Main.Controls
 
             float sx = xf * Constants.TERRAIN_SCALE;
             float sy = yf * Constants.TERRAIN_SCALE;
+            float scaledSize = Constants.TERRAIN_SCALE * lodf;
 
-            var terrainVertex = new Vector3[4]
-            {
-                new Vector3(sx, sy, terrainHeight1),
-                new Vector3(sx + Constants.TERRAIN_SCALE * lodf, sy, terrainHeight2),
-                new Vector3(sx + Constants.TERRAIN_SCALE * lodf, sy + Constants.TERRAIN_SCALE * lodf, terrainHeight3),
-                new Vector3(sx, sy + Constants.TERRAIN_SCALE * lodf, terrainHeight4)
-            };
+            _tempTerrainVertex[0].X = sx;
+            _tempTerrainVertex[0].Y = sy;
+            _tempTerrainVertex[0].Z = terrainHeight1;
+
+            _tempTerrainVertex[1].X = sx + scaledSize;
+            _tempTerrainVertex[1].Y = sy;
+            _tempTerrainVertex[1].Z = terrainHeight2;
+
+            _tempTerrainVertex[2].X = sx + scaledSize;
+            _tempTerrainVertex[2].Y = sy + scaledSize;
+            _tempTerrainVertex[2].Z = terrainHeight3;
+
+            _tempTerrainVertex[3].X = sx;
+            _tempTerrainVertex[3].Y = sy + scaledSize;
+            _tempTerrainVertex[3].Z = terrainHeight4;
 
             if (idx1 < _terrain.TerrainWall.Length && _terrain.TerrainWall[idx1].HasFlag(TWFlags.Height))
-                terrainVertex[0].Z += SpecialHeight;
+                _tempTerrainVertex[0].Z += SpecialHeight;
             if (idx2 < _terrain.TerrainWall.Length && _terrain.TerrainWall[idx2].HasFlag(TWFlags.Height))
-                terrainVertex[1].Z += SpecialHeight;
+                _tempTerrainVertex[1].Z += SpecialHeight;
             if (idx3 < _terrain.TerrainWall.Length && _terrain.TerrainWall[idx3].HasFlag(TWFlags.Height))
-                terrainVertex[2].Z += SpecialHeight;
+                _tempTerrainVertex[2].Z += SpecialHeight;
             if (idx4 < _terrain.TerrainWall.Length && _terrain.TerrainWall[idx4].HasFlag(TWFlags.Height))
-                terrainVertex[3].Z += SpecialHeight;
-
-            var terrainLights = new Color[4]
-            {
-                idx1 < _backTerrainLight.Length ? _backTerrainLight[idx1] : Color.Black,
-                idx2 < _backTerrainLight.Length ? _backTerrainLight[idx2] : Color.Black,
-                idx3 < _backTerrainLight.Length ? _backTerrainLight[idx3] : Color.Black,
-                idx4 < _backTerrainLight.Length ? _backTerrainLight[idx4] : Color.Black
-            };
-
-            float lodScale = lodf;
-
-            if (isOpaque)
-            {
-                GraphicsDevice.BlendState = BlendState.Opaque;
-                RenderTexture(_mapping.Layer2[idx1], xf, yf, terrainVertex, terrainLights, lodScale);
-            }
-            else
-            {
-                GraphicsDevice.BlendState = BlendState.Opaque;
-                RenderTexture(_mapping.Layer1[idx1], xf, yf, terrainVertex, terrainLights, lodScale);
-            }
-
-            if (hasAlpha && !isOpaque)
-            {
-                terrainLights[0] *= alpha1 / 255f;
-                terrainLights[1] *= alpha2 / 255f;
-                terrainLights[2] *= alpha3 / 255f;
-                terrainLights[3] *= alpha4 / 255f;
-
-                terrainLights[0].A = alpha1;
-                terrainLights[1].A = alpha2;
-                terrainLights[2].A = alpha3;
-                terrainLights[3].A = alpha4;
-
-                GraphicsDevice.BlendState = BlendState.AlphaBlend;
-                RenderTexture(_mapping.Layer2[idx1], xf, yf, terrainVertex, terrainLights, lodScale);
-            }
+                _tempTerrainVertex[3].Z += SpecialHeight;
         }
 
-        private void RenderTexture(int textureIndex, float xf, float yf, Vector3[] terrainVertex, Color[] terrainLights, float lodScale = 1.0f)
+        private void PrepareTileLights(int idx1, int idx2, int idx3, int idx4)
         {
-            if (Status != Models.GameControlStatus.Ready)
-                return;
+            _tempTerrainLights[0] = idx1 < _backTerrainLight.Length ? _backTerrainLight[idx1] : Color.Black;
+            _tempTerrainLights[1] = idx2 < _backTerrainLight.Length ? _backTerrainLight[idx2] : Color.Black;
+            _tempTerrainLights[2] = idx3 < _backTerrainLight.Length ? _backTerrainLight[idx3] : Color.Black;
+            _tempTerrainLights[3] = idx4 < _backTerrainLight.Length ? _backTerrainLight[idx4] : Color.Black;
+        }
 
-            if (textureIndex == 255)
-                return;
+        private void ApplyAlphaToLights(byte alpha1, byte alpha2, byte alpha3, byte alpha4)
+        {
+            _tempTerrainLights[0] *= alpha1 / 255f;
+            _tempTerrainLights[1] *= alpha2 / 255f;
+            _tempTerrainLights[2] *= alpha3 / 255f;
+            _tempTerrainLights[3] *= alpha4 / 255f;
 
-            if (textureIndex < 0 || textureIndex >= _textures.Length)
-                return;
+            _tempTerrainLights[0].A = alpha1;
+            _tempTerrainLights[1].A = alpha2;
+            _tempTerrainLights[2].A = alpha3;
+            _tempTerrainLights[3].A = alpha4;
+        }
 
-            if (_textures[textureIndex] == null)
+        private void RenderTexture(int textureIndex, float xf, float yf, float lodScale = 1.0f)
+        {
+            if (Status != Models.GameControlStatus.Ready ||
+                textureIndex == 255 ||
+                textureIndex < 0 ||
+                textureIndex >= _textures.Length ||
+                _textures[textureIndex] == null)
                 return;
 
             var texture = _textures[textureIndex];
 
-            var baseWidth = 64f / texture.Width;
-            var baseHeight = 64f / texture.Height;
-
+            float baseWidth = 64f / texture.Width;
+            float baseHeight = 64f / texture.Height;
             float suf = xf * baseWidth;
             float svf = yf * baseHeight;
-
             float uvWidth = baseWidth * lodScale;
             float uvHeight = baseHeight * lodScale;
 
-            var terrainTextureCoord = new Vector2[4]
-            {
-                new Vector2(suf, svf),
-                new Vector2(suf + uvWidth, svf),
-                new Vector2(suf + uvWidth, svf + uvHeight),
-                new Vector2(suf, svf + uvHeight)
-            };
+            _terrainTextureCoord[0].X = suf;
+            _terrainTextureCoord[0].Y = svf;
+            _terrainTextureCoord[1].X = suf + uvWidth;
+            _terrainTextureCoord[1].Y = svf;
+            _terrainTextureCoord[2].X = suf + uvWidth;
+            _terrainTextureCoord[2].Y = svf + uvHeight;
+            _terrainTextureCoord[3].X = suf;
+            _terrainTextureCoord[3].Y = svf + uvHeight;
 
-            _terrainVertices[0] = new VertexPositionColorTexture(terrainVertex[0], terrainLights[0], terrainTextureCoord[0]);
-            _terrainVertices[1] = new VertexPositionColorTexture(terrainVertex[1], terrainLights[1], terrainTextureCoord[1]);
-            _terrainVertices[2] = new VertexPositionColorTexture(terrainVertex[2], terrainLights[2], terrainTextureCoord[2]);
+            _terrainVertices[0].Position = _tempTerrainVertex[0];
+            _terrainVertices[0].Color = _tempTerrainLights[0];
+            _terrainVertices[0].TextureCoordinate = _terrainTextureCoord[0];
 
-            _terrainVertices[3] = new VertexPositionColorTexture(terrainVertex[2], terrainLights[2], terrainTextureCoord[2]);
-            _terrainVertices[4] = new VertexPositionColorTexture(terrainVertex[3], terrainLights[3], terrainTextureCoord[3]);
-            _terrainVertices[5] = new VertexPositionColorTexture(terrainVertex[0], terrainLights[0], terrainTextureCoord[0]);
+            _terrainVertices[1].Position = _tempTerrainVertex[1];
+            _terrainVertices[1].Color = _tempTerrainLights[1];
+            _terrainVertices[1].TextureCoordinate = _terrainTextureCoord[1];
 
-            GraphicsManager.Instance.BasicEffect3D.Projection = Camera.Instance.Projection;
-            GraphicsManager.Instance.BasicEffect3D.View = Camera.Instance.View;
+            _terrainVertices[2].Position = _tempTerrainVertex[2];
+            _terrainVertices[2].Color = _tempTerrainLights[2];
+            _terrainVertices[2].TextureCoordinate = _terrainTextureCoord[2];
+
+            _terrainVertices[3].Position = _tempTerrainVertex[2];
+            _terrainVertices[3].Color = _tempTerrainLights[2];
+            _terrainVertices[3].TextureCoordinate = _terrainTextureCoord[2];
+
+            _terrainVertices[4].Position = _tempTerrainVertex[3];
+            _terrainVertices[4].Color = _tempTerrainLights[3];
+            _terrainVertices[4].TextureCoordinate = _terrainTextureCoord[3];
+
+            _terrainVertices[5].Position = _tempTerrainVertex[0];
+            _terrainVertices[5].Color = _tempTerrainLights[0];
+            _terrainVertices[5].TextureCoordinate = _terrainTextureCoord[0];
+
             GraphicsManager.Instance.BasicEffect3D.Texture = texture;
-
             foreach (var pass in GraphicsManager.Instance.BasicEffect3D.CurrentTechnique.Passes)
             {
                 pass.Apply();
