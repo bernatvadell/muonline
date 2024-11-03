@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Client.Data.ModulusCryptor
+﻿namespace Client.Data.ModulusCryptor
 {
     public class ThreeWayCipher : ICipher
     {
