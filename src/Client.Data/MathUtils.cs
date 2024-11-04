@@ -1,30 +1,33 @@
 ﻿using System.Numerics;
+using System.Runtime.CompilerServices;
 
 namespace Client.Data
 {
     public static class MathUtils
     {
-        public static Quaternion AngleQuaternion(Vector3 angles)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static Quaternion AngleQuaternion(Vector3 eulerAngles)
         {
-            float angle;
-            float sr, sp, sy, cr, cp, cy;
+            float halfX = eulerAngles.X * 0.5f;
+            float halfY = eulerAngles.Y * 0.5f;
+            float halfZ = eulerAngles.Z * 0.5f;
 
-            angle = angles.Z * 0.5f;
-            sy = (float)Math.Sin(angle);
-            cy = (float)Math.Cos(angle);
-            angle = angles.Y * 0.5f;
-            sp = (float)Math.Sin(angle);
-            cp = (float)Math.Cos(angle);
-            angle = angles.X * 0.5f;
-            sr = (float)Math.Sin(angle);
-            cr = (float)Math.Cos(angle);
+            float sinX = MathF.Sin(halfX);
+            float cosX = MathF.Cos(halfX);
+            float sinY = MathF.Sin(halfY);
+            float cosY = MathF.Cos(halfY);
+            float sinZ = MathF.Sin(halfZ);
+            float cosZ = MathF.Cos(halfZ);
 
-            float x = sr * cp * cy - cr * sp * sy;
-            float y = cr * sp * cy + sr * cp * sy;
-            float z = cr * cp * sy - sr * sp * cy;
-            float w = cr * cp * cy + sr * sp * sy;
+            float w = cosX * cosY * cosZ + sinX * sinY * sinZ;
+            float x = sinX * cosY * cosZ - cosX * sinY * sinZ;
+            float y = cosX * sinY * cosZ + sinX * cosY * sinZ;
+            float z = cosX * cosY * sinZ - sinX * sinY * cosZ;
 
-            return new Quaternion(x, y, z, w);
+            Quaternion quaternion = new Quaternion(x, y, z, w);
+            quaternion = Quaternion.Normalize(quaternion);
+
+            return quaternion;
         }
     }
 }

@@ -1,17 +1,4 @@
-﻿using Client.Data.ModulusCryptor;
-using ManagedSquish;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
-using SixLabors.ImageSharp.PixelFormats;
-using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.IO.Compression;
-using System.Linq;
-using System.Numerics;
-using System.Text;
-using System.Threading.Tasks;
-using static Org.BouncyCastle.Bcpg.Attr.ImageAttrib;
+﻿using System.IO.Compression;
 
 namespace Client.Data.Texture
 {
