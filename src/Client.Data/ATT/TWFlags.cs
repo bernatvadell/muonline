@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Client.Data.ATT
+﻿namespace Client.Data.ATT
 {
     [Flags]
     public enum TWFlags : ushort

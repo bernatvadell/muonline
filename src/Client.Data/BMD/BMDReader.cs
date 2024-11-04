@@ -1,57 +1,72 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
-using System.Reflection.PortableExecutable;
-using System.Runtime.InteropServices;
+﻿using System.Numerics;
 using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
-using static System.Collections.Specialized.BitVector32;
 
 namespace Client.Data.BMD
 {
     public class BMDReader : BaseReader<BMD>
     {
+        private const string EXPECTED_FILE_TYPE = "BMD";
+        private const int MINIMAL_BUFFER_SIZE = 8;
+        private const int STRING_LENGTH = 32;
+
         protected override BMD Read(byte[] buffer)
         {
-            if (buffer.Length < 8)
+            ValidateBuffer(buffer);
+            
+            var version = buffer[3];
+            DecryptBufferIfNeeded(buffer, version);
+
+            using var br = new BinaryReader(new MemoryStream(buffer));
+            br.BaseStream.Seek(4, SeekOrigin.Begin);
+
+            var name = br.ReadString(STRING_LENGTH);
+            var meshCount = br.ReadUInt16();
+            var boneCount = br.ReadUInt16();
+            var actionCount = br.ReadUInt16();
+
+            var meshes = ReadMeshes(br, meshCount);
+            var actions = ReadActions(br, actionCount);
+            var bones = ReadBones(br, boneCount, actions);
+
+            return new BMD
+            {
+                Version = version,
+                Name = name,
+                Meshes = meshes,
+                Actions = actions,
+                Bones = bones
+            };
+        }
+
+        private void ValidateBuffer(byte[] buffer)
+        {
+            if (buffer.Length < MINIMAL_BUFFER_SIZE)
                 throw new FileLoadException("Invalid size.");
 
             var fileType = Encoding.ASCII.GetString(buffer, 0, 3);
+            if (fileType != EXPECTED_FILE_TYPE)
+                throw new FileLoadException($"Invalid file type. Expected {EXPECTED_FILE_TYPE} and Received {fileType}.");
+        }
 
-            if (fileType != "BMD")
-                throw new FileLoadException($"Invalid file type. Expected BMD and Received {fileType}.");
+        private void DecryptBufferIfNeeded(byte[] buffer, byte version)
+        {
+            if (version is not 12 and not 15) return;
 
-            var version = buffer[3];
+            var size = BitConverter.ToInt32(buffer, 4);
+            var enc = new byte[size];
+            Array.Copy(buffer, 8, enc, 0, size);
+            
+            var dec = version == 12 
+                ? FileCryptor.Decrypt(enc) 
+                : LEACrypto.Decrypt(enc);
+            
+            Array.Copy(dec, 0, buffer, 4, size);
+        }
 
-            if (version == 12)
-            {
-                var size = BitConverter.ToInt32(buffer, 4);
-                var enc = new byte[size];
-                Array.Copy(buffer, 8, enc, 0, size);
-                var dec = FileCryptor.Decrypt(enc);
-                Array.Copy(dec, 0, buffer, 4, size);
-            }
-            else if (version == 15)
-            {
-                var size = BitConverter.ToInt32(buffer, 4);
-                var enc = new byte[size];
-                Array.Copy(buffer, 8, enc, 0, size);
-                var dec = LEACrypto.Decrypt(enc);
-                Array.Copy(dec, 0, buffer, 4, size);
-            }
-
-            using var ms = new MemoryStream(buffer);
-            using var br = new BinaryReader(ms);
-
-            ms.Seek(4, SeekOrigin.Begin);
-
-            var name = br.ReadString(32);
-            var meshes = new BMDTextureMesh[br.ReadUInt16()];
-            var bones = new BMDTextureBone[br.ReadUInt16()];
-            var actions = new BMDTextureAction[br.ReadUInt16()];
-
+        private BMDTextureMesh[] ReadMeshes(BinaryReader br, int meshCount)
+        {
+            var meshes = new BMDTextureMesh[meshCount];
+            
             for (var i = 0; i < meshes.Length; i++)
             {
                 var numVertices = br.ReadInt16();
@@ -64,75 +79,82 @@ namespace Client.Data.BMD
                 var normals = br.ReadStructArray<BMDTextureNormal>(numNormals);
                 var textCoords = br.ReadStructArray<BMDTexCoord>(numTexCoords);
                 var triangles = br.ReadStructArray<BMDTriangle>(numTriangles);
-                var texturePath = br.ReadString(32);
+                var texturePath = br.ReadString(STRING_LENGTH);
 
-                meshes[i] = new BMDTextureMesh()
+                meshes[i] = new BMDTextureMesh
                 {
                     Texture = texture,
                     Vertices = vertices,
                     Normals = normals,
                     TexCoords = textCoords,
                     Triangles = triangles,
-                    TexturePath = texturePath,
+                    TexturePath = texturePath
                 };
             }
+
+            return meshes;
+        }
+
+        private BMDTextureAction[] ReadActions(BinaryReader br, int actionCount)
+        {
+            var actions = new BMDTextureAction[actionCount];
 
             for (var i = 0; i < actions.Length; i++)
             {
-                var action = actions[i] = new BMDTextureAction()
+                actions[i] = new BMDTextureAction
                 {
                     NumAnimationKeys = br.ReadInt16(),
-                    LockPositions = br.ReadBoolean(),
+                    LockPositions = br.ReadBoolean()
                 };
 
-                if (action.LockPositions)
+                if (actions[i].LockPositions)
                 {
-                    action.Positions = br.ReadStructArray<Vector3>(action.NumAnimationKeys);
+                    actions[i].Positions = br.ReadStructArray<Vector3>(actions[i].NumAnimationKeys);
                 }
             }
 
+            return actions;
+        }
+
+        private BMDTextureBone[] ReadBones(BinaryReader br, int boneCount, BMDTextureAction[] actions)
+        {
+            var bones = new BMDTextureBone[boneCount];
+
             for (var i = 0; i < bones.Length; i++)
             {
-                var dummy = br.ReadBoolean();
-
-                if (dummy)
+                if (br.ReadBoolean())
                 {
                     bones[i] = BMDTextureBone.Dummy;
                 }
                 else
                 {
-                    var bone = bones[i] = new BMDTextureBone()
+                    bones[i] = new BMDTextureBone
                     {
-                        Name = br.ReadString(32),
+                        Name = br.ReadString(STRING_LENGTH),
                         Parent = br.ReadInt16(),
                         Matrixes = new BMDBoneMatrix[actions.Length]
                     };
 
-                    for (var m = 0; m < bone.Matrixes.Length; m++)
+                    for (var m = 0; m < actions.Length; m++)
                     {
-                        var action = actions[m];
-                        bone.Matrixes[m] = new BMDBoneMatrix()
+                        var matrix = new BMDBoneMatrix
                         {
-                            Position = br.ReadStructArray<Vector3>(action.NumAnimationKeys),
-                            Rotation = br.ReadStructArray<Vector3>(action.NumAnimationKeys)
+                            Position = br.ReadStructArray<Vector3>(actions[m].NumAnimationKeys),
+                            Rotation = br.ReadStructArray<Vector3>(actions[m].NumAnimationKeys),
+                            Quaternion = new Quaternion[actions[m].NumAnimationKeys]
                         };
 
-                        // precalculate quaternion
-                        bone.Matrixes[m].Quaternion = new Quaternion[action.NumAnimationKeys];
-                        for (var r = 0; r < action.NumAnimationKeys; r++)
-                            bone.Matrixes[m].Quaternion[r] = MathUtils.AngleQuaternion(bone.Matrixes[m].Rotation[r]);
+                        for (var r = 0; r < actions[m].NumAnimationKeys; r++)
+                        {
+                            matrix.Quaternion[r] = MathUtils.AngleQuaternion(matrix.Rotation[r]);
+                        }
+
+                        bones[i].Matrixes[m] = matrix;
                     }
                 }
             }
 
-            return new BMD
-            {
-                Version = version,
-                Name = name,
-                Meshes = meshes,
-                Bones = bones,
-                Actions = actions,
-            };
+            return bones; 
         }
     }
 }

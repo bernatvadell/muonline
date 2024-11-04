@@ -313,3 +313,4 @@ doc/*.htm
 
 # Others
 .history
+.vscode

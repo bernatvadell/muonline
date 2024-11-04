@@ -1,34 +1,40 @@
-﻿using Org.BouncyCastle.Bcpg.OpenPgp;
-
-namespace Client.Data.OBJS
+﻿namespace Client.Data.OBJS
 {
     public class OBJReader : BaseReader<OBJ>
     {
         protected override OBJ Read(byte[] buffer)
         {
-            buffer = FileCryptor.Decrypt(buffer);
-
-            using var br = new BinaryReader(new MemoryStream(buffer));
-
-            var version = br.ReadByte();
-            var mapNumber = br.ReadByte();
-            var count = br.ReadInt16();
-
-            IMapObject[] objects = version switch
+            try
             {
-                0 => br.ReadStructArray<MapObjectV0>(count).OfType<IMapObject>().ToArray(),
-                1 => br.ReadStructArray<MapObjectV1>(count).OfType<IMapObject>().ToArray(),
-                2 => br.ReadStructArray<MapObjectV2>(count).OfType<IMapObject>().ToArray(),
-                3 => br.ReadStructArray<MapObjectV3>(count).OfType<IMapObject>().ToArray(),
-                _ => throw new NotImplementedException($"Version {version} not implemented"),
-            };
+                buffer = FileCryptor.Decrypt(buffer);
 
-            return new OBJ
+                using var memoryStream = new MemoryStream(buffer);
+                using var br = new BinaryReader(memoryStream);
+
+                var version = br.ReadByte();
+                var mapNumber = br.ReadByte();
+                var count = br.ReadInt16();
+
+                IMapObject[] objects = version switch
+                {
+                    0 => br.ReadStructArray<MapObjectV0>(count).Cast<IMapObject>().ToArray(),
+                    1 => br.ReadStructArray<MapObjectV1>(count).Cast<IMapObject>().ToArray(),
+                    2 => br.ReadStructArray<MapObjectV2>(count).Cast<IMapObject>().ToArray(),
+                    3 => br.ReadStructArray<MapObjectV3>(count).Cast<IMapObject>().ToArray(),
+                    _ => throw new NotImplementedException($"Version {version} not implemented"),
+                };
+
+                return new OBJ
+                {
+                    Version = version,
+                    MapNumber = mapNumber,
+                    Objects = objects
+                };
+            }
+            catch (Exception ex)
             {
-                Version = version,
-                MapNumber = mapNumber,
-                Objects = objects
-            };
+                throw new InvalidOperationException("Failed to read OBJ data.", ex);
+            }
         }
     }
 }
