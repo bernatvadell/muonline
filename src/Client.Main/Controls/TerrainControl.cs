@@ -270,6 +270,12 @@ namespace Client.Main.Controls
             return new Vector3(output[0], output[1], output[2]);
         }
 
+        public float GetWindValue(int x, int y)
+        {
+            int index = y * Constants.TERRAIN_SIZE + x;
+            return _terrainGrassWind[index];
+        }
+
         public override void Dispose()
         {
             base.Dispose();
