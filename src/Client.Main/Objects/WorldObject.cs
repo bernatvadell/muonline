@@ -291,6 +291,7 @@ namespace Client.Main.Objects
                 GraphicsDevice.DrawUserIndexedPrimitives(PrimitiveType.LineList, vertexData, 0, 8, indices, 0, indices.Length / 2);
             }
         }
+        
         private void UpdateWorldBoundingBox()
         {
             Vector3[] boundingBoxCorners = BoundingBoxLocal.GetCorners();
