@@ -24,6 +24,8 @@ namespace Client.Main
                 public static bool DRAW_BOUNDING_BOXES = true;
                 public static bool DRAW_BOUNDING_BOXES_INTERACTIVES = true;
                 public static string DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
+                // Player movement speed
+                public const float MOVE_SPEED = 600f; // Default(?) walk speed
 #else
                 public static Type ENTRY_SCENE = typeof(Scenes.LoginScene);
                 public static bool BACKGROUND_MUSIC = true;
@@ -31,6 +33,8 @@ namespace Client.Main
                 public static bool DRAW_BOUNDING_BOXES = false;
                 public static bool DRAW_BOUNDING_BOXES_INTERACTIVES = false;
                 public static string DataPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
+                // Player movement speed
+                public const float MOVE_SPEED = 250f; // Default(?) walk speed
 #endif
 
 #if DEBUG
@@ -58,7 +62,6 @@ namespace Client.Main
                 public static readonly float MAX_PITCH = MathHelper.ToRadians(0); // Limit upward rotation
                 public static readonly float MIN_PITCH = MathHelper.ToRadians(135); // Limit downward rotation
 
-                // Player movement speed
-                public const float MOVE_SPEED = 550f; // Default(?) walk speed
+
         }
 }
