@@ -73,6 +73,7 @@
         Fence04 = 84,
         BridgeStone = 85,
         Unknown86 = 86,
+        SteelWall04 = 88,
 
         StreetLight = 90,
         Cannon01 = 91,
