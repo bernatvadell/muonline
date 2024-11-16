@@ -8,6 +8,7 @@ using MUnique.OpenMU.Network.Packets.ServerToClient;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects
@@ -44,8 +45,6 @@ namespace Client.Main.Objects
         public int HiddenMesh { get; set; } = -1;
         public int BlendMesh { get; set; } = -1;
         public BlendState BlendMeshState { get; set; } = BlendState.Additive;
-
-        private Dictionary<string, float> _shadowOpacityCache = new Dictionary<string, float>();
 
         public float BlendMeshLight
         {
@@ -112,29 +111,67 @@ namespace Client.Main.Objects
         {
             if (Model == null) return;
 
-            int meshCount = Model.Meshes.Length;
-            for (int i = 0; i < meshCount; i++)
+            var solidMeshes = Model.Meshes
+                .Select((mesh, index) => new { Mesh = mesh, Index = index })
+                .Where(m => !IsBlendMesh(m.Index))
+                .ToList();
+
+            var transparentMeshes = Model.Meshes
+                .Select((mesh, index) => new { Mesh = mesh, Index = index })
+                .Where(m => IsBlendMesh(m.Index))
+                .OrderByDescending(m => Vector3.Distance(Camera.Instance.Position, WorldPosition.Translation))
+                .ToList();
+
+            foreach (var meshData in solidMeshes)
             {
+                int i = meshData.Index;
                 if (_dataTextures[i] == null) continue;
                 bool isRGBA = _dataTextures[i].Components == 4;
                 bool isBlendMesh = IsBlendMesh(i);
-                bool draw = (isAfterDraw ? isRGBA || isBlendMesh : !isRGBA && !isBlendMesh);
+                bool draw = isAfterDraw ? isRGBA || isBlendMesh : !isRGBA && !isBlendMesh;
 
                 if (!isAfterDraw && RenderShadow)
                 {
                     DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, MuGame.Instance.GameTime);
                 }
 
+                if (draw)
+                {
+                    GraphicsDevice.DepthStencilState = DepthStencilState.Default;
+                    GraphicsDevice.BlendState = BlendState.Opaque;
+                    DrawMesh(i);
+
+                    // Second round
+                    GraphicsDevice.DepthStencilState = MuGame.Instance.DisableDepthMask;
+                    GraphicsDevice.BlendState = BlendState.Additive;
+                    DrawMesh(i);
+                }
+
                 if (!isAfterDraw && IsMouseHover)
                     DrawMeshHighlight(i);
+            }
+
+            foreach (var meshData in transparentMeshes)
+            {
+                int i = meshData.Index;
+                if (_dataTextures[i] == null) continue;
+                bool isRGBA = _dataTextures[i].Components == 4;
+                bool isBlendMesh = IsBlendMesh(i);
+                bool draw = isAfterDraw ? isRGBA || isBlendMesh : !isRGBA && !isBlendMesh;
+
+                if (!isAfterDraw && RenderShadow)
+                {
+                    DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, MuGame.Instance.GameTime);
+                }
 
                 if (draw)
                 {
-                    GraphicsDevice.DepthStencilState = isAfterDraw
-                        ? MuGame.Instance.DisableDepthMask
-                        : DepthStencilState.Default;
+                    GraphicsDevice.DepthStencilState = MuGame.Instance.DisableDepthMask;
                     DrawMesh(i);
                 }
+
+                if (!isAfterDraw && IsMouseHover)
+                    DrawMeshHighlight(i);
             }
         }
 
@@ -193,7 +230,6 @@ namespace Client.Main.Objects
             if (IsHiddenMesh(mesh) || _boneVertexBuffers == null)
                 return;
 
-            Texture2D texture = _boneTextures[mesh];
             VertexBuffer vertexBuffer = _boneVertexBuffers[mesh];
             IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
             int primitiveCount = indexBuffer.IndexCount / 3;
@@ -201,7 +237,7 @@ namespace Client.Main.Objects
             float scaleHightlight = 0.015f;
             float scaleFactor = Scale + scaleHightlight;
 
-            var highlightMatrix = Matrix.CreateScale(scaleFactor) 
+            var highlightMatrix = Matrix.CreateScale(scaleFactor)
                 * Matrix.CreateTranslation(-scaleHightlight, -scaleHightlight, -scaleHightlight)
                 * WorldPosition;
 
