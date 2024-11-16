@@ -4,9 +4,6 @@ using Client.Main.Models;
 using Client.Main.Objects.Player;
 using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
-using System;
-using System.Diagnostics;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Client.Main.Scenes
@@ -28,7 +25,7 @@ namespace Client.Main.Scenes
         public override async Task Load()
         {
             await base.Load();
-            ChangeMap<NoriaWorld>();
+            ChangeMap<LorenciaWorld>();
             await _hero.Load();
         }
 
