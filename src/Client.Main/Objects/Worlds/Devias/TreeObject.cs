@@ -1,5 +1,4 @@
 ﻿using Client.Main.Content;
-using Microsoft.Xna.Framework.Graphics;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Worlds.Devias
@@ -8,37 +7,9 @@ namespace Client.Main.Objects.Worlds.Devias
     {
         public override async Task Load()
         {
-            BlendState = BlendState.AlphaBlend;
-            LightEnabled = true;
-            BlendMesh = 1;
-            BlendMeshState = BlendState.Opaque;
-            Model = await BMDLoader.Instance.Prepare($"Object3/Object0{Type + 1}.bmd");
+            var idx = (Type + 1).ToString().PadLeft(2, '0');
+            Model = await BMDLoader.Instance.Prepare($"Object3/Object{idx}.bmd");
             await base.Load();
-        }
-
-        public override void DrawMesh(int mesh)
-        {
-            BlendState = new BlendState
-            {
-                ColorSourceBlend = Blend.One,
-                ColorDestinationBlend = Blend.Zero,
-                AlphaSourceBlend = Blend.One,
-                AlphaDestinationBlend = Blend.Zero,
-                ColorBlendFunction = BlendFunction.Add,
-                AlphaBlendFunction = BlendFunction.Add
-            };
-
-            GraphicsDevice.DepthStencilState = new DepthStencilState
-            {
-                DepthBufferEnable = true,
-                DepthBufferWriteEnable = true,
-                DepthBufferFunction = CompareFunction.LessEqual
-            };
-
-            base.DrawMesh(mesh);
-
-            BlendState = Blendings.Alpha;
-            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
         }
     }
 }
