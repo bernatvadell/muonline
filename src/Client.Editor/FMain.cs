@@ -1,9 +1,10 @@
-using System.Diagnostics;
+using System.ComponentModel;
 
 namespace Client.Editor
 {
     public partial class FMain : Form
     {
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public UserControl Editor { get; private set; }
 
         public FMain()
