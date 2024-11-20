@@ -16,6 +16,7 @@ namespace Client.Main.Objects.Worlds.Lorencia
         private float _windTime = 0f;
         private Vector2 _windOffset;
         private float _modelHeight = 1.0f;
+        private const float TERRAIN_OFFSET = -10f;
 
         private const float WIND_UPDATE_INTERVAL = 32f;
         private const float BASE_WIND_INTENSITY = 0.015f;
@@ -24,7 +25,7 @@ namespace Client.Main.Objects.Worlds.Lorencia
         private const float MAX_ANGLE = 0.25f;
         private const float RANDOM_INTENSITY = 0.25f;
         private const float HEIGHT_INFLUENCE = 1.0f;
-        private const float HEIGHT_GRADIENT = 0.5f; 
+        private const float HEIGHT_GRADIENT = 0.5f;
 
         private readonly Random _random;
 
@@ -44,9 +45,63 @@ namespace Client.Main.Objects.Worlds.Lorencia
             Model = await BMDLoader.Instance.Prepare($"Object1/Grass{idx}.bmd");
             await base.Load();
 
+            // Calculate model height and terrain height
+            _modelHeight = (BoundingBoxLocal.Max.Z - BoundingBoxLocal.Min.Z) * TotalScale;
             float terrainHeight = World.Terrain.RequestTerrainHeight(Position.X, Position.Y);
 
-            _modelHeight = WorldPosition.Translation.Z - terrainHeight;
+            if (Position.Z < terrainHeight)
+            {
+                return;
+            }
+
+            // Adjust position based on model type and terrain
+            if (Type == 25)
+            {
+                // For these types, ensure they're properly grounded with slight elevation
+                float baseHeight = terrainHeight + TERRAIN_OFFSET;
+                Position = new Vector3(Position.X, Position.Y, baseHeight);
+            }
+            else if (Type == 24 || Type == 23 || Type == 22)
+            {
+                Position = new Vector3(
+                    Position.X,
+                    Position.Y - 80f,
+                    terrainHeight + TERRAIN_OFFSET
+                );
+            }
+            else
+            {
+                Position = new Vector3(
+                    Position.X,
+                    Position.Y,
+                    Position.Z + TERRAIN_OFFSET
+                );
+            }
+
+            // Additional height adjustment for ground cover types
+            if (IsGroundCoverType())
+            {
+                AdjustGroundCoverHeight(terrainHeight);
+            }
+        }
+
+        private bool IsGroundCoverType()
+        {
+            return Type == 22 || Type == 23 || Type == 24 || Type == 25;
+        }
+
+        private void AdjustGroundCoverHeight(float terrainHeight)
+        {
+            // For ground cover, we want to ensure it follows terrain contours
+            // Calculate the actual bottom point of the model in world space
+            float modelBottom = Position.Z - (_modelHeight * 0.5f); // Assuming model origin is at center
+
+            // If the model bottom is below terrain, raise it
+            if (modelBottom < terrainHeight)
+            {
+                float adjustment = terrainHeight - modelBottom + TERRAIN_OFFSET;
+                Position = new Vector3(Position.X, Position.Y, Position.Z + adjustment);
+            }
         }
 
         public override void Update(GameTime gameTime)

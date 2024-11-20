@@ -71,7 +71,7 @@ namespace Client.Main.Controllers
                 VertexColorEnabled = true,
                 World = Matrix.Identity,
                 AlphaFunction = CompareFunction.Greater,
-                ReferenceAlpha = (int)(255 * 0.25f)
+                ReferenceAlpha = (int)(255 * 0.01f)
             };
 
             BasicEffect3D = new BasicEffect(_graphicsDevice)
@@ -106,7 +106,7 @@ namespace Client.Main.Controllers
             TempTarget1 = new RenderTarget2D(_graphicsDevice, pp.BackBufferWidth, pp.BackBufferHeight);
             TempTarget2 = new RenderTarget2D(_graphicsDevice, pp.BackBufferWidth, pp.BackBufferHeight);
 
-            EffectRenderTarget = new RenderTarget2D(_graphicsDevice, pp.BackBufferWidth, pp.BackBufferHeight, false, pp.BackBufferFormat, pp.DepthStencilFormat);
+            EffectRenderTarget = new RenderTarget2D(_graphicsDevice, pp.BackBufferWidth, pp.BackBufferHeight, false, pp.BackBufferFormat, DepthFormat.Depth24);
         }
 
         private Effect LoadEffect(string effectName)

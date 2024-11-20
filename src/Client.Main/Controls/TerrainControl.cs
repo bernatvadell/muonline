@@ -166,7 +166,7 @@ namespace Client.Main.Controls
             if (Status != Models.GameControlStatus.Ready)
                 return;
 
-            InitTerrainLight(time);
+            InitTerrainWind(time);
         }
 
         public override void Draw(GameTime time)
@@ -370,7 +370,7 @@ namespace Client.Main.Controls
             }
         }
 
-        private void InitTerrainLight(GameTime time)
+        private void InitTerrainWind(GameTime time)
         {
             if (_terrainGrassWind == null) return;
 
@@ -505,10 +505,14 @@ namespace Client.Main.Controls
             _lastCameraPosition = cameraPosition;
             _visibleBlocks.Clear();
 
-            int startX = Math.Max(0, (int)((cameraPosition.X - Camera.Instance.ViewFar) / (Constants.TERRAIN_SCALE * BlockSize)));
-            int startY = Math.Max(0, (int)((cameraPosition.Y - Camera.Instance.ViewFar) / (Constants.TERRAIN_SCALE * BlockSize)));
-            int endX = Math.Min(Constants.TERRAIN_SIZE / BlockSize - 1, (int)((cameraPosition.X + Camera.Instance.ViewFar) / (Constants.TERRAIN_SCALE * BlockSize)));
-            int endY = Math.Min(Constants.TERRAIN_SIZE / BlockSize - 1, (int)((cameraPosition.Y + Camera.Instance.ViewFar) / (Constants.TERRAIN_SCALE * BlockSize)));
+            float renderDistance = Camera.Instance.ViewFar * 1.5f;
+
+            const int EXTRA_BLOCKS_MARGIN = 2;
+
+            int startX = Math.Max(0, (int)((cameraPosition.X - renderDistance) / (Constants.TERRAIN_SCALE * BlockSize)) - EXTRA_BLOCKS_MARGIN);
+            int startY = Math.Max(0, (int)((cameraPosition.Y - renderDistance) / (Constants.TERRAIN_SCALE * BlockSize)) - EXTRA_BLOCKS_MARGIN);
+            int endX = Math.Min(Constants.TERRAIN_SIZE / BlockSize - 1, (int)((cameraPosition.X + renderDistance) / (Constants.TERRAIN_SCALE * BlockSize)) + EXTRA_BLOCKS_MARGIN);
+            int endY = Math.Min(Constants.TERRAIN_SIZE / BlockSize - 1, (int)((cameraPosition.Y + renderDistance) / (Constants.TERRAIN_SCALE * BlockSize)) + EXTRA_BLOCKS_MARGIN);
 
             var vectorSize = System.Numerics.Vector<float>.Count;
             var heightBuffer = new float[BlockSize * BlockSize];
@@ -528,7 +532,7 @@ namespace Client.Main.Controls
                     float distanceToCamera = Vector2.Distance(block.Center, cameraPosition);
                     block.LODLevel = GetLODLevel(distanceToCamera);
 
-                    if (distanceToCamera <= Camera.Instance.ViewFar * 1.5f)
+                    if (distanceToCamera <= renderDistance * 1.2f)
                     {
                         int idx = 0;
                         for (int y = 0; y < BlockSize; y++)

@@ -18,5 +18,33 @@ namespace Client.Main.Objects.Worlds.Lorencia
             Model = await BMDLoader.Instance.Prepare($"Object1/Straw{idx}.bmd");
             await base.Load();
         }
+
+        public override void DrawMesh(int mesh)
+        {
+            if (Type == 102)
+            {
+                BlendState = new BlendState
+                {
+                    ColorSourceBlend = Blend.One,
+                    ColorDestinationBlend = Blend.Zero,
+                    AlphaSourceBlend = Blend.One,
+                    AlphaDestinationBlend = Blend.Zero,
+                    ColorBlendFunction = BlendFunction.Add,
+                    AlphaBlendFunction = BlendFunction.Add
+                };
+
+                GraphicsDevice.DepthStencilState = new DepthStencilState
+                {
+                    DepthBufferEnable = true,
+                    DepthBufferWriteEnable = true,
+                    DepthBufferFunction = CompareFunction.LessEqual
+                };
+            }
+
+            base.DrawMesh(mesh);
+
+            BlendState = Blendings.Alpha;
+            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
+        }
     }
 }

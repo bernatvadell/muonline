@@ -1,18 +1,11 @@
-﻿using Client.Data;
-using Client.Data.BMD;
-using Client.Main.Content;
-using Client.Main.Controllers;
+﻿using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Reflection.Metadata;
 using System.Threading.Tasks;
-using System.Transactions;
 
 namespace Client.Main.Objects
 {
@@ -25,6 +18,19 @@ namespace Client.Main.Objects
         private Matrix _worldPosition;
         private WorldControl _world;
         private bool _interactive;
+
+        public virtual float Depth
+        {
+            get => Position.Y + Position.Z;
+        }
+        public virtual bool AffectedByTransparency { get; set; } = true;
+        public virtual bool IsTransparent { get; set; } = false;
+        public int RenderOrder { get; set; }
+        public DepthStencilState DepthState { get; set; } = DepthStencilState.Default;
+
+        private SpriteBatch _spriteBatch;
+        private SpriteFont _font;
+        private Texture2D _whiteTexture;
 
         public bool LinkParentAnimation { get; set; }
         public bool OutOfView { get; private set; } = true;
@@ -65,6 +71,9 @@ namespace Client.Main.Objects
         {
             Children = new ChildrenCollection<WorldObject>(this);
             Children.ControlAdded += Children_ControlAdded;
+
+            _spriteBatch = new SpriteBatch(GraphicsDevice);
+            _font = GraphicsManager.Instance.Font;
         }
 
         public virtual void OnClick()
@@ -139,26 +148,14 @@ namespace Client.Main.Objects
                 return;
 
             var parentIsMouseHover = (Parent?.IsMouseHover ?? false);
-            ContainmentType contains = BoundingBoxWorld.Contains(MuGame.Instance.MouseRay.Position);
+
             float? intersectionDistance = MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld);
-            IsMouseHover = parentIsMouseHover || (Interactive && (intersectionDistance != null || contains == ContainmentType.Contains));
+            ContainmentType contains = BoundingBoxWorld.Contains(MuGame.Instance.MouseRay.Position);
 
-            //var parentIsMouseHover = (Parent?.IsMouseHover ?? false);
-            //IsMouseHover = parentIsMouseHover || (Interactive && MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld) != null);
 
-            if (!parentIsMouseHover && IsMouseHover)
-            {
-                // ContainmentType contains = BoundingBoxWorld.Contains(MuGame.Instance.MouseRay.Position);
-                Debug.WriteLine($"Object Type: {GetType().Name}");
-                Debug.WriteLine($"El origen del rayo está: {contains}");
-                Debug.WriteLine($"Intersection length: {MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld)}");
-                Debug.WriteLine($"MouseRay: {MuGame.Instance.MouseRay.Position}");
-                Debug.WriteLine($"Local Bounding Box Min: {BoundingBoxWorld.Min}");
-                Debug.WriteLine($"Local Bounding Box Max: {BoundingBoxWorld.Max}");
-                Debug.WriteLine($"World Bounding Box Min: {BoundingBoxWorld.Min}");
-                Debug.WriteLine($"World Bounding Box Max: {BoundingBoxWorld.Max}");
-                Debug.WriteLine($"WorldPosition: {WorldPosition}");
-            }
+            bool wouldBeMouseHover = parentIsMouseHover || ((Interactive || Constants.DRAW_BOUNDING_BOXES) && (intersectionDistance != null || contains == ContainmentType.Contains));
+
+            IsMouseHover = wouldBeMouseHover;
 
             if (!parentIsMouseHover && IsMouseHover)
                 World.Scene.MouseHoverObject = this;
@@ -171,7 +168,7 @@ namespace Client.Main.Objects
         {
             if (!Visible) return;
 
-            DrawBoundingBox();
+            DrawBoundingBox3D();
 
             for (var i = 0; i < Children.Count; i++)
                 Children[i].Draw(gameTime);
@@ -180,6 +177,8 @@ namespace Client.Main.Objects
         public virtual void DrawAfter(GameTime gameTime)
         {
             if (!Visible) return;
+
+            DrawBoundingBox2D();
 
             for (var i = 0; i < Children.Count; i++)
                 Children[i].DrawAfter(gameTime);
@@ -213,6 +212,9 @@ namespace Client.Main.Objects
 
             Parent?.Children.Remove(this);
             Parent = null;
+
+            _whiteTexture?.Dispose();
+            _spriteBatch?.Dispose();
         }
 
         protected virtual void OnPositionChanged() => RecalculateWorldPosition();
@@ -262,11 +264,15 @@ namespace Client.Main.Objects
             MatrixChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        private void DrawBoundingBox()
+        private void DrawBoundingBox3D()
         {
             var draw = Constants.DRAW_BOUNDING_BOXES || (Interactive && Constants.DRAW_BOUNDING_BOXES_INTERACTIVES);
 
             if (!draw) return;
+
+            var previousDepthState = GraphicsDevice.DepthStencilState;
+
+            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
 
             Vector3[] corners = BoundingBoxWorld.GetCorners();
 
@@ -290,8 +296,94 @@ namespace Client.Main.Objects
                 pass.Apply();
                 GraphicsDevice.DrawUserIndexedPrimitives(PrimitiveType.LineList, vertexData, 0, 8, indices, 0, indices.Length / 2);
             }
+
+            GraphicsDevice.DepthStencilState = previousDepthState;
         }
-        
+
+        private void DrawBoundingBox2D()
+        {
+            if (Constants.DRAW_BOUNDING_BOXES && IsMouseHover && _spriteBatch != null && _font != null)
+            {
+                Vector3 textPosition = new Vector3(
+                    (BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) / 2,
+                    BoundingBoxWorld.Max.Y + 0.5f,
+                    (BoundingBoxWorld.Min.Z + BoundingBoxWorld.Max.Z) / 2
+                );
+
+                Vector3 screenPos = GraphicsDevice.Viewport.Project(
+                    textPosition,
+                    Camera.Instance.Projection,
+                    Camera.Instance.View,
+                    Matrix.Identity
+                );
+
+                var previousBlendState = GraphicsDevice.BlendState;
+                var previousDepthState = GraphicsDevice.DepthStencilState;
+                var previousRasterizerState = GraphicsDevice.RasterizerState;
+
+                try
+                {
+                    string objectInfo = $"{GetType().Name}\nType ID: {Type}\nAlpha: {TotalAlpha}\nX: {Position.X} Y: {Position.Y} Z: {Position.Z}\nDepth: {Depth}\nRender order: {RenderOrder}\nDepthStencilState: {DepthState.Name}";
+                    Vector2 textSize = _font.MeasureString(objectInfo);
+
+                    _spriteBatch.Begin(
+                        SpriteSortMode.Deferred,
+                        BlendState.AlphaBlend,
+                        null,
+                        DepthStencilState.None,
+                        null,
+                        null,
+                        Matrix.Identity
+                    );
+
+                    var backgroundColor = new Color(0, 0, 0, 180);
+                    var backgroundRect = new Rectangle(
+                        (int)(screenPos.X - textSize.X / 2) - 5,
+                        (int)(screenPos.Y) - 5,
+                        (int)textSize.X + 10,
+                        (int)textSize.Y + 10
+                    );
+
+                    DrawTextBackground(_spriteBatch, backgroundRect, backgroundColor);
+
+                    Vector2 textPosition2D = new Vector2(screenPos.X - textSize.X / 2, screenPos.Y);
+
+                    _spriteBatch.DrawString(
+                        _font,
+                        objectInfo,
+                        textPosition2D + new Vector2(1, 1),
+                        Color.Black
+                    );
+
+                    _spriteBatch.DrawString(
+                        _font,
+                        objectInfo,
+                        textPosition2D,
+                        Color.Yellow
+                    );
+
+                    _spriteBatch.End();
+                }
+                catch (Exception) { }
+
+                GraphicsDevice.BlendState = previousBlendState;
+                GraphicsDevice.DepthStencilState = previousDepthState;
+                GraphicsDevice.RasterizerState = previousRasterizerState;
+            }
+        }
+
+
+        private void DrawTextBackground(SpriteBatch spriteBatch, Rectangle rect, Color color)
+        {
+            _whiteTexture = new Texture2D(GraphicsDevice, 1, 1);
+            _whiteTexture.SetData([Color.White]);
+            spriteBatch.Draw(_whiteTexture, rect, color);
+
+            var borderColor = Color.White * 0.3f;
+            var borderRect = new Rectangle(rect.X - 1, rect.Y - 1, rect.Width + 2, rect.Height + 2);
+            spriteBatch.Draw(_whiteTexture, borderRect, borderColor);
+        }
+
         private void UpdateWorldBoundingBox()
         {
             Vector3[] boundingBoxCorners = BoundingBoxLocal.GetCorners();

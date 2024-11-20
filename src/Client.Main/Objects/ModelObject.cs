@@ -6,8 +6,9 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using MUnique.OpenMU.Network.Packets.ServerToClient;
 using System;
-using System.Collections.Generic;
+
 using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects
@@ -44,8 +45,6 @@ namespace Client.Main.Objects
         public int HiddenMesh { get; set; } = -1;
         public int BlendMesh { get; set; } = -1;
         public BlendState BlendMeshState { get; set; } = BlendState.Additive;
-
-        private Dictionary<string, float> _shadowOpacityCache = new Dictionary<string, float>();
 
         public float BlendMeshLight
         {
@@ -103,7 +102,6 @@ namespace Client.Main.Objects
             GraphicsManager.Instance.AlphaTestEffect3D.Projection = Camera.Instance.Projection;
             GraphicsManager.Instance.AlphaTestEffect3D.World = WorldPosition;
 
-            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
             DrawModel(false);
             base.Draw(gameTime);
         }
@@ -112,13 +110,24 @@ namespace Client.Main.Objects
         {
             if (Model == null) return;
 
-            int meshCount = Model.Meshes.Length;
-            for (int i = 0; i < meshCount; i++)
+            var solidMeshes = Model.Meshes
+                .Select((mesh, index) => new { Mesh = mesh, Index = index })
+                .Where(m => !IsBlendMesh(m.Index))
+                .ToList();
+
+            var transparentMeshes = Model.Meshes
+                .Select((mesh, index) => new { Mesh = mesh, Index = index })
+                .Where(m => IsBlendMesh(m.Index))
+                .OrderByDescending(m => Vector3.Distance(Camera.Instance.Position, WorldPosition.Translation))
+                .ToList();
+
+            foreach (var meshData in solidMeshes)
             {
+                int i = meshData.Index;
                 if (_dataTextures[i] == null) continue;
                 bool isRGBA = _dataTextures[i].Components == 4;
                 bool isBlendMesh = IsBlendMesh(i);
-                bool draw = (isAfterDraw ? isRGBA || isBlendMesh : !isRGBA && !isBlendMesh);
+                bool draw = isAfterDraw ? isRGBA || isBlendMesh : !isRGBA && !isBlendMesh;
 
                 if (!isAfterDraw && RenderShadow)
                 {
@@ -126,13 +135,37 @@ namespace Client.Main.Objects
                 }
 
                 if (!isAfterDraw && IsMouseHover)
+                {
                     DrawMeshHighlight(i);
+                }
 
                 if (draw)
                 {
-                    GraphicsDevice.DepthStencilState = isAfterDraw
-                        ? MuGame.Instance.DisableDepthMask
-                        : DepthStencilState.Default;
+
+                    DrawMesh(i);
+                }
+            }
+
+            foreach (var meshData in transparentMeshes)
+            {
+                int i = meshData.Index;
+                if (_dataTextures[i] == null) continue;
+                bool isRGBA = _dataTextures[i].Components == 4;
+                bool isBlendMesh = IsBlendMesh(i);
+                bool draw = isAfterDraw ? isRGBA || isBlendMesh : !isRGBA && !isBlendMesh;
+
+                if (!isAfterDraw && RenderShadow)
+                {
+                    DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, MuGame.Instance.GameTime);
+                }
+
+                if (!isAfterDraw && IsMouseHover)
+                {
+                    DrawMeshHighlight(i);
+                }
+
+                if (draw)
+                {
                     DrawMesh(i);
                 }
             }
@@ -193,7 +226,6 @@ namespace Client.Main.Objects
             if (IsHiddenMesh(mesh) || _boneVertexBuffers == null)
                 return;
 
-            Texture2D texture = _boneTextures[mesh];
             VertexBuffer vertexBuffer = _boneVertexBuffers[mesh];
             IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
             int primitiveCount = indexBuffer.IndexCount / 3;
@@ -201,16 +233,23 @@ namespace Client.Main.Objects
             float scaleHightlight = 0.015f;
             float scaleFactor = Scale + scaleHightlight;
 
-            var highlightMatrix = Matrix.CreateScale(scaleFactor) 
+            var highlightMatrix = Matrix.CreateScale(scaleFactor)
                 * Matrix.CreateTranslation(-scaleHightlight, -scaleHightlight, -scaleHightlight)
                 * WorldPosition;
+
+            var previousDepthState = GraphicsDevice.DepthStencilState;
+            var previousBlendState = GraphicsDevice.BlendState;
 
             GraphicsManager.Instance.AlphaTestEffect3D.World = highlightMatrix;
             GraphicsManager.Instance.AlphaTestEffect3D.Texture = _boneTextures[mesh];
             GraphicsManager.Instance.AlphaTestEffect3D.DiffuseColor = new Vector3(0, 1, 0);
             GraphicsManager.Instance.AlphaTestEffect3D.Alpha = 1f;
 
-            GraphicsDevice.DepthStencilState = MuGame.Instance.DisableDepthMask;
+            GraphicsDevice.DepthStencilState = new DepthStencilState
+            {
+                DepthBufferEnable = true,
+                DepthBufferWriteEnable = false
+            };
             GraphicsDevice.BlendState = BlendState.Additive;
 
             foreach (EffectPass pass in GraphicsManager.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
@@ -221,6 +260,9 @@ namespace Client.Main.Objects
                 GraphicsDevice.Indices = indexBuffer;
                 GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
             }
+
+            GraphicsDevice.DepthStencilState = previousDepthState;
+            GraphicsDevice.BlendState = previousBlendState;
 
             GraphicsManager.Instance.AlphaTestEffect3D.World = WorldPosition;
             GraphicsManager.Instance.AlphaTestEffect3D.DiffuseColor = Vector3.One;
@@ -329,27 +371,6 @@ namespace Client.Main.Objects
                     effect.Projection = projection;
                     effect.Texture = _boneTextures[mesh];
                     effect.DiffuseColor = Vector3.Zero;
-
-                    //float maxShadowHeight = 100f;
-                    //float shadowIntensity = Math.Max(0, 1 - (heightAboveTerrain / maxShadowHeight));
-
-                    //float baseOpacity = 0.3f;
-                    //float finalOpacity = Math.Min(baseOpacity, shadowIntensity * 0.4f);
-
-                    //string modelId = this.GetType().Name.Contains("Player") ? "Player" : this.GetType().Name;
-
-                    //if (!_shadowOpacityCache.ContainsKey(modelId))
-                    //{
-                    //    baseOpacity = 0.3f;
-                    //    shadowIntensity = Math.Max(0, 1 - (heightAboveTerrain / maxShadowHeight));
-                    //    finalOpacity = Math.Min(baseOpacity, shadowIntensity * 0.6f);
-
-                    //    // Add to cache with "Player" key if it's a player model
-                    //    _shadowOpacityCache[modelId] = finalOpacity;
-                    //}
-
-                    //effect.Parameters["ShadowOpacity"].SetValue(1f);
-                    //effect.Parameters["HeightAboveTerrain"].SetValue(heightAboveTerrain);
 
                     foreach (EffectPass pass in effect.CurrentTechnique.Passes)
                     {
