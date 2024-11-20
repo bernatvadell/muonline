@@ -14,7 +14,7 @@ namespace Client.Main.Objects.Worlds.Lorencia
         private bool _playerInside = false;
         private const float TARGET_ALPHA = 0.25f;
         private const float FADE_SPEED = 0.1f;
-        private const float Y_PROXIMITY_THRESHOLD = 100f;
+        private const float Y_PROXIMITY_THRESHOLD = 200f;
 
         public override async Task Load()
         {
@@ -33,6 +33,7 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
         public override void Update(GameTime gameTime)
         {
+            IsTransparent = false;
             base.Update(gameTime);
 
             if (Type == 121 ||
@@ -48,9 +49,12 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
                 bool isBehind = playerPosition2D.X * 100 < Position.X && Math.Abs(playerPosition2D.X * 100 - Position.X) < 300f;
 
-                bool isWithinY = Math.Abs(playerPosition2D.Y * 100 - Position.Y) <= Y_PROXIMITY_THRESHOLD;
+                bool isWithinY = Math.Abs(playerPosition2D.Y * 100 - Position.Y) <= Y_PROXIMITY_THRESHOLD + 50f;
 
                 float targetAlpha = (isBehind && isWithinY) ? TARGET_ALPHA : 1f;
+
+                if (isBehind && isWithinY)
+                    IsTransparent = true;
 
                 _alpha = MathHelper.Lerp(_alpha, targetAlpha, FADE_SPEED);
                 Alpha = _alpha;
@@ -78,14 +82,19 @@ namespace Client.Main.Objects.Worlds.Lorencia
                 Vector3 playerPosition3D = new Vector3(playerPosition2D.X * 100, playerPosition2D.Y * 100, Position.Z);
 
                 BoundingBox buildingBounds = new BoundingBox(
-                    Position - new Vector3(500f, 400f, 1000f),
-                    Position + new Vector3(400f, 500f, 1000f)
+                    Position - new Vector3(600f, 600f, 1000f),
+                    Position + new Vector3(400f, 600f, 1000f)
                 );
 
                 return buildingBounds.Contains(playerPosition3D) == ContainmentType.Contains;
             }
 
             return false;
+        }
+
+        public override void DrawMesh(int mesh)
+        {
+            base.DrawMesh(mesh);
         }
     }
 }

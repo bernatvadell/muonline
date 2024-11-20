@@ -1,21 +1,16 @@
 ﻿using Client.Data.ATT;
-using Client.Data.BMD;
 using Client.Data.CAP;
-using Client.Data.CWS;
 using Client.Data.OBJS;
-using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Models;
 using Client.Main.Objects;
 using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Client.Main.Controls
@@ -27,6 +22,18 @@ namespace Client.Main.Controls
         public short WorldIndex { get; private set; }
         public ChildrenCollection<WorldObject> Objects { get; private set; } = new ChildrenCollection<WorldObject>(null);
         public Type[] MapTileObjects { get; } = new Type[Constants.TERRAIN_SIZE];
+        private int renderCounter = 0;
+
+        private readonly List<WorldObject> solidBehind = new List<WorldObject>();
+        private readonly List<WorldObject> transparentObjects = new List<WorldObject>();
+        private readonly List<WorldObject> solidInFront = new List<WorldObject>();
+
+        private static readonly DepthStencilState DepthStateDefault = DepthStencilState.Default;
+        private static readonly DepthStencilState DepthStateDepthRead = DepthStencilState.DepthRead;
+
+        private BoundingFrustum boundingFrustum;
+
+        private readonly float cullingOffset = 500f;
 
         public WorldControl(short worldIndex)
         {
@@ -35,6 +42,8 @@ namespace Client.Main.Controls
             WorldIndex = worldIndex;
             Controls.Add(Terrain = new TerrainControl() { WorldIndex = worldIndex });
             Objects.ControlAdded += Object_Added;
+
+            UpdateBoundingFrustum();
         }
 
         private void Object_Added(object sender, ChildrenEventArgs<WorldObject> e)
@@ -59,7 +68,6 @@ namespace Client.Main.Controls
 
             if (File.Exists(objectPath))
             {
-
                 OBJ obj = await objReader.Load(objectPath);
 
                 foreach (var mapObj in obj.Objects)
@@ -76,15 +84,6 @@ namespace Client.Main.Controls
             {
                 var capReader = new CAPReader();
                 var data = await capReader.Load(cameraAnglePositionPath);
-
-                //float x = data.CameraDistance * (float)Math.Cos(data.CameraAngle.X) * (float)Math.Sin(data.CameraAngle.Z);
-                //float y = data.CameraDistance * (float)Math.Cos(data.CameraAngle.X) * (float)Math.Cos(data.CameraAngle.Z);
-                //float z = data.CameraDistance * (float)Math.Sin(data.CameraAngle.X) + data.CameraZDistance;
-
-                //var cameraOffset = new Vector3(x, y, z + 150);
-
-                //var terrainHeight = Terrain.RequestTerrainHeight(data.HeroPosition.X, data.HeroPosition.Y);
-                //var targetOffset = new Vector3(0, 0, terrainHeight);
 
                 Camera.Instance.FOV = data.CameraFOV;
                 Camera.Instance.Position = data.CameraPosition;
@@ -108,9 +107,12 @@ namespace Client.Main.Controls
             if (Status != GameControlStatus.Ready)
                 return;
 
+            UpdateBoundingFrustum();
+
             for (var i = 0; i < Objects.Count; i++)
                 Objects[i].Update(time);
         }
+
         public override void Draw(GameTime time)
         {
             if (Status != GameControlStatus.Ready)
@@ -128,7 +130,7 @@ namespace Client.Main.Controls
 
         protected virtual void CreateMapTileObjects()
         {
-            var typeMapObject = typeof(Objects.MapTileObject);
+            var typeMapObject = typeof(MapTileObject);
 
             for (var i = 0; i < MapTileObjects.Length; i++)
                 MapTileObjects[i] = typeMapObject;
@@ -136,13 +138,95 @@ namespace Client.Main.Controls
 
         private void RenderObjects(GameTime gameTime)
         {
-            var objs = Objects.ToArray();
+            renderCounter = 0;
 
-            foreach (var obj in objs)
-                obj.Draw(gameTime);
+            solidBehind.Clear();
+            transparentObjects.Clear();
+            solidInFront.Clear();
 
-            foreach (var obj in objs)
+            foreach (var obj in Objects)
+            {
+                if (!IsObjectInView(obj))
+                    continue;
+
+                if (obj.IsTransparent)
+                {
+                    transparentObjects.Add(obj);
+                }
+                else if (obj.RenderBehindTransparent)
+                {
+                    solidBehind.Add(obj);
+                }
+                else
+                {
+                    solidInFront.Add(obj);
+                }
+            }
+
+            if (solidBehind.Count > 0)
+            {
+                solidBehind.Sort((a, b) => a.Depth.CompareTo(b.Depth));
+                GraphicsDevice.DepthStencilState = DepthStateDefault;
+
+                foreach (var obj in solidBehind)
+                {
+                    obj.DepthState = DepthStateDefault;
+                    obj.Draw(gameTime);
+                    obj.RenderOrder = ++renderCounter;
+                }
+            }
+
+            if (transparentObjects.Count > 0)
+            {
+                transparentObjects.Sort((a, b) => b.Depth.CompareTo(a.Depth));
+                GraphicsDevice.DepthStencilState = DepthStateDepthRead;
+
+                foreach (var obj in transparentObjects)
+                {
+                    obj.DepthState = DepthStateDepthRead;
+                    obj.Draw(gameTime);
+                    obj.RenderOrder = ++renderCounter;
+                }
+            }
+
+            if (solidInFront.Count > 0)
+            {
+                solidInFront.Sort((a, b) => a.Depth.CompareTo(b.Depth));
+                GraphicsDevice.DepthStencilState = DepthStateDefault;
+
+                foreach (var obj in solidInFront)
+                {
+                    obj.DepthState = DepthStateDefault;
+                    obj.Draw(gameTime);
+                    obj.RenderOrder = ++renderCounter;
+                }
+            }
+
+            GraphicsDevice.DepthStencilState = DepthStateDefault;
+
+            foreach (var obj in solidBehind)
                 obj.DrawAfter(gameTime);
+
+            foreach (var obj in transparentObjects)
+                obj.DrawAfter(gameTime);
+
+            foreach (var obj in solidInFront)
+                obj.DrawAfter(gameTime);
+        }
+
+        private bool IsObjectInView(WorldObject obj)
+        {
+            float cullingRadius = cullingOffset;
+            BoundingSphere objectBoundingSphere = new BoundingSphere(obj.Position, cullingRadius);
+            return boundingFrustum.Contains(objectBoundingSphere) != ContainmentType.Disjoint;
+        }
+
+        private void UpdateBoundingFrustum()
+        {
+            Matrix view = Camera.Instance.View;
+            Matrix projection = Camera.Instance.Projection;
+            Matrix viewProjection = view * projection;
+            boundingFrustum = new BoundingFrustum(viewProjection);
         }
 
         public override void Dispose()
