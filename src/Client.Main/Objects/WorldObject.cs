@@ -23,7 +23,7 @@ namespace Client.Main.Objects
         {
             get => Position.Y + Position.Z;
         }
-        public virtual bool RenderBehindTransparent { get; set; } = false;
+        public virtual bool AffectedByTransparency { get; set; } = true;
         public virtual bool IsTransparent { get; set; } = false;
         public int RenderOrder { get; set; }
         public DepthStencilState DepthState { get; set; } = DepthStencilState.Default;

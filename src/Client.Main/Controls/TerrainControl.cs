@@ -166,7 +166,7 @@ namespace Client.Main.Controls
             if (Status != Models.GameControlStatus.Ready)
                 return;
 
-            InitTerrainLight(time);
+            InitTerrainWind(time);
         }
 
         public override void Draw(GameTime time)
@@ -370,7 +370,7 @@ namespace Client.Main.Controls
             }
         }
 
-        private void InitTerrainLight(GameTime time)
+        private void InitTerrainWind(GameTime time)
         {
             if (_terrainGrassWind == null) return;
 

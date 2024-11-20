@@ -153,7 +153,7 @@ namespace Client.Main.Controls
                 {
                     transparentObjects.Add(obj);
                 }
-                else if (obj.RenderBehindTransparent)
+                else if (obj.AffectedByTransparency)
                 {
                     solidBehind.Add(obj);
                 }
