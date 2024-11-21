@@ -1,10 +1,5 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Effects
 {
@@ -17,11 +12,25 @@ namespace Client.Main.Objects.Effects
             BlendState = BlendState.Additive;
             LightEnabled = true;
             Light = Vector3.One;
+            IsTransparent = true;
+        }
+
+        public override float Depth
+        {
+            get => Parent.Depth + Position.Y + Position.Z;
         }
 
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
+        }
+
+        public override void Draw(GameTime gameTime)
+        {
+            GraphicsDevice.DepthStencilState = DepthStencilState.None; // TODO correct depth for this effect should be set
+            DepthState = DepthStencilState.None;
+            base.Draw(gameTime);
+            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
         }
     }
 }
