@@ -2,11 +2,6 @@
 using Client.Main.Controls;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Player
@@ -94,9 +89,35 @@ namespace Client.Main.Objects.Player
                 return;
 
             if (IsMoving)
-                CurrentAction = PlayerAction.WalkMale;
+            {
+                if (World.WorldIndex == 8)
+                {
+                    CurrentAction = PlayerAction.RunSwim;
+                }
+                else if (World.WorldIndex == 11)
+                {
+                    CurrentAction = PlayerAction.Fly;
+                }
+                else
+                {
+                    CurrentAction = PlayerAction.WalkMale;
+                }
+            }
+
+
             else if (!IsMoving)
-                CurrentAction = PlayerAction.StopMale;
+            {
+                if (World.WorldIndex == 8 || World.WorldIndex == 11)
+                {
+                    CurrentAction = PlayerAction.StopFlying;
+                }
+                else
+                {
+                    CurrentAction = PlayerAction.StopMale;
+                }
+            }
+
+
         }
 
         public override void Draw(GameTime gameTime)
