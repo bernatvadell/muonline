@@ -25,7 +25,7 @@ namespace Client.Main.Scenes
         public override async Task Load()
         {
             await base.Load();
-            ChangeMap<LorenciaWorld>();
+            ChangeMap<AtlansWorld>();
             await _hero.Load();
         }
 
@@ -40,7 +40,7 @@ namespace Client.Main.Scenes
 
         public override void Update(GameTime gameTime)
         {
-            if(_nextWorld != null)
+            if (_nextWorld != null)
             {
                 if (_nextWorld.Status == GameControlStatus.Ready)
                 {
