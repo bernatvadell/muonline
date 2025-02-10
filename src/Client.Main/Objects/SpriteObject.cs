@@ -44,23 +44,36 @@ namespace Client.Main.Objects
         {
             base.Draw(gameTime);
 
-            if (!Visible) return;
+            if (!Visible)
+                return;
+
+            Vector3 projected = GraphicsDevice.Viewport.Project(
+                 WorldPosition.Translation,
+                 Camera.Instance.Projection,
+                 Camera.Instance.View,
+                 Matrix.Identity);
+
+            float layerDepth = MathHelper.Clamp(projected.Z, 0f, 1f);
 
             SpriteBatch.Begin(
-                blendState: BlendState
-            );
+                 sortMode: SpriteSortMode.BackToFront,
+                 blendState: BlendState,
+                 samplerState: null,
+                 depthStencilState: DepthStencilState.DepthRead,
+                 rasterizerState: null,
+                 effect: null,
+                 transformMatrix: null);
 
             SpriteBatch.Draw(
-                texture: SpriteTexture,
-                position: _screenPosition,
-                sourceRectangle: null,
-                color: LightEnabled ? new Color(Light) * TotalAlpha : Color.White * TotalAlpha,
-                rotation: TotalAngle.Z,
-                origin: new Vector2(SpriteTexture.Width / 2, SpriteTexture.Height / 2),
-                scale: _scaleMix,
-                effects: SpriteEffects.None,
-                layerDepth: 0
-            );
+                 texture: SpriteTexture,
+                 position: new Vector2(projected.X, projected.Y),
+                 sourceRectangle: null,
+                 color: LightEnabled ? new Color(Light) * TotalAlpha : Color.White * TotalAlpha,
+                 rotation: TotalAngle.Z,
+                 origin: new Vector2(SpriteTexture.Width / 2, SpriteTexture.Height / 2),
+                 scale: _scaleMix,
+                 effects: SpriteEffects.None,
+                 layerDepth: layerDepth);
 
             SpriteBatch.End();
 

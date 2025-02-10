@@ -13,11 +13,7 @@ namespace Client.Main.Objects.Effects
             LightEnabled = true;
             Light = Vector3.One;
             IsTransparent = true;
-        }
-
-        public override float Depth
-        {
-            get => Parent.Depth + Position.Y + Position.Z;
+            DepthState = DepthStencilState.Default;
         }
 
         public override void Update(GameTime gameTime)
@@ -27,10 +23,7 @@ namespace Client.Main.Objects.Effects
 
         public override void Draw(GameTime gameTime)
         {
-            GraphicsDevice.DepthStencilState = DepthStencilState.None; // TODO correct depth for this effect should be set
-            DepthState = DepthStencilState.None;
             base.Draw(gameTime);
-            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
         }
     }
 }

@@ -43,6 +43,13 @@ namespace Client.Main.Controls
             Controls.Add(Terrain = new TerrainControl() { WorldIndex = worldIndex });
             Objects.ControlAdded += Object_Added;
 
+            Camera.Instance.CameraMoved += OnCameraMoved;
+
+            UpdateBoundingFrustum();
+        }
+
+        private void OnCameraMoved(object sender, EventArgs e)
+        {
             UpdateBoundingFrustum();
         }
 
@@ -106,8 +113,6 @@ namespace Client.Main.Controls
 
             if (Status != GameControlStatus.Ready)
                 return;
-
-            UpdateBoundingFrustum();
 
             for (var i = 0; i < Objects.Count; i++)
                 Objects[i].Update(time);
