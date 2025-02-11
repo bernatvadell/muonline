@@ -14,7 +14,7 @@ namespace Client.Main.Worlds
         public override void AfterLoad()
         {
             base.AfterLoad();
-            Walker.Location = new Vector2(219, 24);
+            Walker.Location = new Vector2(226, 221);
         }
 
         protected override void CreateMapTileObjects()
@@ -27,8 +27,10 @@ namespace Client.Main.Worlds
             MapTileObjects[19] = typeof(AuroraObject);
             MapTileObjects[20] = typeof(SteelDoorObject);
 
-            for (var i = 65; i < 67; i++)
-                MapTileObjects[i] = typeof(SteelDoorObject);
+            MapTileObjects[65] = typeof(SteelDoorObject);
+            MapTileObjects[67] = typeof(SteelDoorObject);
+
+            MapTileObjects[86] = typeof(SteelDoorObject); // Sliding doors
 
             for (var i = 76; i < 79; i++)
                 MapTileObjects[i] = typeof(HouseWallObject); // Wall

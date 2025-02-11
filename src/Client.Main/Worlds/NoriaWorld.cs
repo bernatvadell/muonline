@@ -1,17 +1,8 @@
-using Client.Data.BMD;
-using Client.Main.Content;
 using Client.Main.Controls;
-using Client.Main.Objects;
 using Client.Main.Objects.Monsters;
 using Client.Main.Objects.NPCS;
 using Client.Main.Objects.Worlds.Noria;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
@@ -20,7 +11,7 @@ namespace Client.Main.Worlds
     {
         public NoriaWorld() : base(worldIndex: 4)
         {
-            
+            BackgroundMusicPath = "Music/Noria.mp3";
         }
 
         public override async Task Load()

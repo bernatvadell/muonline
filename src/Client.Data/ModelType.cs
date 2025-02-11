@@ -52,7 +52,7 @@
         TreasureChest = 59,
         Ship = 60,
         SteelWall01 = 65,
-        SteelWall02 = 66,
+        BonFire02 = 66,
         SteelWall03 = 67,
         SteelDoor = 68,
         StoneWall01 = 69,
@@ -72,7 +72,7 @@
         Fence03 = 83,
         Fence04 = 84,
         BridgeStone = 85,
-        Unknown86 = 86,
+        SlidingDoors = 86,
         SteelWall04 = 88,
 
         StreetLight = 90,

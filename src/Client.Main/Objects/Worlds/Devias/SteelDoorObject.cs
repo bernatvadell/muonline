@@ -12,18 +12,33 @@ namespace Client.Main.Objects.Worlds.Devias
 {
     public class SteelDoorObject : ModelObject
     {
-        private bool _isRotating = false;
+        // --- Common fields ---
         private bool _isOpen = false;
+        private SteelDoorObject _pairedDoor = null;
+
+        // --- Fields for rotating doors ---
+        private bool _isRotating = false;
         private const float ROTATION_DURATION = 2f;
         private float _rotationTimer = 0f;
         private const float ROTATION_PROXIMITY = 3f;
         private float _startAngle = 0f;
         private float _targetAngle = 0f;
-
-        private SteelDoorObject _pairedDoor = null;
-
         public int RotationDirection { get; set; } = 1;
 
+        // --- Fields for sliding doors (type 86) ---
+        private bool _isSlidingDoor = false;
+        private bool _isSlidingAnimating = false;
+        private const float SLIDING_DURATION = 2f;
+        private float _slidingTimer = 0f;
+        private Vector3 _closedPosition;   // Closed position – set during loading
+        private Vector3 _openPosition;     // Open position – calculated during pairing
+        private Vector3 _startPosition;    // Starting position for sliding animation
+        private Vector3 _targetPosition;   // Target position for animation
+        public Vector3 SlidingDirection { get; set; } // Sliding direction
+        private const float SLIDING_DISTANCE = 100f;    // Sliding distance – adjust as needed
+
+        // --- Dictionary of pairs (for rotating doors, e.g., 88/65) ---
+        // For other types (e.g., 20 or 86), pair doors of the same type.
         private static readonly Dictionary<int, int> DoorPairs = new()
         {
             { 88, 65 },
@@ -36,50 +51,126 @@ namespace Client.Main.Objects.Worlds.Devias
             Model = await BMDLoader.Instance.Prepare($"Object3/Object{Type + 1}.bmd");
             await base.Load();
 
+            // Determine if these are sliding doors (e.g., type 86)
+            _isSlidingDoor = (Type == 86);
+            if (_isSlidingDoor)
+            {
+                // Assume that doors are closed during loading
+                _closedPosition = Position;
+            }
+
             FindPairedDoor();
         }
 
         private void FindPairedDoor()
         {
             if (_pairedDoor != null || !(World is WalkableWorldControl walkableWorld))
-            {
                 return;
-            }
 
-            if (!DoorPairs.TryGetValue(Type, out int pairedType))
+            // For rotating doors – if a mapping exists, use it; otherwise, pair doors of the same type.
+            int targetType = Type;
+            if (!_isSlidingDoor)
             {
-                return;
+                if (DoorPairs.TryGetValue(Type, out int mappedType))
+                    targetType = mappedType;
             }
+            // For sliding doors (type 86), pair doors of the same type.
 
+            // Find another door that meets the criteria:
+            // - a different object than this,
+            // - of type targetType,
+            // - not yet paired,
+            // - located within a certain radius.
             var nearbyDoor = walkableWorld.Objects
                 .OfType<SteelDoorObject>()
                 .FirstOrDefault(door =>
-                    door.Type == pairedType &&
-                    door._pairedDoor == null);
+                    door != this &&
+                    door.Type == targetType &&
+                    door._pairedDoor == null &&
+                    Vector2.Distance(
+                        new Vector2(Position.X, Position.Y),
+                        new Vector2(door.Position.X, door.Position.Y)
+                    ) < 500f); // Distance threshold – adjust as needed
 
             if (nearbyDoor != null)
             {
                 _pairedDoor = nearbyDoor;
                 nearbyDoor._pairedDoor = this;
 
-                RotationDirection = 1;
-                nearbyDoor.RotationDirection = -1;
+                if (_isSlidingDoor)
+                {
+                    // --- Pairing for sliding doors (type 86) ---
+                    // Calculate the vector connecting the doors, ignoring the Y axis (movement occurs on the XZ plane)
+                    Vector3 diff = nearbyDoor.Position - this.Position;
+                    Vector3 diffXZ = new Vector3(diff.X, 0, diff.Z);
+                    if (diffXZ != Vector3.Zero)
+                    {
+                        Vector3 normDiff = Vector3.Normalize(diffXZ);
+                        // We determine that these doors slide in opposite directions:
+                        // - this door: in the opposite direction to the connecting vector,
+                        // - partner door: along the vector.
+                        this.SlidingDirection = -normDiff;
+                        nearbyDoor.SlidingDirection = normDiff;
+                    }
+                    else
+                    {
+                        // When the doors are exactly in the same position – set default directions
+                        this.SlidingDirection = Vector3.Right;
+                        nearbyDoor.SlidingDirection = Vector3.Left;
+                    }
+
+                    // Calculate the open position: closed position shifted by SLIDING_DISTANCE along the sliding direction.
+                    _openPosition = _closedPosition + SlidingDirection * SLIDING_DISTANCE;
+                    nearbyDoor._openPosition = nearbyDoor._closedPosition + nearbyDoor.SlidingDirection * SLIDING_DISTANCE;
+                }
+                else
+                {
+                    // --- Pairing for rotating doors ---
+                    // Determine rotation directions so that, despite different initial orientations, the doors open "in the same direction"
+                    const float epsilon = 0.1f;
+                    float normalizedAngle = Angle.Z % MathHelper.TwoPi;
+                    if (Math.Abs(normalizedAngle) < epsilon || Math.Abs(normalizedAngle - MathHelper.TwoPi) < epsilon)
+                    {
+                        // Doors with angle ~0° – set such that this door rotates with RotationDirection = -1,
+                        // and the partner door with RotationDirection = 1.
+                        RotationDirection = -1;
+                        nearbyDoor.RotationDirection = 1;
+                    }
+                    else if (Math.Abs(normalizedAngle - MathHelper.Pi) < epsilon)
+                    {
+                        // Doors with angle ~180°
+                        RotationDirection = 1;
+                        nearbyDoor.RotationDirection = -1;
+                    }
+                    else
+                    {
+                        // Alternative logic – based on position (e.g., smaller X indicates left door)
+                        if (Position.X < nearbyDoor.Position.X)
+                        {
+                            RotationDirection = -1;
+                            nearbyDoor.RotationDirection = 1;
+                        }
+                        else
+                        {
+                            RotationDirection = 1;
+                            nearbyDoor.RotationDirection = -1;
+                        }
+                    }
+                }
             }
         }
 
+        #region Rotation Animation (rotating doors)
         private void StartRotation(bool open)
         {
             _isRotating = true;
             _rotationTimer = 0f;
             _startAngle = Angle.Z;
-
             float rotationAmount = MathHelper.PiOver2 * RotationDirection;
             _targetAngle = open ? _startAngle + rotationAmount : _startAngle - rotationAmount;
 
             if (_pairedDoor != null)
-            {
                 _pairedDoor.StartRotationInternal(open);
-            }
         }
 
         private void StartRotationInternal(bool open)
@@ -90,25 +181,85 @@ namespace Client.Main.Objects.Worlds.Devias
             _isRotating = true;
             _rotationTimer = 0f;
             _startAngle = Angle.Z;
-
             float rotationAmount = MathHelper.PiOver2 * RotationDirection;
             _targetAngle = open ? _startAngle + rotationAmount : _startAngle - rotationAmount;
         }
+
+        private void UpdateRotation(GameTime gameTime)
+        {
+            if (_isRotating)
+            {
+                _rotationTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
+                float progress = Math.Min(_rotationTimer / ROTATION_DURATION, 1f);
+                float smoothProgress = (float)(1 - Math.Cos(progress * Math.PI)) / 2f;
+                float currentAngle = MathHelper.Lerp(_startAngle, _targetAngle, smoothProgress);
+
+                Angle = new Vector3(Angle.X, Angle.Y, currentAngle);
+
+                if (progress >= 1f)
+                {
+                    Angle = new Vector3(Angle.X, Angle.Y, _targetAngle);
+                    _isRotating = false;
+                    _isOpen = !_isOpen;
+                }
+            }
+        }
+        #endregion
+
+        #region Sliding Animation (sliding doors, type 86)
+        private void StartSliding(bool open)
+        {
+            _isSlidingAnimating = true;
+            _slidingTimer = 0f;
+            _startPosition = Position;
+            _targetPosition = open ? _openPosition : _closedPosition;
+
+            if (_pairedDoor != null)
+                _pairedDoor.StartSlidingInternal(open);
+        }
+
+        private void StartSlidingInternal(bool open)
+        {
+            if (_isSlidingAnimating)
+                return;
+
+            _isSlidingAnimating = true;
+            _slidingTimer = 0f;
+            _startPosition = Position;
+            _targetPosition = open ? _openPosition : _closedPosition;
+        }
+
+        private void UpdateSliding(GameTime gameTime)
+        {
+            if (_isSlidingAnimating)
+            {
+                _slidingTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
+                float progress = Math.Min(_slidingTimer / SLIDING_DURATION, 1f);
+                float smoothProgress = (float)(1 - Math.Cos(progress * Math.PI)) / 2f;
+                Position = Vector3.Lerp(_startPosition, _targetPosition, smoothProgress);
+
+                if (progress >= 1f)
+                {
+                    Position = _targetPosition;
+                    _isSlidingAnimating = false;
+                    _isOpen = !_isOpen;
+                }
+            }
+        }
+        #endregion
 
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
 
+            // If the pair hasn't been found yet, try again
             if (_pairedDoor == null)
-            {
                 FindPairedDoor();
-            }
 
+            // Get the player's position (assuming that the door and player coordinates are in the same scale)
             Vector2 playerPosition2D = Vector2.Zero;
             if (World is WalkableWorldControl walkableWorld)
-            {
                 playerPosition2D = walkableWorld.Walker.Location;
-            }
 
             Vector2 thisDoorPosition = new Vector2(Position.X / 100f, Position.Y / 100f);
             float distanceToThisDoor = Vector2.Distance(playerPosition2D, thisDoorPosition);
@@ -122,41 +273,25 @@ namespace Client.Main.Objects.Worlds.Devias
 
             bool playerInProximity = distanceToThisDoor < ROTATION_PROXIMITY || distanceToPairedDoor < ROTATION_PROXIMITY;
 
-            if (!_isRotating && !_isOpen && playerInProximity)
+            if (_isSlidingDoor)
             {
-                StartRotation(true);
+                if (!_isSlidingAnimating && !_isOpen && playerInProximity)
+                    StartSliding(true);
+                else if (!_isSlidingAnimating && _isOpen && !playerInProximity)
+                    StartSliding(false);
+
+                UpdateSliding(gameTime);
+                _pairedDoor?.UpdateSliding(gameTime);
             }
-            else if (!_isRotating && _isOpen && !playerInProximity)
+            else
             {
-                StartRotation(false);
-            }
+                if (!_isRotating && !_isOpen && playerInProximity)
+                    StartRotation(true);
+                else if (!_isRotating && _isOpen && !playerInProximity)
+                    StartRotation(false);
 
-            UpdateRotation(gameTime);
-            _pairedDoor?.UpdateRotation(gameTime);
-        }
-
-        private void UpdateRotation(GameTime gameTime)
-        {
-            if (_isRotating)
-            {
-                _rotationTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
-                float progress = Math.Min(_rotationTimer / ROTATION_DURATION, 1f);
-
-                float smoothProgress = (float)(1 - Math.Cos(progress * Math.PI)) / 2f;
-                float currentAngle = MathHelper.Lerp(_startAngle, _targetAngle, smoothProgress);
-
-                Angle = new Vector3(
-                    Angle.X,
-                    Angle.Y,
-                    currentAngle
-                );
-
-                if (progress >= 1f)
-                {
-                    Angle = new Vector3(Angle.X, Angle.Y, _targetAngle);
-                    _isRotating = false;
-                    _isOpen = !_isOpen;
-                }
+                UpdateRotation(gameTime);
+                _pairedDoor?.UpdateRotation(gameTime);
             }
         }
 

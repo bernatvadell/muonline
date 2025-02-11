@@ -1,38 +1,38 @@
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<OutputType>WinExe</OutputType>
-		<TargetFramework>net9.0</TargetFramework>
-		<RollForward>Major</RollForward>
-		<PublishSingleFile>true</PublishSingleFile>
-		<SelfContained>false</SelfContained>
-
-		<PublishTrimmed>false</PublishTrimmed>
-		<PublishReadyToRun>false</PublishReadyToRun>
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <RollForward>Major</RollForward>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishReadyToRun>false</PublishReadyToRun>
     <TieredCompilation>true</TieredCompilation>
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+    <OutputType Condition="'$(OS)'=='Windows_NT'">WinExe</OutputType>
+    <OutputType Condition="'$(OS)'!='Windows_NT'">Exe</OutputType>
+    <ApplicationManifest Condition="'$(OS)'=='Windows_NT'">app.manifest</ApplicationManifest>
+    <ApplicationIcon Condition="'$(OS)'=='Windows_NT'">Icon.ico</ApplicationIcon>
+  </PropertyGroup>
 
-		<ApplicationManifest>app.manifest</ApplicationManifest>
-		<ApplicationIcon>Icon.ico</ApplicationIcon>
-	</PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
+    <Optimize>true</Optimize>
+  </PropertyGroup>
 
-	<PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
-		<Optimize>true</Optimize>
-	</PropertyGroup>
+  <ItemGroup Condition="'$(OS)'=='Windows_NT'">
+    <EmbeddedResource Include="Icon.ico" />
+    <EmbeddedResource Include="Icon.bmp" />
+  </ItemGroup>
 
-	<ItemGroup>
-		<EmbeddedResource Include="Icon.ico" />
-		<EmbeddedResource Include="Icon.bmp" />
-	</ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.2.1105" />
+    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.2.1105" />
+    <PackageReference Include="MUnique.OpenMU.Network" Version="0.8.20" />
+    <PackageReference Include="MUnique.OpenMU.Network.Packets" Version="0.8.20" />
+    <PackageReference Include="NLayer" Version="1.16.0" />
+    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="2.2.8" />
+  </ItemGroup>
 
-	<ItemGroup>
-		<PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.2.1105" />
-		<PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.2.1105" />
-		<PackageReference Include="MUnique.OpenMU.Network" Version="0.8.20" />
-		<PackageReference Include="MUnique.OpenMU.Network.Packets" Version="0.8.20" />
-		<PackageReference Include="NAudio" Version="2.2.1" />
-		<PackageReference Include="Pipelines.Sockets.Unofficial" Version="2.2.8" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<ProjectReference Include="..\Client.Data\Client.Data.csproj" />
-	</ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Client.Data\Client.Data.csproj" />
+  </ItemGroup>
 </Project>

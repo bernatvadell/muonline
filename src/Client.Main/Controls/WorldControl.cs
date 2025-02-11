@@ -97,7 +97,14 @@ namespace Client.Main.Controls
                 Camera.Instance.Target = data.HeroPosition;
             }
 
-            SoundController.Instance.PlayBackgroundMusic(BackgroundMusicPath);
+            if (!string.IsNullOrEmpty(BackgroundMusicPath))
+            {
+                SoundController.Instance.PlayBackgroundMusic(BackgroundMusicPath);
+            }
+            else
+            {
+                SoundController.Instance.StopBackgroundMusic();
+            }
         }
 
         public override void AfterLoad()

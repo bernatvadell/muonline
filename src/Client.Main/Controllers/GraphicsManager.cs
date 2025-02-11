@@ -133,6 +133,14 @@ namespace Client.Main.Controllers
             MainRenderTarget?.Dispose();
             TempTarget1?.Dispose();
             TempTarget2?.Dispose();
+            Pixel?.Dispose();
+
+            AlphaRGBEffect?.Dispose();
+            FXAAEffect?.Dispose();
+            ShadowEffect?.Dispose();
+            AlphaTestEffect3D?.Dispose();
+            BoundingBoxEffect3D?.Dispose();
+            BasicEffect3D?.Dispose();
         }
     }
 }
