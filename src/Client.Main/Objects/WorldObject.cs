@@ -64,6 +64,7 @@ namespace Client.Main.Objects
 
         public event EventHandler MatrixChanged;
         public bool IsMouseHover { get; private set; }
+        public float DebugFontSize { get; set; } = 12f;
 
         public event EventHandler Click;
 
@@ -317,55 +318,58 @@ namespace Client.Main.Objects
                     Matrix.Identity
                 );
 
+                // Prepare informational text.
+                string objectInfo = $"{GetType().Name}\nType ID: {Type}\nAlpha: {TotalAlpha}\nX: {Position.X} Y: {Position.Y} Z: {Position.Z}\nDepth: {Depth}\nRender order: {RenderOrder}\nDepthStencilState: {DepthState.Name}";
+
+                // Establish base font size (i.e., the one defined in the SpriteFont file).
+                float baseFontSize = Constants.BASE_FONT_SIZE; 
+                float scaleFactor = DebugFontSize / baseFontSize;
+
+                // Measure the text size using scaling.
+                Vector2 textSize = _font.MeasureString(objectInfo) * scaleFactor;
+
+                // Set the text position - centered relative to the measured size.
+                Vector2 baseTextPos = new Vector2((int)(screenPos.X - textSize.X / 2), (int)screenPos.Y);
+
+                // Save the current graphic states.
                 var previousBlendState = GraphicsDevice.BlendState;
                 var previousDepthState = GraphicsDevice.DepthStencilState;
                 var previousRasterizerState = GraphicsDevice.RasterizerState;
 
                 try
                 {
-                    string objectInfo = $"{GetType().Name}\nType ID: {Type}\nAlpha: {TotalAlpha}\nX: {Position.X} Y: {Position.Y} Z: {Position.Z}\nDepth: {Depth}\nRender order: {RenderOrder}\nDepthStencilState: {DepthState.Name}";
-                    Vector2 textSize = _font.MeasureString(objectInfo);
-
                     _spriteBatch.Begin(
                         SpriteSortMode.Deferred,
                         BlendState.AlphaBlend,
-                        null,
+                        SamplerState.PointClamp,
                         DepthStencilState.None,
-                        null,
+                        RasterizerState.CullNone,
                         null,
                         Matrix.Identity
                     );
 
+                    // Drawing the text background.
                     var backgroundColor = new Color(0, 0, 0, 180);
                     var backgroundRect = new Rectangle(
-                        (int)(screenPos.X - textSize.X / 2) - 5,
-                        (int)(screenPos.Y) - 5,
+                        (int)baseTextPos.X - 5,
+                        (int)baseTextPos.Y - 5,
                         (int)textSize.X + 10,
                         (int)textSize.Y + 10
                     );
 
                     DrawTextBackground(_spriteBatch, backgroundRect, backgroundColor);
 
-                    Vector2 textPosition2D = new Vector2(screenPos.X - textSize.X / 2, screenPos.Y);
-
-                    _spriteBatch.DrawString(
-                        _font,
-                        objectInfo,
-                        textPosition2D + new Vector2(1, 1),
-                        Color.Black
-                    );
-
-                    _spriteBatch.DrawString(
-                        _font,
-                        objectInfo,
-                        textPosition2D,
-                        Color.Yellow
-                    );
+                    // Drawing text with scaling applied.
+                    _spriteBatch.DrawString(_font, objectInfo, baseTextPos, Color.Yellow, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 0);
 
                     _spriteBatch.End();
                 }
-                catch (Exception) { }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex);
+                }
 
+                // Restore the previous graphics states.
                 GraphicsDevice.BlendState = previousBlendState;
                 GraphicsDevice.DepthStencilState = previousDepthState;
                 GraphicsDevice.RasterizerState = previousRasterizerState;
@@ -375,8 +379,11 @@ namespace Client.Main.Objects
 
         private void DrawTextBackground(SpriteBatch spriteBatch, Rectangle rect, Color color)
         {
-            _whiteTexture = new Texture2D(GraphicsDevice, 1, 1);
-            _whiteTexture.SetData([Color.White]);
+            if (_whiteTexture == null)
+            {
+                _whiteTexture = new Texture2D(GraphicsDevice, 1, 1);
+                _whiteTexture.SetData([Color.White]);
+            }
             spriteBatch.Draw(_whiteTexture, rect, color);
 
             var borderColor = Color.White * 0.3f;

@@ -1,16 +1,7 @@
-﻿using Client.Data;
-using Client.Main.Content;
-using Client.Main.Objects.Effects;
-using Client.Main.Objects.NPCS;
-using Client.Main.Objects.Particles.Effects;
-using Client.Main.Objects.Particles;
-using Client.Main.Objects.Skills;
+﻿using Client.Main.Content;
 using Microsoft.Xna.Framework;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
+using Client.Main.Controllers;
 
 namespace Client.Main.Objects.Worlds.Noria
 {
@@ -54,6 +45,11 @@ namespace Client.Main.Objects.Worlds.Noria
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
+
+            if (!Visible)
+                return;
+
+            SoundController.Instance.PlayBuffer("Sound/nMix.wav");
         }
     }
 }

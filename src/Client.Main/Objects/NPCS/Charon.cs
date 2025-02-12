@@ -1,8 +1,5 @@
 ﻿using Client.Main.Content;
-using Client.Main.Controllers;
 using Client.Main.Objects.Effects;
-using Client.Main.Objects.Particles;
-using Client.Main.Objects.Particles.Effects;
 using Microsoft.Xna.Framework;
 using System;
 using System.Threading.Tasks;
@@ -16,8 +13,8 @@ namespace Client.Main.Objects.NPCS
 
         public Charon()
         {
-            Children.Add(_ligh1 = new Lightning2Effect { Scale = 1f });
-            Children.Add(_ligh2 = new Lightning2Effect { Scale = 1f });
+            Children.Add(_ligh1 = new Lightning2Effect { Scale = 1.2f });
+            Children.Add(_ligh2 = new Lightning2Effect { Scale = 1.2f });
         }
 
         public override async Task Load()
@@ -36,7 +33,7 @@ namespace Client.Main.Objects.NPCS
             var luminosity = (float)Math.Sin(gameTime.TotalGameTime.TotalSeconds * 0.002f) * 0.35f + 0.65f;
             var light = new Vector3(luminosity, luminosity, luminosity);
 
-            _ligh1.Position = _ligh2.Position = BoneTransform[20].Translation + new Vector3(3.5f, -12f, 10f);
+            _ligh1.Position = _ligh2.Position = BoneTransform[20].Translation + new Vector3(-5f, -10f, 10f);
             _ligh1.Light = _ligh2.Light = light;
 
             var rotation1 = (float)(FPSCounter.Instance.WorldTime / 50.0f);

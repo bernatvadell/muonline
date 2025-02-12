@@ -60,5 +60,9 @@ namespace Client.Main
 
                 // Player movement speed
                 public const float MOVE_SPEED = 550f; // Default(?) walk speed
+
+                // Others
+
+                public const float BASE_FONT_SIZE = 25f;
         }
 }

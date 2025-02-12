@@ -32,6 +32,8 @@ namespace Client.Main.Controls
         public float Scale { get; set; } = 1f;
         public Margin Margin { get; set; } = Margin.Empty;
 
+        public Margin Padding { get; set; } = new Margin();
+
         public Color BorderColor { get; set; }
         public int BorderThickness { get; set; } = 0;
         public Color BackgroundColor { get; set; } = Color.Transparent;
