@@ -60,6 +60,54 @@ namespace Client.Main.Controllers
             _activeGlobalSoundEffect = music;
             music.Play();
         }
+        
+        /// <summary>
+        /// Plays a sound while adjusting the volume based on the distance
+        /// between the sound source and the listener.
+        /// </summary>
+        /// <param name="path">Path to the sound file.</param>
+        /// <param name="sourcePosition">Position of the sound source (e.g., an object in the game).</param>
+        /// <param name="listenerPosition">Position of the listener (e.g., the camera).</param>
+        public void PlayBufferWithAttenuation(string path, Microsoft.Xna.Framework.Vector3 sourcePosition, Microsoft.Xna.Framework.Vector3 listenerPosition)
+        {
+            if (!Constants.SOUND_EFFECTS)
+                return;
+
+            if (!_songs.TryGetValue(path, out var soundEffectInstance))
+            {
+                var fullPath = Path.Combine(Constants.DataPath, path);
+                if (!File.Exists(fullPath))
+                {
+                    Debug.WriteLine($"File not found: {fullPath}");
+                    return;
+                }
+
+                try
+                {
+                    var soundEffect = LoadSoundFromFile(fullPath);
+                    if (soundEffect == null)
+                        return;
+
+                    soundEffectInstance = soundEffect;
+                    _songs.Add(path, soundEffectInstance);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error loading sound effect from file: {ex.Message}");
+                    return;
+                }
+            }
+
+            float distance = Microsoft.Xna.Framework.Vector3.Distance(sourcePosition, listenerPosition);
+
+            float maxDistance = 1000f;
+
+            float volume = 1.0f - (distance / maxDistance);
+            volume = Microsoft.Xna.Framework.MathHelper.Clamp(volume, 0f, 1f);
+
+            soundEffectInstance.Volume = volume;
+            soundEffectInstance.Play();
+        }
 
         public void PlayBuffer(string path)
         {
