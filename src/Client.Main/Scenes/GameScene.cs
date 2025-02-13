@@ -45,21 +45,22 @@ namespace Client.Main.Scenes
 
             if (_loadingScreen == null)
             {
-                _loadingScreen = new LoadingScreenControl();
+                _loadingScreen = new LoadingScreenControl { Message = "Loading...", Visible = true };
                 Controls.Add(_loadingScreen);
             }
-            _loadingScreen.Message = "Loading...";
-            _loadingScreen.Visible = true;
+            else
+            {
+                _loadingScreen.Message = "Loading...";
+                _loadingScreen.Visible = true;
+            }
             _main.Visible = false;
 
-            // You can additionally force a screen redraw
-            await Task.Delay(100);
+            await Task.Yield();
 
             _nextWorld = new T() { Walker = _hero };
             _nextWorld.Objects.Add(_hero);
             await _nextWorld.Initialize();
 
-            // Before removing the old world, ensure that no update/draw refers to it
             World?.Dispose();
             World = _nextWorld;
             _nextWorld = null;
@@ -68,15 +69,18 @@ namespace Client.Main.Scenes
 
             Controls.Remove(_loadingScreen);
             _loadingScreen = null;
-            _main.Visible = true;
 
+            _main.Visible = true;
             _isChangingWorld = false;
         }
 
         public override void Update(GameTime gameTime)
         {
             if (_isChangingWorld)
-                return; // do not update while the world is changing
+            {
+                _loadingScreen?.Update(gameTime);
+                return;
+            }
 
             KeyboardState currentKeyboardState = Keyboard.GetState();
             if (currentKeyboardState.IsKeyDown(Keys.M) && !_previousKeyboardState.IsKeyDown(Keys.M))
