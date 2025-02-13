@@ -1,6 +1,5 @@
 ﻿using Client.Data.ATT;
 using Client.Data.BMD;
-using Client.Data.CAP;
 using Client.Data.MAP;
 using Client.Data.OBJS;
 using Client.Data.OZB;
@@ -13,6 +12,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using static Client.Main.Utils;
 
 namespace Client.Main.Controls
 {
@@ -59,8 +59,8 @@ namespace Client.Main.Controls
             { 100, "leaf01.ozt" },
             { 101, "leaf02.ozj" },
             { 102, "rain01.ozt" },
-            { 103,  "rain02.ozt" },
-            { 104,  "rain03.ozt" }
+            { 103, "rain02.ozt" },
+            { 104, "rain03.ozt" }
         };
 
         private readonly VertexPositionColorTexture[] _terrainVertices = new VertexPositionColorTexture[6];
@@ -83,7 +83,6 @@ namespace Client.Main.Controls
             AutoViewSize = false;
             ViewSize = new Point(MuGame.Instance.Width, MuGame.Instance.Height);
             _blockCache = new TerrainBlockCache(BlockSize, Constants.TERRAIN_SIZE);
-            _terrainVertices = new VertexPositionColorTexture[6];
             _terrainTextureCoord = new Vector2[4];
             _tempTerrainVertex = new Vector3[4];
             _tempTerrainLights = new Color[4];
@@ -101,28 +100,40 @@ namespace Client.Main.Controls
             var worldFolder = $"World{WorldIndex}";
             var fullPathWorldFolder = Path.Combine(Constants.DataPath, worldFolder);
 
-            if (!Directory.Exists(fullPathWorldFolder))
+            if (string.IsNullOrEmpty(fullPathWorldFolder) || !Directory.Exists(fullPathWorldFolder))
                 return;
 
             Camera.Instance.AspectRatio = GraphicsDevice.Viewport.AspectRatio;
 
-            tasks.Add(terrainReader.Load(Path.Combine(fullPathWorldFolder, $"EncTerrain{WorldIndex}.att"))
-                .ContinueWith(t => _terrain = t.Result));
-            tasks.Add(ozbReader.Load(Path.Combine(fullPathWorldFolder, $"TerrainHeight.OZB"))
-                .ContinueWith(t => _backTerrainHeight = t.Result.Data.Select(x => new Color(x.R, x.G, x.B)).ToArray()));
-            tasks.Add(mappingReader.Load(Path.Combine(fullPathWorldFolder, $"EncTerrain{WorldIndex}.map"))
-                .ContinueWith(t => _mapping = t.Result));
+            string attPath = GetActualPath(Path.Combine(fullPathWorldFolder, $"EncTerrain{WorldIndex}.att"));
+            if (!string.IsNullOrEmpty(attPath))
+            {
+                tasks.Add(terrainReader.Load(attPath).ContinueWith(t => _terrain = t.Result));
+            }
+            string heightPath = GetActualPath(Path.Combine(fullPathWorldFolder, "TerrainHeight.OZB"));
+            if (!string.IsNullOrEmpty(heightPath))
+            {
+                tasks.Add(ozbReader.Load(heightPath)
+                    .ContinueWith(t => _backTerrainHeight = t.Result.Data.Select(x => new Color(x.R, x.G, x.B)).ToArray()));
+            }
+            string mapPath = GetActualPath(Path.Combine(fullPathWorldFolder, $"EncTerrain{WorldIndex}.map"));
+            if (!string.IsNullOrEmpty(mapPath))
+            {
+                tasks.Add(mappingReader.Load(mapPath).ContinueWith(t => _mapping = t.Result));
+            }
 
             var textureMapFiles = new string[256];
 
             foreach (var kvp in TextureMappingFiles)
             {
-                textureMapFiles[kvp.Key] = Path.Combine(fullPathWorldFolder, kvp.Value);
+                string texPath = GetActualPath(Path.Combine(fullPathWorldFolder, kvp.Value));
+                textureMapFiles[kvp.Key] = texPath;
             }
 
             for (int i = 1; i <= 16; i++)
             {
-                textureMapFiles[13 + i] = Path.Combine(fullPathWorldFolder, $"ExtTile{i:00}.ozj");
+                string extTilePath = GetActualPath(Path.Combine(fullPathWorldFolder, $"ExtTile{i:00}.ozj"));
+                textureMapFiles[13 + i] = extTilePath;
             }
 
             _textures = new Texture2D[textureMapFiles.Length];
@@ -130,16 +141,16 @@ namespace Client.Main.Controls
             for (int t = 0; t < textureMapFiles.Length; t++)
             {
                 var path = textureMapFiles[t];
-                if (string.IsNullOrEmpty(path) || !File.Exists(path)) continue;
+                if (string.IsNullOrEmpty(path) || !File.Exists(path))
+                    continue;
 
                 int textureIndex = t;
                 tasks.Add(TextureLoader.Instance.Prepare(path)
                     .ContinueWith(_ => _textures[textureIndex] = TextureLoader.Instance.GetTexture2D(path)));
             }
 
-            var textureLightPath = Path.Combine(fullPathWorldFolder, "TerrainLight.OZB");
-
-            if (File.Exists(textureLightPath))
+            string textureLightPath = GetActualPath(Path.Combine(fullPathWorldFolder, "TerrainLight.OZB"));
+            if (!string.IsNullOrEmpty(textureLightPath) && File.Exists(textureLightPath))
             {
                 tasks.Add(ozbReader.Load(textureLightPath)
                     .ContinueWith(ozb => _terrainLightData = ozb.Result.Data.Select(x => new Color(x.R, x.G, x.B)).ToArray()));

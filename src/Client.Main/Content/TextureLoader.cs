@@ -38,15 +38,13 @@ namespace Client.Main.Content
             if (string.IsNullOrWhiteSpace(path))
                 throw new ArgumentException("Path cannot be null or whitespace.", nameof(path));
 
-            string normalizedPath = path.ToLowerInvariant();
+            string normalizedKey = path.ToLowerInvariant();
 
-            if (_textureTasks.TryGetValue(normalizedPath, out var task))
+            if (_textureTasks.TryGetValue(normalizedKey, out var task))
                 return task;
 
-            task = InternalPrepare(normalizedPath);
-
-            _textureTasks.TryAdd(normalizedPath, task);
-
+            task = InternalPrepare(path);
+            _textureTasks.TryAdd(normalizedKey, task);
             return task;
         }
 
@@ -56,12 +54,12 @@ namespace Client.Main.Content
             return GetTexture2D(path);
         }
 
-        private async Task<TextureData> InternalPrepare(string normalizedPath)
+        private async Task<TextureData> InternalPrepare(string path)
         {
             try
             {
-                var dataPath = Path.Combine(Constants.DataPath, normalizedPath);
-                string ext = Path.GetExtension(normalizedPath)?.ToLowerInvariant();
+                var dataPath = Path.Combine(Constants.DataPath, path);
+                string ext = Path.GetExtension(path)?.ToLowerInvariant();
 
                 if (!_readers.TryGetValue(ext, out var reader))
                 {
@@ -82,41 +80,59 @@ namespace Client.Main.Content
                 var clientTexture = new ClientTexture
                 {
                     Info = data,
-                    Script = ParseScript(normalizedPath)
+                    Script = ParseScript(path)
                 };
 
-                _textures.TryAdd(normalizedPath, clientTexture);
+                _textures.TryAdd(path.ToLowerInvariant(), clientTexture);
                 return clientTexture.Info;
             }
             catch (Exception e)
             {
-                Debug.WriteLine($"Failed to load asset {normalizedPath}: {e.Message}");
+                Debug.WriteLine($"Failed to load asset {path}: {e.Message}");
                 return null;
             }
         }
 
         private string FindTexturePath(string dataPath, string ext)
         {
-            string fullPath = Path.ChangeExtension(dataPath, _readers[ext].GetType().Name.ToLowerInvariant().Replace("reader", ""));
+            string expectedExtension = _readers[ext].GetType().Name.ToLowerInvariant().Replace("reader", "");
+            string expectedFilePath = Path.ChangeExtension(dataPath, expectedExtension);
 
-            if (!File.Exists(fullPath))
+            string actualPath = GetActualPath(expectedFilePath);
+            if (actualPath != null)
+                return actualPath;
+
+            string parentFolder = Path.GetDirectoryName(expectedFilePath);
+            if (!string.IsNullOrEmpty(parentFolder))
             {
-                var parentFolder = Directory.GetParent(fullPath);
-                if (parentFolder != null)
+                string newFullPath = Path.Combine(parentFolder, "texture", Path.GetFileName(expectedFilePath));
+                actualPath = GetActualPath(newFullPath);
+                if (actualPath != null)
+                    return actualPath;
+            }
+
+            Debug.WriteLine($"Texture file not found: {expectedFilePath}");
+            return null;
+        }
+
+        private string GetActualPath(string path)
+        {
+            if (File.Exists(path))
+                return path;
+
+            string directory = Path.GetDirectoryName(path);
+            string fileName = Path.GetFileName(path);
+
+            if (Directory.Exists(directory))
+            {
+                foreach (var file in Directory.GetFiles(directory))
                 {
-                    var newFullPath = Path.Combine(parentFolder.FullName, "texture", Path.GetFileName(fullPath));
-                    if (File.Exists(newFullPath))
-                        return newFullPath;
+                    if (string.Equals(Path.GetFileName(file), fileName, StringComparison.OrdinalIgnoreCase))
+                        return file;
                 }
             }
 
-            if (!File.Exists(fullPath))
-            {
-                Debug.WriteLine($"Texture file not found: {fullPath}");
-                return null;
-            }
-
-            return fullPath;
+            return null;
         }
 
         private static TextureScript ParseScript(string fileName)
@@ -162,9 +178,9 @@ namespace Client.Main.Content
             if (string.IsNullOrWhiteSpace(path))
                 return null;
 
-            string normalizedPath = path.ToLowerInvariant();
+            string normalizedKey = path.ToLowerInvariant();
 
-            if (!_textures.TryGetValue(normalizedPath, out ClientTexture textureData))
+            if (!_textures.TryGetValue(normalizedKey, out ClientTexture textureData))
                 return null;
 
             if (textureData.Texture != null)
