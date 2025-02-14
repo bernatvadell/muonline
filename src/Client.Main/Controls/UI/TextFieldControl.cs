@@ -2,10 +2,10 @@
 using Client.Main.Controllers;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -29,6 +29,9 @@ namespace Client.Main.Controls.UI
 
         private const int TextMargin = 10;
         private const int CursorBlinkInterval = 500;
+
+        // FontSize controls the size of the rendered text.
+        public float FontSize { get; set; } = 12f;
 
         public TextFieldControl()
         {
@@ -101,30 +104,58 @@ namespace Client.Main.Controls.UI
             }
         }
 
+        // Converts a key press into the corresponding character,
+        // handling letters, digits (from top row and numpad) and common special characters.
         private char KeyToChar(Keys key, bool shift, bool capsLock)
         {
-            bool isUpper = capsLock ^ shift;
-            string keyStr = key.ToString();
-            char character;
-
-            if (keyStr.Length == 1 && char.IsLetterOrDigit(keyStr[0]))
+            if (key >= Keys.A && key <= Keys.Z)
             {
-                character = isUpper ? keyStr[0] : char.ToLower(keyStr[0]);
+                bool isUpper = capsLock ^ shift;
+                char letter = (char)('A' + (key - Keys.A));
+                return isUpper ? letter : char.ToLower(letter);
             }
-            else
+            else if (key >= Keys.D0 && key <= Keys.D9)
             {
-                character = key switch
+                char digit = (char)('0' + (key - Keys.D0));
+                if (shift)
                 {
-                    Keys.Space => ' ',
-                    Keys.OemComma => ',',
-                    Keys.OemPeriod => '.',
-                    Keys.OemMinus => shift ? '_' : '-',
-                    Keys.OemPlus => shift ? '+' : '=',
-                    _ => '\0'
-                };
+                    return key switch
+                    {
+                        Keys.D1 => '!',
+                        Keys.D2 => '@',
+                        Keys.D3 => '#',
+                        Keys.D4 => '$',
+                        Keys.D5 => '%',
+                        Keys.D6 => '^',
+                        Keys.D7 => '&',
+                        Keys.D8 => '*',
+                        Keys.D9 => '(',
+                        Keys.D0 => ')',
+                        _ => digit,
+                    };
+                }
+                return digit;
             }
-
-            return character;
+            else if (key >= Keys.NumPad0 && key <= Keys.NumPad9)
+            {
+                return (char)('0' + (key - Keys.NumPad0));
+            }
+            return key switch
+            {
+                Keys.Space => ' ',
+                Keys.OemComma => ',',
+                Keys.OemPeriod => '.',
+                Keys.OemMinus => shift ? '_' : '-',
+                Keys.OemPlus => shift ? '+' : '=',
+                Keys.OemQuestion => shift ? '?' : '/',
+                Keys.OemOpenBrackets => shift ? '{' : '[',
+                Keys.OemCloseBrackets => shift ? '}' : ']',
+                Keys.OemPipe => shift ? '|' : '\\',
+                Keys.OemTilde => shift ? '~' : '`',
+                Keys.OemQuotes => shift ? '"' : '\'',
+                Keys.OemSemicolon => shift ? ':' : ';',
+                _ => '\0'
+            };
         }
 
         public override void Update(GameTime gameTime)
@@ -134,8 +165,9 @@ namespace Client.Main.Controls.UI
             if (!HasFocus) return;
 
             var keysPressed = MuGame.Instance.Keyboard.GetPressedKeys();
-            var shift = MuGame.Instance.Keyboard.IsKeyDown(Keys.LeftShift) || MuGame.Instance.Keyboard.IsKeyDown(Keys.RightShift);
-            var capsLock = Console.CapsLock;
+            bool shift = MuGame.Instance.Keyboard.IsKeyDown(Keys.LeftShift) || MuGame.Instance.Keyboard.IsKeyDown(Keys.RightShift);
+            // Check caps lock state: on Windows, use Console.CapsLock; on other platforms, default to false.
+            bool capsLock = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? Console.CapsLock : false;
 
             foreach (var key in keysPressed)
             {
@@ -152,17 +184,12 @@ namespace Client.Main.Controls.UI
                 _cursorBlinkTimer = 0;
             }
 
-            var textWidth = GraphicsManager.Instance.Font.MeasureString(MaskValue ? new string('*', _inputText.Length) : _inputText.ToString()).X;
+            float scaleFactor = FontSize / Constants.BASE_FONT_SIZE;
+            var measuredText = MaskValue ? new string('*', _inputText.Length) : _inputText.ToString();
+            var textWidth = GraphicsManager.Instance.Font.MeasureString(measuredText).X * scaleFactor;
             float maxVisibleWidth = DisplayRectangle.Width - TextMargin * 2;
 
-            if (textWidth > maxVisibleWidth)
-            {
-                _scrollOffset = textWidth - maxVisibleWidth;
-            }
-            else
-            {
-                _scrollOffset = 0;
-            }
+            _scrollOffset = textWidth > maxVisibleWidth ? textWidth - maxVisibleWidth : 0;
         }
 
         public override void Draw(GameTime gameTime)
@@ -195,6 +222,10 @@ namespace Client.Main.Controls.UI
 
             GraphicsDevice.ScissorRectangle = new Rectangle(DisplayRectangle.X + TextMargin, DisplayRectangle.Y, DisplayRectangle.Width - TextMargin * 2, DisplayRectangle.Height);
 
+            float scaleFactor = FontSize / Constants.BASE_FONT_SIZE;
+            var textToDisplay = MaskValue ? new string('*', _inputText.Length) : _inputText.ToString();
+            var textPosition = new Vector2(DisplayRectangle.X + TextMargin - _scrollOffset, DisplayRectangle.Y + (DisplayRectangle.Height - GraphicsManager.Instance.Font.LineSpacing * scaleFactor) / 2);
+
             sprite.Begin(
                 SpriteSortMode.Deferred,
                 BlendState.AlphaBlend,
@@ -204,15 +235,13 @@ namespace Client.Main.Controls.UI
                 null
             );
 
-            var textToDisplay = MaskValue ? new string('*', _inputText.Length) : _inputText.ToString();
-            var textPosition = new Vector2(DisplayRectangle.X + TextMargin - _scrollOffset, DisplayRectangle.Y + (DisplayRectangle.Height - GraphicsManager.Instance.Font.LineSpacing) / 2);
-            sprite.DrawString(GraphicsManager.Instance.Font, textToDisplay, textPosition, Color.White);
+            sprite.DrawString(GraphicsManager.Instance.Font, textToDisplay, textPosition, Color.White, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 0f);
 
             if (HasFocus && _showCursor)
             {
-                var textWidth = GraphicsManager.Instance.Font.MeasureString(textToDisplay).X;
+                var textWidth = GraphicsManager.Instance.Font.MeasureString(textToDisplay).X * scaleFactor;
                 var cursorPosition = textPosition + new Vector2(textWidth, 0);
-                sprite.DrawString(GraphicsManager.Instance.Font, "|", cursorPosition, Color.White);
+                sprite.DrawString(GraphicsManager.Instance.Font, "|", cursorPosition, Color.White, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 0f);
             }
 
             sprite.End();

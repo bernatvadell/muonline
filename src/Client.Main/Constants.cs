@@ -18,7 +18,7 @@ namespace Client.Main
                 // Game settings
 
 #if DEBUG
-                public static Type ENTRY_SCENE = typeof(Scenes.GameScene);
+                public static Type ENTRY_SCENE = typeof(Scenes.LoginScene);
                 public static bool BACKGROUND_MUSIC = true;
                 public static bool SOUND_EFFECTS = true;
                 public static bool DRAW_BOUNDING_BOXES = true;

@@ -26,12 +26,12 @@ namespace Client.Main.Controls.UI.Login
             Controls.Add(new LabelControl() { Text = "MU Online", Align = ControlAlign.HorizontalCenter, Y = 15, FontSize = 12 });
             Controls.Add(_line1 = new TextureControl { TexturePath = "Interface/GFx/popup_line_m.ozd", X = 10, Y = 40, AutoViewSize = false });
             Controls.Add(_serverNameLabel = new LabelControl() { Text = "OpenMU Server 1", Align = ControlAlign.HorizontalCenter, Y = 55, FontSize = 12, TextColor = new Color(241, 188, 37) });
-            Controls.Add(new LabelControl { Text = "User", Y = 90, X = 20, AutoViewSize = false, ViewSize = new(70, 20), TextAlign = HorizontalAlign.Right });
-            Controls.Add(new LabelControl { Text = "Password", Y = 120, X = 20, AutoViewSize = false, ViewSize = new(70, 20), TextAlign = HorizontalAlign.Right });
+            Controls.Add(new LabelControl { Text = "User", Y = 90, X = 20, AutoViewSize = false, ViewSize = new(70, 20), TextAlign = HorizontalAlign.Right, FontSize = 12f });
+            Controls.Add(new LabelControl { Text = "Password", Y = 120, X = 20, AutoViewSize = false, ViewSize = new(70, 20), TextAlign = HorizontalAlign.Right, FontSize = 12f });
             Controls.Add(_line2 = new TextureControl { TexturePath = "Interface/GFx/popup_line_m.ozd", X = 10, Y = 150, AutoViewSize = false, Alpha = 0.7f });
 
-            Controls.Add(_userInput = new TextFieldControl { X = 100, Y = 87 });
-            Controls.Add(_passwordInput = new TextFieldControl { X = 100, Y = 117, MaskValue = true });
+            Controls.Add(_userInput = new TextFieldControl { X = 100, Y = 87, FontSize = 10f });
+            Controls.Add(_passwordInput = new TextFieldControl { X = 100, Y = 117, MaskValue = true, FontSize = 10f });
 
             var button = new OkButton { Y = 160, Align = ControlAlign.HorizontalCenter };
             button.Click += OnLoginClick;
