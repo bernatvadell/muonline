@@ -39,6 +39,7 @@ namespace Client.Main.Objects.Worlds.Noria
         {
             Model = await BMDLoader.Instance.Prepare($"Object4/Object40.bmd");
             BlendMesh = 1;
+            Position = new Vector3(Position.X, Position.Y, Position.Z - 40f);
             await base.Load();
         }
 

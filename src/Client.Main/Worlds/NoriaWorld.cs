@@ -27,6 +27,12 @@ namespace Client.Main.Worlds
         public override void AfterLoad()
         {
             Walker.Location = new Vector2(174, 123);
+
+            // water animation parameters for Noria
+            Terrain.WaterSpeed = 0.05f;             // Example: faster water movement
+            Terrain.DistortionAmplitude = 0.1f;      // Example: stronger distortion
+            Terrain.DistortionFrequency = 2.0f;      // Example: lower frequency for distortion
+
             base.AfterLoad();
         }
 
