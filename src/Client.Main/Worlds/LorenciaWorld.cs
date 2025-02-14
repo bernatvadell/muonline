@@ -29,6 +29,9 @@ namespace Client.Main.Worlds
             Terrain.DistortionAmplitude = 0.2f;      // Example: stronger distortion
             Terrain.DistortionFrequency = 1.0f;      // Example: lower frequency for distortion
 
+            // Preload the pub music to avoid frame freeze on first entry into the pub area
+            SoundController.Instance.PreloadBackgroundMusic(pubMusicPath);
+
             base.AfterLoad();
         }
 

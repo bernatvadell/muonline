@@ -60,7 +60,39 @@ namespace Client.Main.Controllers
             _activeGlobalSoundEffect = music;
             music.Play();
         }
-        
+
+        public void PreloadBackgroundMusic(string path)
+        {
+            if (!Constants.BACKGROUND_MUSIC)
+                return;
+
+            if (string.IsNullOrEmpty(path))
+                return;
+
+            var fullPath = Path.Combine(Constants.DataPath, path);
+            if (!File.Exists(fullPath))
+            {
+                Debug.WriteLine($"File not found: {fullPath}");
+                return;
+            }
+
+            if (_failedPaths.Contains(fullPath))
+                return;
+
+            // If the song is not already loaded, load it into the cache
+            if (!_songs.ContainsKey(path))
+            {
+                var music = LoadSoundFromFile(fullPath);
+                if (music == null)
+                {
+                    _failedPaths.Add(fullPath);
+                    return;
+                }
+                music.IsLooped = true;
+                _songs.Add(path, music);
+            }
+        }
+
         /// <summary>
         /// Plays a sound while adjusting the volume based on the distance
         /// between the sound source and the listener.
