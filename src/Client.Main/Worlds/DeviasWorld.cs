@@ -14,7 +14,7 @@ namespace Client.Main.Worlds
         public override void AfterLoad()
         {
             base.AfterLoad();
-            Walker.Location = new Vector2(226, 221);
+            Walker.Location = new Vector2(219, 24);
         }
 
         protected override void CreateMapTileObjects()
