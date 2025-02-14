@@ -122,7 +122,7 @@ namespace Client.Main
             ChangeSceneAsync(Constants.ENTRY_SCENE).ContinueWith(t =>
             {
                 if (t.Exception != null)
-                    Debug.WriteLine("Błąd podczas zmiany sceny: " + t.Exception);
+                    Debug.WriteLine("Error when changing the scene: " + t.Exception);
             });
         }
 
