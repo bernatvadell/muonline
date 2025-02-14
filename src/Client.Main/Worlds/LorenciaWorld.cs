@@ -21,6 +21,12 @@ namespace Client.Main.Worlds
         public override void AfterLoad()
         {
             Walker.Location = new Vector2(138, 124);
+
+            // water animation parameters for LorenciaWorld
+            Terrain.WaterSpeed = 0.05f;             // Example: faster water movement
+            Terrain.DistortionAmplitude = 0.2f;      // Example: stronger distortion
+            Terrain.DistortionFrequency = 1.0f;      // Example: lower frequency for distortion
+
             base.AfterLoad();
         }
 

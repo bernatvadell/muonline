@@ -21,7 +21,7 @@ namespace Client.Main
                 public static Type ENTRY_SCENE = typeof(Scenes.LoginScene);
                 public static bool BACKGROUND_MUSIC = true;
                 public static bool SOUND_EFFECTS = true;
-                public static bool DRAW_BOUNDING_BOXES = true;
+                public static bool DRAW_BOUNDING_BOXES = false;
                 public static bool DRAW_BOUNDING_BOXES_INTERACTIVES = false;
                 public static string DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
 #else

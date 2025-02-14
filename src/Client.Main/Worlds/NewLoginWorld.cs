@@ -25,6 +25,11 @@ namespace Client.Main.Worlds
         {
             base.AfterLoad();
 
+            // water animation parameters
+            Terrain.WaterSpeed = 0.05f;             // Example: faster water movement
+            Terrain.DistortionAmplitude = 0.2f;      // Example: stronger distortion
+            Terrain.DistortionFrequency = 1.0f;      // Example: lower frequency for distortion
+
             // TODO: We need fix CameraAnglePosition load
             Camera.Instance.Target += new Vector3(0, 0, 650);
         }

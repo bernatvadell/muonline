@@ -26,6 +26,14 @@ namespace Client.Main.Controls
         private const int UPDATE_INTERVAL_MS = 32;
         private const float CAMERA_MOVE_THRESHOLD = 32f;
 
+        // Public properties for water animation parameters (adjustable per world)
+        public float WaterSpeed { get; set; } = 0f; // Speed factor for water animation
+        public float DistortionAmplitude { get; set; } = 0f; // Amplitude of UV distortion for water effect
+        public float DistortionFrequency { get; set; } = 0f; // Frequency of UV distortion for water effect
+
+        // Continuous accumulator for water texture offset (do not wrap it)
+        private float waterTotal = 0f;
+
         private TerrainAttribute _terrain;
         private TerrainMapping _mapping;
         private Texture2D[] _textures;
@@ -178,6 +186,10 @@ namespace Client.Main.Controls
                 return;
 
             InitTerrainWind(time);
+
+            // Increase continuous water offset using WaterSpeed property.
+            // The waterTotal is not wrapped here; the sampler with LinearWrap takes care of base UV wrapping.
+            waterTotal += (float)time.ElapsedGameTime.TotalSeconds * WaterSpeed;
         }
 
         public override void Draw(GameTime time)
@@ -733,14 +745,36 @@ namespace Client.Main.Controls
             float uvWidth = baseWidth * lodScale;
             float uvHeight = baseHeight * lodScale;
 
-            _terrainTextureCoord[0].X = suf;
-            _terrainTextureCoord[0].Y = svf;
-            _terrainTextureCoord[1].X = suf + uvWidth;
-            _terrainTextureCoord[1].Y = svf;
-            _terrainTextureCoord[2].X = suf + uvWidth;
-            _terrainTextureCoord[2].Y = svf + uvHeight;
-            _terrainTextureCoord[3].X = suf;
-            _terrainTextureCoord[3].Y = svf + uvHeight;
+            if (textureIndex == 5) // Water TILE
+            {
+                // Calculate a wrapped offset for distortion computations
+                float wrapPeriod = (float)(2 * Math.PI / DistortionFrequency);
+                float waterOffset = waterTotal % wrapPeriod;
+
+                // Use waterTotal for the base UV offset and waterOffset for distortion.
+                _terrainTextureCoord[0].X = suf + waterTotal + (float)Math.Sin((suf + waterOffset) * DistortionFrequency) * DistortionAmplitude;
+                _terrainTextureCoord[0].Y = svf + (float)Math.Cos((svf + waterOffset) * DistortionFrequency) * DistortionAmplitude;
+
+                _terrainTextureCoord[1].X = suf + uvWidth + waterTotal + (float)Math.Sin((suf + uvWidth + waterOffset) * DistortionFrequency) * DistortionAmplitude;
+                _terrainTextureCoord[1].Y = svf + (float)Math.Cos((svf + waterOffset) * DistortionFrequency) * DistortionAmplitude;
+
+                _terrainTextureCoord[2].X = suf + uvWidth + waterTotal + (float)Math.Sin((suf + uvWidth + waterOffset) * DistortionFrequency) * DistortionAmplitude;
+                _terrainTextureCoord[2].Y = svf + uvHeight + (float)Math.Cos((svf + uvHeight + waterOffset) * DistortionFrequency) * DistortionAmplitude;
+
+                _terrainTextureCoord[3].X = suf + waterTotal + (float)Math.Sin((suf + waterOffset) * DistortionFrequency) * DistortionAmplitude;
+                _terrainTextureCoord[3].Y = svf + uvHeight + (float)Math.Cos((svf + uvHeight + waterOffset) * DistortionFrequency) * DistortionAmplitude;
+            }
+            else
+            {
+                _terrainTextureCoord[0].X = suf;
+                _terrainTextureCoord[0].Y = svf;
+                _terrainTextureCoord[1].X = suf + uvWidth;
+                _terrainTextureCoord[1].Y = svf;
+                _terrainTextureCoord[2].X = suf + uvWidth;
+                _terrainTextureCoord[2].Y = svf + uvHeight;
+                _terrainTextureCoord[3].X = suf;
+                _terrainTextureCoord[3].Y = svf + uvHeight;
+            }
 
             _terrainVertices[0].Position = _tempTerrainVertex[0];
             _terrainVertices[0].Color = _tempTerrainLights[0];
