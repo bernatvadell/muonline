@@ -312,6 +312,7 @@ namespace Client.Main.Objects
                 int primitiveCount = indexBuffer.IndexCount / 3;
 
                 Matrix shadowWorld;
+                const float shadowBias = 0.1f; // Constant bias to offset the shadow and prevent z-fighting
 
                 float heightAboveTerrain = 0f;
                 try
@@ -321,16 +322,17 @@ namespace Client.Main.Objects
                     float terrainHeight = World.Terrain.RequestTerrainHeight(position.X, position.Y);
                     terrainHeight += terrainHeight * 0.5f;
 
-                    float shadowHeightOffset = WorldPosition.Translation.Z;
+                    float shadowHeightOffset = position.Z;
                     float relativeHeightOverTerrain = shadowHeightOffset - terrainHeight;
 
-                    Vector3 shadowPosition = new(
+                    // Calculate shadow position
+                    Vector3 shadowPosition = new Vector3(
                         position.X - (relativeHeightOverTerrain / 2),
                         position.Y - (relativeHeightOverTerrain / 4.5f),
                         terrainHeight + 1f
                     );
 
-                    heightAboveTerrain = WorldPosition.Translation.Z - terrainHeight;
+                    heightAboveTerrain = position.Z - terrainHeight;
                     float sampleDistance = heightAboveTerrain + 10f;
                     float angleRad = MathHelper.ToRadians(45);
 
@@ -356,7 +358,8 @@ namespace Client.Main.Objects
                         * Matrix.CreateScale(1.0f * TotalScale, 0.01f * TotalScale, 1.0f * TotalScale)
                         * Matrix.CreateRotationX(Math.Max(-MathHelper.PiOver2, -MathHelper.PiOver2 - terrainSlopeX))
                         * Matrix.CreateRotationZ(angleRad)
-                        * Matrix.CreateTranslation(shadowPosition);
+                        // Add a small bias to the shadow position to prevent z-fighting
+                        * Matrix.CreateTranslation(shadowPosition + new Vector3(0f, 0f, shadowBias));
                 }
                 catch (Exception ex)
                 {
@@ -372,8 +375,7 @@ namespace Client.Main.Objects
                     GraphicsDevice.BlendState = Blendings.ShadowBlend;
                     GraphicsDevice.DepthStencilState = DepthStencilState.DepthRead;
 
-                    var effect = GraphicsManager.Instance.BasicEffect3D;// GraphicsManager.Instance.ShadowEffect;
-
+                    var effect = GraphicsManager.Instance.BasicEffect3D;
                     effect.World = shadowWorld;
                     effect.View = view;
                     effect.Projection = projection;
