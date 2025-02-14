@@ -2,17 +2,19 @@
 using Client.Main.Controls;
 using Client.Main.Objects.Worlds.Lorencia;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
     public class LorenciaWorld : WalkableWorldControl
     {
+
+        // Define the pub area as a rectangle
+        private Rectangle pubArea = new Rectangle(12000, 12000, 900, 1500);
+        // Flag to track if the player is already in the pub area
+        private bool isInPubArea = false;
+        private string pubMusicPath = "Music/Pub.mp3";
+
         public LorenciaWorld() : base(worldIndex: 1)
         {
             BackgroundMusicPath = "Music/MuTheme.mp3";
@@ -129,6 +131,39 @@ namespace Client.Main.Worlds
 
             for (var i = 0; i < 3; i++)
                 MapTileObjects[151 + i] = typeof(BeerObject);
+        }
+
+        public override void Update(GameTime time)
+        {
+            base.Update(time);
+
+            // Check player's position (only X and Y are relevant)
+            Vector2 playerPos = new Vector2(Walker.Position.X, Walker.Position.Y);
+            // Create a Point from player's position to use with Rectangle.Contains
+            Point playerPoint = new Point((int)playerPos.X, (int)playerPos.Y);
+
+            if (pubArea.Contains(playerPoint))
+            {
+                // If player enters the pub area and wasn't there before
+                if (!isInPubArea)
+                {
+                    isInPubArea = true;
+                    // Stop the current background music and play the pub music
+                    SoundController.Instance.StopBackgroundMusic();
+                    SoundController.Instance.PlayBackgroundMusic(pubMusicPath);
+                }
+            }
+            else
+            {
+                // If player leaves the pub area and was previously inside
+                if (isInPubArea)
+                {
+                    isInPubArea = false;
+                    // Stop the pub music and resume the default background music
+                    SoundController.Instance.StopBackgroundMusic();
+                    SoundController.Instance.PlayBackgroundMusic(BackgroundMusicPath);
+                }
+            }
         }
 
         public override async Task Load()
