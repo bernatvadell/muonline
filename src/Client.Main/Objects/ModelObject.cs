@@ -242,7 +242,15 @@ namespace Client.Main.Objects
 
             GraphicsManager.Instance.AlphaTestEffect3D.World = highlightMatrix;
             GraphicsManager.Instance.AlphaTestEffect3D.Texture = _boneTextures[mesh];
-            GraphicsManager.Instance.AlphaTestEffect3D.DiffuseColor = new Vector3(0, 1, 0);
+
+            // Set highlight color based on object type: red for Monster, green for NPC/others.
+            Vector3 highlightColor = new Vector3(0, 1, 0); // default green
+            if (this is Monsters.MonsterObject)
+            {
+                highlightColor = new Vector3(1, 0, 0); // red for monster
+            }
+            GraphicsManager.Instance.AlphaTestEffect3D.DiffuseColor = highlightColor;
+
             GraphicsManager.Instance.AlphaTestEffect3D.Alpha = 1f;
 
             GraphicsDevice.DepthStencilState = new DepthStencilState

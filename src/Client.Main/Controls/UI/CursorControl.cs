@@ -1,13 +1,14 @@
 ﻿using Client.Main.Controls.UI;
 using Client.Main.Objects.NPCS;
+using Client.Main.Objects.Monsters;
 using Client.Main;
 using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework;
 
 public class CursorControl : SpriteControl
 {
-    public Vector2[] DefaultAnimation = { new(0, 0) };
-    public Vector2[] TalkAnimation = { new(0, 0), new(1, 0), new(0, 1), new(1, 1) };
+    public Vector2[] DefaultAnimation = { new Vector2(0, 0) };
+    public Vector2[] TalkAnimation = { new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 1), new Vector2(1, 1) };
     public Vector2[] CurrentAnimation;
     private int animationIndex = 0;
     private double animationTimer = 0;
@@ -17,7 +18,7 @@ public class CursorControl : SpriteControl
     {
         AutoViewSize = false;
         BlendState = Blendings.Alpha;
-        TexturePath = "Interface/Cursor.tga";
+        TexturePath = "Interface/Cursor.ozt";
         TileWidth = 32;
         TileHeight = 32;
         TileX = 0;
@@ -32,17 +33,25 @@ public class CursorControl : SpriteControl
 
         if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed)
         {
-            TexturePath = "Interface/CursorPush.tga";
+            TexturePath = "Interface/CursorPush.ozt";
+            CurrentAnimation = DefaultAnimation;
+        }
+        else if (Scene.MouseHoverObject is MonsterObject)
+        {
+            // Use attack cursor when hovering over a monster
+            TexturePath = "Interface/CursorAttack.ozt";
             CurrentAnimation = DefaultAnimation;
         }
         else if (Scene.MouseHoverObject is NPCObject)
         {
-            TexturePath = "Interface/CursorTalk.tga";
+            // Use talk cursor when hovering over an NPC
+            TexturePath = "Interface/CursorTalk.ozt";
             CurrentAnimation = TalkAnimation;
         }
         else
         {
-            TexturePath = "Interface/Cursor.tga";
+            // Default cursor
+            TexturePath = "Interface/Cursor.ozt";
             CurrentAnimation = DefaultAnimation;
         }
 
