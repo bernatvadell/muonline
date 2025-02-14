@@ -30,14 +30,17 @@ namespace Client.Main.Controls.UI
         private const int TextMargin = 10;
         private const int CursorBlinkInterval = 500;
 
-        // FontSize controls the size of the rendered text.
+        // Controls the size of the rendered text.
         public float FontSize { get; set; } = 12f;
+        public TextFieldControl NextInput { get; set; }
+        public bool IsFocused { get; private set; }
 
         public TextFieldControl()
         {
             AutoViewSize = false;
             ViewSize = new Point(170, 25);
             Interactive = true;
+            IsFocused = false;
         }
 
         public string Value
@@ -56,9 +59,7 @@ namespace Client.Main.Controls.UI
         public override async Task Load()
         {
             await base.Load();
-
             var windowName = "textbg";
-
             _cornerTopLeftTexture = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/{windowName}01.ozd");
             _topLineTexture = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/{windowName}02.ozd");
             _cornerTopRightTexture = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/{windowName}03.ozd");
@@ -70,17 +71,19 @@ namespace Client.Main.Controls.UI
             _cornerBottomRightTexture = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/{windowName}09.ozd");
         }
 
-        public override void OnBlur()
-        {
-            base.OnBlur();
-            _showCursor = false;
-            _cursorBlinkTimer = 0;
-        }
-
         public override void OnFocus()
         {
             base.OnFocus();
+            IsFocused = true;
             _showCursor = true;
+            _cursorBlinkTimer = 0;
+        }
+
+        public override void OnBlur()
+        {
+            base.OnBlur();
+            IsFocused = false;
+            _showCursor = false;
             _cursorBlinkTimer = 0;
         }
 
@@ -162,7 +165,7 @@ namespace Client.Main.Controls.UI
         {
             base.Update(gameTime);
 
-            if (!HasFocus) return;
+            if (!IsFocused) return;
 
             var keysPressed = MuGame.Instance.Keyboard.GetPressedKeys();
             bool shift = MuGame.Instance.Keyboard.IsKeyDown(Keys.LeftShift) || MuGame.Instance.Keyboard.IsKeyDown(Keys.RightShift);
@@ -237,7 +240,7 @@ namespace Client.Main.Controls.UI
 
             sprite.DrawString(GraphicsManager.Instance.Font, textToDisplay, textPosition, Color.White, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 0f);
 
-            if (HasFocus && _showCursor)
+            if (IsFocused && _showCursor)
             {
                 var textWidth = GraphicsManager.Instance.Font.MeasureString(textToDisplay).X * scaleFactor;
                 var cursorPosition = textPosition + new Vector2(textWidth, 0);
