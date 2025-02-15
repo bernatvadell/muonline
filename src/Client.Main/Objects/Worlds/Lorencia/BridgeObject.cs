@@ -104,6 +104,16 @@ namespace Client.Main.Objects.Worlds.Lorencia
             }
         }
 
+        public override void DrawMesh(int mesh)
+        {
+            if (Type == 80 && mesh == 1)
+            {
+                return;
+            }
+
+            base.DrawMesh(mesh);
+        }
+
         private void UpdateFlameSet(FlameSet flameSet, float time)
         {
             UpdateIndividualWindEffects(flameSet, time);
