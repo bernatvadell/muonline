@@ -188,6 +188,11 @@ namespace Client.Main
             {
                 Debug.WriteLine(e);
             }
+            finally
+            {
+                // Ensure that no render target is active to avoid the Present error
+                GraphicsDevice.SetRenderTarget(null);
+            }
         }
 
         private void DrawSceneToMainRenderTarget(GameTime gameTime)
