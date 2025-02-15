@@ -230,29 +230,33 @@ namespace Client.Main.Objects
             IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
             int primitiveCount = indexBuffer.IndexCount / 3;
 
-            float scaleHightlight = 0.015f;
-            float scaleFactor = Scale + scaleHightlight;
+            // Define a small highlight offset
+            float scaleHighlight = 0.015f;
+            // Use fixed multiplier independent of the object's Scale, since WorldPosition already includes it
+            float scaleFactor = 1f + scaleHighlight;
 
+            // Create the highlight transformation matrix
             var highlightMatrix = Matrix.CreateScale(scaleFactor)
-                * Matrix.CreateTranslation(-scaleHightlight, -scaleHightlight, -scaleHightlight)
+                * Matrix.CreateTranslation(-scaleHighlight, -scaleHighlight, -scaleHighlight)
                 * WorldPosition;
 
+            // Save previous graphics states
             var previousDepthState = GraphicsDevice.DepthStencilState;
             var previousBlendState = GraphicsDevice.BlendState;
 
             GraphicsManager.Instance.AlphaTestEffect3D.World = highlightMatrix;
             GraphicsManager.Instance.AlphaTestEffect3D.Texture = _boneTextures[mesh];
 
-            // Set highlight color based on object type: red for Monster, green for NPC/others.
+            // Set highlight color: red for Monster objects, green for others
             Vector3 highlightColor = new Vector3(0, 1, 0); // default green
             if (this is Monsters.MonsterObject)
             {
                 highlightColor = new Vector3(1, 0, 0); // red for monster
             }
             GraphicsManager.Instance.AlphaTestEffect3D.DiffuseColor = highlightColor;
-
             GraphicsManager.Instance.AlphaTestEffect3D.Alpha = 1f;
 
+            // Configure depth and blend states for drawing the highlight
             GraphicsDevice.DepthStencilState = new DepthStencilState
             {
                 DepthBufferEnable = true,
@@ -260,15 +264,16 @@ namespace Client.Main.Objects
             };
             GraphicsDevice.BlendState = BlendState.Additive;
 
+            // Draw the mesh highlight
             foreach (EffectPass pass in GraphicsManager.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
             {
                 pass.Apply();
-
                 GraphicsDevice.SetVertexBuffer(vertexBuffer);
                 GraphicsDevice.Indices = indexBuffer;
                 GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
             }
 
+            // Restore previous graphics states
             GraphicsDevice.DepthStencilState = previousDepthState;
             GraphicsDevice.BlendState = previousBlendState;
 
