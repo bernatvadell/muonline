@@ -56,7 +56,7 @@ namespace Client.Main.Objects.Worlds.Lorencia
         public FireLightObject()
         {
             LightEnabled = true;
-            BlendMesh = 0;
+            BlendMesh = 2;
             _random = new Random();
 
             // Initializing effect lists

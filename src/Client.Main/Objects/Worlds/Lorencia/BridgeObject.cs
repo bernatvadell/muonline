@@ -94,7 +94,7 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
             if (Type == 80)
             {
-                var time = (float)gameTime.TotalGameTime.TotalSeconds;
+                float time = (float)gameTime.TotalGameTime.TotalSeconds;
 
                 _firstFlameSet.BasePosition = BoneTransform[0].Translation + new Vector3(100f, 210f, 20f);
                 _secondFlameSet.BasePosition = BoneTransform[0].Translation + new Vector3(100f, -210f, 20f);
@@ -117,7 +117,7 @@ namespace Client.Main.Objects.Worlds.Lorencia
         private void UpdateFlameSet(FlameSet flameSet, float time)
         {
             UpdateIndividualWindEffects(flameSet, time);
-            var baseLuminosity = CalculateBaseLuminosity(time);
+            float baseLuminosity = CalculateBaseLuminosity(time);
             UpdateFireEffects(flameSet, time, baseLuminosity);
         }
 
@@ -147,18 +147,18 @@ namespace Client.Main.Objects.Worlds.Lorencia
         private Vector3 CalculateIndividualFlameOffset(FlameSet flameSet, int index, float time, float baseFrequency, float amplitude)
         {
             float individualPhase = flameSet.IndividualWindTimes[index];
-            var windOffset = flameSet.IndividualWindStrengths[index] * new Vector3(1f, 0.4f, 0f);
+            Vector3 windOffset = flameSet.IndividualWindStrengths[index] * new Vector3(1f, 0.4f, 0f);
 
             return new Vector3(
-                (float)Math.Sin(time * baseFrequency + individualPhase) * amplitude * (0.8f + (float)_random.NextDouble() * 0.4f),
-                (float)Math.Cos(time * baseFrequency * 0.9f + individualPhase) * amplitude * (0.7f + (float)_random.NextDouble() * 0.3f),
-                (float)Math.Sin(time * (baseFrequency * 1.1f) + individualPhase) * (amplitude * 0.4f)
+                (float)Math.Sin(time * baseFrequency + individualPhase) * amplitude * (0.8f + (float)_random.NextDouble() * 0.2f),
+                (float)Math.Cos(time * baseFrequency * 0.9f + individualPhase) * amplitude * (0.7f + (float)_random.NextDouble() * 0.2f),
+                (float)Math.Sin(time * (baseFrequency * 1.1f) + individualPhase) * (amplitude * 0.3f)
             ) + windOffset;
         }
 
         private void UpdateFireEffects(FlameSet flameSet, float time, float baseLuminosity)
         {
-            var turbulence = CalculateTurbulence(time);
+            float turbulence = CalculateTurbulence(time);
 
             for (int i = 0; i < FLAME_COUNT; i++)
             {
@@ -190,55 +190,72 @@ namespace Client.Main.Objects.Worlds.Lorencia
         {
             var flame = flameSet.BaseFlames[index];
             float individualIntensity = 0.8f + (float)Math.Sin(flameSet.ScaleOffsets[index]) * 0.1f;
-            var flameIntensity = ClampAlpha(baseLuminosity * turbulence * individualIntensity);
+            float flicker = 0.98f + 0.05f * (float)Math.Sin(time * (1.8f + flameSet.IndividualWindTimes[index]));
+            float flameIntensity = ClampAlpha(baseLuminosity * turbulence * individualIntensity * flicker);
             flame.Alpha = flameIntensity;
 
-            var offset = CalculateIndividualFlameOffset(flameSet, index, time, 1.8f, 7.0f);
-            flame.Position = flameSet.BasePosition + offset + new Vector3(0f, -5f, _baseHeight);
+            Vector3 offset = CalculateIndividualFlameOffset(flameSet, index, time, 1.8f, 7.0f);
+            Vector3 driftOffset = new Vector3(
+                (float)Math.Sin(time * 0.2f + flameSet.IndividualWindTimes[index]),
+                (float)Math.Cos(time * 0.2f + flameSet.IndividualWindTimes[index]),
+                0f
+            ) * 1.5f;
+            flame.Position = flameSet.BasePosition + offset + driftOffset + new Vector3(0f, -5f, _baseHeight);
 
-            var colorIntensity = 0.85f + turbulence * 0.15f;
+            float colorIntensity = 0.85f + turbulence * 0.15f;
             flame.Light = BaseFlameColor * flameIntensity * colorIntensity;
 
-            flame.Scale = CalculateFlameScale(flameSet, index, 1.5f, turbulence, time);
+            flame.Scale = CalculateFlameScale(flameSet, index, 1.5f, turbulence, time) * (0.98f + 0.05f * (float)Math.Sin(time * 2.5f + flameSet.ScaleOffsets[index]));
         }
 
         private void UpdateMiddleFlame(FlameSet flameSet, int index, float time, float baseLuminosity, float turbulence)
         {
             var flame = flameSet.MiddleFlames[index];
             float individualIntensity = 0.75f + (float)Math.Sin(flameSet.ScaleOffsets[index]) * 0.15f;
-            var flameIntensity = ClampAlpha(baseLuminosity * turbulence * individualIntensity);
+            float flicker = 0.98f + 0.05f * (float)Math.Sin(time * (2.2f + flameSet.IndividualWindTimes[index]));
+            float flameIntensity = ClampAlpha(baseLuminosity * turbulence * individualIntensity * flicker);
             flame.Alpha = flameIntensity;
 
-            var offset = CalculateIndividualFlameOffset(flameSet, index, time, 2.2f, 6.0f);
-            flame.Position = flameSet.BasePosition + offset + new Vector3(0f, -5f, _baseHeight + 18f);
+            Vector3 offset = CalculateIndividualFlameOffset(flameSet, index, time, 2.2f, 6.0f);
+            Vector3 driftOffset = new Vector3(
+                (float)Math.Sin(time * 0.2f + flameSet.IndividualWindTimes[index] + 0.5f),
+                (float)Math.Cos(time * 0.2f + flameSet.IndividualWindTimes[index] + 0.5f),
+                0f
+            ) * 1.5f;
+            flame.Position = flameSet.BasePosition + offset + driftOffset + new Vector3(0f, -5f, _baseHeight + 18f);
 
-            var colorIntensity = 0.9f + turbulence * 0.1f;
+            float colorIntensity = 0.9f + turbulence * 0.1f;
             flame.Light = MiddleFlameColor * flameIntensity * colorIntensity;
 
-            flame.Scale = CalculateFlameScale(flameSet, index, 2.0f, turbulence, time);
+            flame.Scale = CalculateFlameScale(flameSet, index, 2.0f, turbulence, time) * (0.98f + 0.05f * (float)Math.Cos(time * 2.8f + flameSet.ScaleOffsets[index]));
         }
 
         private void UpdateTopFlame(FlameSet flameSet, int index, float time, float baseLuminosity, float turbulence)
         {
             var flame = flameSet.TopFlames[index];
             float individualIntensity = 0.7f + (float)Math.Sin(flameSet.ScaleOffsets[index]) * 0.2f;
-            var flameIntensity = ClampAlpha(baseLuminosity * turbulence * individualIntensity);
+            float flicker = 0.98f + 0.02f * (float)Math.Sin(time * (2.5f + flameSet.IndividualWindTimes[index]));
+            float flameIntensity = ClampAlpha(baseLuminosity * turbulence * individualIntensity * flicker);
             flame.Alpha = flameIntensity;
 
-            var offset = CalculateIndividualFlameOffset(flameSet, index, time, 2.5f, 5.0f);
-            var heightVariation = (float)Math.Sin(time * 2.0f + flameSet.IndividualWindTimes[index]) * 12.0f +
-                                flameSet.IndividualWindStrengths[index] * 10.0f;
-
-            flame.Position = flameSet.BasePosition + offset + new Vector3(
+            Vector3 offset = CalculateIndividualFlameOffset(flameSet, index, time, 2.5f, 5.0f);
+            float heightVariation = (float)Math.Sin(time * 2.0f + flameSet.IndividualWindTimes[index]) * 12.0f +
+                                    flameSet.IndividualWindStrengths[index] * 10.0f;
+            Vector3 driftOffset = new Vector3(
+                (float)Math.Sin(time * 0.2f + flameSet.IndividualWindTimes[index] + 1.0f),
+                (float)Math.Cos(time * 0.2f + flameSet.IndividualWindTimes[index] + 1.0f),
+                0f
+            ) * 1.5f;
+            flame.Position = flameSet.BasePosition + offset + driftOffset + new Vector3(
                 flameSet.IndividualWindStrengths[index] * 4.0f,
                 -5f,
                 _baseHeight + 35f + heightVariation
             );
 
-            var colorIntensity = 0.95f + turbulence * 0.1f;
+            float colorIntensity = 0.95f + turbulence * 0.1f;
             flame.Light = TopFlameColor * flameIntensity * colorIntensity;
 
-            flame.Scale = CalculateFlameScale(flameSet, index, 2.2f, turbulence, time);
+            flame.Scale = CalculateFlameScale(flameSet, index, 2.2f, turbulence, time) * (0.98f + 0.05f * (float)Math.Sin(time * 3.0f + flameSet.ScaleOffsets[index]));
         }
 
         private float ClampAlpha(float alpha)
