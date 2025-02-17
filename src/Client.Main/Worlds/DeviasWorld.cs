@@ -38,13 +38,16 @@ namespace Client.Main.Worlds
             for (var i = 81; i < 83; i++)
                 MapTileObjects[i] = typeof(HouseWallObject); // Roof
 
+            for (var i = 83; i < 86; i++)
+                MapTileObjects[i] = typeof(FlagObject);
+
             for (var i = 88; i < 89; i++)
                 MapTileObjects[i] = typeof(SteelDoorObject);
 
-            MapTileObjects[98] = typeof(HouseWallObject); // Roof
+            MapTileObjects[91] = typeof(RestPlaceObject);
 
-            for (var i = 83; i < 86; i++)
-                MapTileObjects[i] = typeof(FlagObject);
+            MapTileObjects[98] = typeof(HouseWallObject); // Roof
+            MapTileObjects[99] = typeof(HouseWallObject); // Roof
         }
     }
 }

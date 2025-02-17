@@ -6,10 +6,13 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Player
 {
-
     public class PlayerObject : WalkerObject
     {
-        // private PlayerShadowObject _shadowObject;
+        // Indicates whether the player is currently in a resting state.
+        public bool IsResting { get; set; } = false;
+        // When set, indicates the target tile of a RestPlace.
+        public Vector2? RestPlaceTarget { get; set; }
+
         private PlayerMaskHelmObject _helmMask;
         private PlayerHelmObject _helm;
         private PlayerArmorObject _armor;
@@ -19,14 +22,21 @@ namespace Client.Main.Objects.Player
         private WingObject _wing;
         private PlayerClass _playerClass;
 
-        public PlayerClass PlayerClass { get => _playerClass; set { _playerClass = value; OnChangePlayerClass(); } }
+        public PlayerClass PlayerClass
+        {
+            get => _playerClass;
+            set { _playerClass = value; OnChangePlayerClass(); }
+        }
 
-        public new PlayerAction CurrentAction { get => (PlayerAction)base.CurrentAction; set => base.CurrentAction = (int)value; }
+        // Changed property to use PlayerAction.
+        public new PlayerAction CurrentAction
+        {
+            get => (PlayerAction)base.CurrentAction;
+            set => base.CurrentAction = (int)value;
+        }
 
         public PlayerObject()
         {
-            //var color = new Color(255, (byte)(255 * 0.1f), (byte)(255 * 0.1f));
-            //color = Color.White;
             BoundingBoxLocal = new BoundingBox(new Vector3(-40, -40, 0), new Vector3(40, 40, 120));
             Scale = 0.85f;
             AnimationSpeed = 8f;
@@ -75,9 +85,7 @@ namespace Client.Main.Objects.Player
         public override async Task Load()
         {
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
-
             OnChangePlayerClass();
-
             await base.Load();
         }
 
@@ -88,36 +96,49 @@ namespace Client.Main.Objects.Player
             if (World is not WalkableWorldControl)
                 return;
 
+            // If a rest target has been set, check if the player is at the rest place.
+            if (RestPlaceTarget.HasValue)
+            {
+                float restDistance = Vector2.Distance(Location, RestPlaceTarget.Value);
+                // If the player is very close to the designated rest tile, force resting animation.
+                if (restDistance < 0.1f)
+                {
+                    if (World.WorldIndex == 4)
+                    {
+                        CurrentAction = PlayerAction.PlayerFlyingRest;
+                    }
+                    else
+                    {
+                        CurrentAction = PlayerAction.PlayerStandingRest;
+                    }
+                    // Remain in resting state as long as the player stays at the rest place.
+                    return;
+                }
+                // If the player has started moving away from the rest place beyond a threshold, clear the rest state.
+                else if (restDistance > 1.0f) // threshold,  1 tile
+                {
+                    RestPlaceTarget = null;
+                    IsResting = false;
+                }
+            }
+
+            // Normal update of animations when not in rest state.
             if (IsMoving)
             {
                 if (World.WorldIndex == 8)
-                {
                     CurrentAction = PlayerAction.RunSwim;
-                }
                 else if (World.WorldIndex == 11)
-                {
                     CurrentAction = PlayerAction.Fly;
-                }
                 else
-                {
                     CurrentAction = PlayerAction.WalkMale;
-                }
             }
-
-
-            else if (!IsMoving)
+            else
             {
                 if (World.WorldIndex == 8 || World.WorldIndex == 11)
-                {
                     CurrentAction = PlayerAction.StopFlying;
-                }
                 else
-                {
                     CurrentAction = PlayerAction.StopMale;
-                }
             }
-
-
         }
 
         public override void Draw(GameTime gameTime)

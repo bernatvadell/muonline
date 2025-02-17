@@ -35,7 +35,7 @@ namespace Client.Main.Objects.Worlds.Devias
         private Vector3 _startPosition;    // Starting position for sliding animation
         private Vector3 _targetPosition;   // Target position for animation
         public Vector3 SlidingDirection { get; set; } // Sliding direction
-        private const float SLIDING_DISTANCE = 100f;    // Sliding distance – adjust as needed
+        private const float SLIDING_DISTANCE = 150f;    // Sliding distance – adjust as needed
 
         // --- Dictionary of pairs (for rotating doors, e.g., 88/65) ---
         // For other types (e.g., 20 or 86), pair doors of the same type.
@@ -100,12 +100,12 @@ namespace Client.Main.Objects.Worlds.Devias
                 if (_isSlidingDoor)
                 {
                     // --- Pairing for sliding doors (type 86) ---
-                    // Calculate the vector connecting the doors, ignoring the Y axis (movement occurs on the XZ plane)
+                    // Calculate the vector connecting the doors, ignoring the Z axis (movement occurs on the XY plane)
                     Vector3 diff = nearbyDoor.Position - this.Position;
-                    Vector3 diffXZ = new Vector3(diff.X, 0, diff.Z);
-                    if (diffXZ != Vector3.Zero)
+                    Vector3 diffXY = new Vector3(diff.X, diff.Y, 0);
+                    if (diffXY != Vector3.Zero)
                     {
-                        Vector3 normDiff = Vector3.Normalize(diffXZ);
+                        Vector3 normDiff = Vector3.Normalize(diffXY);
                         // We determine that these doors slide in opposite directions:
                         // - this door: in the opposite direction to the connecting vector,
                         // - partner door: along the vector.
@@ -115,8 +115,8 @@ namespace Client.Main.Objects.Worlds.Devias
                     else
                     {
                         // When the doors are exactly in the same position – set default directions
-                        this.SlidingDirection = Vector3.Right;
-                        nearbyDoor.SlidingDirection = Vector3.Left;
+                        this.SlidingDirection = new Vector3(1, 0, 0);
+                        nearbyDoor.SlidingDirection = new Vector3(-1, 0, 0);
                     }
 
                     // Calculate the open position: closed position shifted by SLIDING_DISTANCE along the sliding direction.
@@ -126,25 +126,20 @@ namespace Client.Main.Objects.Worlds.Devias
                 else
                 {
                     // --- Pairing for rotating doors ---
-                    // Determine rotation directions so that, despite different initial orientations, the doors open "in the same direction"
                     const float epsilon = 0.1f;
                     float normalizedAngle = Angle.Z % MathHelper.TwoPi;
                     if (Math.Abs(normalizedAngle) < epsilon || Math.Abs(normalizedAngle - MathHelper.TwoPi) < epsilon)
                     {
-                        // Doors with angle ~0° – set such that this door rotates with RotationDirection = -1,
-                        // and the partner door with RotationDirection = 1.
                         RotationDirection = -1;
                         nearbyDoor.RotationDirection = 1;
                     }
                     else if (Math.Abs(normalizedAngle - MathHelper.Pi) < epsilon)
                     {
-                        // Doors with angle ~180°
                         RotationDirection = 1;
                         nearbyDoor.RotationDirection = -1;
                     }
                     else
                     {
-                        // Alternative logic – based on position (e.g., smaller X indicates left door)
                         if (Position.X < nearbyDoor.Position.X)
                         {
                             RotationDirection = -1;
@@ -281,7 +276,7 @@ namespace Client.Main.Objects.Worlds.Devias
                     StartSliding(false);
 
                 UpdateSliding(gameTime);
-                _pairedDoor?.UpdateSliding(gameTime);
+                // Removed redundant update call for paired door
             }
             else
             {

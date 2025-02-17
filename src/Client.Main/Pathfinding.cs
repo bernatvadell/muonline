@@ -84,26 +84,26 @@ namespace Client.Main
 
         private static float Heuristic(Vector2 a, Vector2 b)
         {
-            return Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y);
+            return Vector2.Distance(a, b);
         }
 
         private static float Distance(Vector2 a, Vector2 b)
         {
-            return Math.Abs(a.X - b.X) + Math.Abs(a.Y - b.Y);
+            return Vector2.Distance(a, b);
         }
 
         private static IEnumerable<Vector2> GetNeighbors(Vector2 position, WorldControl world)
         {
             Vector2[] directions = new[]
             {
-                new Vector2(0, -1), // North
-                new Vector2(0, 1),  // South
-                new Vector2(-1, 0), // West
-                new Vector2(1, 0),  // East
+                new Vector2(0, -1),  // North
+                new Vector2(0, 1),   // South
+                new Vector2(-1, 0),  // West
+                new Vector2(1, 0),   // East
                 new Vector2(-1, -1), // Northwest
                 new Vector2(1, -1),  // Northeast
                 new Vector2(-1, 1),  // Southwest
-                new Vector2(1, 1)   // Southeast
+                new Vector2(1, 1)    // Southeast
             };
 
             foreach (var direction in directions)

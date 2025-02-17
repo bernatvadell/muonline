@@ -41,6 +41,8 @@ namespace Client.Main.Worlds
             base.CreateMapTileObjects();
 
             MapTileObjects[39] = typeof(ChaosMachineObject);
+
+            MapTileObjects[38] = typeof(RestPlaceObject);
         }
     }
 }

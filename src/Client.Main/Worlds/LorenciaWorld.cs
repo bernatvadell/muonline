@@ -126,7 +126,7 @@ namespace Client.Main.Worlds
             for (var i = 0; i < 3; i++)
                 MapTileObjects[130 + i] = typeof(LightObject);
 
-            MapTileObjects[133] = typeof(PoseBoxObject);
+            MapTileObjects[133] = typeof(RestPlaceObject);
 
             for (var i = 0; i < 7; i++)
                 MapTileObjects[140 + i] = typeof(FurnitureObject);

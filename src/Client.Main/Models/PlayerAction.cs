@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Client.Main.Models
+﻿namespace Client.Main.Models
 {
     public enum PlayerAction
     {
@@ -66,6 +60,13 @@ namespace Client.Main.Models
         EvilSpiritSkill = 157,
         FlameSkill = 158,
 
-
+        PlayerSit1 = 360,
+        PlayerSit2 = 361,
+        PlayerSit3 = 362,
+        PlayerSit4 = 363,
+        PlayerSit5 = 364,
+        PlayerSit6 = 365,
+        PlayerStandingRest = 369,
+        PlayerFlyingRest = 367
     }
 }
