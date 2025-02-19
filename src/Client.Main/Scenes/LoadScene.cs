@@ -1,11 +1,12 @@
 ﻿using Client.Main.Controls.UI;
+using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
 using System;
-using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -18,8 +19,17 @@ namespace Client.Main.Scenes
         private string _statusText;
         private bool _isDownloadComplete;
 
-        // Cola de acciones para actualizar la interfaz gráfica desde el hilo principal
-        private readonly Queue<Action> _uiActions = new Queue<Action>();
+        // Textura del fondo
+        private Texture2D _backgroundTexture;
+
+        // Barra de progreso
+        private const int ProgressBarWidth = 600;
+        private const int ProgressBarHeight = 30;
+        private const int ProgressBarX = 100;
+        private const int ProgressBarY = 400;
+
+        // BasicEffect para dibujar
+        private BasicEffect _basicEffect;
 
         public LoadScene()
         {
@@ -31,8 +41,8 @@ namespace Client.Main.Scenes
             _statusLabel = new LabelControl
             {
                 Text = _statusText,
-                X = 100,
-                Y = 350,
+                X = 50,
+                Y = MuGame.Instance.Height - 50, // Ajustar posición según la altura de la ventana
                 FontSize = 12,
                 TextColor = Color.White
             };
@@ -43,20 +53,41 @@ namespace Client.Main.Scenes
 
         public override async Task Load()
         {
+            Console.WriteLine("LoadScene.Load");
+
+            // Cargar la textura del fondo
+            _backgroundTexture = MuGame.Instance.Content.Load<Texture2D>("Background");
+
+            // Inicializar BasicEffect
+            _basicEffect = new BasicEffect(MuGame.Instance.GraphicsDevice)
+            {
+                VertexColorEnabled = true,
+                Projection = Matrix.CreateOrthographicOffCenter(0, MuGame.Instance.Width, MuGame.Instance.Height, 0, 0, 1),
+                View = Matrix.Identity,
+                World = Matrix.Identity
+            };
+
+            await ChangeWorldAsync<LoadWorld>();
             await base.Load();
+        }
+
+        public override void AfterLoad()
+        {
+            base.AfterLoad();
 
             // Comprobar si la carpeta Data ya existe
             string extractPath = Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
-            if (Directory.Exists(extractPath))
-            {
-                _statusText = "Data folder already exists. Skipping download and extraction.";
-                EnqueueUIUpdate(() => _statusLabel.Text = _statusText);
+            Console.WriteLine($"ExtractPath: {extractPath}");
 
-                // Cambiar directamente a la escena de inicio de sesión
-                await Task.Delay(1000); // Esperar un momento antes de cambiar de escena
-                MuGame.Instance.ChangeScene<LoginScene>();
-                return;
-            }
+            // if (Directory.Exists(extractPath))
+            // {
+            //     _statusText = "Data folder already exists. Skipping download and extraction.";
+            //     EnqueueUIUpdate(() => _statusLabel.Text = _statusText);
+            //     // Cambiar directamente a la escena de inicio de sesión
+            //     await Task.Delay(1000); // Esperar un momento antes de cambiar de escena
+            //     MuGame.Instance.ChangeScene<LoginScene>();
+            //     return;
+            // }
 
             // Si no existe, iniciar la descarga y extracción
             StartDownloadingAssets();
@@ -71,9 +102,17 @@ namespace Client.Main.Scenes
             try
             {
                 _statusText = "Connecting to server...";
-                EnqueueUIUpdate(() => _statusLabel.Text = _statusText);
+                _statusLabel.Text = _statusText;
+                // SocketsHttpHandler handler = new SocketsHttpHandler();
+                SocketsHttpHandler handler = new SocketsHttpHandler
+                {
+                    // AllowAutoRedirect = true,
+                    // PooledConnectionLifetime = TimeSpan.FromMinutes(10), // Reutiliza conexiones
+                    // PooledConnectionIdleTimeout = TimeSpan.FromSeconds(30), // Evita timeout rápido
+                    // MaxConnectionsPerServer = 10 // Permite más conexiones simultáneas
+                };
 
-                using (HttpClient client = new HttpClient())
+                using (HttpClient client = new HttpClient(handler))
                 {
                     // Configurar el cliente para informar el progreso
                     using (var response = await client.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead))
@@ -99,21 +138,28 @@ namespace Client.Main.Scenes
                                     _progress = (float)receivedBytes / totalBytes.Value;
                                     _statusText = $"Downloading assets... {(_progress * 100):F0}%";
                                     Console.WriteLine($"Downloading assets... {(_progress * 100):F0}%");
-
-                                    // Encolar la actualización de la interfaz gráfica
-                                    EnqueueUIUpdate(() =>
-                                    {
-                                        _statusLabel.Text = _statusText;
-                                    });
+                                    _statusLabel.Text = _statusText;
                                 }
                             }
                         }
                     }
                 }
 
-                // Descomprimir el archivo ZIP con progreso
+                // using (var client = new WebClient())
+                // {
+                //     client.DownloadProgressChanged += (s, e) => 
+                //     {
+                //         _progress = (float)e.BytesReceived / e.TotalBytesToReceive;
+                //         _statusText = $"Downloading assets... {(_progress * 100):F0}%";
+                //         Console.WriteLine($"Downloading assets... {(_progress * 100):F0}%");
+                //         _statusLabel.Text = _statusText;
+                //     };
+                    
+                //     await client.DownloadFileTaskAsync(new Uri(downloadUrl), tempFilePath);
+                // }
+// Descomprimir el archivo ZIP con progreso
                 _statusText = "Extracting assets...";
-                EnqueueUIUpdate(() => _statusLabel.Text = _statusText);
+                _statusLabel.Text = _statusText;
 
                 Directory.CreateDirectory(extractPath); // Crear carpeta para los archivos extraídos
                 await ExtractWithProgress(tempFilePath, extractPath);
@@ -121,26 +167,47 @@ namespace Client.Main.Scenes
                 // Marcar como completado
                 _isDownloadComplete = true;
                 _statusText = "Download complete!";
-                EnqueueUIUpdate(() =>
-                {
-                    _statusLabel.Text = _statusText;
-                });
+                _statusLabel.Text = _statusText;
 
                 // Cambiar a la escena de inicio de sesión
                 await Task.Delay(500); // Esperar un momento antes de cambiar de escena
-                EnqueueUIUpdate(() =>
-                {
-                    MuGame.Instance.ChangeScene<LoginScene>();
-                });
+                MuGame.Instance.ChangeScene<LoginScene>();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error during download or extraction: {ex.Message}");
                 _statusText = "Download failed!";
-                EnqueueUIUpdate(() =>
+                _statusLabel.Text = _statusText;
+            }
+        }
+
+        private async Task DownloadFile(HttpClient client, string url, string savePath)
+        {
+            using (var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead))
+            {
+                response.EnsureSuccessStatusCode();
+                long? totalBytes = response.Content.Headers.ContentLength;
+                long receivedBytes = 0;
+
+                using (var contentStream = await response.Content.ReadAsStreamAsync())
+                using (var fileStream = new FileStream(savePath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 65536, useAsync: true))
                 {
-                    _statusLabel.Text = _statusText;
-                });
+                    byte[] buffer = new byte[65536]; // 64 KB en lugar de 10 MB
+                    int bytesRead;
+
+                    while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                    {
+                        await fileStream.WriteAsync(buffer, 0, bytesRead);
+                        await fileStream.FlushAsync(); // Asegura que los datos se escriban en disco
+                        receivedBytes += bytesRead;
+
+                        if (totalBytes.HasValue)
+                        {
+                            float progress = (float)receivedBytes / totalBytes.Value;
+                            // Console.WriteLine($"Downloading... {(progress * 100):F0}%");
+                        }
+                    }
+                }
             }
         }
 
@@ -171,12 +238,7 @@ namespace Client.Main.Scenes
                     float progress = (float)extractedEntries / totalEntries;
                     _statusText = $"Extracting assets... {progress * 100:F0}%";
                     Console.WriteLine($"Extracting assets... {progress * 100:F0}%");
-
-                    // Encolar la actualización de la interfaz gráfica
-                    EnqueueUIUpdate(() =>
-                    {
-                        _statusLabel.Text = _statusText;
-                    });
+                    _statusLabel.Text = _statusText;
 
                     // Simular un pequeño retraso para visualizar el progreso
                     await Task.Delay(10);
@@ -184,44 +246,93 @@ namespace Client.Main.Scenes
             }
         }
 
-        public override void Update(GameTime gameTime)
-        {
-            // Procesar todas las acciones encoladas para la interfaz gráfica
-            ProcessUIActions();
-
-            // Permitir al usuario saltar la pantalla de descarga si ya está completa
-            if (_isDownloadComplete && MuGame.Instance.Keyboard.IsKeyDown(Keys.Enter))
-            {
-                MuGame.Instance.ChangeScene<LoginScene>();
-            }
-        }
-
         public override void Draw(GameTime gameTime)
         {
-            // Dibujar fondo o elementos adicionales si es necesario
-            MuGame.Instance.GraphicsDevice.Clear(Color.Black);
+            // Dibujar el fondo
+            _DrawBackground();
+
+            // Dibujar la barra de progreso
+            // DrawProgressBar();
+
+            // Dibujar los controles
             base.Draw(gameTime);
         }
 
-        // Método para encolar actualizaciones de la interfaz gráfica
-        private void EnqueueUIUpdate(Action action)
+        private void _DrawBackground()
         {
-            lock (_uiActions)
+            if (_backgroundTexture != null)
             {
-                _uiActions.Enqueue(action);
+                // Definir los vértices para el fondo
+                var vertices = new VertexPositionTexture[]
+                {
+                    new VertexPositionTexture(new Vector3(0, 0, 0), new Vector2(0, 0)),
+                    new VertexPositionTexture(new Vector3(MuGame.Instance.Width, 0, 0), new Vector2(1, 0)),
+                    new VertexPositionTexture(new Vector3(0, MuGame.Instance.Height, 0), new Vector2(0, 1)),
+                    new VertexPositionTexture(new Vector3(MuGame.Instance.Width, MuGame.Instance.Height, 0), new Vector2(1, 1))
+                };
+
+                // Configurar BasicEffect
+                _basicEffect.TextureEnabled = true;
+                _basicEffect.Texture = _backgroundTexture;
+
+                foreach (var pass in _basicEffect.CurrentTechnique.Passes)
+                {
+                    pass.Apply();
+                    MuGame.Instance.GraphicsDevice.DrawUserPrimitives(
+                        PrimitiveType.TriangleStrip,
+                        vertices,
+                        0,
+                        2);
+                }
             }
         }
 
-        // Método para procesar todas las acciones encoladas
-        private void ProcessUIActions()
+        private void DrawProgressBar()
         {
-            lock (_uiActions)
+            // Calcular el ancho actual de la barra de progreso
+            int currentWidth = (int)(ProgressBarWidth * _progress);
+
+            // Definir los vértices para el fondo de la barra de progreso
+            var backgroundVertices = new VertexPositionColor[]
             {
-                while (_uiActions.Count > 0)
-                {
-                    var action = _uiActions.Dequeue();
-                    action?.Invoke();
-                }
+                new VertexPositionColor(new Vector3(ProgressBarX, ProgressBarY, 0), Color.DarkGray),
+                new VertexPositionColor(new Vector3(ProgressBarX + ProgressBarWidth, ProgressBarY, 0), Color.DarkGray),
+                new VertexPositionColor(new Vector3(ProgressBarX, ProgressBarY + ProgressBarHeight, 0), Color.DarkGray),
+                new VertexPositionColor(new Vector3(ProgressBarX + ProgressBarWidth, ProgressBarY + ProgressBarHeight, 0), Color.DarkGray)
+            };
+
+            // Definir los vértices para el progreso actual
+            var progressVertices = new VertexPositionColor[]
+            {
+                new VertexPositionColor(new Vector3(ProgressBarX, ProgressBarY, 0), Color.Green),
+                new VertexPositionColor(new Vector3(ProgressBarX + currentWidth, ProgressBarY, 0), Color.Green),
+                new VertexPositionColor(new Vector3(ProgressBarX, ProgressBarY + ProgressBarHeight, 0), Color.Green),
+                new VertexPositionColor(new Vector3(ProgressBarX + currentWidth, ProgressBarY + ProgressBarHeight, 0), Color.Green)
+            };
+
+            // Dibujar el fondo de la barra de progreso
+            _basicEffect.TextureEnabled = false;
+            _basicEffect.VertexColorEnabled = true;
+
+            foreach (var pass in _basicEffect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                MuGame.Instance.GraphicsDevice.DrawUserPrimitives(
+                    PrimitiveType.TriangleStrip,
+                    backgroundVertices,
+                    0,
+                    2);
+            }
+
+            // Dibujar el progreso actual
+            foreach (var pass in _basicEffect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                MuGame.Instance.GraphicsDevice.DrawUserPrimitives(
+                    PrimitiveType.TriangleStrip,
+                    progressVertices,
+                    0,
+                    2);
             }
         }
     }

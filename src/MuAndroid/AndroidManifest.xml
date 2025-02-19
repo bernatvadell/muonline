@@ -2,8 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="MuAndroid.MuAndroid" android:versionCode="1" android:versionName="1.0">
   <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="34" />
   <uses-feature android:glEsVersion="0x00020000" android:required="true" />
-  <application android:label="MuAndroid"></application>
+  <application android:label="MuAndroid" android:icon="@drawable/Icon" android:debuggable="true" android:usesCleartextTraffic="true"></application>
   <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
 </manifest>

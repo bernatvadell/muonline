@@ -3,6 +3,7 @@ using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using Microsoft.Xna.Framework.Input.Touch;
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
@@ -30,6 +31,8 @@ namespace Client.Main
         public MouseState Mouse { get; private set; }
         public KeyboardState PrevKeyboard { get; private set; }
         public KeyboardState Keyboard { get; private set; }
+        public TouchCollection PrevTouchState { get; private set; }
+        public TouchCollection Touch { get; private set; }
 
         public Ray MouseRay { get; private set; }
 
@@ -42,6 +45,8 @@ namespace Client.Main
             DepthBufferWriteEnable = false
         };
 
+        private float _scaleFactor;
+
         public MuGame()
         {
             Instance = this;
@@ -52,6 +57,23 @@ namespace Client.Main
                 PreferredBackBufferWidth = 1280,
                 PreferredBackBufferHeight = 720
             };
+
+            #if ANDROID || IOS
+                        // Configuración para Android e iOS
+                // _graphics.SupportedOrientations = DisplayOrientation.LandscapeLeft | DisplayOrientation.LandscapeRight;
+
+                // Usar la resolución nativa del dispositivo móvil
+                _graphics.IsFullScreen = true;
+                // _graphics.PreferredBackBufferWidth = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
+                // _graphics.PreferredBackBufferHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
+            #endif
+
+            #if WINDOWS
+                        // Configuración para Windows
+                        // _graphics = true;
+                        _graphics.PreferredBackBufferWidth = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
+                        _graphics.PreferredBackBufferHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
+            #endif
 
             // Frame rate settings
             if (Constants.UNLIMITED_FPS)
@@ -82,6 +104,12 @@ namespace Client.Main
         {
             IsMouseVisible = false;
             base.Initialize();
+            float baseAspectRatio = 16f / 9f; // Relación de aspecto base (ejemplo: 16:9)
+            float currentAspectRatio = (float)_graphics.PreferredBackBufferWidth / _graphics.PreferredBackBufferHeight;
+
+            _scaleFactor = currentAspectRatio / baseAspectRatio;
+
+            Console.WriteLine($"Scale Factor: {_scaleFactor}");
         }
 
         protected override void UnloadContent()
@@ -137,24 +165,33 @@ namespace Client.Main
         private void UpdateInputInfo(GameTime gameTime)
         {
             var mouseState = Microsoft.Xna.Framework.Input.Mouse.GetState();
+            var touchState = TouchPanel.GetState();
             var windowBounds = Window.ClientBounds;
 
             PrevMouseState = Mouse;
             PrevKeyboard = Keyboard;
+            PrevTouchState = Touch;
+            
 
             var absoluteMousePosition = new Point(mouseState.X + windowBounds.X, mouseState.Y + windowBounds.Y);
+            var absoluteTouchPosition = new Point(touchState.Count > 0 ? (int)touchState[0].Position.X : 0, touchState.Count > 0 ? (int)touchState[0].Position.Y : 0);
             if (!IsActive || !windowBounds.Contains(absoluteMousePosition))
             {
                 Mouse = PrevMouseState;
                 Keyboard = new KeyboardState();
+                Touch = PrevTouchState;
             }
             else
             {
                 Mouse = mouseState;
                 Keyboard = Microsoft.Xna.Framework.Input.Keyboard.GetState();
+                Touch = touchState;
             }
 
             if (PrevMouseState.Position != Mouse.Position)
+                UpdateMouseRay();
+
+            if (PrevTouchState.Count != Touch.Count)
                 UpdateMouseRay();
         }
 
