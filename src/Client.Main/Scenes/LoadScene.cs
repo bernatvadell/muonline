@@ -131,7 +131,7 @@ namespace Client.Main.Scenes
 
                         // Leer la respuesta del servidor (tamaño del archivo)
                         byte[] sizeBuffer = new byte[8];
-                        await stream.ReadAsync(sizeBuffer, 0, sizeBuffer.Length);
+                        await stream.ReadExactlyAsync(sizeBuffer);
                         long totalBytes = BitConverter.ToInt64(sizeBuffer, 0);
 
                         // Descargar el archivo
@@ -182,7 +182,7 @@ namespace Client.Main.Scenes
 
         private async 
         Task
-StartDownloadingAssetsHTTP()
+        StartDownloadingAssetsHTTP()
         {
             string downloadUrl = "http://192.168.100.8:8081/Data.zip";
             string tempFilePath = Path.Combine(Path.GetTempPath(), "Data.zip");
@@ -246,7 +246,7 @@ StartDownloadingAssetsHTTP()
                     
                 //     await client.DownloadFileTaskAsync(new Uri(downloadUrl), tempFilePath);
                 // }
-// Descomprimir el archivo ZIP con progreso
+                // Descomprimir el archivo ZIP con progreso
                 _statusText = "Extracting assets...";
                 _statusLabel.Text = _statusText;
 
