@@ -8,6 +8,8 @@ using System.IO;
 using System.IO.Compression;
 using System.Net;
 using System.Net.Http;
+using System.Net.Sockets;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Scenes
@@ -90,10 +92,83 @@ namespace Client.Main.Scenes
             // }
 
             // Si no existe, iniciar la descarga y extracción
-            StartDownloadingAssets();
+            StartDownloadingAssets(1);
         }
 
-        private async void StartDownloadingAssets()
+        private async Task StartDownloadingAssets(string name)
+        {
+            string serverIp = "192.168.100.8";
+            int serverPort = 8082; // Puerto del servidor TCP
+            string tempFilePath = Path.Combine(Path.GetTempPath(), "Data.zip");
+            string extractPath = Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "./");
+
+            try
+            {
+                _statusText = "Connecting to server...";
+                _statusLabel.Text = _statusText;
+
+                using (TcpClient client = new TcpClient())
+                {
+                    await client.ConnectAsync(serverIp, serverPort);
+                    using (NetworkStream stream = client.GetStream())
+                    {
+                        // Enviar solicitud al servidor (por ejemplo, el nombre del archivo)
+                        string request = "DOWNLOAD Data.zip";
+                        byte[] requestBytes = Encoding.UTF8.GetBytes(request);
+                        await stream.WriteAsync(requestBytes, 0, requestBytes.Length);
+
+                        // Leer la respuesta del servidor (tamaño del archivo)
+                        byte[] sizeBuffer = new byte[8];
+                        await stream.ReadAsync(sizeBuffer, 0, sizeBuffer.Length);
+                        long totalBytes = BitConverter.ToInt64(sizeBuffer, 0);
+
+                        // Descargar el archivo
+                        long receivedBytes = 0;
+                        byte[] buffer = new byte[65536]; // Buffer grande para mejorar rendimiento
+                        using (var fileStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
+                        {
+                            int bytesRead;
+                            while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                            {
+                                await fileStream.WriteAsync(buffer, 0, bytesRead);
+                                receivedBytes += bytesRead;
+
+                                if (totalBytes > 0)
+                                {
+                                    _progress = (float)receivedBytes / totalBytes;
+                                    _statusText = $"Downloading assets... {(_progress * 100):F0}%";
+                                    _statusLabel.Text = _statusText;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Descomprimir el archivo ZIP con progreso
+                _statusText = "Extracting assets...";
+                _statusLabel.Text = _statusText;
+
+                Directory.CreateDirectory(extractPath); // Crear carpeta para los archivos extraídos
+                await ExtractWithProgress(tempFilePath, extractPath);
+
+                // Marcar como completado
+                _isDownloadComplete = true;
+                _statusText = "Download complete!";
+                _statusLabel.Text = _statusText;
+
+                // Cambiar a la escena de inicio de sesión
+                await Task.Delay(500); // Esperar un momento antes de cambiar de escena
+                MuGame.Instance.ChangeScene<LoginScene>();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error during download or extraction: {ex.Message}");
+                _statusText = $"Download failed! {ex.Message}";
+                _statusLabel.Text = _statusText;
+            }
+        }
+
+        private async void StartDownloadingAssets(int port)
         {
             string downloadUrl = "http://192.168.100.8:8081/Data.zip";
             string tempFilePath = Path.Combine(Path.GetTempPath(), "Data.zip");
@@ -122,9 +197,9 @@ namespace Client.Main.Scenes
                         long receivedBytes = 0;
 
                         using (var contentStream = await response.Content.ReadAsStreamAsync())
-                        using (var fileStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
+                        using (var fileStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None,  bufferSize: 81920, useAsync: true))
                         {
-                            byte[] buffer = new byte[8192];
+                            byte[] buffer = new byte[81920];
                             int bytesRead;
 
                             while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)

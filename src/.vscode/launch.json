@@ -1,0 +1,39 @@
+{
+    // Use IntelliSense to find out which attributes exist for C# debugging
+    // Use hover for the description of the existing attributes
+    // For further information visit https://github.com/OmniSharp/omnisharp-vscode/blob/master/debugger-launchjson.md
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "C#: <project-name> Debug",
+            "type": "dotnet",
+            "request": "launch",
+            "projectPath": "${workspaceFolder}/<relative-path-to-project-folder><project-name>.csproj"
+        },
+        {
+            "name": "Run release DesktopGL platform",
+            "type": "coreclr",
+            "request": "launch",
+            // If you have changed target frameworks, make sure to update the program path.
+            "program": "${workspaceFolder}/MuWin/bin/Release/net8.0-windows/win-x64/publish/MuWin.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            // For more information about the 'console' field, see https://github.com/OmniSharp/omnisharp-vscode/blob/master/debugger-launchjson.md#console-terminal-window
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+         {
+             "name": "Run DesktopGL platform",
+             "type": "coreclr",
+             "request": "launch",
+             "preLaunchTask": "buildDesktopGL",
+             // If you have changed target frameworks, make sure to update the program path.
+             "program": "${workspaceFolder}/MuWin/bin/Debug/net8.0-windows/win-x64/MuWin.dll",
+             "args": [],
+             "cwd": "${workspaceFolder}",
+             // For more information about the 'console' field, see https://github.com/OmniSharp/omnisharp-vscode/blob/master/debugger-launchjson.md#console-terminal-window
+             "console": "internalConsole",
+             "stopAtEntry": false
+         }
+     ]
+ }

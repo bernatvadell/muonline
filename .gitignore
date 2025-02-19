@@ -313,4 +313,6 @@ doc/*.htm
 
 # Others
 .history
-.vscode
+# .vscode
+
+ServerFiles/
