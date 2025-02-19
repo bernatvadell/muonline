@@ -92,10 +92,22 @@ namespace Client.Main.Scenes
             // }
 
             // Si no existe, iniciar la descarga y extracción
-            StartDownloadingAssets(1);
+            StartDownloadingAssets(true);
         }
 
-        private async Task StartDownloadingAssets(string name)
+        private async void StartDownloadingAssets(bool useHTTP)
+        {
+            if (useHTTP)
+            {
+                await StartDownloadingAssetsHTTP();
+            }
+            else
+            {
+                await StartDownloadingAssetsTCP();
+            }
+        }
+
+        private async Task StartDownloadingAssetsTCP()
         {
             string serverIp = "192.168.100.8";
             int serverPort = 8082; // Puerto del servidor TCP
@@ -168,7 +180,9 @@ namespace Client.Main.Scenes
             }
         }
 
-        private async void StartDownloadingAssets(int port)
+        private async 
+        Task
+StartDownloadingAssetsHTTP()
         {
             string downloadUrl = "http://192.168.100.8:8081/Data.zip";
             string tempFilePath = Path.Combine(Path.GetTempPath(), "Data.zip");
