@@ -24,7 +24,7 @@ Once the game data is downloaded, you need to configure the correct path in the 
 2. Open the file and find the following line:
 
     ```csharp
-    public static string DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
+    public static string DataPath = @"D:\mu\MU_Red_1_20_61_Full\Data";
     ```
 
 3. Change the `DataPath` to point to the directory where you extracted the downloaded game files.
