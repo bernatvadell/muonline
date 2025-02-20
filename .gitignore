@@ -314,3 +314,6 @@ doc/*.htm
 # Others
 .history
 .vscode
+
+AssetsServer/Data/
+AssetsServer/Assets/

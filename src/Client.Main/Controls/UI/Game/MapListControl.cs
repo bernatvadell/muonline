@@ -219,6 +219,12 @@ namespace Client.Main.Controls.UI.Game
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
+            Controls.Add(new MapButton<World143World>
+            {
+                Name = "Doppelganger Ice Zone new",
+                ControlSize = new Point(buttonWidth, buttonHeight),
+                FontSize = ButtonFontSize
+            });
         }
 
         public override void Update(GameTime gameTime)

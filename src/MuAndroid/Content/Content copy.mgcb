@@ -36,3 +36,8 @@
 /processor:EffectProcessor
 /processorParam:DebugMode=Auto
 /build:Shadow.fx
+
+#begin Background.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/build:Background.jpg
