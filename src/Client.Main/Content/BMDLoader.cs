@@ -1,15 +1,13 @@
-﻿using Client.Data;
-using Client.Data.BMD;
-using Client.Main.Objects;
+﻿using Client.Data.BMD;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using static Client.Main.Utils;
 
 namespace Client.Main.Content
 {
@@ -34,6 +32,7 @@ namespace Client.Main.Content
         {
             lock (_bmds)
             {
+                path = GetActualPath(Path.Combine(Constants.DataPath, path));
                 if (_bmds.TryGetValue(path, out Task<BMD> modelTask))
                     return modelTask;
 

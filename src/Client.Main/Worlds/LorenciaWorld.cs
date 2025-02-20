@@ -1,18 +1,21 @@
 ﻿using Client.Main.Controllers;
 using Client.Main.Controls;
+using Client.Main.Objects.Monsters;
 using Client.Main.Objects.Worlds.Lorencia;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
     public class LorenciaWorld : WalkableWorldControl
     {
+
+        // Define the pub area as a rectangle
+        private Rectangle pubArea = new Rectangle(12000, 12000, 900, 1500);
+        // Flag to track if the player is already in the pub area
+        private bool isInPubArea = false;
+        private string pubMusicPath = "Music/Pub.mp3";
+
         public LorenciaWorld() : base(worldIndex: 1)
         {
             BackgroundMusicPath = "Music/MuTheme.mp3";
@@ -21,6 +24,15 @@ namespace Client.Main.Worlds
         public override void AfterLoad()
         {
             Walker.Location = new Vector2(138, 124);
+
+            // water animation parameters for LorenciaWorld
+            Terrain.WaterSpeed = 0.05f;             // Example: faster water movement
+            Terrain.DistortionAmplitude = 0.2f;      // Example: stronger distortion
+            Terrain.DistortionFrequency = 1.0f;      // Example: lower frequency for distortion
+
+            // Preload the pub music to avoid frame freeze on first entry into the pub area
+            SoundController.Instance.PreloadBackgroundMusic(pubMusicPath);
+
             base.AfterLoad();
         }
 
@@ -114,7 +126,7 @@ namespace Client.Main.Worlds
             for (var i = 0; i < 3; i++)
                 MapTileObjects[130 + i] = typeof(LightObject);
 
-            MapTileObjects[133] = typeof(PoseBoxObject);
+            MapTileObjects[133] = typeof(RestPlaceObject);
 
             for (var i = 0; i < 7; i++)
                 MapTileObjects[140 + i] = typeof(FurnitureObject);
@@ -125,9 +137,54 @@ namespace Client.Main.Worlds
                 MapTileObjects[151 + i] = typeof(BeerObject);
         }
 
+        public override void Update(GameTime time)
+        {
+            base.Update(time);
+
+            // Check player's position (only X and Y are relevant)
+            Vector2 playerPos = new Vector2(Walker.Position.X, Walker.Position.Y);
+            // Create a Point from player's position to use with Rectangle.Contains
+            Point playerPoint = new Point((int)playerPos.X, (int)playerPos.Y);
+
+            if (pubArea.Contains(playerPoint))
+            {
+                // If player enters the pub area and wasn't there before
+                if (!isInPubArea)
+                {
+                    isInPubArea = true;
+                    // Stop the current background music and play the pub music
+                    SoundController.Instance.StopBackgroundMusic();
+                    SoundController.Instance.PlayBackgroundMusic(pubMusicPath);
+                }
+            }
+            else
+            {
+                // If player leaves the pub area and was previously inside
+                if (isInPubArea)
+                {
+                    isInPubArea = false;
+                    // Stop the pub music and resume the default background music
+                    SoundController.Instance.StopBackgroundMusic();
+                    SoundController.Instance.PlayBackgroundMusic(BackgroundMusicPath);
+                }
+            }
+        }
+
         public override async Task Load()
         {
             await base.Load();
+
+            Objects.Add(new Spider() { Location = new Vector2(181, 127), Direction = Models.Direction.South });
+            Objects.Add(new BudgeDragon() { Location = new Vector2(182, 127), Direction = Models.Direction.South });
+            Objects.Add(new BullFighter() { Location = new Vector2(183, 127), Direction = Models.Direction.South });
+            Objects.Add(new DarkKnight() { Location = new Vector2(184, 127), Direction = Models.Direction.South });
+            Objects.Add(new Ghost() { Location = new Vector2(185, 127), Direction = Models.Direction.South });
+            Objects.Add(new HellSpider() { Location = new Vector2(186, 127), Direction = Models.Direction.South });
+            Objects.Add(new Hound() { Location = new Vector2(187, 127), Direction = Models.Direction.South });
+            Objects.Add(new Larva() { Location = new Vector2(188, 127), Direction = Models.Direction.South });
+            Objects.Add(new Giant() { Location = new Vector2(189, 127), Direction = Models.Direction.South });
+            Objects.Add(new Lich() { Location = new Vector2(190, 127), Direction = Models.Direction.South });
+
         }
     }
 }

@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Client.Main.Models
+﻿namespace Client.Main.Models
 {
     public enum PlayerAction
     {
@@ -23,8 +17,8 @@ namespace Client.Main.Models
         StopArm1,
         StopArm2,
         StopArm3,
-        StopFlying,
-        StopFlyCrossbow,
+        StopFlying = 17,
+        StopFlyCrossbow = 18,
         StopRide,
         StopRideWeapon,
 
@@ -37,7 +31,7 @@ namespace Client.Main.Models
         WalkBow,
         WalkCrossbow,
         WalkWand,
-        WalkSwim,
+        WalkSwim = 58,
 
         Run,
         RunSword,
@@ -47,14 +41,32 @@ namespace Client.Main.Models
         RunBow,
         RunCrossbow,
         RunWand,
-        RunSwim,
+        RunSwim = 84,
 
-        Fly,
+        Fly = 85,
         FlyCrossbow,
 
         RunRide,
         RunRideWeapon,
 
-        AttackFist = 38
+        AttackFist = 38,
+
+        BlowSkill = 134,
+
+        TwistingSlashSkill = 138,
+        RegularBlowSkill = 139, //154?
+        GreaterFortitudeSkill = 150, // or 152?
+
+        EvilSpiritSkill = 157,
+        FlameSkill = 158,
+
+        PlayerSit1 = 360,
+        PlayerSit2 = 361,
+        PlayerSit3 = 362,
+        PlayerSit4 = 363,
+        PlayerSit5 = 364,
+        PlayerSit6 = 365,
+        PlayerStandingRest = 369,
+        PlayerFlyingRest = 367
     }
 }

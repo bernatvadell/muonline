@@ -18,7 +18,7 @@ namespace Client.Main
 
         public float AspectRatio { get => _aspectRatio; set { if (_aspectRatio != value) { _aspectRatio = value; UpdateProjection(); } } }
         public float FOV { get => _fov; set { if (_fov != value) { _fov = value; UpdateProjection(); } } }
-        public float ViewNear { get => _viewNear; set { if (_viewFar != value) { _viewNear = value; UpdateProjection(); } } }
+        public float ViewNear { get => _viewNear; set { if (_viewNear != value) { _viewNear = value; UpdateProjection(); } } }
         public float ViewFar { get => _viewFar; set { if (_viewFar != value) { _viewFar = value; UpdateProjection(); } } }
 
         public Vector3 Position { get => _position; set { if (_position != value) { _position = value; UpdateView(); } } }

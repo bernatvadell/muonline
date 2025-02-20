@@ -30,7 +30,8 @@ namespace Client.Main.Objects.NPCS
 
             if (FPSCounter.Instance.RandFPSCheck(125))
             {
-                SoundController.Instance.PlayBuffer("Sound/nHarp.wav");
+                Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
+                SoundController.Instance.PlayBufferWithAttenuation("Sound/nHarp.wav", Position, listenerPosition);
                 CurrentAction = CurrentAction == 0 ? 1 : 0;
             }
         }

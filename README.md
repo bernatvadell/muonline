@@ -6,7 +6,7 @@ This project is built using .NET 8.0 and utilizes MonoGame for game development.
 
 Make sure you have the following installed on your system:
 
-- [.NET 8.0 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)
+- [.NET 9.0 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/9.0)
 
 ## Setup and Configuration
 

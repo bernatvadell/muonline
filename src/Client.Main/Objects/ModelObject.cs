@@ -230,21 +230,33 @@ namespace Client.Main.Objects
             IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
             int primitiveCount = indexBuffer.IndexCount / 3;
 
-            float scaleHightlight = 0.015f;
-            float scaleFactor = Scale + scaleHightlight;
+            // Define a small highlight offset
+            float scaleHighlight = 0.015f;
+            // Use fixed multiplier independent of the object's Scale, since WorldPosition already includes it
+            float scaleFactor = 1f + scaleHighlight;
 
+            // Create the highlight transformation matrix
             var highlightMatrix = Matrix.CreateScale(scaleFactor)
-                * Matrix.CreateTranslation(-scaleHightlight, -scaleHightlight, -scaleHightlight)
+                * Matrix.CreateTranslation(-scaleHighlight, -scaleHighlight, -scaleHighlight)
                 * WorldPosition;
 
+            // Save previous graphics states
             var previousDepthState = GraphicsDevice.DepthStencilState;
             var previousBlendState = GraphicsDevice.BlendState;
 
             GraphicsManager.Instance.AlphaTestEffect3D.World = highlightMatrix;
             GraphicsManager.Instance.AlphaTestEffect3D.Texture = _boneTextures[mesh];
-            GraphicsManager.Instance.AlphaTestEffect3D.DiffuseColor = new Vector3(0, 1, 0);
+
+            // Set highlight color: red for Monster objects, green for others
+            Vector3 highlightColor = new Vector3(0, 1, 0); // default green
+            if (this is Monsters.MonsterObject)
+            {
+                highlightColor = new Vector3(1, 0, 0); // red for monster
+            }
+            GraphicsManager.Instance.AlphaTestEffect3D.DiffuseColor = highlightColor;
             GraphicsManager.Instance.AlphaTestEffect3D.Alpha = 1f;
 
+            // Configure depth and blend states for drawing the highlight
             GraphicsDevice.DepthStencilState = new DepthStencilState
             {
                 DepthBufferEnable = true,
@@ -252,15 +264,16 @@ namespace Client.Main.Objects
             };
             GraphicsDevice.BlendState = BlendState.Additive;
 
+            // Draw the mesh highlight
             foreach (EffectPass pass in GraphicsManager.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
             {
                 pass.Apply();
-
                 GraphicsDevice.SetVertexBuffer(vertexBuffer);
                 GraphicsDevice.Indices = indexBuffer;
                 GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
             }
 
+            // Restore previous graphics states
             GraphicsDevice.DepthStencilState = previousDepthState;
             GraphicsDevice.BlendState = previousBlendState;
 
@@ -304,6 +317,7 @@ namespace Client.Main.Objects
                 int primitiveCount = indexBuffer.IndexCount / 3;
 
                 Matrix shadowWorld;
+                const float shadowBias = 0.1f; // Constant bias to offset the shadow and prevent z-fighting
 
                 float heightAboveTerrain = 0f;
                 try
@@ -313,16 +327,17 @@ namespace Client.Main.Objects
                     float terrainHeight = World.Terrain.RequestTerrainHeight(position.X, position.Y);
                     terrainHeight += terrainHeight * 0.5f;
 
-                    float shadowHeightOffset = WorldPosition.Translation.Z;
+                    float shadowHeightOffset = position.Z;
                     float relativeHeightOverTerrain = shadowHeightOffset - terrainHeight;
 
-                    Vector3 shadowPosition = new(
+                    // Calculate shadow position
+                    Vector3 shadowPosition = new Vector3(
                         position.X - (relativeHeightOverTerrain / 2),
                         position.Y - (relativeHeightOverTerrain / 4.5f),
                         terrainHeight + 1f
                     );
 
-                    heightAboveTerrain = WorldPosition.Translation.Z - terrainHeight;
+                    heightAboveTerrain = position.Z - terrainHeight;
                     float sampleDistance = heightAboveTerrain + 10f;
                     float angleRad = MathHelper.ToRadians(45);
 
@@ -348,7 +363,8 @@ namespace Client.Main.Objects
                         * Matrix.CreateScale(1.0f * TotalScale, 0.01f * TotalScale, 1.0f * TotalScale)
                         * Matrix.CreateRotationX(Math.Max(-MathHelper.PiOver2, -MathHelper.PiOver2 - terrainSlopeX))
                         * Matrix.CreateRotationZ(angleRad)
-                        * Matrix.CreateTranslation(shadowPosition);
+                        // Add a small bias to the shadow position to prevent z-fighting
+                        * Matrix.CreateTranslation(shadowPosition + new Vector3(0f, 0f, shadowBias));
                 }
                 catch (Exception ex)
                 {
@@ -364,8 +380,7 @@ namespace Client.Main.Objects
                     GraphicsDevice.BlendState = Blendings.ShadowBlend;
                     GraphicsDevice.DepthStencilState = DepthStencilState.DepthRead;
 
-                    var effect = GraphicsManager.Instance.BasicEffect3D;// GraphicsManager.Instance.ShadowEffect;
-
+                    var effect = GraphicsManager.Instance.BasicEffect3D;
                     effect.World = shadowWorld;
                     effect.View = view;
                     effect.Projection = projection;

@@ -23,7 +23,6 @@
 /importer:FontDescriptionImporter
 /processor:FontDescriptionProcessor
 /processorParam:PremultiplyAlpha=True
-/processorParam:TextureFormat=Compressed
 /build:Arial.spritefont
 
 #begin FXAA.fx

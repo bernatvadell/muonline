@@ -12,6 +12,13 @@ namespace Client.Main.Objects.Effects
             BlendState = BlendState.Additive;
             LightEnabled = true;
             Light = Vector3.One;
+            IsTransparent = true;
+            DepthState = DepthStencilState.Default;
+        }
+
+        public override void Draw(GameTime gameTime)
+        {
+            base.Draw(gameTime);
         }
     }
 }

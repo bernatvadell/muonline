@@ -3,10 +3,6 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Client.Main.Controllers
 {
@@ -16,6 +12,8 @@ namespace Client.Main.Controllers
         private ContentManager _contentManager;
 
         public static GraphicsManager Instance { get; private set; } = new GraphicsManager();
+
+        public GraphicsDevice GraphicsDevice => _graphicsDevice;
 
         public bool IsFXAAEnabled { get; set; } = false;
         public bool IsAlphaRGBEnabled { get; set; } = true;
@@ -133,6 +131,14 @@ namespace Client.Main.Controllers
             MainRenderTarget?.Dispose();
             TempTarget1?.Dispose();
             TempTarget2?.Dispose();
+            Pixel?.Dispose();
+
+            AlphaRGBEffect?.Dispose();
+            FXAAEffect?.Dispose();
+            ShadowEffect?.Dispose();
+            AlphaTestEffect3D?.Dispose();
+            BoundingBoxEffect3D?.Dispose();
+            BasicEffect3D?.Dispose();
         }
     }
 }

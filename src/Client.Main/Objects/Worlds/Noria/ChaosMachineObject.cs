@@ -1,16 +1,7 @@
-﻿using Client.Data;
-using Client.Main.Content;
-using Client.Main.Objects.Effects;
-using Client.Main.Objects.NPCS;
-using Client.Main.Objects.Particles.Effects;
-using Client.Main.Objects.Particles;
-using Client.Main.Objects.Skills;
+﻿using Client.Main.Content;
 using Microsoft.Xna.Framework;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
+using Client.Main.Controllers;
 
 namespace Client.Main.Objects.Worlds.Noria
 {
@@ -48,12 +39,19 @@ namespace Client.Main.Objects.Worlds.Noria
         {
             Model = await BMDLoader.Instance.Prepare($"Object4/Object40.bmd");
             BlendMesh = 1;
+            Position = new Vector3(Position.X, Position.Y, Position.Z - 40f);
             await base.Load();
         }
 
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
+
+            if (!Visible)
+                return;
+
+            Vector3 listenerPosition = ((Controls.WalkableWorldControl)World).Walker.Position;
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/nMix.wav", Position, listenerPosition);
         }
     }
 }

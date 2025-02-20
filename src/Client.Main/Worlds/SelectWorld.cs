@@ -38,8 +38,8 @@ namespace Client.Main.Worlds
             };
 
             // TODO: You should check the loading of CameraAnglePosition in World. I am not able to get the correct target.
-            Camera.Instance.Target = new Vector3(14229.295898f, 12360.358398f, 300);
-            Camera.Instance.FOV = 45;
+            Camera.Instance.Target = new Vector3(14229.295898f, 12340.358398f, 380);
+            Camera.Instance.FOV = 29;
         }
 
         public override void Update(GameTime time)

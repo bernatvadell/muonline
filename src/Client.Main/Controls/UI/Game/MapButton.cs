@@ -10,6 +10,7 @@ namespace Client.Main.Controls.UI.Game
     {
         public string Name { get; set; }
         public Color TextColor { get; set; } = Color.White;
+        public float FontSize { get; set; } = 10f;
 
         public MapButton()
         {
@@ -29,7 +30,7 @@ namespace Client.Main.Controls.UI.Game
         {
             if (Root is GameScene gameScene)
             {
-                gameScene.ChangeMap<TWorld>();
+                _ = gameScene.ChangeMap<TWorld>();
             }
         }
 
@@ -37,8 +38,20 @@ namespace Client.Main.Controls.UI.Game
         {
             base.Draw(gameTime);
 
+            float scaleFactor = FontSize / Constants.BASE_FONT_SIZE;
+
             GraphicsManager.Instance.Sprite.Begin();
-            GraphicsManager.Instance.Sprite.DrawString(GraphicsManager.Instance.Font, Name, new Vector2() { X = DisplayRectangle.X + 5, Y = DisplayRectangle.Y + 5 }, TextColor, 0f, Vector2.Zero, 0.9f, SpriteEffects.None, 0);
+            GraphicsManager.Instance.Sprite.DrawString(
+                GraphicsManager.Instance.Font,
+                Name,
+                new Vector2(DisplayRectangle.X + 5, DisplayRectangle.Y + 5),
+                TextColor,
+                0f,
+                Vector2.Zero,
+                scaleFactor,
+                SpriteEffects.None,
+                0
+            );
             GraphicsManager.Instance.Sprite.End();
 
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;

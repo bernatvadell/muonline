@@ -22,26 +22,32 @@ namespace Client.Main.Worlds
             base.CreateMapTileObjects();
 
             MapTileObjects[0] = typeof(TreeObject);
+            MapTileObjects[75] = typeof(TreeObject);
 
             MapTileObjects[19] = typeof(AuroraObject);
             MapTileObjects[20] = typeof(SteelDoorObject);
 
-            for (var i = 65; i < 67; i++)
-                MapTileObjects[i] = typeof(SteelDoorObject);
+            MapTileObjects[65] = typeof(SteelDoorObject);
+            MapTileObjects[67] = typeof(SteelDoorObject);
 
-            for (var i = 75; i < 79; i++)
+            MapTileObjects[86] = typeof(SteelDoorObject); // Sliding doors
+
+            for (var i = 76; i < 79; i++)
                 MapTileObjects[i] = typeof(HouseWallObject); // Wall
 
             for (var i = 81; i < 83; i++)
                 MapTileObjects[i] = typeof(HouseWallObject); // Roof
 
+            for (var i = 83; i < 86; i++)
+                MapTileObjects[i] = typeof(FlagObject);
+
             for (var i = 88; i < 89; i++)
                 MapTileObjects[i] = typeof(SteelDoorObject);
 
-            MapTileObjects[98] = typeof(HouseWallObject); // Roof
+            MapTileObjects[91] = typeof(RestPlaceObject);
 
-            for (var i = 83; i < 84; i++)
-                MapTileObjects[i] = typeof(FlagObject);
+            MapTileObjects[98] = typeof(HouseWallObject); // Roof
+            MapTileObjects[99] = typeof(HouseWallObject); // Roof
         }
     }
 }

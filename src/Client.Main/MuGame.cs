@@ -1,7 +1,4 @@
-﻿using Client.Main.Content;
-using Client.Main.Controllers;
-using Client.Main.Controls;
-using Client.Main.Models;
+﻿using Client.Main.Controllers;
 using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -61,6 +58,8 @@ namespace Client.Main
             {
                 _graphics.SynchronizeWithVerticalRetrace = false;
                 IsFixedTimeStep = false;
+                TargetElapsedTime = TimeSpan.FromMilliseconds(1);
+                _graphics.ApplyChanges();
             }
 
             Content.RootDirectory = "Content";
@@ -71,23 +70,17 @@ namespace Client.Main
             ChangeScene(typeof(T));
         }
 
-        public void ChangeScene(Type sceneType)
+        private async void ChangeScene(Type sceneType)
         {
             ActiveScene?.Dispose();
             ActiveScene = (BaseScene)Activator.CreateInstance(sceneType);
-            Task.Run(() => ActiveScene.Initialize()).ConfigureAwait(false);
+            await ActiveScene.Initialize();
         }
 
         protected override void Initialize()
         {
             IsMouseVisible = false;
             base.Initialize();
-        }
-
-        protected override void LoadContent()
-        {
-            GraphicsManager.Instance.Init(GraphicsDevice, Content);
-            ChangeScene(Constants.ENTRY_SCENE);
         }
 
         protected override void UnloadContent()
@@ -123,6 +116,23 @@ namespace Client.Main
             }
         }
 
+        protected override void LoadContent()
+        {
+            GraphicsManager.Instance.Init(GraphicsDevice, Content);
+            ChangeSceneAsync(Constants.ENTRY_SCENE).ContinueWith(t =>
+            {
+                if (t.Exception != null)
+                    Debug.WriteLine("Error when changing the scene: " + t.Exception);
+            });
+        }
+
+        private async Task ChangeSceneAsync(Type sceneType)
+        {
+            ActiveScene?.Dispose();
+            ActiveScene = (BaseScene)Activator.CreateInstance(sceneType);
+            await ActiveScene.Initialize();
+        }
+
         private void UpdateInputInfo(GameTime gameTime)
         {
             var mouseState = Microsoft.Xna.Framework.Input.Mouse.GetState();
@@ -131,19 +141,16 @@ namespace Client.Main
             PrevMouseState = Mouse;
             PrevKeyboard = Keyboard;
 
-            // Check if the mouse is within the window bounds
             var absoluteMousePosition = new Point(mouseState.X + windowBounds.X, mouseState.Y + windowBounds.Y);
-            if (IsActive && windowBounds.Contains(absoluteMousePosition))
+            if (!IsActive || !windowBounds.Contains(absoluteMousePosition))
             {
-                Mouse = mouseState;
-                Keyboard = Microsoft.Xna.Framework.Input.Keyboard.GetState();
+                Mouse = PrevMouseState;
+                Keyboard = new KeyboardState();
             }
             else
             {
-                Mouse = PrevMouseState.X != 0 || PrevMouseState.Y != 0
-                    ? new MouseState(PrevMouseState.X, PrevMouseState.Y, PrevMouseState.ScrollWheelValue, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, PrevMouseState.HorizontalScrollWheelValue)
-                    : new MouseState(0, 0, mouseState.ScrollWheelValue, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, mouseState.HorizontalScrollWheelValue);
-                Keyboard = new KeyboardState();
+                Mouse = mouseState;
+                Keyboard = Microsoft.Xna.Framework.Input.Keyboard.GetState();
             }
 
             if (PrevMouseState.Position != Mouse.Position)
@@ -180,6 +187,11 @@ namespace Client.Main
             catch (Exception e)
             {
                 Debug.WriteLine(e);
+            }
+            finally
+            {
+                // Ensure that no render target is active to avoid the Present error
+                GraphicsDevice.SetRenderTarget(null);
             }
         }
 
@@ -247,6 +259,21 @@ namespace Client.Main
             GraphicsManager.Instance.Sprite.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend);
             GraphicsManager.Instance.Sprite.Draw(sourceTarget, GraphicsDevice.Viewport.Bounds, Color.White);
             GraphicsManager.Instance.Sprite.End();
+        }
+
+        public static void DisposeInstance()
+        {
+            if (Instance != null)
+            {
+                Instance.Dispose();
+                Instance = null;
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            Instance = null;
         }
     }
 }

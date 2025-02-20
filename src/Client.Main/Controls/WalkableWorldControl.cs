@@ -2,12 +2,8 @@
 using Client.Main.Models;
 using Client.Main.Objects;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Controls
@@ -70,7 +66,16 @@ namespace Client.Main.Controls
 
         private void CalculateMouseTilePos()
         {
-            var mouseRay = MuGame.Instance.MouseRay;
+            Vector2 mousePos = Mouse.GetState().Position.ToVector2();
+            var viewport = GraphicsManager.Instance.GraphicsDevice.Viewport;
+
+            Vector3 nearPoint = viewport.Unproject(new Vector3(mousePos, 0f), Camera.Instance.Projection, Camera.Instance.View, Matrix.Identity);
+            Vector3 farPoint = viewport.Unproject(new Vector3(mousePos, 1f), Camera.Instance.Projection, Camera.Instance.View, Matrix.Identity);
+
+            Vector3 rayDirection = farPoint - nearPoint;
+            rayDirection.Normalize();
+
+            Ray mouseRay = new Ray(nearPoint, rayDirection);
 
             float maxDistance = 10000f;
             float stepSize = Constants.TERRAIN_SCALE / 10f;
@@ -87,7 +92,6 @@ namespace Client.Main.Controls
                 currentDistance += stepSize;
                 Vector3 position = mouseRay.Position + mouseRay.Direction * currentDistance;
                 float terrainHeight = Terrain.RequestTerrainHeight(position.X, position.Y) + ExtraHeight;
-
                 float heightDifference = position.Z - terrainHeight;
 
                 if (lastHeightDifference > 0 && heightDifference <= 0)
@@ -95,7 +99,6 @@ namespace Client.Main.Controls
                     hit = true;
                     float t = lastHeightDifference / (lastHeightDifference - heightDifference);
                     hitPosition = Vector3.Lerp(lastPosition, position, t);
-
                     break;
                 }
 

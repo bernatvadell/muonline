@@ -1,14 +1,6 @@
 ﻿using Client.Main.Controllers;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace Client.Main.Controls.UI
 {
@@ -26,18 +18,20 @@ namespace Client.Main.Controls.UI
             Align = ControlAlign.Top | ControlAlign.Right;
             Margin = new Margin { Top = 10, Right = 10 };
 
+            Padding = new Margin { Top = 15, Left = 15 };
+
             ControlSize = new Point(210, 140);
             BackgroundColor = Color.Black * 0.6f;
             BorderColor = Color.White * 0.3f;
             BorderThickness = 2;
 
-            var posX = 15;
-            var posY = 15;
+            var posX = Padding.Left;
+            var posY = Padding.Top;
             var labelHeight = 20;
 
             Controls.Add(_fpsLabel = new LabelControl
             {
-                Text = "FPS: {0}",
+                Text = "FPS: {0}    ",
                 TextColor = Color.LightGreen,
                 X = posX,
                 Y = posY
@@ -45,7 +39,7 @@ namespace Client.Main.Controls.UI
 
             Controls.Add(_mousePosLabel = new LabelControl
             {
-                Text = "Mouse Position - X: {0}, Y:{1}",
+                Text = "Mouse Position - X: {0}, Y:{1}    ",
                 TextColor = Color.LightBlue,
                 X = posX,
                 Y = posY += labelHeight
@@ -53,7 +47,7 @@ namespace Client.Main.Controls.UI
 
             Controls.Add(_playerCordsLabel = new LabelControl
             {
-                Text = "Player Cords - X: {0}, Y:{1}",
+                Text = "Player Cords - X: {0}, Y:{1}    ",
                 TextColor = Color.LightCoral,
                 X = posX,
                 Y = posY += labelHeight
@@ -61,7 +55,7 @@ namespace Client.Main.Controls.UI
 
             Controls.Add(_mapTileLabel = new LabelControl
             {
-                Text = "MAP Tile - X: {0}, Y:{1}",
+                Text = "MAP Tile - X: {0}, Y:{1}    ",
                 TextColor = Color.LightYellow,
                 X = posX,
                 Y = posY += labelHeight
@@ -69,7 +63,7 @@ namespace Client.Main.Controls.UI
 
             Controls.Add(_effectsStatusLabel = new LabelControl
             {
-                Text = "FXAA: {0} - AlphaRGB:{1}",
+                Text = "FXAA: {0} - AlphaRGB:{1}    ",
                 TextColor = Color.Yellow,
                 X = posX,
                 Y = posY += labelHeight
@@ -77,7 +71,7 @@ namespace Client.Main.Controls.UI
 
             Controls.Add(_objectCursorLabel = new LabelControl
             {
-                Text = "Cursor Object: {0}",
+                Text = "Cursor Object: {0}    ",
                 TextColor = Color.CadetBlue,
                 X = posX,
                 Y = posY += labelHeight

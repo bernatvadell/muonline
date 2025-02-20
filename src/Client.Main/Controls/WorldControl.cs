@@ -43,6 +43,13 @@ namespace Client.Main.Controls
             Controls.Add(Terrain = new TerrainControl() { WorldIndex = worldIndex });
             Objects.ControlAdded += Object_Added;
 
+            Camera.Instance.CameraMoved += OnCameraMoved;
+
+            UpdateBoundingFrustum();
+        }
+
+        private void OnCameraMoved(object sender, EventArgs e)
+        {
             UpdateBoundingFrustum();
         }
 
@@ -90,7 +97,14 @@ namespace Client.Main.Controls
                 Camera.Instance.Target = data.HeroPosition;
             }
 
-            SoundController.Instance.PlayBackgroundMusic(BackgroundMusicPath);
+            if (!string.IsNullOrEmpty(BackgroundMusicPath))
+            {
+                SoundController.Instance.PlayBackgroundMusic(BackgroundMusicPath);
+            }
+            else
+            {
+                SoundController.Instance.StopBackgroundMusic();
+            }
         }
 
         public override void AfterLoad()
@@ -106,8 +120,6 @@ namespace Client.Main.Controls
 
             if (Status != GameControlStatus.Ready)
                 return;
-
-            UpdateBoundingFrustum();
 
             for (var i = 0; i < Objects.Count; i++)
                 Objects[i].Update(time);

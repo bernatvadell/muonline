@@ -1,9 +1,4 @@
 ﻿using Client.Main.Content;
-using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
@@ -12,7 +7,8 @@ namespace Client.Main.Objects.Monsters
     {
         public Giant()
         {
-            RenderShadow = false;
+            Scale = 1.8f; // TODO highlight is to big with scale
+            RenderShadow = true;
         }
 
     public override async Task Load()
