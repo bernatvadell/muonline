@@ -28,10 +28,25 @@ namespace Client.Main.Controls.UI.Login
             Controls.Add(_line2 = new TextureControl { TexturePath = "Interface/GFx/popup_line_m.ozd", X = 10, Y = 150, AutoViewSize = false, Alpha = 0.7f });
 
             _userInput = new TextFieldControl { X = 100, Y = 87 };
-            _passwordInput = new TextFieldControl { X = 100, Y = 117, MaskValue = true };
+            _passwordInput = new TextFieldControl { X = 100, Y = 117, MaskValue =  true };
             _passwordInput.ValueChanged += OnLoginClick;
             Controls.Add(_userInput);
             Controls.Add(_passwordInput);
+
+            // Add mouse click event handlers to change focus when clicking on the text fields
+            _userInput.Click += (s, e) =>
+            {
+                // Set focus to user input and remove focus from password input
+                _userInput.OnFocus();
+                _passwordInput.OnBlur();
+            };
+
+            _passwordInput.Click += (s, e) =>
+            {
+                // Set focus to password input and remove focus from user input
+                _passwordInput.OnFocus();
+                _userInput.OnBlur();
+            };
 
             var button = new OkButton { Y = 160, Align = ControlAlign.HorizontalCenter };
             button.Click += OnLoginClick;
@@ -42,6 +57,7 @@ namespace Client.Main.Controls.UI.Login
 
         private void OnLoginClick(object sender, EventArgs e)
         {
+            // Change scene after login
             MuGame.Instance.ChangeScene<SelectCharacterScene>();
         }
 
@@ -56,6 +72,7 @@ namespace Client.Main.Controls.UI.Login
         {
             base.Update(gameTime);
 
+            // Handle Tab key to switch focus between input fields
             if (MuGame.Instance.Keyboard.IsKeyDown(Keys.Tab) && MuGame.Instance.PrevKeyboard.IsKeyUp(Keys.Tab))
             {
                 if (_userInput.IsFocused)

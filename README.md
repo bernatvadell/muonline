@@ -1,6 +1,6 @@
 # MuOnline
 
-This project is built using .NET 8.0 and utilizes MonoGame for game development. Follow the instructions below to build and run the project.
+This project is built using .NET 9.0 and utilizes MonoGame for game development. Follow the instructions below to build and run the project.
 
 ## Prerequisites
 
@@ -20,11 +20,11 @@ Before running the project, you need to download the game data from the official
 
 Once the game data is downloaded, you need to configure the correct path in the code.
 
-1. Go to the file `src\Client.Main\Constants.cs`.
+1. Go to the file `Client.Main\Constants.cs`.
 2. Open the file and find the following line:
 
     ```csharp
-    public static string DataPath = @"D:\mu\MU_Red_1_20_61_Full\Data";
+    public static string DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
     ```
 
 3. Change the `DataPath` to point to the directory where you extracted the downloaded game files.
@@ -39,10 +39,46 @@ dotnet tool restore
 
 ### Step 4: Build the Project
 
-Once the game data path is set, and tools are restored, build the project using the .NET CLI:
 
-```bash
-dotnet build
+## Build commands
+
+### Windows
+
+```cmd
+dotnet publish ./MuWin/MuWin.csproj -f net9.0-windows -c Release
+```
+
+### Android
+
+```cmd
+dotnet publish ./MuAndroid/MuAndroid.csproj -f net9.0-android -c Release
+```
+
+### iOS
+
+```cmd
+dotnet publish ./MuIos/MuIos.csproj -f net9.0-ios -c Release
+```
+
+## Run commands
+
+### Windows
+
+```cmd
+dotnet run --project ./MuWin/MuWin.csproj -f net9.0-windows -c Debug
+```
+
+### Android
+
+```cmd
+
+ dotnet publish ./MuAndroid/MuAndroid.csproj -f net9.0-android -c Release -p:AndroidSdkDirectory=C:\Users\linuxer\AppData\Local\Android\Sdk -p:JavaSdkDirectory=D:\mu\microsoft-jdk-11.0.26-windows-x64\jdk-11.0.26+4 -p:AcceptAndroidSdkLicenses=True
+```
+
+### iOS
+
+```cmd
+dotnet run --project ./MuIos/MuIos.csproj -f net9.0-ios -c Release
 ```
 
 ### Step 5: Run the Project
@@ -50,12 +86,11 @@ dotnet build
 To run the project, execute the following command:
 
 ```bash
-dotnet run --project src/Client.Main/Client.Main.csproj
+dotnet run --project Client.Main/Client.Main.csproj
 ```
 
 ## Additional Information
 
 - Dependencies are automatically restored when you build the project.
-- The project targets Windows (`WinExe`), so ensure you are on a Windows machine for proper execution.
 
 Feel free to open an issue if you encounter any problems.
