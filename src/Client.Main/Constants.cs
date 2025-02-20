@@ -33,6 +33,7 @@ namespace Client.Main
                 public static bool DRAW_BOUNDING_BOXES_INTERACTIVES = false;
                 public static string DataPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
 #endif
+                public static string PathUrl = "http://192.168.142.228:8080/";
 
 #if DEBUG
                 public static bool UNLIMITED_FPS = true;
