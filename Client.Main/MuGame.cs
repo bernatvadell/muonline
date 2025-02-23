@@ -51,39 +51,27 @@ namespace Client.Main
         {
             Instance = this;
 
-            // Graphics settings
             _graphics = new GraphicsDeviceManager(this)
             {
                 PreferredBackBufferWidth = 1280,
                 PreferredBackBufferHeight = 720
             };
 
-            #if ANDROID || IOS
-                        // Configuración para Android e iOS
-                // _graphics.SupportedOrientations = DisplayOrientation.LandscapeLeft | DisplayOrientation.LandscapeRight;
-
-                // Usar la resolución nativa del dispositivo móvil
-                _graphics.IsFullScreen = true;
-                // _graphics.PreferredBackBufferWidth = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
-                // _graphics.PreferredBackBufferHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
-            #endif
-
-            #if WINDOWS
-                        // Configuración para Windows
-                        // _graphics = true;
-                        // _graphics.PreferredBackBufferWidth = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
-                        // _graphics.PreferredBackBufferHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
-            #endif
-
-            // Frame rate settings
+#if ANDROID || IOS
+            _graphics.IsFullScreen = true;
+            _graphics.SynchronizeWithVerticalRetrace = true;
+            IsFixedTimeStep = true;
+            TargetElapsedTime = TimeSpan.FromMilliseconds(16.67);
+#else
             if (Constants.UNLIMITED_FPS)
             {
                 _graphics.SynchronizeWithVerticalRetrace = false;
                 IsFixedTimeStep = false;
                 TargetElapsedTime = TimeSpan.FromMilliseconds(1);
-                _graphics.ApplyChanges();
             }
+#endif
 
+            _graphics.ApplyChanges();
             Content.RootDirectory = "Content";
         }
 
@@ -171,10 +159,8 @@ namespace Client.Main
             PrevMouseState = Mouse;
             PrevKeyboard = Keyboard;
             PrevTouchState = Touch;
-            
 
             var absoluteMousePosition = new Point(mouseState.X + windowBounds.X, mouseState.Y + windowBounds.Y);
-            var absoluteTouchPosition = new Point(touchState.Count > 0 ? (int)touchState[0].Position.X : 0, touchState.Count > 0 ? (int)touchState[0].Position.Y : 0);
             if (!IsActive || !windowBounds.Contains(absoluteMousePosition))
             {
                 Mouse = PrevMouseState;

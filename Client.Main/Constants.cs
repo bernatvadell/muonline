@@ -18,13 +18,13 @@ namespace Client.Main
                 // Game settings
 
 #if DEBUG
-                public static Type ENTRY_SCENE = typeof(Scenes.LoginScene);
+                public static Type ENTRY_SCENE = typeof(Scenes.LoadScene);
                 public static bool BACKGROUND_MUSIC = true;
                 public static bool SOUND_EFFECTS = true;
                 public static bool DRAW_BOUNDING_BOXES = false;
                 public static bool DRAW_BOUNDING_BOXES_INTERACTIVES = false;
                 public static string DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
-        //public static string DataPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
+                //public static string DataPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
 #else
                 public static Type ENTRY_SCENE = typeof(Scenes.LoadScene);
                 public static bool BACKGROUND_MUSIC = true;
@@ -33,12 +33,12 @@ namespace Client.Main
                 public static bool DRAW_BOUNDING_BOXES_INTERACTIVES = false;
                 public static string DataPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
 #endif
-                public static string PathUrl = "http://192.168.142.228:8080/";
-
+                public static string DataPathUrl = "http://192.168.55.220/Data.zip";
+                public static string DefaultDataPathUrl = "https://full-wkr.mu.webzen.co.kr/muweb/full/MU_Red_1_20_61_Full.zip";
 #if DEBUG
                 public static bool UNLIMITED_FPS = true;
 #else
-                public static bool UNLIMITED_FPS = true;
+                public static bool UNLIMITED_FPS = false;
 #endif
 
                 // Camera control constants

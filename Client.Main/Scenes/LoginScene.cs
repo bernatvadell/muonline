@@ -5,11 +5,9 @@ using Client.Main.Models;
 using Client.Main.Worlds;
 using Microsoft.Extensions.Logging.Abstractions;
 using MUnique.OpenMU.Network;
-using MUnique.OpenMU.Network.Packets.ConnectServer;
 using Pipelines.Sockets.Unofficial;
 using System;
 using System.Diagnostics;
-using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 

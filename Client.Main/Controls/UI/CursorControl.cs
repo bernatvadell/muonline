@@ -2,8 +2,9 @@
 using Client.Main.Objects.NPCS;
 using Client.Main.Objects.Monsters;
 using Client.Main;
-using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Input;
+using Microsoft.Xna.Framework.Input.Touch;
 using System;
 using System.Linq;
 
@@ -27,7 +28,8 @@ public class CursorControl : SpriteControl
         TileX = 0;
         TileY = 0;
         CurrentAnimation = DefaultAnimation;
-        restPlaceTypes = [
+        restPlaceTypes =
+        [
             typeof(Client.Main.Objects.Worlds.Devias.RestPlaceObject),
             typeof(Client.Main.Objects.Worlds.Noria.RestPlaceObject),
             typeof(Client.Main.Objects.Worlds.Lorencia.RestPlaceObject)
@@ -36,42 +38,74 @@ public class CursorControl : SpriteControl
 
     public override void Update(GameTime gameTime)
     {
-        // Update cursor position based on mouse coordinates.
-        X = MuGame.Instance.Mouse.X;
-        Y = MuGame.Instance.Mouse.Y;
+        // If touches are available, we use them - standard input on Android
+        if (MuGame.Instance.Touch.Count > 0)
+        {
+            var touch = MuGame.Instance.Touch[0];
+            X = (int)touch.Position.X;
+            Y = (int)touch.Position.Y;
 
-        // Check if left mouse button is pressed.
-        if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed)
-        {
-            TexturePath = "Interface/CursorPush.ozt";
-            CurrentAnimation = DefaultAnimation;
-        }
-        else if (Scene.MouseHoverObject is MonsterObject)
-        {
-            // Use attack cursor when hovering over a monster
-            TexturePath = "Interface/CursorAttack.ozt";
-            CurrentAnimation = DefaultAnimation;
-        }
-        else if (Scene.MouseHoverObject is NPCObject)
-        {
-            // Use talk cursor when hovering over an NPC
-            TexturePath = "Interface/CursorTalk.ozt";
-            CurrentAnimation = TalkAnimation;
-        }
-        // Check if the mouse hovers over a RestPlaceObject.
-        else if (Scene.MouseHoverObject is { } hoveredObject && restPlaceTypes.Contains(hoveredObject.GetType()))
-        {
-            TexturePath = "Interface/CursorLeanAgainst.ozt";
-            CurrentAnimation = DefaultAnimation;
+            // If the touch is pressed or moved, simulate a click
+            if (touch.State == TouchLocationState.Pressed || touch.State == TouchLocationState.Moved)
+            {
+                TexturePath = "Interface/CursorPush.ozt";
+                CurrentAnimation = DefaultAnimation;
+            }
+            else if (Scene.MouseHoverObject is MonsterObject)
+            {
+                TexturePath = "Interface/CursorAttack.ozt";
+                CurrentAnimation = DefaultAnimation;
+            }
+            else if (Scene.MouseHoverObject is NPCObject)
+            {
+                TexturePath = "Interface/CursorTalk.ozt";
+                CurrentAnimation = TalkAnimation;
+            }
+            else if (Scene.MouseHoverObject is { } hoveredObject && restPlaceTypes.Contains(hoveredObject.GetType()))
+            {
+                TexturePath = "Interface/CursorLeanAgainst.ozt";
+                CurrentAnimation = DefaultAnimation;
+            }
+            else
+            {
+                TexturePath = "Interface/Cursor.ozt";
+                CurrentAnimation = DefaultAnimation;
+            }
         }
         else
         {
-            // Default cursor if no interactive object is under the mouse.
-            TexturePath = "Interface/Cursor.ozt";
-            CurrentAnimation = DefaultAnimation;
+            // If there are no touches, handle mouse input (e.g. on PC)
+            X = MuGame.Instance.Mouse.X;
+            Y = MuGame.Instance.Mouse.Y;
+
+            if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed)
+            {
+                TexturePath = "Interface/CursorPush.ozt";
+                CurrentAnimation = DefaultAnimation;
+            }
+            else if (Scene.MouseHoverObject is MonsterObject)
+            {
+                TexturePath = "Interface/CursorAttack.ozt";
+                CurrentAnimation = DefaultAnimation;
+            }
+            else if (Scene.MouseHoverObject is NPCObject)
+            {
+                TexturePath = "Interface/CursorTalk.ozt";
+                CurrentAnimation = TalkAnimation;
+            }
+            else if (Scene.MouseHoverObject is { } hoveredObject && restPlaceTypes.Contains(hoveredObject.GetType()))
+            {
+                TexturePath = "Interface/CursorLeanAgainst.ozt";
+                CurrentAnimation = DefaultAnimation;
+            }
+            else
+            {
+                TexturePath = "Interface/Cursor.ozt";
+                CurrentAnimation = DefaultAnimation;
+            }
         }
 
-        // Handle cursor animation timing.
+        // Cursor animation handling
         animationTimer += gameTime.ElapsedGameTime.TotalSeconds;
         if (animationTimer >= animationSpeed)
         {
