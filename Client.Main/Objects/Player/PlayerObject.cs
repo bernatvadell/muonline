@@ -11,7 +11,10 @@ namespace Client.Main.Objects.Player
         // Indicates whether the player is currently in a resting state.
         public bool IsResting { get; set; } = false;
         // When set, indicates the target tile of a RestPlace.
+        public bool IsSitting { get; set; } = false;
+        // When set, indicates the target tile of a SitPlace.
         public Vector2? RestPlaceTarget { get; set; }
+        public Vector2? SitPlaceTarget { get; set; }
 
         private PlayerMaskHelmObject _helmMask;
         private PlayerHelmObject _helm;
@@ -119,6 +122,25 @@ namespace Client.Main.Objects.Player
                 {
                     RestPlaceTarget = null;
                     IsResting = false;
+                }
+            }
+
+            // If a sit target has been set, check if the player is at the sit place.
+            if (SitPlaceTarget.HasValue)
+            {
+                float sitDistance = Vector2.Distance(Location, SitPlaceTarget.Value);
+                // If the player is very close to the designated sit tile, force sitting animation.
+                if (sitDistance < 0.1f)
+                {
+                    CurrentAction = PlayerAction.PlayerSit1;
+                    // Remain in sitting state as long as the player stays at the sit place.
+                    return;
+                }
+                // If the player has started moving away from the sit place beyond a threshold, clear the sit state.
+                else if (sitDistance > 1.0f) // threshold,  1 tile
+                {
+                    SitPlaceTarget = null;
+                    IsSitting = false;
                 }
             }
 

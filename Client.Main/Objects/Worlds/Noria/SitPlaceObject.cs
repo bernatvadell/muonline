@@ -1,37 +1,35 @@
-﻿using Client.Data;
+using Client.Data;
 using Client.Main.Content;
 using Client.Main.Models;
 using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Threading.Tasks;
 
-namespace Client.Main.Objects.Worlds.Lorencia
+namespace Client.Main.Objects.Worlds.Noria
 {
-    public class FurnitureObject : ModelObject
+    public class SitPlaceObject : ModelObject
     {
         private bool isActivated = false;
         private Vector2 targetTile;
-        public FurnitureObject()
+
+        public SitPlaceObject()
         {
-            LightEnabled = true;
             Interactive = true;
         }
-
         public override async Task Load()
         {
-            var idx = (Type - (ushort)ModelType.Furniture01 + 1).ToString().PadLeft(2, '0');
-            Model = await BMDLoader.Instance.Prepare($"Object1/Furniture{idx}.bmd");
+            Model = await BMDLoader.Instance.Prepare($"Object4/Object0{Type + 1}.bmd");
             await base.Load();
             targetTile = new Vector2((int)(Position.X / Constants.TERRAIN_SCALE), (int)(Position.Y / Constants.TERRAIN_SCALE));
+
         }
 
         public override void OnClick()
         {
             base.OnClick();
 
-            if (World is Controls.WalkableWorldControl control && control.Walker != null && (Type == 145 || Type == 146))
+            if (World is Controls.WalkableWorldControl control && control.Walker != null)
             {
                 isActivated = true;
                 // Disable sitting state before moving
@@ -47,7 +45,7 @@ namespace Client.Main.Objects.Worlds.Lorencia
         {
             base.Update(gameTime);
 
-            if (isActivated && World is Controls.WalkableWorldControl control && control.Walker != null && (Type == 145 || Type == 146))
+            if (isActivated && World is Controls.WalkableWorldControl control && control.Walker != null)
             {
                 // Calculate the distance from the walker's current location to the target tile
                 float distance = Vector2.Distance(control.Walker.Location, targetTile);
@@ -58,8 +56,7 @@ namespace Client.Main.Objects.Worlds.Lorencia
                     {
                         player.IsSitting = true;
                         player.SitPlaceTarget = targetTile;
-                        if (Type != 146)
-                            player.Direction = GetDirectionFromAngle(this.Angle.Z);
+                        player.Direction = GetDirectionFromAngle(this.Angle.Z);
                     }
                 }
 
@@ -96,11 +93,6 @@ namespace Client.Main.Objects.Worlds.Lorencia
             ];
 
             return mapping[index];
-        }
-
-        public override void Draw(GameTime gameTime)
-        {
-            base.Draw(gameTime);
         }
     }
 }

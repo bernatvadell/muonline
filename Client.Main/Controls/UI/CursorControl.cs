@@ -29,15 +29,36 @@ public class CursorControl : SpriteControl
         TileY = 0;
         CurrentAnimation = DefaultAnimation;
         restPlaceTypes =
-        [
+        new Type[]
+        {
             typeof(Client.Main.Objects.Worlds.Devias.RestPlaceObject),
             typeof(Client.Main.Objects.Worlds.Noria.RestPlaceObject),
             typeof(Client.Main.Objects.Worlds.Lorencia.RestPlaceObject)
-        ];
+        };
+    }
+
+    // Helper method to determine if the hovered object qualifies as a sit place.
+    private bool IsSitPlace(object obj)
+    {
+        if (obj == null)
+            return false;
+
+        // Check for Noria sit place
+        if (obj is Client.Main.Objects.Worlds.Noria.SitPlaceObject)
+            return true;
+
+        // For FurnitureObject, trigger sitting action for type 145 or 146.
+        if (obj is Client.Main.Objects.Worlds.Lorencia.FurnitureObject furniture)
+            return furniture.Type == 145 || furniture.Type == 146;
+
+        return false;
     }
 
     public override void Update(GameTime gameTime)
     {
+        var hoveredObject = Scene.MouseHoverObject;
+        bool sitPlace = IsSitPlace(hoveredObject);
+
         // If touches are available, we use them - standard input on Android
         if (MuGame.Instance.Touch.Count > 0)
         {
@@ -51,19 +72,24 @@ public class CursorControl : SpriteControl
                 TexturePath = "Interface/CursorPush.ozt";
                 CurrentAnimation = DefaultAnimation;
             }
-            else if (Scene.MouseHoverObject is MonsterObject)
+            else if (hoveredObject is MonsterObject)
             {
                 TexturePath = "Interface/CursorAttack.ozt";
                 CurrentAnimation = DefaultAnimation;
             }
-            else if (Scene.MouseHoverObject is NPCObject)
+            else if (hoveredObject is NPCObject)
             {
                 TexturePath = "Interface/CursorTalk.ozt";
                 CurrentAnimation = TalkAnimation;
             }
-            else if (Scene.MouseHoverObject is { } hoveredObject && restPlaceTypes.Contains(hoveredObject.GetType()))
+            else if (hoveredObject != null && restPlaceTypes.Contains(hoveredObject.GetType()))
             {
                 TexturePath = "Interface/CursorLeanAgainst.ozt";
+                CurrentAnimation = DefaultAnimation;
+            }
+            else if (sitPlace)
+            {
+                TexturePath = "Interface/CursorSitDown.ozt";
                 CurrentAnimation = DefaultAnimation;
             }
             else
@@ -83,19 +109,24 @@ public class CursorControl : SpriteControl
                 TexturePath = "Interface/CursorPush.ozt";
                 CurrentAnimation = DefaultAnimation;
             }
-            else if (Scene.MouseHoverObject is MonsterObject)
+            else if (hoveredObject is MonsterObject)
             {
                 TexturePath = "Interface/CursorAttack.ozt";
                 CurrentAnimation = DefaultAnimation;
             }
-            else if (Scene.MouseHoverObject is NPCObject)
+            else if (hoveredObject is NPCObject)
             {
                 TexturePath = "Interface/CursorTalk.ozt";
                 CurrentAnimation = TalkAnimation;
             }
-            else if (Scene.MouseHoverObject is { } hoveredObject && restPlaceTypes.Contains(hoveredObject.GetType()))
+            else if (hoveredObject != null && restPlaceTypes.Contains(hoveredObject.GetType()))
             {
                 TexturePath = "Interface/CursorLeanAgainst.ozt";
+                CurrentAnimation = DefaultAnimation;
+            }
+            else if (sitPlace)
+            {
+                TexturePath = "Interface/CursorSitDown.ozt";
                 CurrentAnimation = DefaultAnimation;
             }
             else

@@ -43,6 +43,8 @@ namespace Client.Main.Worlds
             MapTileObjects[39] = typeof(ChaosMachineObject);
 
             MapTileObjects[38] = typeof(RestPlaceObject);
+
+            MapTileObjects[8] = typeof(SitPlaceObject);
         }
     }
 }
