@@ -70,10 +70,10 @@ namespace Client.Main
                 TargetElapsedTime = TimeSpan.FromMilliseconds(1);
             }
 #endif
-
+            _graphics.GraphicsProfile = GraphicsProfile.HiDef;
             _graphics.ApplyChanges();
             Content.RootDirectory = "Content";
-        }
+        } 
 
         public void ChangeScene<T>() where T : BaseScene, new()
         {

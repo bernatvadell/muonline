@@ -41,3 +41,8 @@
 /importer:TextureImporter
 /processor:TextureProcessor
 /build:Background.jpg
+
+#begin Bubbles.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/build:Bubbles.png
