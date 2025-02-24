@@ -200,7 +200,7 @@ ClientBin/
 ~$*
 *~
 *.dbmdl
-*.dbproj.schemaview
+*.dbproj.schemaview 
 *.jfm
 *.pfx
 *.publishsettings
@@ -314,3 +314,6 @@ doc/*.htm
 # Others
 .history
 .vscode
+
+AssetsServer/Data/
+AssetsServer/Assets/

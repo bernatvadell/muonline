@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net9.0-windows;net9.0-android;net9.0-ios</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PublishAot>true</PublishAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BCnEncoder.Net" Version="2.1.0" />
+    <PackageReference Include="BouncyCastle.NetCore" Version="2.2.1" />
+    <PackageReference Include="cryptopp" Version="5.6.5.4" />
+    <PackageReference Include="Delizious.Ini" Version="1.11.0" />
+    <PackageReference Include="LEA.NET" Version="1.0.1.1" />
+    <PackageReference Include="sixlabors.imagesharp" Version="3.1.6" />
+  </ItemGroup>
+
+</Project>
