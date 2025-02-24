@@ -35,7 +35,7 @@ namespace Client.Main.Scenes
         public override async Task Load()
         {
             await base.Load();
-            await ChangeMap<DeviasWorld>();
+            await ChangeMap<NoriaWorld>();
             await _hero.Load();
         }
 

@@ -318,20 +318,24 @@ namespace Client.Main.Objects
                     Matrix.Identity
                 );
 
-                // Prepare informational text.
-                string objectInfo = $"{GetType().Name}\nType ID: {Type}\nAlpha: {TotalAlpha}\nX: {Position.X} Y: {Position.Y} Z: {Position.Z}\nDepth: {Depth}\nRender order: {RenderOrder}\nDepthStencilState: {DepthState.Name}";
+                // Use StringBuilder to build the informational text efficiently
+                var sb = new System.Text.StringBuilder();
+                sb.AppendLine(GetType().Name);
+                sb.Append("Type ID: ").AppendLine(Type.ToString());
+                sb.Append("Alpha: ").AppendLine(TotalAlpha.ToString());
+                sb.Append("X: ").Append(Position.X).Append(" Y: ").Append(Position.Y)
+                  .Append(" Z: ").AppendLine(Position.Z.ToString());
+                sb.Append("Depth: ").AppendLine(Depth.ToString());
+                sb.Append("Render order: ").AppendLine(RenderOrder.ToString());
+                sb.Append("DepthStencilState: ").Append(DepthState.Name);
+                string objectInfo = sb.ToString();
 
-                // Establish base font size (i.e., the one defined in the SpriteFont file).
-                float baseFontSize = Constants.BASE_FONT_SIZE; 
+                float baseFontSize = Constants.BASE_FONT_SIZE;
                 float scaleFactor = DebugFontSize / baseFontSize;
-
-                // Measure the text size using scaling.
                 Vector2 textSize = _font.MeasureString(objectInfo) * scaleFactor;
-
-                // Set the text position - centered relative to the measured size.
                 Vector2 baseTextPos = new Vector2((int)(screenPos.X - textSize.X / 2), (int)screenPos.Y);
 
-                // Save the current graphic states.
+                // Save current graphic states
                 var previousBlendState = GraphicsDevice.BlendState;
                 var previousDepthState = GraphicsDevice.DepthStencilState;
                 var previousRasterizerState = GraphicsDevice.RasterizerState;
@@ -348,7 +352,7 @@ namespace Client.Main.Objects
                         Matrix.Identity
                     );
 
-                    // Drawing the text background.
+                    // Draw text background
                     var backgroundColor = new Color(0, 0, 0, 180);
                     var backgroundRect = new Rectangle(
                         (int)baseTextPos.X - 5,
@@ -359,9 +363,8 @@ namespace Client.Main.Objects
 
                     DrawTextBackground(_spriteBatch, backgroundRect, backgroundColor);
 
-                    // Drawing text with scaling applied.
+                    // Draw the informational text
                     _spriteBatch.DrawString(_font, objectInfo, baseTextPos, Color.Yellow, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 0);
-
                     _spriteBatch.End();
                 }
                 catch (Exception ex)
@@ -369,13 +372,12 @@ namespace Client.Main.Objects
                     Debug.WriteLine(ex);
                 }
 
-                // Restore the previous graphics states.
+                // Restore previous graphic states
                 GraphicsDevice.BlendState = previousBlendState;
                 GraphicsDevice.DepthStencilState = previousDepthState;
                 GraphicsDevice.RasterizerState = previousRasterizerState;
             }
         }
-
 
         private void DrawTextBackground(SpriteBatch spriteBatch, Rectangle rect, Color color)
         {

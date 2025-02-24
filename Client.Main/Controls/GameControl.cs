@@ -131,41 +131,40 @@ namespace Client.Main.Controls
         {
             if (Status == GameControlStatus.NonInitialized && (Parent == null || Parent.Status == GameControlStatus.Ready))
                 Task.Run(() => Initialize());
-
             if (Status != GameControlStatus.Ready || !Visible) return;
 
-            IsMouseOver = Interactive && MuGame.Instance.Mouse.Position.X >= DisplayRectangle.X && MuGame.Instance.Mouse.Position.X <= DisplayRectangle.X + DisplayRectangle.Width &&
-                MuGame.Instance.Mouse.Position.Y >= DisplayRectangle.Y && MuGame.Instance.Mouse.Position.Y <= DisplayRectangle.Y + DisplayRectangle.Height;
-
+            // Cache mouse and display rectangle to avoid repeated property lookups
+            var mouse = MuGame.Instance.Mouse;
+            Rectangle rect = DisplayRectangle;
+            IsMouseOver = Interactive &&
+                          (mouse.Position.X >= rect.X && mouse.Position.X <= rect.X + rect.Width &&
+                           mouse.Position.Y >= rect.Y && mouse.Position.Y <= rect.Y + rect.Height);
             if (IsMouseOver && Scene != null)
                 Scene.MouseControl = this;
 
-            int maxWidth = 0;
-            int maxHeight = 0;
-
-            for (int i = 0; i < Controls.Count; i++)
+            int maxWidth = 0, maxHeight = 0;
+            int count = Controls.Count; // Cache count to avoid repeated property access
+            for (int i = 0; i < count; i++)
             {
                 var control = Controls[i];
                 control.Update(gameTime);
 
-                var controlWidth = control.DisplaySize.X + control.Margin.Left;
-                var controlHeight = control.DisplaySize.Y + control.Margin.Top;
+                int controlWidth = control.DisplaySize.X + control.Margin.Left;
+                int controlHeight = control.DisplaySize.Y + control.Margin.Top;
 
                 if (!Align.HasFlag(ControlAlign.Left))
                     controlWidth += control.X;
-
                 if (!Align.HasFlag(ControlAlign.Bottom))
                     controlHeight += control.Y;
 
                 if (controlWidth > maxWidth)
                     maxWidth = controlWidth;
-
                 if (controlHeight > maxHeight)
                     maxHeight = controlHeight;
             }
 
             if (AutoViewSize)
-                ViewSize = new(Math.Max(ControlSize.X, maxWidth), Math.Max(ControlSize.Y, maxHeight));
+                ViewSize = new Point(Math.Max(ControlSize.X, maxWidth), Math.Max(ControlSize.Y, maxHeight));
 
             if (Align != ControlAlign.None)
                 AlignControl();
