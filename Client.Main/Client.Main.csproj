@@ -1,18 +1,30 @@
 
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net9.0;net9.0-windows;net9.0-android;net9.0-ios</TargetFrameworks>
-    <!-- <PublishAot>true</PublishAot> -->
+    <IncludeMobileTargets Condition="'$(IncludeMobileTargets)' == ''">false</IncludeMobileTargets>
   </PropertyGroup>
+
+  <Choose>
+    <When Condition="'$(IncludeMobileTargets)' == 'true'">
+      <PropertyGroup>
+        <TargetFrameworks>net9.0;net9.0-windows;net9.0-android;net9.0-ios</TargetFrameworks>
+      </PropertyGroup>
+    </When>
+    <Otherwise>
+      <PropertyGroup>
+        <TargetFrameworks>net9.0;net9.0-windows</TargetFrameworks>
+      </PropertyGroup>
+    </Otherwise>
+  </Choose>
 
   <ItemGroup Condition="'$(TargetFramework)'=='net9.0-android'">
     <PackageReference Include="MonoGame.Framework.Android" Version="3.8.2.1105" />
+
   </ItemGroup>
     <ItemGroup Condition="'$(TargetFramework)'=='net9.0-ios'">
     <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.2.1105" />
   </ItemGroup>
 
-  <!-- Dependencias específicas para Windows -->
   <ItemGroup Condition="'$(TargetFramework)'=='net9.0-windows'">
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.2.1105" />
   </ItemGroup>
