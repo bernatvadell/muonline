@@ -5,7 +5,21 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PublishAot>true</PublishAot>
+    <IncludeMobileTargets Condition="'$(IncludeMobileTargets)' == ''">false</IncludeMobileTargets>
   </PropertyGroup>
+
+  <Choose>
+    <When Condition="'$(IncludeMobileTargets)' == 'true'">
+      <PropertyGroup>
+        <TargetFrameworks>net9.0;net9.0-windows;net9.0-android;net9.0-ios</TargetFrameworks>
+      </PropertyGroup>
+    </When>
+    <Otherwise>
+      <PropertyGroup>
+        <TargetFrameworks>net9.0;net9.0-windows</TargetFrameworks>
+      </PropertyGroup>
+    </Otherwise>
+  </Choose>
 
   <ItemGroup>
     <PackageReference Include="BCnEncoder.Net" Version="2.1.0" />

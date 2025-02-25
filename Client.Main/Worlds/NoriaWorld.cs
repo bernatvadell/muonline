@@ -20,7 +20,7 @@ namespace Client.Main.Worlds
 
             Objects.Add(new ElfLala() { Location = new Vector2(173, 125), Direction = Models.Direction.SouthWest });
             Objects.Add(new EoTheCraftsman() { Location = new Vector2(195, 124), Direction = Models.Direction.South });
-            Objects.Add(new Charon() { Location = new Vector2(171, 105), Direction = Models.Direction.SouthEast });
+            Objects.Add(new Charon() { Location = new Vector2(171, 104), Direction = Models.Direction.SouthEast });
             Objects.Add(new IceQueen() { Location = new Vector2(175, 117), Direction = Models.Direction.South });
         }
 
@@ -45,6 +45,12 @@ namespace Client.Main.Worlds
             MapTileObjects[38] = typeof(RestPlaceObject);
 
             MapTileObjects[8] = typeof(SitPlaceObject);
+
+            MapTileObjects[6] = typeof(ClimberObject);
+
+            MapTileObjects[37] = typeof(LightBeamObject);
+
+            MapTileObjects[18] = typeof(EoTheCraftsmanPlaceObject);
         }
     }
 }
