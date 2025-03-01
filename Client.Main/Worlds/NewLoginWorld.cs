@@ -1,9 +1,9 @@
 ﻿using Client.Main.Controls;
 using Client.Main.Objects.Player;
+using Client.Main.Objects.Worlds.Login;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using System.Diagnostics;
-using System.Linq;
 
 namespace Client.Main.Worlds
 {
@@ -11,7 +11,7 @@ namespace Client.Main.Worlds
     {
         private PlayerObject _player;
 
-        public NewLoginWorld() : base(95)
+        public NewLoginWorld() : base(worldIndex: 95)
         {
             Camera.Instance.ViewFar = 50000f;
         }
@@ -19,6 +19,16 @@ namespace Client.Main.Worlds
         protected override void CreateMapTileObjects()
         {
             base.CreateMapTileObjects();
+            MapTileObjects[5] = typeof(ShipObject);
+            MapTileObjects[12] = typeof(ShipObject);
+            MapTileObjects[13] = typeof(ShipObject);
+
+            MapTileObjects[54] = typeof(WaterSplashObject);
+            MapTileObjects[1] = typeof(ShipWaterPathObject);
+
+            MapTileObjects[18] = typeof(BlendedObjects);
+            MapTileObjects[7] = typeof(BlendedObjects);
+            MapTileObjects[10] = typeof(BlendedObjects);
         }
 
         public override void AfterLoad()

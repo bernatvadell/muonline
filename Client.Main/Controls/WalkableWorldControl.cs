@@ -33,12 +33,6 @@ namespace Client.Main.Controls
         {
             if (Status != GameControlStatus.Ready || !Visible) return;
 
-            if (Objects[^1] != Walker)
-            {
-                //var currentPosition = Objects.IndexOf(Walker);
-                //Objects.RemoveAt(currentPosition);
-                //Objects.Insert(Objects.Count, Walker);
-            }
 
             CalculateMouseTilePos();
 
@@ -52,7 +46,8 @@ namespace Client.Main.Controls
 
                 var x = newPosition.X * Constants.TERRAIN_SCALE;
                 var y = newPosition.Y * Constants.TERRAIN_SCALE;
-                var pos = new Vector3(x, y, Terrain.RequestTerrainHeight(x, y) + ExtraHeight);
+                var terrainHeight = Terrain.RequestTerrainHeight(x, y);
+                var pos = new Vector3(x, y, terrainHeight + ExtraHeight);
                 _cursor.Position = pos - new Vector3(-50f, -40f, 0);
                 Walker.MoveTo(newPosition);
             }

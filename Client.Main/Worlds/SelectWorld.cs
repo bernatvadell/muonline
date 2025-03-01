@@ -1,7 +1,6 @@
 ﻿using Client.Main.Controls;
-using Client.Main.Objects;
 using Client.Main.Objects.Player;
-using Client.Main.Objects.Worlds.Noria;
+using Client.Main.Objects.Worlds.SelectWrold;
 using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
@@ -15,7 +14,7 @@ namespace Client.Main.Worlds
     {
         private PlayerObject _player;
 
-        public SelectWorld() : base(94)
+        public SelectWorld() : base(worldIndex: 94)
         {
             Camera.Instance.ViewFar = 5500f;
         }
@@ -24,11 +23,36 @@ namespace Client.Main.Worlds
         {
             base.CreateMapTileObjects();
             MapTileObjects[14] = typeof(PlayerObject);
+
+            MapTileObjects[71] = typeof(BlendedObjects);
+            MapTileObjects[11] = typeof(BlendedObjects);
+
+            MapTileObjects[36] = typeof(LightObject);
+            // MapTileObjects[36] = typeof(BlendedObjects);
+            MapTileObjects[25] = typeof(BlendedObjects);
+            MapTileObjects[33] = typeof(BlendedObjects);
+            MapTileObjects[30] = typeof(BlendedObjects);
+
+            MapTileObjects[31] = typeof(FlowersObject2);
+            MapTileObjects[34] = typeof(FlowersObject);
+
+            MapTileObjects[26] = typeof(WaterFallObject);
+            MapTileObjects[24] = typeof(WaterFallObject);
+
+            MapTileObjects[54] = typeof(WaterSplashObject);
+            MapTileObjects[55] = typeof(WaterSplashObject);
+            MapTileObjects[56] = typeof(WaterSplashObject);
         }
 
         public override void AfterLoad()
         {
             base.AfterLoad();
+
+            // water animation parameters
+            Terrain.WaterSpeed = 0.05f;             // Example: faster water movement
+            Terrain.DistortionAmplitude = 0.2f;      // Example: stronger distortion
+            Terrain.DistortionFrequency = 1.0f;      // Example: lower frequency for distortion
+
             _player = Objects.OfType<PlayerObject>().FirstOrDefault();
             _player.Angle = new Vector3(0, 0, MathHelper.ToRadians(90));
             _player.Interactive = true;

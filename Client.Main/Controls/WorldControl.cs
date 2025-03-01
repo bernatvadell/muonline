@@ -156,6 +156,7 @@ namespace Client.Main.Controls
             transparentObjects.Clear();
             solidInFront.Clear();
 
+            // Partition objects into groups based on transparency
             foreach (var obj in Objects)
             {
                 if (!IsObjectInView(obj))
@@ -175,6 +176,7 @@ namespace Client.Main.Controls
                 }
             }
 
+            // Render objects behind the transparent ones
             if (solidBehind.Count > 0)
             {
                 solidBehind.Sort((a, b) => a.Depth.CompareTo(b.Depth));
@@ -188,6 +190,7 @@ namespace Client.Main.Controls
                 }
             }
 
+            // Render transparent objects with depth buffer in read-only mode (no depth writes)
             if (transparentObjects.Count > 0)
             {
                 transparentObjects.Sort((a, b) => b.Depth.CompareTo(a.Depth));
@@ -201,6 +204,7 @@ namespace Client.Main.Controls
                 }
             }
 
+            // Render objects in front of transparent ones
             if (solidInFront.Count > 0)
             {
                 solidInFront.Sort((a, b) => a.Depth.CompareTo(b.Depth));
@@ -214,14 +218,19 @@ namespace Client.Main.Controls
                 }
             }
 
+            // Set the DepthStencilState for DrawAfter calls
+            // DrawAfter for solidBehind objects with default state
             GraphicsDevice.DepthStencilState = DepthStateDefault;
-
             foreach (var obj in solidBehind)
                 obj.DrawAfter(gameTime);
 
+            // DrawAfter for transparent objects with depth read state to avoid writing depth
+            GraphicsDevice.DepthStencilState = DepthStateDepthRead;
             foreach (var obj in transparentObjects)
                 obj.DrawAfter(gameTime);
 
+            // DrawAfter for solidInFront objects with default state
+            GraphicsDevice.DepthStencilState = DepthStateDefault;
             foreach (var obj in solidInFront)
                 obj.DrawAfter(gameTime);
         }

@@ -32,7 +32,7 @@ namespace Client.Main.Worlds
                 MapTileObjects[index] = typeof(GateObject);
             }
 
-            MapTileObjects[22] = typeof(BubblesObject); // TODO more bubbles and add some bubble move
+            MapTileObjects[22] = typeof(BubblesObject);
             MapTileObjects[23] = typeof(WaterPortalObject);
             MapTileObjects[38] = typeof(LightBeamObject);
             MapTileObjects[40] = typeof(PortalObject);
