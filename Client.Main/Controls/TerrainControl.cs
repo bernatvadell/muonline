@@ -217,30 +217,39 @@ namespace Client.Main.Controls
             xf /= Constants.TERRAIN_SCALE;
             yf /= Constants.TERRAIN_SCALE;
 
-            int index = GetTerrainIndex((int)xf, (int)yf);
-
-            if (index >= _backTerrainHeight.Length || _terrain.TerrainWall[index].HasFlag(TWFlags.Height))
-                return SpecialHeight;
-
             int xi = (int)xf;
             int yi = (int)yf;
+            int index = GetTerrainIndex(xi, yi);
+
+            if (index >= _backTerrainHeight.Length || (_terrain.TerrainWall.Length > index && _terrain.TerrainWall[index].HasFlag(TWFlags.Height)))
+                return SpecialHeight;
+
             float xd = xf - xi;
             float yd = yf - yi;
 
-            int index1 = GetTerrainIndexRepeat(xi, yi);
-            int index2 = GetTerrainIndexRepeat(xi, yi + 1);
-            int index3 = GetTerrainIndexRepeat(xi + 1, yi);
-            int index4 = GetTerrainIndexRepeat(xi + 1, yi + 1);
+            // Pre-check the bounds before getting indices
+            int x1 = xi & Constants.TERRAIN_SIZE_MASK;
+            int y1 = yi & Constants.TERRAIN_SIZE_MASK;
+            int x2 = (xi + 1) & Constants.TERRAIN_SIZE_MASK;
+            int y2 = (yi + 1) & Constants.TERRAIN_SIZE_MASK;
 
-            if (new[] { index1, index2, index3, index4 }.Any(i => i >= _backTerrainHeight.Length))
-                return SpecialHeight;
+            int index1 = y1 * Constants.TERRAIN_SIZE + x1;
+            int index2 = y1 * Constants.TERRAIN_SIZE + x2;
+            int index3 = y2 * Constants.TERRAIN_SIZE + x2;
+            int index4 = y2 * Constants.TERRAIN_SIZE + x1;
 
-            float left = MathHelper.Lerp(_backTerrainHeight[index1].B, _backTerrainHeight[index2].B, yd);
-            float right = MathHelper.Lerp(_backTerrainHeight[index3].B, _backTerrainHeight[index4].B, yd);
+            float h1 = _backTerrainHeight[index1].B;
+            float h2 = _backTerrainHeight[index2].B;
+            float h3 = _backTerrainHeight[index3].B;
+            float h4 = _backTerrainHeight[index4].B;
 
-            return MathHelper.Lerp(left, right, xd);
+            // Bilinear interpolation in one go
+            return (1 - xd) * (1 - yd) * h1 +
+                   xd * (1 - yd) * h2 +
+                   xd * yd * h3 +
+                   (1 - xd) * yd * h4;
         }
-
+        
         public Vector3 RequestTerrainLight(float xf, float yf)
         {
             if (_terrain?.TerrainWall == null || xf < 0.0f || yf < 0.0f || _backTerrainLight == null)
@@ -415,34 +424,17 @@ namespace Client.Main.Controls
             var camera = Camera.Instance;
             int startX = Math.Max(0, (int)(camera.Position.X / Constants.TERRAIN_SCALE) - 32);
             int startY = Math.Max(0, (int)(camera.Position.Y / Constants.TERRAIN_SCALE) - 32);
-            int endX = Math.Min(255, startX + 64);
-            int endY = Math.Min(255, startY + 64);
+            int endX = Math.Min(Constants.TERRAIN_SIZE - 1, startX + 64);
+            int endY = Math.Min(Constants.TERRAIN_SIZE - 1, startY + 64);
 
-            System.Numerics.Vector<float> windScaleVector = new System.Numerics.Vector<float>(WindScale);
-            int vectorSize = System.Numerics.Vector<float>.Count;
-
-            for (int y = startY; y <= endY; y++)
+            Parallel.For(startY, endY + 1, y =>
             {
-                int baseIndex = GetTerrainIndex(startX, y);
-
-                for (int x = startX; x <= endX - vectorSize; x += vectorSize)
-                {
-                    var phases = new float[vectorSize];
-                    for (int i = 0; i < vectorSize; i++)
-                    {
-                        phases[i] = _windCache.FastSin(windSpeed + (x + i) * 5f);
-                    }
-
-                    var windVector = new System.Numerics.Vector<float>(phases) * windScaleVector;
-                    windVector.CopyTo(_terrainGrassWind, baseIndex + x - startX);
-                }
-
-                for (int x = endX - (endX % vectorSize); x <= endX; x++)
+                for (int x = startX; x <= endX; x++)
                 {
                     int index = GetTerrainIndex(x, y);
                     _terrainGrassWind[index] = _windCache.FastSin(windSpeed + x * 5f) * WindScale;
                 }
-            }
+            });
         }
 
         private void RenderTerrain(bool isAfter)
@@ -451,6 +443,11 @@ namespace Client.Main.Controls
 
             var cameraPosition = new Vector2(Camera.Instance.Position.X, Camera.Instance.Position.Y);
             UpdateVisibleBlocks(cameraPosition);
+
+            // Pre-allocate buffers and cache common objects
+            var effect = GraphicsManager.Instance.BasicEffect3D;
+            effect.Projection = Camera.Instance.Projection;
+            effect.View = Camera.Instance.View;
 
             foreach (var block in _visibleBlocks)
             {
@@ -529,6 +526,7 @@ namespace Client.Main.Controls
             _visibleBlocks.Clear();
 
             float renderDistance = Camera.Instance.ViewFar * 1.5f;
+            float renderDistanceSq = renderDistance * renderDistance;
 
             const int EXTRA_BLOCKS_MARGIN = 2;
 
@@ -537,11 +535,12 @@ namespace Client.Main.Controls
             int endX = Math.Min(Constants.TERRAIN_SIZE / BlockSize - 1, (int)((cameraPosition.X + renderDistance) / (Constants.TERRAIN_SCALE * BlockSize)) + EXTRA_BLOCKS_MARGIN);
             int endY = Math.Min(Constants.TERRAIN_SIZE / BlockSize - 1, (int)((cameraPosition.Y + renderDistance) / (Constants.TERRAIN_SCALE * BlockSize)) + EXTRA_BLOCKS_MARGIN);
 
-            var vectorSize = System.Numerics.Vector<float>.Count;
-            var heightBuffer = new float[BlockSize * BlockSize];
+            var frustum = Camera.Instance.Frustum;
+            var visibleBlocksList = new List<TerrainBlock>((endX - startX + 1) * (endY - startY + 1));
 
-            for (int gridY = startY; gridY <= endY; gridY++)
+            Parallel.For(startY, endY + 1, gridY =>
             {
+                var localBlocks = new List<TerrainBlock>();
                 for (int gridX = startX; gridX <= endX; gridX++)
                 {
                     var block = _blockCache.GetBlock(gridX, gridY);
@@ -552,48 +551,40 @@ namespace Client.Main.Controls
                     float yEnd = (block.Yi + BlockSize) * Constants.TERRAIN_SCALE;
 
                     block.Center = new Vector2((xStart + xEnd) * 0.5f, (yStart + yEnd) * 0.5f);
-                    float distanceToCamera = Vector2.Distance(block.Center, cameraPosition);
-                    block.LODLevel = GetLODLevel(distanceToCamera);
+                    float distanceToCamera = Vector2.DistanceSquared(block.Center, cameraPosition);
 
-                    if (distanceToCamera <= renderDistance * 1.2f)
+                    if (distanceToCamera <= renderDistanceSq)
                     {
-                        int idx = 0;
-                        for (int y = 0; y < BlockSize; y++)
+                        block.LODLevel = GetLODLevel(MathF.Sqrt(distanceToCamera));
+
+                        // Find min/max height more efficiently
+                        float minZ = float.MaxValue;
+                        float maxZ = float.MinValue;
+
+                        for (int y = 0; y < BlockSize; y += 2)
                         {
-                            for (int x = 0; x < BlockSize; x++)
+                            for (int x = 0; x < BlockSize; x += 2)
                             {
                                 int terrainIndex = GetTerrainIndexRepeat(block.Xi + x, block.Yi + y);
-                                heightBuffer[idx++] = _backTerrainHeight[terrainIndex].B * 1.5f;
+                                float height = _backTerrainHeight[terrainIndex].B * 1.5f;
+
+                                minZ = Math.Min(minZ, height);
+                                maxZ = Math.Max(maxZ, height);
                             }
                         }
 
-                        var minVector = new System.Numerics.Vector<float>(float.MaxValue);
-                        var maxVector = new System.Numerics.Vector<float>(float.MinValue);
-
-                        for (int i = 0; i < heightBuffer.Length; i += vectorSize)
-                        {
-                            var heightVector = new System.Numerics.Vector<float>(heightBuffer, i);
-                            minVector = System.Numerics.Vector.Min(minVector, heightVector);
-                            maxVector = System.Numerics.Vector.Max(maxVector, heightVector);
-                        }
-
-                        block.MinZ = minVector[0];
-                        block.MaxZ = maxVector[0];
-                        for (int i = 1; i < vectorSize; i++)
-                        {
-                            block.MinZ = Math.Min(block.MinZ, minVector[i]);
-                            block.MaxZ = Math.Max(block.MaxZ, maxVector[i]);
-                        }
+                        block.MinZ = minZ;
+                        block.MaxZ = maxZ;
 
                         block.Bounds = new BoundingBox(
                             new Vector3(xStart, yStart, block.MinZ),
                             new Vector3(xEnd, yEnd, block.MaxZ)
                         );
 
-                        block.IsVisible = Camera.Instance.Frustum.Contains(block.Bounds) != ContainmentType.Disjoint;
+                        block.IsVisible = frustum.Contains(block.Bounds) != ContainmentType.Disjoint;
                         if (block.IsVisible)
                         {
-                            _visibleBlocks.Enqueue(block);
+                            localBlocks.Add(block);
                         }
                     }
                     else
@@ -601,6 +592,16 @@ namespace Client.Main.Controls
                         block.IsVisible = false;
                     }
                 }
+
+                lock (visibleBlocksList)
+                {
+                    visibleBlocksList.AddRange(localBlocks);
+                }
+            });
+
+            foreach (var block in visibleBlocksList)
+            {
+                _visibleBlocks.Enqueue(block);
             }
         }
 
@@ -612,10 +613,8 @@ namespace Client.Main.Controls
             }
 
             GraphicsDevice.BlendState = BlendState.Opaque;
-            var effect = GraphicsManager.Instance.BasicEffect3D;
-            effect.Projection = Camera.Instance.Projection;
-            effect.View = Camera.Instance.View;
 
+            // Batch terrain tiles for rendering
             for (int i = 0; i < BlockSize; i += lodStep)
             {
                 for (int j = 0; j < BlockSize; j += lodStep)

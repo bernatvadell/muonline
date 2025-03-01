@@ -138,30 +138,35 @@ namespace Client.Main.Objects
         {
             if (Status == GameControlStatus.NonInitialized)
             {
+                // Use ConfigureAwait(false) to avoid context switching
                 Load().ConfigureAwait(false);
             }
 
             if (Status != GameControlStatus.Ready) return;
 
+            // Early exit if object is out of view
             OutOfView = Camera.Instance.Frustum.Contains(BoundingBoxWorld) == ContainmentType.Disjoint;
+            if (OutOfView) return;
 
-            if (OutOfView)
-                return;
+            // Cache parent's mouse hover state
+            bool parentIsMouseHover = Parent?.IsMouseHover ?? false;
 
-            var parentIsMouseHover = (Parent?.IsMouseHover ?? false);
-
-            float? intersectionDistance = MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld);
-            ContainmentType contains = BoundingBoxWorld.Contains(MuGame.Instance.MouseRay.Position);
-
-
-            bool wouldBeMouseHover = parentIsMouseHover || ((Interactive || Constants.DRAW_BOUNDING_BOXES) && (intersectionDistance != null || contains == ContainmentType.Contains));
+            // Only calculate intersections if needed
+            bool wouldBeMouseHover = parentIsMouseHover;
+            if (!parentIsMouseHover && (Interactive || Constants.DRAW_BOUNDING_BOXES))
+            {
+                float? intersectionDistance = MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld);
+                ContainmentType contains = BoundingBoxWorld.Contains(MuGame.Instance.MouseRay.Position);
+                wouldBeMouseHover = intersectionDistance.HasValue || contains == ContainmentType.Contains;
+            }
 
             IsMouseHover = wouldBeMouseHover;
 
             if (!parentIsMouseHover && IsMouseHover)
                 World.Scene.MouseHoverObject = this;
 
-            for (var i = 0; i < Children.Count; i++)
+            // Direct indexing instead of foreach to avoid enumerator allocation
+            for (int i = 0; i < Children.Count; i++)
                 Children[i].Update(gameTime);
         }
 
@@ -171,7 +176,9 @@ namespace Client.Main.Objects
 
             DrawBoundingBox3D();
 
-            for (var i = 0; i < Children.Count; i++)
+            // Avoid enumeration overhead
+            int count = Children.Count;
+            for (int i = 0; i < count; i++)
                 Children[i].Draw(gameTime);
         }
 
@@ -181,7 +188,9 @@ namespace Client.Main.Objects
 
             DrawBoundingBox2D();
 
-            for (var i = 0; i < Children.Count; i++)
+            // Avoid enumeration overhead
+            int count = Children.Count;
+            for (int i = 0; i < count; i++)
                 Children[i].DrawAfter(gameTime);
         }
 
@@ -236,14 +245,13 @@ namespace Client.Main.Objects
         private void OnParentMatrixChanged(Object s, EventArgs e) => RecalculateWorldPosition();
         protected virtual void RecalculateWorldPosition()
         {
-            var localMatrix = Matrix.CreateScale(Scale)
-                                * Matrix.CreateFromQuaternion(MathUtils.AngleQuaternion(Angle))
-                                * Matrix.CreateTranslation(Position);
+            Matrix localMatrix = Matrix.CreateScale(Scale)
+                * Matrix.CreateFromQuaternion(MathUtils.AngleQuaternion(Angle))
+                * Matrix.CreateTranslation(Position);
 
             if (Parent != null)
             {
-                var worldMatrix = localMatrix * Parent.WorldPosition;
-
+                Matrix worldMatrix = localMatrix * Parent.WorldPosition;
                 if (WorldPosition != worldMatrix)
                 {
                     WorldPosition = worldMatrix;
@@ -254,9 +262,9 @@ namespace Client.Main.Objects
                 WorldPosition = localMatrix;
             }
 
-            var objects = Children.ToArray();
-            for (var i = 0; i < objects.Length; i++)
-                objects[i].RecalculateWorldPosition();
+            // Use direct indexing instead of ToArray() to avoid allocation
+            for (int i = 0; i < Children.Count; i++)
+                Children[i].RecalculateWorldPosition();
         }
 
         private void OnWorldPositionChanged()
@@ -396,10 +404,12 @@ namespace Client.Main.Objects
         private void UpdateWorldBoundingBox()
         {
             Vector3[] boundingBoxCorners = BoundingBoxLocal.GetCorners();
+            Matrix worldPos = WorldPosition;
 
+            // Transform all corners in one loop
             for (int i = 0; i < boundingBoxCorners.Length; i++)
             {
-                boundingBoxCorners[i] = Vector3.Transform(boundingBoxCorners[i], WorldPosition);
+                boundingBoxCorners[i] = Vector3.Transform(boundingBoxCorners[i], worldPos);
             }
 
             BoundingBoxWorld = BoundingBox.CreateFromPoints(boundingBoxCorners);

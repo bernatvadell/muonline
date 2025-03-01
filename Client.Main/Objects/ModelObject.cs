@@ -74,7 +74,24 @@ namespace Client.Main.Objects
                 return;
             }
 
+            int meshCount = Model.Meshes.Length;
+            _boneVertexBuffers = new VertexBuffer[meshCount];
+            _boneIndexBuffers = new IndexBuffer[meshCount];
+            _boneTextures = new Texture2D[meshCount];
+            _scriptTextures = new TextureScript[meshCount];
+            _dataTextures = new TextureData[meshCount];
+
             UpdateWorldPosition();
+
+            for (int meshIndex = 0; meshIndex < meshCount; meshIndex++)
+            {
+                var mesh = Model.Meshes[meshIndex];
+                string texturePath = BMDLoader.Instance.GetTexturePath(Model, mesh.TexturePath);
+                _boneTextures[meshIndex] = TextureLoader.Instance.GetTexture2D(texturePath);
+                _scriptTextures[meshIndex] = TextureLoader.Instance.GetScript(texturePath);
+                _dataTextures[meshIndex] = TextureLoader.Instance.Get(texturePath);
+            }
+
             GenerateBoneMatrix(0, 0, 0, 0);
         }
 
@@ -108,66 +125,70 @@ namespace Client.Main.Objects
 
         public virtual void DrawModel(bool isAfterDraw)
         {
-            if (Model == null) return;
+            if (Model == null || _boneVertexBuffers == null || _scriptTextures == null || _dataTextures == null) return;
 
-            var solidMeshes = Model.Meshes
-                .Select((mesh, index) => new { Mesh = mesh, Index = index })
-                .Where(m => !IsBlendMesh(m.Index))
-                .ToList();
-
-            var transparentMeshes = Model.Meshes
-                .Select((mesh, index) => new { Mesh = mesh, Index = index })
-                .Where(m => IsBlendMesh(m.Index))
-                .OrderByDescending(m => Vector3.Distance(Camera.Instance.Position, WorldPosition.Translation))
-                .ToList();
-
-            foreach (var meshData in solidMeshes)
+            try
             {
-                int i = meshData.Index;
-                if (_dataTextures[i] == null) continue;
-                bool isRGBA = _dataTextures[i].Components == 4;
-                bool isBlendMesh = IsBlendMesh(i);
-                bool draw = isAfterDraw ? isRGBA || isBlendMesh : !isRGBA && !isBlendMesh;
+                var validMeshes = Enumerable.Range(0, Model.Meshes.Length)
+                    .Where(idx =>
+                        idx < _dataTextures.Length &&
+                        _dataTextures[idx] != null &&
+                        !IsHiddenMesh(idx))
+                    .Select(idx => new
+                    {
+                        Index = idx,
+                        IsBlend = IsBlendMesh(idx),
+                        IsRGBA = _dataTextures[idx].Components == 4
+                    })
+                    .ToList();
 
-                if (!isAfterDraw && RenderShadow)
+                foreach (var meshData in validMeshes.Where(m => !m.IsBlend))
                 {
-                    DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, MuGame.Instance.GameTime);
+                    int i = meshData.Index;
+                    bool draw = isAfterDraw ? meshData.IsRGBA : !meshData.IsRGBA;
+
+                    if (!isAfterDraw && RenderShadow)
+                    {
+                        DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, MuGame.Instance.GameTime);
+                    }
+
+                    if (!isAfterDraw && IsMouseHover)
+                    {
+                        DrawMeshHighlight(i);
+                    }
+
+                    if (draw)
+                    {
+                        DrawMesh(i);
+                    }
                 }
 
-                if (!isAfterDraw && IsMouseHover)
+                foreach (var meshData in validMeshes
+                    .Where(m => m.IsBlend)
+                    .OrderByDescending(m => Vector3.Distance(Camera.Instance.Position, WorldPosition.Translation)))
                 {
-                    DrawMeshHighlight(i);
-                }
+                    int i = meshData.Index;
+                    bool draw = isAfterDraw ? meshData.IsRGBA || true : false;
 
-                if (draw)
-                {
+                    if (!isAfterDraw && RenderShadow)
+                    {
+                        DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, MuGame.Instance.GameTime);
+                    }
 
-                    DrawMesh(i);
+                    if (!isAfterDraw && IsMouseHover)
+                    {
+                        DrawMeshHighlight(i);
+                    }
+
+                    if (draw)
+                    {
+                        DrawMesh(i);
+                    }
                 }
             }
-
-            foreach (var meshData in transparentMeshes)
+            catch (Exception ex)
             {
-                int i = meshData.Index;
-                if (_dataTextures[i] == null) continue;
-                bool isRGBA = _dataTextures[i].Components == 4;
-                bool isBlendMesh = IsBlendMesh(i);
-                bool draw = isAfterDraw ? isRGBA || isBlendMesh : !isRGBA && !isBlendMesh;
-
-                if (!isAfterDraw && RenderShadow)
-                {
-                    DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, MuGame.Instance.GameTime);
-                }
-
-                if (!isAfterDraw && IsMouseHover)
-                {
-                    DrawMeshHighlight(i);
-                }
-
-                if (draw)
-                {
-                    DrawMesh(i);
-                }
+                Debug.WriteLine($"Error in DrawModel: {ex.Message}");
             }
         }
 
@@ -199,25 +220,39 @@ namespace Client.Main.Objects
 
         public virtual void DrawMesh(int mesh)
         {
-            if (IsHiddenMesh(mesh) || _boneVertexBuffers == null)
-                return;
-
-            Texture2D texture = _boneTextures[mesh];
-            VertexBuffer vertexBuffer = _boneVertexBuffers[mesh];
-            IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
-            int primitiveCount = indexBuffer.IndexCount / 3;
-
-            GraphicsManager.Instance.AlphaTestEffect3D.Texture = texture;
-            GraphicsDevice.BlendState = IsBlendMesh(mesh) ? BlendMeshState : BlendState;
-            GraphicsManager.Instance.AlphaTestEffect3D.Alpha = TotalAlpha;
-
-            foreach (EffectPass pass in GraphicsManager.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
+            try
             {
-                pass.Apply();
+                if (_boneVertexBuffers == null || mesh < 0 || mesh >= _boneVertexBuffers.Length ||
+                    _boneIndexBuffers == null || mesh >= _boneIndexBuffers.Length ||
+                    _boneTextures == null || mesh >= _boneTextures.Length ||
+                    IsHiddenMesh(mesh))
+                    return;
 
-                GraphicsDevice.SetVertexBuffer(vertexBuffer);
-                GraphicsDevice.Indices = indexBuffer;
-                GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+                Texture2D texture = _boneTextures[mesh];
+                VertexBuffer vertexBuffer = _boneVertexBuffers[mesh];
+                IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
+
+                if (texture == null || vertexBuffer == null || indexBuffer == null)
+                    return;
+
+                int primitiveCount = indexBuffer.IndexCount / 3;
+
+                GraphicsManager.Instance.AlphaTestEffect3D.Texture = texture;
+                GraphicsDevice.BlendState = IsBlendMesh(mesh) ? BlendMeshState : BlendState;
+                GraphicsManager.Instance.AlphaTestEffect3D.Alpha = TotalAlpha;
+
+                foreach (EffectPass pass in GraphicsManager.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
+                {
+                    pass.Apply();
+
+                    GraphicsDevice.SetVertexBuffer(vertexBuffer);
+                    GraphicsDevice.Indices = indexBuffer;
+                    GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in DrawMesh: {ex.Message}");
             }
         }
 
@@ -474,8 +509,14 @@ namespace Client.Main.Objects
 
                     Matrix boneMatrix = boneTransforms[boneIndex];
                     Vector3 transformedPosition = Vector3.Transform(vertex.Position, boneMatrix);
-                    min = Vector3.Min(min, transformedPosition);
-                    max = Vector3.Max(max, transformedPosition);
+
+                    min.X = Math.Min(min.X, transformedPosition.X);
+                    min.Y = Math.Min(min.Y, transformedPosition.Y);
+                    min.Z = Math.Min(min.Z, transformedPosition.Z);
+
+                    max.X = Math.Max(max.X, transformedPosition.X);
+                    max.Y = Math.Max(max.Y, transformedPosition.Y);
+                    max.Z = Math.Max(max.Z, transformedPosition.Z);
                 }
             }
 
@@ -526,57 +567,104 @@ namespace Client.Main.Objects
 
         private void GenerateBoneMatrix(int currentAction, int currentAnimationFrame, int nextAnimationFrame, float interpolationFactor)
         {
-            BoneTransform ??= new Matrix[Model.Bones.Length];
-            var currentActionData = Model.Actions[currentAction];
-            bool changed = false;
+            if (Model == null || Model.Bones == null) return;
 
-            Matrix[] boneTransforms = BoneTransform; // Cache BoneTransform
-            BMDTextureBone[] modelBones = Model.Bones; // Cache Model.Bones
-
-            for (int i = 0; i < modelBones.Length; i++)
+            try
             {
-                var bone = modelBones[i];
+                BoneTransform ??= new Matrix[Model.Bones.Length];
 
-                if (bone == BMDTextureBone.Dummy)
-                    continue;
-
-                var bm = bone.Matrixes[currentAction];
-
-                Quaternion q1 = bm.Quaternion[currentAnimationFrame];
-                Quaternion q2 = bm.Quaternion[nextAnimationFrame];
-
-                Quaternion boneQuaternion = Quaternion.Slerp(q1, q2, interpolationFactor);
-                Matrix matrix = Matrix.CreateFromQuaternion(boneQuaternion);
-
-                Vector3 position1 = bm.Position[currentAnimationFrame];
-                Vector3 position2 = bm.Position[nextAnimationFrame];
-                Vector3 interpolatedPosition = Vector3.Lerp(position1, position2, interpolationFactor);
-
-                if (i == 0 && currentActionData.LockPositions)
+                if (currentAction >= Model.Actions.Length)
                 {
-                    matrix.M41 = bm.Position[0].X;
-                    matrix.M42 = bm.Position[0].Y;
-                    matrix.M43 = position1.Z * (1 - interpolationFactor) + position2.Z * interpolationFactor + BodyHeight;
-                }
-                else
-                {
-                    matrix.Translation = interpolatedPosition;
+                    Debug.WriteLine($"Invalid action index: {currentAction}, max: {Model.Actions.Length - 1}");
+                    currentAction = 0;
                 }
 
-                Matrix newMatrix = bone.Parent != -1
-                    ? matrix * boneTransforms[bone.Parent]
-                    : matrix;
+                var currentActionData = Model.Actions[currentAction];
+                bool changed = false;
 
-                if (!changed && boneTransforms[i] != newMatrix)
-                    changed = true;
+                Matrix[] boneTransforms = BoneTransform;
+                BMDTextureBone[] modelBones = Model.Bones;
+                var boneCount = modelBones.Length;
 
-                boneTransforms[i] = newMatrix;
+                for (int i = 0; i < boneCount; i++)
+                {
+                    var bone = modelBones[i];
+
+                    if (bone == BMDTextureBone.Dummy || bone.Matrixes == null ||
+                        currentAction >= bone.Matrixes.Length)
+                        continue;
+
+                    var bm = bone.Matrixes[currentAction];
+
+                    if (currentAnimationFrame >= bm.Quaternion.Length ||
+                        nextAnimationFrame >= bm.Quaternion.Length ||
+                        currentAnimationFrame >= bm.Position.Length ||
+                        nextAnimationFrame >= bm.Position.Length)
+                    {
+                        Debug.WriteLine($"Animation frame index out of bounds: current={currentAnimationFrame}, next={nextAnimationFrame}, max={bm.Quaternion.Length - 1}");
+                        continue;
+                    }
+
+                    Quaternion q1 = bm.Quaternion[currentAnimationFrame];
+                    Quaternion q2 = bm.Quaternion[nextAnimationFrame];
+                    Quaternion boneQuaternion = Quaternion.Slerp(q1, q2, interpolationFactor);
+
+                    Matrix matrix = Matrix.CreateFromQuaternion(boneQuaternion);
+
+                    Vector3 position1 = bm.Position[currentAnimationFrame];
+                    Vector3 position2 = bm.Position[nextAnimationFrame];
+
+                    if (i == 0 && currentActionData.LockPositions)
+                    {
+                        matrix.M41 = bm.Position[0].X;
+                        matrix.M42 = bm.Position[0].Y;
+                        matrix.M43 = position1.Z + (position2.Z - position1.Z) * interpolationFactor + BodyHeight;
+                    }
+                    else
+                    {
+                        matrix.M41 = position1.X + (position2.X - position1.X) * interpolationFactor;
+                        matrix.M42 = position1.Y + (position2.Y - position1.Y) * interpolationFactor;
+                        matrix.M43 = position1.Z + (position2.Z - position1.Z) * interpolationFactor;
+                    }
+
+                    Matrix newMatrix;
+                    if (bone.Parent != -1 && bone.Parent < boneTransforms.Length)
+                    {
+                        newMatrix = matrix * boneTransforms[bone.Parent];
+                    }
+                    else
+                    {
+                        newMatrix = matrix;
+                    }
+
+                    if (!changed && i < boneTransforms.Length)
+                    {
+                        Matrix oldMatrix = boneTransforms[i];
+
+                        changed = oldMatrix.M11 != newMatrix.M11 ||
+                                oldMatrix.M22 != newMatrix.M22 ||
+                                oldMatrix.M33 != newMatrix.M33 ||
+                                oldMatrix.M44 != newMatrix.M44 ||
+                                oldMatrix.M41 != newMatrix.M41 ||
+                                oldMatrix.M42 != newMatrix.M42 ||
+                                oldMatrix.M43 != newMatrix.M43;
+                    }
+
+                    if (i < boneTransforms.Length)
+                    {
+                        boneTransforms[i] = newMatrix;
+                    }
+                }
+
+                if (changed)
+                {
+                    InvalidateBuffers();
+                    UpdateBoundings();
+                }
             }
-
-            if (changed)
+            catch (Exception ex)
             {
-                InvalidateBuffers();
-                UpdateBoundings();
+                Debug.WriteLine($"Error in GenerateBoneMatrix: {ex.Message}");
             }
         }
 
@@ -585,72 +673,82 @@ namespace Client.Main.Objects
             if (!_invalidatedBuffers || Model == null)
                 return;
 
-            int meshCount = Model.Meshes.Length; // Cache mesh count
-
-            _boneVertexBuffers ??= new VertexBuffer[meshCount];
-            _boneIndexBuffers ??= new IndexBuffer[meshCount];
-            _boneTextures ??= new Texture2D[meshCount];
-            _scriptTextures ??= new TextureScript[meshCount];
-            _dataTextures ??= new TextureData[meshCount];
-
-            for (int meshIndex = 0; meshIndex < meshCount; meshIndex++)
+            try
             {
-                var mesh = Model.Meshes[meshIndex];
-                // Resolve the body light conflict
+                int meshCount = Model.Meshes.Length;
 
-                Vector3 bodyLight;
-
-                if (LightEnabled && World.Terrain != null)
+                if (_boneVertexBuffers == null || _boneVertexBuffers.Length != meshCount)
                 {
-                    Vector3 terrainLight = World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y);
-                    terrainLight += Light;
-                    bodyLight = terrainLight;
-                }
-                else
-                {
-                    bodyLight = Light;
+                    _boneVertexBuffers = new VertexBuffer[meshCount];
+                    _boneIndexBuffers = new IndexBuffer[meshCount];
+                    _boneTextures = new Texture2D[meshCount];
+                    _scriptTextures = new TextureScript[meshCount];
+                    _dataTextures = new TextureData[meshCount];
                 }
 
-                bodyLight = IsBlendMesh(meshIndex)
-                    ? bodyLight * BlendMeshLight
-                    : bodyLight * TotalAlpha;
-
-                _boneVertexBuffers[meshIndex]?.Dispose();
-                _boneIndexBuffers[meshIndex]?.Dispose();
-
-                Matrix[] bones = (LinkParentAnimation && Parent is ModelObject parentModel)
+                Matrix[] bones = (LinkParentAnimation && Parent is ModelObject parentModel && parentModel.BoneTransform != null)
                     ? parentModel.BoneTransform
                     : BoneTransform;
 
-                // Use the updated color calculation method from the improvements branch
-                byte r = Color.R;
-                byte g = Color.G;
-                byte b = Color.B;
-
-                // Calculate color components considering lighting and clamping values
-                byte bodyR = (byte)Math.Min(r * bodyLight.X, 255);
-                byte bodyG = (byte)Math.Min(g * bodyLight.Y, 255);
-                byte bodyB = (byte)Math.Min(b * bodyLight.Z, 255);
-
-                Color bodyColor = new(bodyR, bodyG, bodyB);
-
-                BMDLoader.Instance.GetModelBuffers(Model, meshIndex, bodyColor, bones, out var vertexBuffer, out var indexBuffer);
-
-                _boneVertexBuffers[meshIndex] = vertexBuffer;
-                _boneIndexBuffers[meshIndex] = indexBuffer;
-
-                if (_boneTextures[meshIndex] == null)
+                if (bones == null)
                 {
-                    string texturePath = BMDLoader.Instance.GetTexturePath(Model, mesh.TexturePath);
-                    _boneTextures[meshIndex] = TextureLoader.Instance.GetTexture2D(texturePath);
-                    _scriptTextures[meshIndex] = TextureLoader.Instance.GetScript(texturePath);
-                    _dataTextures[meshIndex] = TextureLoader.Instance.Get(texturePath);
+                    Debug.WriteLine("SetDynamicBuffers: bones reference is null");
+                    return;
                 }
+
+                Vector3 bodyLight = LightEnabled && World != null && World.Terrain != null
+                    ? World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y) + Light
+                    : Light;
+
+                for (int meshIndex = 0; meshIndex < meshCount; meshIndex++)
+                {
+                    var mesh = Model.Meshes[meshIndex];
+
+                    bool isBlendMesh = false;
+                    try
+                    {
+                        isBlendMesh = IsBlendMesh(meshIndex);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Error checking blend mesh: {ex.Message}");
+                    }
+
+                    Vector3 meshLight = isBlendMesh
+                        ? bodyLight * BlendMeshLight
+                        : bodyLight * TotalAlpha;
+
+                    byte r = Color.R;
+                    byte g = Color.G;
+                    byte b = Color.B;
+                    byte bodyR = (byte)Math.Min(r * meshLight.X, 255);
+                    byte bodyG = (byte)Math.Min(g * meshLight.Y, 255);
+                    byte bodyB = (byte)Math.Min(b * meshLight.Z, 255);
+                    Color bodyColor = new(bodyR, bodyG, bodyB);
+
+                    _boneVertexBuffers[meshIndex]?.Dispose();
+                    _boneIndexBuffers[meshIndex]?.Dispose();
+
+                    BMDLoader.Instance.GetModelBuffers(Model, meshIndex, bodyColor, bones, out var vertexBuffer, out var indexBuffer);
+                    _boneVertexBuffers[meshIndex] = vertexBuffer;
+                    _boneIndexBuffers[meshIndex] = indexBuffer;
+
+                    if (_boneTextures[meshIndex] == null)
+                    {
+                        string texturePath = BMDLoader.Instance.GetTexturePath(Model, mesh.TexturePath);
+                        _boneTextures[meshIndex] = TextureLoader.Instance.GetTexture2D(texturePath);
+                        _scriptTextures[meshIndex] = TextureLoader.Instance.GetScript(texturePath);
+                        _dataTextures[meshIndex] = TextureLoader.Instance.Get(texturePath);
+                    }
+                }
+
+                _invalidatedBuffers = false;
+                RecalculateWorldPosition();
             }
-
-            _invalidatedBuffers = false;
-
-            RecalculateWorldPosition();
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in SetDynamicBuffers: {ex.Message}");
+            }
         }
 
         protected void InvalidateBuffers()
