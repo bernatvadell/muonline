@@ -27,15 +27,14 @@ namespace Client.Main.Controls.UI.Game
         {
             TexturePath = "Interface/GFx/main_IE.ozd";
             AutoViewSize = false;
-            TextureRectangle = new Rectangle(339, 4, 86, 86);
+            TextureRectangle = new Rectangle(336, 0, 86, 86);
             ViewSize = new Point(86, 86);
-            Align = ControlAlign.Bottom;
             BlendState = BlendState.AlphaBlend;
             // Add the progress control as a normal child.
             Controls.Add(_progress = new MainMPStatusControl
             {
                 Align = ControlAlign.Bottom,
-                Margin = new Margin { Bottom = 3 }
+                Margin = new Margin { Bottom = 2 }
             });
             // Create the label (but do not add it as a child)
             _label = new LabelControl
@@ -47,8 +46,13 @@ namespace Client.Main.Controls.UI.Game
 
         public void UpdatePercent()
         {
-            _progress.Percentage = _maxMP <= 0 ? 0 : (float)_currentMP / _maxMP;
-            _label.Text = $"{_currentMP}/{_maxMP}";
+            _progress.Percentage = MaxMP <= 0 ? 0 : (float)_currentMP / MaxMP;
+            _label.Text = $"{CurrentMP}/{MaxMP}";
+        }
+
+        public override void Update(GameTime gameTime)
+        {
+            base.Update(gameTime);
         }
 
         public override void Draw(GameTime gameTime)
@@ -59,8 +63,8 @@ namespace Client.Main.Controls.UI.Game
 
         public void DrawLabel(GameTime gameTime)
         {
-            _label.X = 865; //TODO Caclucate this
-            _label.Y = 658; //TODO Caclucate this
+            _label.X = 885; //TODO Caclucate this
+            _label.Y = 651; //TODO Caclucate this
             _label.Draw(gameTime);
         }
     }

@@ -15,18 +15,18 @@ namespace Client.Main.Controls.UI.Game
         public int CurrentHP
         {
             get => _currentHP;
-            set { _currentHP = value; UpdateStatus(); }
+            set { _currentHP = value; UpdatePercent(); }
         }
         public int MaxHP
         {
             get => _maxHP;
-            set { _maxHP = value; UpdateStatus(); }
+            set { _maxHP = value; UpdatePercent(); }
         }
 
         public MainHPControl()
         {
             TexturePath = "Interface/GFx/main_IE.ozd";
-            TextureRectangle = new Rectangle(428, 4, 86, 86);
+            TextureRectangle = new Rectangle(427, 0, 86, 86);
             AutoViewSize = false;
             ViewSize = new Point(86, 86);
             BlendState = BlendState.AlphaBlend;
@@ -44,7 +44,7 @@ namespace Client.Main.Controls.UI.Game
             };
         }
 
-        public void UpdateStatus()
+        public void UpdatePercent()
         {
             _progress.Percentage = MaxHP <= 0 ? 0 : (float)CurrentHP / MaxHP;
             _label.Text = $"{CurrentHP}/{MaxHP}";
@@ -64,8 +64,8 @@ namespace Client.Main.Controls.UI.Game
         // This method is called later from MainControl.Draw to render the label on top.
         public void DrawLabel(GameTime gameTime)
         {
-            _label.X = 345; //TODO Caclucate this
-            _label.Y = 658; //TODO Caclucate this
+            _label.X = 320; //TODO Caclucate this
+            _label.Y = 651; //TODO Caclucate this
             _label.Draw(gameTime);
         }
     }

@@ -1,139 +1,94 @@
-﻿using Client.Main.Models;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
+﻿using Microsoft.Xna.Framework;
+using System.Linq;
 
 namespace Client.Main.Controls.UI.Game
 {
-    public class MainControl : UIControl
+    public class MainControl : DynamicLayoutControl
     {
-        // Keep references to the HP/MP controls so we can later draw their labels.
-        private readonly MainHPControl _hpControl;
-        private readonly MainMPControl _mpControl;
+        protected override string LayoutJsonResource => "Client.Main.Controls.UI.Game.Layouts.MainLayout.json";
+        protected override string TextureRectJsonResource => "Client.Main.Controls.UI.Game.Layouts.MainRect.json";
+        protected override string DefaultTexturePath => "Interface/GFx/main_IE.ozd";
 
-        public MainControl()
+        public MainControl() : base()
         {
-            Align = ControlAlign.HorizontalCenter | ControlAlign.Bottom;
+            AlphaOverrides["ActiveSkill_1"] = 0.7f;
+            AlphaOverrides["ActiveSkill_2"] = 0.7f;
+            AlphaOverrides["0"] = 0.7f;
+            AlphaOverrides["1"] = 0.7f;
+            AlphaOverrides["2"] = 0.7f;
+            AlphaOverrides["3"] = 0.7f;
+            AlphaOverrides["4"] = 0.7f;
+            AlphaOverrides["5"] = 0.7f;
 
-            _mpControl = new MainMPControl
+            var hpControl = new MainHPControl
             {
-                X = 151 + 88 + 143 + 78 + 76 + 140,
-                Margin = new Margin { Bottom = 16 },
-                Align = ControlAlign.Bottom,
-                BlendState = BlendState.AlphaBlend,
-                CurrentMP = 4500,
-                MaxMP = 4500
+                CurrentHP = 400,
+                MaxHP = 854,
+                Name = "HP_1"
             };
 
-            _hpControl = new MainHPControl
+            hpControl.Tag = new LayoutInfo
             {
-                X = 154,
-                Margin = new Margin { Bottom = 16 },
-                Align = ControlAlign.Bottom,
-                CurrentHP = 500,
-                MaxHP = 854
+                ScreenX = 292,
+                ScreenY = 604,
+                Width = 100,   // e.g., control width
+                Height = 100,
+                Z = -5     // render order
             };
 
-            // Add HP/MP controls first – note that their label elements are now drawn later.
-            Controls.Add(_mpControl);
-            Controls.Add(_hpControl);
-
-            // Add the rest of the texture controls in the desired order.
-            Controls.Add(new TextureControl
+            if (hpControl is ExtendedUIControl extCtrlHP && hpControl.Tag is LayoutInfo layoutHP)
             {
-                TexturePath = "Interface/GFx/main_IE.ozd",
-                TextureRectangle = new Rectangle(0, 109, 151, 64),
-                AutoViewSize = false,
-                ViewSize = new Point(151, 64),
-                Align = ControlAlign.Bottom,
-                BlendState = BlendState.AlphaBlend
-            });
+                extCtrlHP.RenderOrder = layoutHP.Z;
+            }
 
-            Controls.Add(new TextureControl
+            var mpControl = new MainMPControl
             {
-                TexturePath = "Interface/GFx/main_IE.ozd",
-                TextureRectangle = new Rectangle(105, 0, 88, 107),
-                AutoViewSize = false,
-                ViewSize = new Point(88, 107),
-                X = 151,
-                Align = ControlAlign.Bottom,
-                BlendState = BlendState.AlphaBlend
-            });
+                CurrentMP = 2500,
+                MaxMP = 4500,
+                Name = "MP_1",
+            };
 
-            Controls.Add(new TextureControl
+            mpControl.Tag = new LayoutInfo
             {
-                TexturePath = "Interface/GFx/main_IE.ozd",
-                TextureRectangle = new Rectangle(193, 0, 143, 91),
-                AutoViewSize = false,
-                ViewSize = new Point(143, 91),
-                X = 151 + 88,
-                Align = ControlAlign.Bottom,
-                BlendState = BlendState.AlphaBlend
-            });
+                ScreenX = 860,
+                ScreenY = 604,
+                Width = 100,   // e.g., control width
+                Height = 100,
+                Z = -5     // render order
+            };
 
-            Controls.Add(new TextureControl
+            if (mpControl is ExtendedUIControl extCtrlMP && mpControl.Tag is LayoutInfo layoutMP)
             {
-                TexturePath = "Interface/GFx/main_IE.ozd",
-                TextureRectangle = new Rectangle(660, 0, 78, 70),
-                AutoViewSize = false,
-                ViewSize = new Point(78, 70),
-                X = 151 + 88 + 143,
-                Align = ControlAlign.Bottom,
-                BlendState = BlendState.AlphaBlend
-            });
+                extCtrlMP.RenderOrder = layoutMP.Z;
+            }
 
-            Controls.Add(new TextureControl
-            {
-                TexturePath = "Interface/GFx/main_IE.ozd",
-                TextureRectangle = new Rectangle(891, 0, 76, 67),
-                AutoViewSize = false,
-                ViewSize = new Point(76, 67),
-                X = 151 + 88 + 143 + 78,
-                Align = ControlAlign.Bottom,
-                BlendState = BlendState.AlphaBlend
-            });
-
-            Controls.Add(new TextureControl
-            {
-                TexturePath = "Interface/GFx/main_IE.ozd",
-                TextureRectangle = new Rectangle(518, 0, 142, 89),
-                AutoViewSize = false,
-                ViewSize = new Point(142, 89),
-                X = 151 + 88 + 143 + 78 + 76,
-                Align = ControlAlign.Bottom,
-                BlendState = BlendState.AlphaBlend
-            });
-
-            Controls.Add(new TextureControl
-            {
-                TexturePath = "Interface/GFx/main_IE.ozd",
-                TextureRectangle = new Rectangle(0, 0, 105, 107),
-                AutoViewSize = false,
-                ViewSize = new Point(105, 107),
-                X = 151 + 88 + 143 + 78 + 76 + 142,
-                Align = ControlAlign.Bottom,
-                BlendState = BlendState.AlphaBlend
-            });
-
-            Controls.Add(new TextureControl
-            {
-                TexturePath = "Interface/GFx/main_IE.ozd",
-                TextureRectangle = new Rectangle(738, 0, 150, 68),
-                AutoViewSize = false,
-                ViewSize = new Point(150, 68),
-                X = 151 + 88 + 143 + 78 + 76 + 142 + 105,
-                Align = ControlAlign.Bottom,
-                BlendState = BlendState.AlphaBlend,
-            });
+            Controls.Clear();
+            Controls.Add(mpControl);
+            Controls.Add(hpControl);
+            CreateControls();
+            UpdateLayout();
         }
 
         public override void Draw(GameTime gameTime)
         {
-            // First, draw all controls in the usual order.
-            base.Draw(gameTime);
+            // First, we draw all controls, sorting by RenderOrder.
+            foreach (var ctrl in Controls.OrderBy(c => (c as ExtendedUIControl)?.RenderOrder ?? 0))
+            {
+                ctrl.Draw(gameTime);
+            }
 
-            // Then, explicitly draw the label elements for the HP and MP controls on top.
-            _hpControl.DrawLabel(gameTime);
-            _mpControl.DrawLabel(gameTime);
+            // Then, we draw labels for custom controls.
+            foreach (var ctrl in Controls)
+            {
+                if (ctrl is MainHPControl hpControl)
+                {
+                    hpControl.DrawLabel(gameTime);
+                }
+                else if (ctrl is MainMPControl mpControl)
+                {
+                    mpControl.DrawLabel(gameTime);
+                }
+            }
         }
     }
 }

@@ -1,0 +1,210 @@
+[
+  {
+    "Name": "MP",
+    "ScreenX": 865,
+    "ScreenY": 602,
+    "Width": 112,
+    "Height": 117,
+    "Z": 1
+  },
+  {
+    "Name": "HP",
+    "ScreenX": 290,
+    "ScreenY": 602,
+    "Width": 100,
+    "Height": 117,
+    "Z": -3
+  },
+  {
+    "Name": "QWE",
+    "ScreenX": 389,
+    "ScreenY": 619,
+    "Width": 157,
+    "Height": 98,
+    "Z": 0
+  },
+  {
+    "Name": "RS",
+    "ScreenX": 545,
+    "ScreenY": 642,
+    "Width": 85,
+    "Height": 75,
+    "Z": -1
+  },
+  {
+    "Name": "123",
+    "ScreenX": 711,
+    "ScreenY": 621,
+    "Width": 156,
+    "Height": 97,
+    "Z": -1
+  },
+  {
+    "Name": "Interface_1",
+    "ScreenX": 976,
+    "ScreenY": 652,
+    "Width": 152,
+    "Height": 66,
+    "Z": 0
+  },
+  {
+    "Name": "1234",
+    "ScreenX": 628,
+    "ScreenY": 645,
+    "Width": 84,
+    "Height": 73,
+    "Z": -1
+  },
+  {
+    "Name": "SettingsButton",
+    "ScreenX": 1032,
+    "ScreenY": 670,
+    "Width": 41,
+    "Height": 38,
+    "Z": 4
+  },
+  {
+    "Name": "Bar1",
+    "ScreenX": 410,
+    "ScreenY": 633,
+    "Width": 10,
+    "Height": 18,
+    "Z": 0
+  },
+  {
+    "Name": "Bar2",
+    "ScreenX": 852,
+    "ScreenY": 630,
+    "Width": 10,
+    "Height": 18,
+    "Z": 0
+  },
+  {
+    "Name": "1",
+    "ScreenX": 663,
+    "ScreenY": 645,
+    "Width": 13,
+    "Height": 19,
+    "Z": 3
+  },
+  {
+    "Name": "2",
+    "ScreenX": 698,
+    "ScreenY": 644,
+    "Width": 14,
+    "Height": 19,
+    "Z": 3
+  },
+  {
+    "Name": "3",
+    "ScreenX": 734,
+    "ScreenY": 644,
+    "Width": 16,
+    "Height": 19,
+    "Z": 2
+  },
+  {
+    "Name": "4",
+    "ScreenX": 767,
+    "ScreenY": 644,
+    "Width": 17,
+    "Height": 19,
+    "Z": 2
+  },
+  {
+    "Name": "Button_1",
+    "ScreenX": 199,
+    "ScreenY": 669,
+    "Width": 41,
+    "Height": 40,
+    "Z": 5
+  },
+  {
+    "Name": "button2",
+    "ScreenX": 235,
+    "ScreenY": 668,
+    "Width": 42,
+    "Height": 41,
+    "Z": 5
+  },
+  {
+    "Name": "button3",
+    "ScreenX": 270,
+    "ScreenY": 670,
+    "Width": 41,
+    "Height": 37,
+    "Z": 5
+  },
+  {
+    "Name": "button4",
+    "ScreenX": 956,
+    "ScreenY": 667,
+    "Width": 42,
+    "Height": 39,
+    "Z": 4
+  },
+  {
+    "Name": "button5",
+    "ScreenX": 997,
+    "ScreenY": 671,
+    "Width": 40,
+    "Height": 38,
+    "Z": 4
+  },
+  {
+    "Name": "ActiveSkill_1",
+    "ScreenX": 650,
+    "ScreenY": 653,
+    "Width": 40,
+    "Height": 52,
+    "Z": 2
+  },
+  {
+    "Name": "ActiveSkill_2",
+    "ScreenX": 606,
+    "ScreenY": 653,
+    "Width": 42,
+    "Height": 52,
+    "Z": 2
+  },
+  {
+    "Name": "ExpBar",
+    "ScreenX": 228,
+    "ScreenY": 705,
+    "Width": 815,
+    "Height": 15,
+    "Z": 10
+  },
+  {
+    "Name": "Interface_2",
+    "ScreenX": 140,
+    "ScreenY": 652,
+    "Width": 151,
+    "Height": 66,
+    "Z": 0
+  },
+  {
+    "Name": "0",
+    "ScreenX": 1070,
+    "ScreenY": 699,
+    "Width": 14,
+    "Height": 18,
+    "Z": 6
+  },
+  {
+    "Name": "5",
+    "ScreenX": 803,
+    "ScreenY": 645,
+    "Width": 14,
+    "Height": 18,
+    "Z": 2
+  },
+  {
+    "Name": "arrow_right_2",
+    "ScreenX": 828,
+    "ScreenY": 662,
+    "Width": 17,
+    "Height": 31,
+    "Z": 6
+  }
+]
