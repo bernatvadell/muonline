@@ -1,5 +1,6 @@
 ﻿using Client.Main.Content;
 using Client.Main.Controllers;
+using Client.Main.Controls.UI.Game;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -7,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Controls.UI
 {
-    public class TextureControl : UIControl
+    public class TextureControl : ExtendedUIControl
     {
         protected Texture2D Texture { get; private set; }
         private string _texturePath;

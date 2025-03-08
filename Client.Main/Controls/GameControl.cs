@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Controls
 {
-
     public abstract class GameControl : IChildItem<GameControl>, IDisposable
     {
         private Point _controlSize, _viewSize;
@@ -28,26 +27,32 @@ namespace Client.Main.Controls
         public int X { get; set; }
         public int Y { get; set; }
         public Point ControlSize { get => _controlSize; set => _controlSize = value; }
-        public Point ViewSize { get => _viewSize; set { if (_viewSize != value) { _viewSize = value; OnScreenSizeChanged(); } } }
+        public Point ViewSize
+        {
+            get => _viewSize;
+            set { if (_viewSize != value) { _viewSize = value; OnScreenSizeChanged(); } }
+        }
         public float Scale { get; set; } = 1f;
         public Margin Margin { get; set; } = Margin.Empty;
-
         public Margin Padding { get; set; } = new Margin();
-
         public Color BorderColor { get; set; }
         public int BorderThickness { get; set; } = 0;
         public Color BackgroundColor { get; set; } = Color.Transparent;
-
         public Point Offset { get; set; }
-
         public virtual Point DisplayPosition => new(
             (Parent?.DisplayRectangle.X ?? 0) + X + Margin.Left - Margin.Right + Offset.X,
             (Parent?.DisplayRectangle.Y ?? 0) + Y + Margin.Top - Margin.Bottom + Offset.Y
         );
         public virtual Point DisplaySize => new((int)(ViewSize.X * Scale), (int)(ViewSize.Y * Scale));
         public virtual Rectangle DisplayRectangle => new(DisplayPosition, DisplaySize);
-
         public bool Visible { get; set; } = true;
+
+        // Added property for storing additional data (e.g., design info)
+        public object Tag { get; set; }
+        // Added Name property to identify controls
+        public string Name { get; set; }
+        // Added Alpha property for controlling transparency (1 = fully opaque)
+        public float Alpha { get; set; } = 1f;
 
         public event EventHandler Click;
         public event EventHandler SizeChanged;
@@ -88,7 +93,6 @@ namespace Client.Main.Controls
                 Status = GameControlStatus.Initializing;
 
                 var tasks = new Task[Controls.Count];
-
                 var controls = Controls.ToArray();
 
                 for (int i = 0; i < controls.Length; i++)
@@ -104,7 +108,6 @@ namespace Client.Main.Controls
                 await Task.WhenAll(tasks);
 
                 await Load();
-
                 AfterLoad();
 
                 Status = GameControlStatus.Ready;
@@ -212,7 +215,6 @@ namespace Client.Main.Controls
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
             GraphicsDevice.BlendState = BlendState.Opaque;
 
-
             for (int i = 0; i < Controls.Count; i++)
                 Controls[i].Draw(gameTime);
         }
@@ -225,7 +227,6 @@ namespace Client.Main.Controls
             for (int i = 0; i < Controls.Count; i++)
                 Controls[i].DrawAfter(gameTime);
         }
-
 
         public virtual void Dispose()
         {

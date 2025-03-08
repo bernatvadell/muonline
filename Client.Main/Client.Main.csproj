@@ -47,6 +47,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Controls\UI\Game\Layouts\MainLayout.json" />
+    <EmbeddedResource Include="Controls\UI\Game\Layouts\MainRect.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Client.Data\Client.Data.csproj" />
   </ItemGroup>
   
