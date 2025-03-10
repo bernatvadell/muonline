@@ -1,0 +1,26 @@
+﻿[
+  {
+    "Name": "Board",
+    "ScreenX": 150,
+    "ScreenY": 224,
+    "Width": 253,
+    "Height": 400,
+    "Z": 1
+  },
+  {
+    "Name": "TopCorner",
+    "ScreenX": 149.3,
+    "ScreenY": 89,
+    "Width": 273,
+    "Height": 70,
+    "Z": 1
+  },
+  {
+    "Name": "ContentBorder",
+    "ScreenX": 148,
+    "ScreenY": 154,
+    "Width": 253,
+    "Height": 70,
+    "Z": 1
+  }
+]

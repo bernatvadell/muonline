@@ -10,5 +10,10 @@ namespace Client.Main.Objects.NPCS
             Model = await BMDLoader.Instance.Prepare($"NPC/ElfMerchant01.bmd");
             await base.Load();
         }
+
+          protected override void HandleClick()
+        {
+            // Handle the click event specific to this NPC
+        }
     }
 }

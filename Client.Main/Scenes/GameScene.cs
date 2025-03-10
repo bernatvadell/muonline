@@ -25,7 +25,7 @@ namespace Client.Main.Scenes
         public GameScene()
         {
             Controls.Add(_main = new MainControl());
-
+            Controls.Add(NpcShopControl.Instance);
             _mapListControl = new MapListControl { Visible = false };
 
             _loadingScreen = new LoadingScreenControl { Visible = true };

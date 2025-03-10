@@ -13,8 +13,8 @@ namespace Client.Main.Controls.UI.Game
     public class LayoutInfo
     {
         public string Name { get; set; }
-        public int ScreenX { get; set; }
-        public int ScreenY { get; set; }
+        public float ScreenX { get; set; }
+        public float ScreenY { get; set; }
         public int Width { get; set; }
         public int Height { get; set; }
         public int Z { get; set; } // Rendering order

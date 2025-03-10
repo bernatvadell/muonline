@@ -1,11 +1,10 @@
 ﻿using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Controls;
+using Client.Main.Controls.UI.Game;
+using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.NPCS
@@ -35,5 +34,10 @@ namespace Client.Main.Objects.NPCS
                 CurrentAction = CurrentAction == 0 ? 1 : 0;
             }
         }
+        protected override void  HandleClick()
+        {
+            NpcShopControl.Instance.Visible = true;
+        }   
+
     }
 }
