@@ -42,5 +42,10 @@ namespace Client.Main.Objects.NPCS
             _ligh1.Angle = new Vector3(rotation1, rotation1, rotation1);
             _ligh2.Angle = new Vector3(rotation2, rotation2, rotation2);
         }
+          protected override void HandleClick()
+        {
+            // Handle the click event specific to this NPC
+            Console.WriteLine("Specific NPC clicked!");
+        }
     }
 }

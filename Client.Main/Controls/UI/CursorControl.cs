@@ -108,6 +108,10 @@ public class CursorControl : SpriteControl
             {
                 TexturePath = "Interface/CursorPush.ozt";
                 CurrentAnimation = DefaultAnimation;
+
+                if (hoveredObject is NPCObject npc) {
+                    npc.OnClick();
+                }
             }
             else if (hoveredObject is MonsterObject)
             {
