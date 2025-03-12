@@ -73,10 +73,13 @@ namespace Client.Main.Scenes
             _main.Visible = true;
             _isChangingWorld = false;
 
-            var mapNameControl = new MapNameControl();
-            mapNameControl.LabelText = World.Name;
-            mapNameControl.BringToFront();
-            Controls.Add(mapNameControl);
+            if (World.Name != null)
+            {
+                var mapNameControl = new MapNameControl();
+                mapNameControl.LabelText = World.Name;
+                mapNameControl.BringToFront();
+                Controls.Add(mapNameControl);
+            }
         }
 
         public override void Update(GameTime gameTime)

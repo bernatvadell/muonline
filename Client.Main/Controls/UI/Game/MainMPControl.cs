@@ -40,7 +40,10 @@ namespace Client.Main.Controls.UI.Game
             _label = new LabelControl
             {
                 Align = ControlAlign.VerticalCenter | ControlAlign.HorizontalCenter,
-                FontSize = 10
+                FontSize = 10,
+                IsBold = true,
+                ShadowOpacity = 0.3f,
+                BoldWeight = 1
             };
         }
 
