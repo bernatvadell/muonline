@@ -9,6 +9,7 @@ namespace Client.Main.Worlds
         public DeviasWorld() : base(worldIndex: 3)
         {
             BackgroundMusicPath = "Music/Devias.mp3";
+            Name = "Devias";
         }
 
         public override void AfterLoad()

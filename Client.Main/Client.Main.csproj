@@ -49,8 +49,12 @@
   <ItemGroup>
     <EmbeddedResource Include="Controls\UI\Game\Layouts\MainLayout.json" />
     <EmbeddedResource Include="Controls\UI\Game\Layouts\MainRect.json" />
+    
     <EmbeddedResource Include="Controls\UI\Game\Layouts\NpcShopLayout.json" />
     <EmbeddedResource Include="Controls\UI\Game\Layouts\NpcShopRect.json" />
+
+    <EmbeddedResource Include="Controls\UI\Game\Layouts\MapNameLayout.json" />
+    <EmbeddedResource Include="Controls\UI\Game\Layouts\MapNameRect.json" />
   </ItemGroup>
 
   <ItemGroup>

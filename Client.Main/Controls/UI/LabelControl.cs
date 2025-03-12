@@ -64,19 +64,23 @@ namespace Client.Main.Controls.UI
             }
         }
 
+        public float Alpha { get; set; } = 1f;
+
         public Color TextColor { get; set; } = Color.WhiteSmoke;
         public HorizontalAlign TextAlign { get; set; } = HorizontalAlign.Left;
 
         public override void Draw(GameTime gameTime)
         {
-            GraphicsManager.Instance.Sprite.Begin();
+            if (!Visible)
+                return;
 
-            // Choose the position source: manual or using DisplayRectangle.
+            SpriteBatch sprite = GraphicsManager.Instance.Sprite;
+            sprite.Begin(SpriteSortMode.Deferred, BlendState.NonPremultiplied);
+
             Vector2 location = UseManualPosition
                 ? new Vector2(X, Y)
                 : DisplayRectangle.Location.ToVector2();
 
-            // Adjust for alignment if needed.
             if (TextAlign == HorizontalAlign.Center)
                 location.X += (ViewSize.X - ControlSize.X) / 2;
             else if (TextAlign == HorizontalAlign.Right)
@@ -84,16 +88,14 @@ namespace Client.Main.Controls.UI
 
             location.Y += (ViewSize.Y - ControlSize.Y) / 2;
 
-            // Draw shadow (offset by 1px)
-            var shadowOffset = new Vector2(1, 1);
-            var shadowColor = Color.Black * 0.5f;
-            byte newAlpha = (byte)(shadowColor.A * 0.5);
-            Color newShadowColor = new Color(shadowColor.R, shadowColor.G, shadowColor.B, newAlpha);
-            GraphicsManager.Instance.Sprite.DrawString(
+            Vector2 shadowOffset = new Vector2(1, 1);
+            byte shadowA = (byte)(255 * 0.5f * Alpha);
+            Color shadowColor = new Color((float)0, 0, 0, shadowA);
+            sprite.DrawString(
                 GraphicsManager.Instance.Font,
                 _renderedText,
                 location + shadowOffset,
-                newShadowColor,
+                shadowColor,
                 0f,
                 Vector2.Zero,
                 _scaleFactor,
@@ -101,14 +103,13 @@ namespace Client.Main.Controls.UI
                 0f
             );
 
-            byte newTextAlpha = (byte)(TextColor.A * 0.8);
-            Color newTextColor = new Color(TextColor.R, TextColor.G, TextColor.B, newTextAlpha);
-            // Draw main text
-            GraphicsManager.Instance.Sprite.DrawString(
+            byte finalAlpha = (byte)(255 * Alpha);
+            Color finalTextColor = new Color(TextColor.R, TextColor.G, TextColor.B, finalAlpha);
+            sprite.DrawString(
                 GraphicsManager.Instance.Font,
                 _renderedText,
                 location,
-                newTextColor,
+                finalTextColor,
                 0f,
                 Vector2.Zero,
                 _scaleFactor,
@@ -116,9 +117,8 @@ namespace Client.Main.Controls.UI
                 0f
             );
 
-            GraphicsManager.Instance.Sprite.End();
+            sprite.End();
 
-            // Restore graphic states.
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
             GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;

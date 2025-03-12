@@ -12,6 +12,7 @@ namespace Client.Main.Worlds
         public NoriaWorld() : base(worldIndex: 4)
         {
             BackgroundMusicPath = "Music/Noria.mp3";
+            Name = "Noria";
         }
 
         public override async Task Load()

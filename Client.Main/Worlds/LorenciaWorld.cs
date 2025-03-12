@@ -19,6 +19,7 @@ namespace Client.Main.Worlds
         public LorenciaWorld() : base(worldIndex: 1)
         {
             BackgroundMusicPath = "Music/MuTheme.mp3";
+            Name = "Lorencia";
         }
 
         public override void AfterLoad()
