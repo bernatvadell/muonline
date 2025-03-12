@@ -38,11 +38,15 @@ namespace Client.Main.Controls.UI.Game
 
             _label = new LabelControl
             {
-                Text = "Map Name",
-                FontSize = 22,
+                FontSize = 24,
                 TextColor = Color.WhiteSmoke,
-                UseManualPosition = true
+                UseManualPosition = true,
+                IsBold = true,
+                IsItalic = true,
+                HasUnderline=false
             };
+
+            LabelText = "Map Name"; // Default
 
             UpdateLabelPosition();
         }
@@ -81,8 +85,10 @@ namespace Client.Main.Controls.UI.Game
             else
             {
                 _label.Visible = true;
-                _label.Alpha = Alpha;
+                _label.Alpha = Alpha / 2f;
             }
+
+            UpdateLabelPosition();
         }
 
         public override void Draw(GameTime gameTime)
@@ -100,8 +106,8 @@ namespace Client.Main.Controls.UI.Game
 
         private void UpdateLabelPosition()
         {
-            _label.X = X + (ViewSize.X - _label.ControlSize.X) / 2;
-            _label.Y = Y + (ViewSize.Y - _label.ControlSize.Y) / 2 + 14;
+            _label.X = X + (ViewSize.X - _label.ControlSize.X) / 2 + 10;
+            _label.Y = Y + (ViewSize.Y - _label.ControlSize.Y) / 2 + 16;
         }
 
         private LayoutInfo LoadLayoutInfo()
