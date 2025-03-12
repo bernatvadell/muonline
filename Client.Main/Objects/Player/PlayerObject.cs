@@ -1,6 +1,7 @@
 ﻿using Client.Main.Content;
 using Client.Main.Controls;
 using Client.Main.Models;
+using Client.Main.Objects.Wings;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
 
@@ -77,7 +78,7 @@ namespace Client.Main.Objects.Player
                 LinkParentAnimation = true
             });
 
-            Children.Add(_wing = new WingObject
+            Children.Add(_wing = new Wing403
             {
                 LinkParentAnimation = false,
                 Hidden = false,

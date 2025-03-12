@@ -1,10 +1,12 @@
 using System;
 using System.IO;
+using Client.Main.Objects;
+using Client.Main.Objects.Effects;
 
 namespace Client.Main
 {
     public static class Utils
-    {       
+    {
         public static string GetActualPath(string path)
         {
             if (File.Exists(path))
@@ -21,5 +23,18 @@ namespace Client.Main
             }
             return path;
         }
+        public static SpriteObject GetEffectByCode(EffectType e)
+        {
+            switch (e)
+            {
+                case EffectType.Light:
+                    return new LightEffect();
+                case EffectType.TargetPosition1:
+                    return new TargetPosition1();
+                default:
+                    throw new Exception("Effect code now exists");
+            }
+        }
+
     }
 }
