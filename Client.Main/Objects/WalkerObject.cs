@@ -319,7 +319,7 @@ namespace Client.Main.Objects
                     {
                         // Adjust camera rotation
                         _cameraYaw -= mouseDelta.X * _rotationSensitivity;
-                        _cameraPitch += mouseDelta.Y * _rotationSensitivity;
+                        _cameraPitch -= mouseDelta.Y * _rotationSensitivity;
 
                         // Clamp vertical rotation to prevent camera flipping
                         _cameraPitch = MathHelper.Clamp(_cameraPitch, _minPitch, _maxPitch);

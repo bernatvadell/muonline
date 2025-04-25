@@ -29,7 +29,7 @@ namespace Client.Main.Objects.Player
         public PlayerClass PlayerClass
         {
             get => _playerClass;
-            set { _playerClass = value; OnChangePlayerClass(); }
+            set { _playerClass = value; ApplyPlayerClass(); }   // null-safe
         }
 
         // Changed property to use PlayerAction.
@@ -41,56 +41,41 @@ namespace Client.Main.Objects.Player
 
         public PlayerObject()
         {
-            BoundingBoxLocal = new BoundingBox(new Vector3(-40, -40, 0), new Vector3(40, 40, 120));
+            BoundingBoxLocal = new BoundingBox(
+                new Vector3(-40, -40, 0),
+                new Vector3(40, 40, 120));
+
             Scale = 0.85f;
             AnimationSpeed = 8f;
             CurrentAction = PlayerAction.StopMale;
             _playerClass = Constants.Character;
 
-            Children.Add(_armor = new PlayerArmorObject
-            {
-                LinkParentAnimation = true
-            });
+            Children.Add(_armor = new PlayerArmorObject { LinkParentAnimation = true });
+            Children.Add(_helmMask = new PlayerMaskHelmObject { LinkParentAnimation = true, Hidden = true });
+            Children.Add(_helm = new PlayerHelmObject { LinkParentAnimation = true });
+            Children.Add(_pant = new PlayerPantObject { LinkParentAnimation = true });
+            Children.Add(_glove = new PlayerGloveObject { LinkParentAnimation = true });
+            Children.Add(_boot = new PlayerBootObject { LinkParentAnimation = true });
+            Children.Add(_wing = new Wing403 { LinkParentAnimation = false, Hidden = false });
 
-            Children.Add(_helmMask = new PlayerMaskHelmObject
-            {
-                LinkParentAnimation = true,
-                Hidden = true
-            });
-
-            Children.Add(_helm = new PlayerHelmObject
-            {
-                LinkParentAnimation = true
-            });
-
-            Children.Add(_pant = new PlayerPantObject
-            {
-                LinkParentAnimation = true
-            });
-
-            Children.Add(_glove = new PlayerGloveObject
-            {
-                LinkParentAnimation = true
-            });
-
-            Children.Add(_boot = new PlayerBootObject
-            {
-                LinkParentAnimation = true
-            });
-
-            Children.Add(_wing = new Wing403
-            {
-                LinkParentAnimation = false,
-                Hidden = false,
-                // Position = new Vector3(0, 5, 140)
-            });
+            ApplyPlayerClass();
         }
 
         public override async Task Load()
         {
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
-            OnChangePlayerClass();
+
             await base.Load();
+        }
+
+        private void ApplyPlayerClass()
+        {
+            if (_armor != null) _armor.PlayerClass = _playerClass;
+            if (_helmMask != null) _helmMask.PlayerClass = _playerClass;
+            if (_helm != null) _helm.PlayerClass = _playerClass;
+            if (_pant != null) _pant.PlayerClass = _playerClass;
+            if (_glove != null) _glove.PlayerClass = _playerClass;
+            if (_boot != null) _boot.PlayerClass = _playerClass;
         }
 
         public override void Update(GameTime gameTime)

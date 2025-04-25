@@ -1,6 +1,4 @@
-using Client.Main.Controllers;
 using Client.Main.Controls;
-using Client.Main.Objects.Effects;
 using Client.Main.Objects.Worlds.Icarus;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
@@ -10,8 +8,8 @@ namespace Client.Main.Worlds
     public class IcarusWorld : WalkableWorldControl
     {
         private static readonly Color CLEAR_COLOR = new Color(3f / 256f, 25f / 256f, 44f / 256f, 1f);
-        private CloudLightEffect _cloudLight;
-        private JointThunderEffect _jointThunder;
+        // private CloudLightEffect _cloudLight;
+        // private JointThunderEffect _jointThunder;
 
         public IcarusWorld() : base(worldIndex: 11)
         {

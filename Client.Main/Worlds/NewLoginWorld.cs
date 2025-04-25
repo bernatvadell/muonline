@@ -13,6 +13,7 @@ namespace Client.Main.Worlds
 
         public NewLoginWorld() : base(worldIndex: 95)
         {
+            _player = new PlayerObject();
             Camera.Instance.ViewFar = 50000f;
         }
 
@@ -36,9 +37,10 @@ namespace Client.Main.Worlds
             base.AfterLoad();
 
             // water animation parameters
-            Terrain.WaterSpeed = 0.05f;             // Example: faster water movement
+            Terrain.WaterSpeed = 0.15f;             // Example: faster water movement
             Terrain.DistortionAmplitude = 0.2f;      // Example: stronger distortion
             Terrain.DistortionFrequency = 1.0f;      // Example: lower frequency for distortion
+            Terrain.WaterFlowDirection = Vector2.UnitY;
 
             // TODO: We need fix CameraAnglePosition load
             Camera.Instance.Target += new Vector3(0, 0, 650);

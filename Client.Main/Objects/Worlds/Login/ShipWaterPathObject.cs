@@ -48,7 +48,6 @@ namespace Client.Main.Objects.Worlds.Login
 
         public override void Update(GameTime gameTime)
         {
-            //TODO fix animation
             base.Update(gameTime);
 
             if (Model?.Meshes == null || Model.Meshes.Length == 0 || _originalTexCoords == null)
@@ -56,8 +55,7 @@ namespace Client.Main.Objects.Worlds.Login
 
             _accumulatedTime += gameTime.ElapsedGameTime.TotalSeconds;
 
-            float currentOffset = (float)(_accumulatedTime * TEXTURE_SCROLL_SPEED);
-            currentOffset -= (float)Math.Floor(currentOffset); // Utrzymuje wartość w zakresie [0,1)
+            float totalOffset = (float)(_accumulatedTime * TEXTURE_SCROLL_SPEED);
 
             for (int meshIndex = 0; meshIndex < Model.Meshes.Length; meshIndex++)
             {
@@ -65,20 +63,15 @@ namespace Client.Main.Objects.Worlds.Login
                 if (mesh.TexCoords == null || _originalTexCoords[meshIndex] == null)
                     continue;
 
-                for (int i = 0; i < mesh.TexCoords.Length; i++)
-                {
-                    if (i >= _originalTexCoords[meshIndex].Length)
-                        continue;
+                int texCoordCount = Math.Min(mesh.TexCoords.Length, _originalTexCoords[meshIndex].Length);
 
+                for (int i = 0; i < texCoordCount; i++)
+                {
                     var originalCoord = _originalTexCoords[meshIndex][i];
                     var newCoord = originalCoord;
 
-                    float newV = originalCoord.V - currentOffset;
+                    newCoord.V = originalCoord.V - totalOffset;
 
-                    if (newV < 0)
-                        newV += 1.0f;
-
-                    newCoord.V = newV;
                     mesh.TexCoords[i] = newCoord;
                 }
             }

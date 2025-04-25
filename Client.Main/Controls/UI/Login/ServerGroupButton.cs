@@ -1,6 +1,5 @@
 ﻿using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Models;
 
 namespace Client.Main.Controls.UI.Login
@@ -10,7 +9,7 @@ namespace Client.Main.Controls.UI.Login
         private readonly LabelControl _label;
 
         public byte Index { get; set; }
-        public string Name { get => _label.Text; set => _label.Text = value; }
+        public new string Name { get => _label.Text; set => _label.Text = value; }
         public bool Selected { get; set; }
 
         public ServerGroupButton()

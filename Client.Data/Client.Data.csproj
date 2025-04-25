@@ -22,12 +22,12 @@
   </Choose>
 
   <ItemGroup>
-    <PackageReference Include="BCnEncoder.Net" Version="2.1.0" />
+    <PackageReference Include="BCnEncoder.Net" Version="2.2.0" />
     <PackageReference Include="BouncyCastle.NetCore" Version="2.2.1" />
     <PackageReference Include="cryptopp" Version="5.6.5.4" />
-    <PackageReference Include="Delizious.Ini" Version="1.11.0" />
-    <PackageReference Include="LEA.NET" Version="1.0.1.1" />
-    <PackageReference Include="sixlabors.imagesharp" Version="3.1.6" />
+    <PackageReference Include="Delizious.Ini" Version="1.17.0" />
+    <PackageReference Include="LEA.NET" Version="1.0.1" />
+    <PackageReference Include="sixlabors.imagesharp" Version="3.1.7" />
   </ItemGroup>
 
 </Project>

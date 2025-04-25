@@ -1,15 +1,5 @@
-using Client.Data.BMD;
-using Client.Main.Content;
 using Client.Main.Controls;
-using Client.Main.Objects;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
@@ -17,7 +7,8 @@ namespace Client.Main.Worlds
     {
         public DungeonWorld() : base(worldIndex: 2)
         {
-       
+            BackgroundMusicPath = "Music/Dungeon.mp3";
+            Name = "Dungeon";
         }
 
         public override void AfterLoad()

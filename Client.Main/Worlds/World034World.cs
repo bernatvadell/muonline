@@ -1,10 +1,5 @@
 ﻿using Client.Main.Controls;
 using Microsoft.Xna.Framework;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
@@ -12,7 +7,8 @@ namespace Client.Main.Worlds
     {
         public World034World() : base(worldIndex: 34) // AIDA
         {
-
+            Name = "Aida";
+            BackgroundMusicPath = "Music/Aida.mp3";
         }
 
         public override void AfterLoad()

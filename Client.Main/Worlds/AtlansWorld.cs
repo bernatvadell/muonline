@@ -9,6 +9,7 @@ namespace Client.Main.Worlds
         public AtlansWorld() : base(worldIndex: 8)
         {
             BackgroundMusicPath = "Music/atlans.mp3";
+            Name = "Atlans";
         }
         public override void AfterLoad()
         {

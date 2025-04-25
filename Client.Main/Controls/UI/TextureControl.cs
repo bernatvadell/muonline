@@ -15,7 +15,7 @@ namespace Client.Main.Controls.UI
         public Rectangle TextureRectangle { get; set; }
         public virtual Rectangle SourceRectangle => TextureRectangle;
 
-        public float Alpha { get; set; } = 1f;
+        public new float Alpha { get; set; } = 1f;
         public string TexturePath { get => _texturePath; set { if (_texturePath != value) { _texturePath = value; OnChangeTexturePath(); } } }
         public BlendState BlendState { get; set; } = BlendState.AlphaBlend;
 

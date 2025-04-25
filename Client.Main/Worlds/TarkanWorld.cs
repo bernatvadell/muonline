@@ -1,18 +1,14 @@
 ﻿using Client.Main.Controls;
 using Microsoft.Xna.Framework;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
-    public class World009World : WalkableWorldControl
+    public class TarkanWorld : WalkableWorldControl
     {
-        public World009World() : base(worldIndex: 9) // TARKAN
+        public TarkanWorld() : base(worldIndex: 9) // TARKAN
         {
-
+            Name = "Tarkan";
+            BackgroundMusicPath = "Music/tarkan.mp3";
         }
 
         public override void AfterLoad()

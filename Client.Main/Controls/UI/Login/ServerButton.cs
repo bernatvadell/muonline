@@ -15,7 +15,7 @@ namespace Client.Main.Controls.UI.Login
         public bool Available => Gauge < 100f;
 
         public byte Index { get; set; }
-        public string Name { get => _label.Text; set => _label.Text = value; }
+        public new string Name { get => _label.Text; set => _label.Text = value; }
 
         public ServerButton()
         {

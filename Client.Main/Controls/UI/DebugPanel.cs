@@ -1,4 +1,5 @@
-﻿using Client.Main.Controllers;
+﻿using System.Text;
+using Client.Main.Controllers;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
 
@@ -12,6 +13,10 @@ namespace Client.Main.Controls.UI
         private LabelControl _mapTileLabel;
         private LabelControl _effectsStatusLabel;
         private LabelControl _objectCursorLabel;
+
+        private double _updateTimer = 0;
+        private const double UPDATE_INTERVAL_MS = 100; // 100ms
+        private StringBuilder _sb = new StringBuilder(100);
 
         public DebugPanel()
         {
@@ -82,27 +87,52 @@ namespace Client.Main.Controls.UI
         {
             base.Update(gameTime);
 
-            if (!Visible)
-                return;
+            if (!Visible) return;
 
-            _fpsLabel.TextArgs = [(int)FPSCounter.Instance.FPS_AVG];
-            _mousePosLabel.TextArgs = [MuGame.Instance.Mouse.Position.X, MuGame.Instance.Mouse.Position.Y];
-            _effectsStatusLabel.TextArgs = [GraphicsManager.Instance.IsFXAAEnabled ? "ON" : "OFF", GraphicsManager.Instance.IsAlphaRGBEnabled ? "ON" : "OFF"];
+            _updateTimer += gameTime.ElapsedGameTime.TotalMilliseconds;
 
-            _objectCursorLabel.TextArgs = [World.Scene.MouseHoverObject != null ? World.Scene.MouseHoverObject.GetType().Name : "N/A"];
-
-            if (World is WalkableWorldControl walkableWorld)
+            if (_updateTimer >= UPDATE_INTERVAL_MS)
             {
-                _playerCordsLabel.Visible = true;
-                _playerCordsLabel.TextArgs = [walkableWorld.Walker.Location.X, walkableWorld.Walker.Location.Y];
+                _updateTimer = 0;
 
-                _mapTileLabel.Visible = true;
-                _mapTileLabel.TextArgs = [walkableWorld.MouseTileX, walkableWorld.MouseTileY];
-            }
-            else
-            {
-                _playerCordsLabel.Visible = false;
-                _mapTileLabel.Visible = false;
+                _sb.Clear().Append("FPS: ").Append((int)FPSCounter.Instance.FPS_AVG);
+                _fpsLabel.Text = _sb.ToString();
+
+                // Mouse Position
+                _sb.Clear().Append("Mouse Position - X: ").Append(MuGame.Instance.Mouse.Position.X)
+                   .Append(", Y:").Append(MuGame.Instance.Mouse.Position.Y);
+                _mousePosLabel.Text = _sb.ToString();
+
+                // Effects Status
+                _sb.Clear().Append("FXAA: ").Append(GraphicsManager.Instance.IsFXAAEnabled ? "ON" : "OFF")
+                   .Append(" - AlphaRGB:").Append(GraphicsManager.Instance.IsAlphaRGBEnabled ? "ON" : "OFF");
+                _effectsStatusLabel.Text = _sb.ToString();
+
+                // Cursor Object
+                _sb.Clear().Append("Cursor Object: ").Append(World?.Scene?.MouseHoverObject != null ? World.Scene.MouseHoverObject.GetType().Name : "N/A");
+                _objectCursorLabel.Text = _sb.ToString();
+
+
+                if (World is WalkableWorldControl walkableWorld && walkableWorld.Walker != null)
+                {
+                    _playerCordsLabel.Visible = true;
+                    _mapTileLabel.Visible = true;
+
+                    // Player Coords
+                    _sb.Clear().Append("Player Cords - X: ").Append(walkableWorld.Walker.Location.X)
+                       .Append(", Y:").Append(walkableWorld.Walker.Location.Y);
+                    _playerCordsLabel.Text = _sb.ToString();
+
+                    // Map Tile
+                    _sb.Clear().Append("MAP Tile - X: ").Append(walkableWorld.MouseTileX)
+                       .Append(", Y:").Append(walkableWorld.MouseTileY);
+                    _mapTileLabel.Text = _sb.ToString();
+                }
+                else
+                {
+                    _playerCordsLabel.Visible = false;
+                    _mapTileLabel.Visible = false;
+                }
             }
         }
     }

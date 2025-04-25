@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using Client.Main.Controllers;
+using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -93,16 +94,37 @@ namespace Client.Main.Controls.UI.Game
 
         public override void Draw(GameTime gameTime)
         {
-            if (!Visible)
+            if (Status != GameControlStatus.Ready || !Visible)
                 return;
 
-            SpriteBatch sprite = GraphicsManager.Instance.Sprite;
-            sprite.Begin(SpriteSortMode.Deferred, BlendState.NonPremultiplied);
-            sprite.Draw(Texture, DisplayRectangle, TextureRectangle, Color.White * Alpha);
-            sprite.End();
+            if (Texture == null)
+                return;
+
+            var sb = GraphicsManager.Instance.Sprite;
+            try
+            {
+                sb.Begin(
+                    SpriteSortMode.Deferred,
+                    BlendState.NonPremultiplied,
+                    SamplerState.PointClamp,
+                    DepthStencilState.None,
+                    RasterizerState.CullNone);
+
+                sb.Draw(
+                    Texture,
+                    DisplayRectangle,
+                    TextureRectangle,
+                    Color.White * Alpha);
+            }
+            finally
+            {
+                if (sb.GraphicsDevice != null)
+                    sb.End();
+            }
 
             _label.Draw(gameTime);
         }
+
 
         private void UpdateLabelPosition()
         {

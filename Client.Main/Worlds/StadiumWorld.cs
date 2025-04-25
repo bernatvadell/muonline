@@ -7,7 +7,7 @@ namespace Client.Main.Worlds
     {
         public StadiumWorld() : base(worldIndex: 7) // ARENA
         {
-
+            Name = "Arena";
         }
 
         protected override void CreateMapTileObjects()

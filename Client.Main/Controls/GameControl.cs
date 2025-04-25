@@ -205,10 +205,18 @@ namespace Client.Main.Controls
             if (Status != GameControlStatus.Ready || !Visible)
                 return;
 
-            GraphicsManager.Instance.Sprite.Begin();
-            DrawBackground();
-            DrawBorder();
-            GraphicsManager.Instance.Sprite.End();
+            var sb = GraphicsManager.Instance.Sprite;
+            try
+            {
+                sb.Begin();
+                DrawBackground();
+                DrawBorder();
+            }
+            finally
+            {
+                if (sb.GraphicsDevice != null)
+                    sb.End();
+            }
 
             GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
@@ -218,6 +226,7 @@ namespace Client.Main.Controls
             for (int i = 0; i < Controls.Count; i++)
                 Controls[i].Draw(gameTime);
         }
+
 
         public virtual void DrawAfter(GameTime gameTime)
         {

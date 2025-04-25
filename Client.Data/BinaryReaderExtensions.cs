@@ -5,15 +5,15 @@ namespace Client.Data
 {
     public static class BinaryReaderExtensions
     {
-        public static string ReadString(this System.IO.BinaryReader br, int length, Encoding? encoding = null)
+        public static string ReadString(this BinaryReader br, int length, Encoding? encoding = null)
         {
-            encoding = encoding ?? Encoding.ASCII;
+            _ = encoding ?? Encoding.ASCII;
             var buff = br.ReadBytes(length);
             var idx = Array.IndexOf(buff, (byte)0);
             return Encoding.ASCII.GetString(buff, 0, idx > 0 ? idx : buff.Length);
         }
 
-        public static T ReadStruct<T>(this BinaryReader br) where T : struct
+        public static T ReadStruct<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicConstructors)] T>(this BinaryReader br) where T : struct
         {
             int size = Marshal.SizeOf<T>();
             byte[] buffer = br.ReadBytes(size);
@@ -30,7 +30,7 @@ namespace Client.Data
             }
         }
 
-        public static T[] ReadStructArray<T>(this BinaryReader br, int length) where T : struct
+        public static T[] ReadStructArray<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicConstructors | System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.NonPublicConstructors)] T>(this BinaryReader br, int length) where T : struct
         {
             var structs = new T[length];
 
