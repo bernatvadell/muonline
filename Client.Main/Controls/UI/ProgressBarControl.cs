@@ -1,9 +1,5 @@
 ﻿using Microsoft.Xna.Framework;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Client.Main.Controls.UI
 {
@@ -20,31 +16,39 @@ namespace Client.Main.Controls.UI
 
         public override void Update(GameTime gameTime)
         {
-            if (!Visible) return;
+            base.Update(gameTime);
+
+            if (!Visible || Texture == null || Texture.IsDisposed)
+            {
+                if (ViewSize != Point.Zero) ViewSize = Point.Zero;
+                if (TextureRectangle != Rectangle.Empty) TextureRectangle = Rectangle.Empty;
+                return;
+            }
 
             float sourceWidth = Texture.Width;
             float sourceHeight = Texture.Height;
+            float clampedPercentage = Math.Clamp(Percentage, 0f, 1f);
+            float calculatedWidth = sourceWidth * clampedPercentage;
+            float calculatedHeight = sourceHeight * clampedPercentage;
+            Rectangle currentTextureRect;
 
             if (!Vertical)
             {
-                sourceWidth = Texture.Width * Percentage;
-                if (Inverse) TextureRectangle = new Rectangle((int)(Texture.Width - sourceWidth), 0, (int)sourceWidth, Texture.Height);
-                else TextureRectangle = new Rectangle(0, 0, (int)sourceWidth, Texture.Height);
+                sourceWidth = calculatedWidth;
+                if (Inverse) currentTextureRect = new Rectangle((int)(Texture.Width - sourceWidth), 0, (int)sourceWidth, (int)Texture.Height);
+                else currentTextureRect = new Rectangle(0, 0, (int)sourceWidth, (int)Texture.Height);
+                ViewSize = new Point((int)(sourceWidth * Scale), (int)(Texture.Height * Scale));
             }
-
-            if (Vertical)
+            else
             {
-                sourceHeight = (int)(Texture.Height * Percentage);
-                if (Inverse) TextureRectangle = new Rectangle(0, (int)(Texture.Height - sourceHeight), Texture.Width, (int)sourceHeight);
-                else TextureRectangle = new Rectangle(0, 0, Texture.Width, (int)sourceHeight);
+                sourceHeight = calculatedHeight;
+                if (Inverse) currentTextureRect = new Rectangle(0, (int)(Texture.Height - sourceHeight), (int)Texture.Width, (int)sourceHeight);
+                else currentTextureRect = new Rectangle(0, 0, (int)Texture.Width, (int)sourceHeight);
+                ViewSize = new Point((int)(Texture.Width * Scale), (int)(sourceHeight * Scale));
             }
 
-            ViewSize = new Point(
-                (int)sourceWidth,
-                (int)sourceHeight
-            );
-
-            base.Update(gameTime);
+            TextureRectangle = Rectangle.Intersect(currentTextureRect, Texture.Bounds);
+            ViewSize = new Point(Math.Max(0, ViewSize.X), Math.Max(0, ViewSize.Y));
         }
     }
 }

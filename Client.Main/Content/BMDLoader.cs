@@ -2,6 +2,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -83,7 +84,17 @@ namespace Client.Main.Content
             }
         }
 
-        public void GetModelBuffers(BMD asset, int meshIndex, Color color, Matrix[] boneMatrix, out DynamicVertexBuffer vertexBuffer, out DynamicIndexBuffer indexBuffer)
+        /// <summary>
+        /// Builds (or updates) the dynamic vertex/index buffers for the given mesh.
+        /// Uses ArrayPool to eliminate per‑frame allocations.
+        /// </summary>
+        public void GetModelBuffers(
+            BMD asset,
+            int meshIndex,
+            Color color,
+            Matrix[] boneMatrix,
+            out DynamicVertexBuffer vertexBuffer,
+            out DynamicIndexBuffer indexBuffer)
         {
             if (boneMatrix == null)
             {
@@ -92,62 +103,80 @@ namespace Client.Main.Content
                 return;
             }
 
+            // dictionaries initialisation
             if (!_vertexs.TryGetValue(asset, out var vertexs))
-                _vertexs.Add(asset, vertexs = new DynamicVertexBuffer[asset.Meshes.Length]);
+                _vertexs[asset] = vertexs = new DynamicVertexBuffer[asset.Meshes.Length];
 
             if (!_indexs.TryGetValue(asset, out var indexs))
-                _indexs.Add(asset, indexs = new DynamicIndexBuffer[asset.Meshes.Length]);
+                _indexs[asset] = indexs = new DynamicIndexBuffer[asset.Meshes.Length];
 
             var mesh = asset.Meshes[meshIndex];
+            int totalVertices = mesh.Triangles.Sum(t => t.Polygon);
+            int totalIndices = totalVertices; // 1‑to‑1 mapping
 
-            int totalVertices = mesh.Triangles.Sum(triangle => triangle.Polygon);
-            int totalIndices = totalVertices;
-
+            // (re)allocate GPU buffers only when needed
             vertexBuffer = vertexs[meshIndex];
-
-            vertexBuffer ??= vertexs[meshIndex] = new DynamicVertexBuffer(_graphicsDevice, VertexPositionColorNormalTexture.VertexDeclaration, totalVertices, BufferUsage.None);
+            if (vertexBuffer == null || vertexBuffer.VertexCount < totalVertices)
+            {
+                vertexBuffer?.Dispose();
+                vertexBuffer = vertexs[meshIndex] = new DynamicVertexBuffer(
+                    _graphicsDevice,
+                    VertexPositionColorNormalTexture.VertexDeclaration,
+                    totalVertices,
+                    BufferUsage.None);
+            }
 
             indexBuffer = indexs[meshIndex];
-
-            indexBuffer ??= indexs[meshIndex] = new DynamicIndexBuffer(_graphicsDevice, IndexElementSize.ThirtyTwoBits, totalIndices, BufferUsage.None);
-
-            var vertices = new VertexPositionColorNormalTexture[totalVertices];
-            var indices = new int[totalIndices];
-
-            var pi = 0;
-
-            for (var i = 0; i < mesh.Triangles.Length; i++)
+            if (indexBuffer == null || indexBuffer.IndexCount < totalIndices)
             {
-                var triangle = mesh.Triangles[i];
+                indexBuffer?.Dispose();
+                indexBuffer = indexs[meshIndex] = new DynamicIndexBuffer(
+                    _graphicsDevice,
+                    IndexElementSize.ThirtyTwoBits,
+                    totalIndices,
+                    BufferUsage.None);
+            }
 
-                for (int j = 0; j < triangle.Polygon; j++)
+            // ---------- rent arrays ----------
+            var vertices = ArrayPool<VertexPositionColorNormalTexture>.Shared.Rent(totalVertices);
+            var indices = ArrayPool<int>.Shared.Rent(totalIndices);
+
+            int v = 0;
+            foreach (var tri in mesh.Triangles)
+            {
+                for (int j = 0; j < tri.Polygon; j++)
                 {
-                    var vertexIndex = triangle.VertexIndex[j];
-                    var vertex = mesh.Vertices[vertexIndex];
+                    int vi = tri.VertexIndex[j];
+                    var vert = mesh.Vertices[vi];
 
-                    var normalIndex = triangle.NormalIndex[j];
-                    var normal = mesh.Normals[normalIndex].Normal;
-                    var coordIndex = triangle.TexCoordIndex[j];
-                    var texCoord = mesh.TexCoords[coordIndex];
+                    int ni = tri.NormalIndex[j];
+                    var normal = mesh.Normals[ni].Normal;
 
-                    var pos = Vector3.Transform(vertex.Position, boneMatrix[vertex.Node]);
+                    int ti = tri.TexCoordIndex[j];
+                    var uv = mesh.TexCoords[ti];
 
-                    vertices[pi] = new VertexPositionColorNormalTexture(
+                    Vector3 pos = Vector3.Transform(vert.Position, boneMatrix[vert.Node]);
+
+                    vertices[v] = new VertexPositionColorNormalTexture(
                         pos,
                         color,
                         normal,
-                        new Vector2(texCoord.U, texCoord.V)
-                    );
+                        new Vector2(uv.U, uv.V));
 
-                    indices[pi] = pi;
-
-                    pi++;
+                    indices[v] = v;
+                    v++;
                 }
             }
 
+            // upload to GPU
             vertexBuffer.SetData(vertices, 0, totalVertices, SetDataOptions.Discard);
             indexBuffer.SetData(indices, 0, totalIndices, SetDataOptions.Discard);
+
+            // ---------- return arrays ----------
+            ArrayPool<VertexPositionColorNormalTexture>.Shared.Return(vertices);
+            ArrayPool<int>.Shared.Return(indices, clearArray: true);
         }
+
 
         public string GetTexturePath(BMD bmd, string texturePath)
         {

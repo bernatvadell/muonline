@@ -204,7 +204,7 @@ namespace Client.Main.Content
             Color[] pixelData = new Color[pixelCount];
             byte[] data = textureData.Info.Data;
 
-            Parallel.For(0, pixelData.Length, (i) =>
+            for (int i = 0; i < pixelData.Length; i++)
             {
                 int dataIndex = i * components;
                 byte r = data[dataIndex];
@@ -212,7 +212,7 @@ namespace Client.Main.Content
                 byte b = data[dataIndex + 2];
                 byte a = components == 4 ? data[dataIndex + 3] : (byte)255;
                 pixelData[i] = new Color(r, g, b, a);
-            });
+            }
 
             texture.SetData(pixelData);
             return texture;

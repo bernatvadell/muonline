@@ -1,6 +1,5 @@
 ﻿using Client.Main.Controls;
 using Microsoft.Xna.Framework;
-using System;
 using System.Collections.Generic;
 
 namespace Client.Main
@@ -8,7 +7,7 @@ namespace Client.Main
     public class PathNode
     {
         public Vector2 Position { get; }
-        public PathNode? Parent { get; set; }
+        public PathNode Parent { get; set; }
         public float GCost { get; set; } // Cost from the start
         public float HCost { get; set; } // Heuristic to the goal
         public float FCost => GCost + HCost;
@@ -23,7 +22,7 @@ namespace Client.Main
 
     public static class Pathfinding
     {
-        public static List<Vector2>? FindPath(Vector2 start, Vector2 goal, WorldControl world)
+        public static List<Vector2> FindPath(Vector2 start, Vector2 goal, WorldControl world)
         {
             var openSet = new PriorityQueue<PathNode, float>();
             var allNodes = new Dictionary<Vector2, PathNode>();
@@ -74,7 +73,7 @@ namespace Client.Main
 
         private static PathNode GetOrCreateNode(Vector2 position, Dictionary<Vector2, PathNode> allNodes)
         {
-            if (!allNodes.TryGetValue(position, out PathNode? node))
+            if (!allNodes.TryGetValue(position, out PathNode node))
             {
                 node = new PathNode(position);
                 allNodes[position] = node;
@@ -125,7 +124,7 @@ namespace Client.Main
         private static List<Vector2> RetracePath(PathNode startNode, PathNode endNode)
         {
             List<Vector2> path = new();
-            PathNode? currentNode = endNode;
+            PathNode currentNode = endNode;
 
             while (currentNode != null && currentNode != startNode)
             {

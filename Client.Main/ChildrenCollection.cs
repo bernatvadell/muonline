@@ -1,14 +1,12 @@
 ﻿using System.Collections.Generic;
 using System;
-using Client.Main.Controls;
-using System.Threading;
 using System.Linq;
 
 namespace Client.Main
 {
     public interface IChildItem<T> where T : class
     {
-        T? Parent { get; set; }
+        T Parent { get; set; }
     }
 
     public class ChildrenEventArgs<T> where T : class, IChildItem<T>

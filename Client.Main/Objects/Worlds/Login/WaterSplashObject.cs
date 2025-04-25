@@ -29,7 +29,8 @@ namespace Client.Main.Objects.Worlds.Login
                 DistanceScaleExponent = 3f,
                 MaxEffectiveDistance = 5000f,
                 ScaleGrowthFactor = 0.5f,
-                Wind = new Vector2(300f,-350f)
+                Wind = new Vector2(300f, -350f),
+                UpwardAcceleration = -250f
             };
             _particleSystem.Position = Position;
             _particleSystem.Emit(Position, 50);

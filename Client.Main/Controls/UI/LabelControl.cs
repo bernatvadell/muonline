@@ -90,7 +90,7 @@ namespace Client.Main.Controls.UI
             }
         }
 
-        public float Alpha { get; set; } = 1f;
+        public new float Alpha { get; set; } = 1f;
 
         public Color TextColor { get; set; } = Color.WhiteSmoke;
         public HorizontalAlign TextAlign { get; set; } = HorizontalAlign.Left;

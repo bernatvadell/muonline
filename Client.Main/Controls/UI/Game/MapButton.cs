@@ -8,7 +8,7 @@ namespace Client.Main.Controls.UI.Game
 {
     public class MapButton<TWorld> : UIControl where TWorld : WalkableWorldControl, new()
     {
-        public string Name { get; set; }
+        public new string Name { get; set; }
         public Color TextColor { get; set; } = Color.White;
         public float FontSize { get; set; } = 10f;
 

@@ -99,13 +99,13 @@ namespace Client.Main.Controls.UI.Game
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World009World>
+            Controls.Add(new MapButton<TarkanWorld>
             {
                 Name = "Tarkan",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World010World>
+            Controls.Add(new MapButton<DevilSquareWorld>
             {
                 Name = "Devil Square",
                 ControlSize = new Point(buttonWidth, buttonHeight),

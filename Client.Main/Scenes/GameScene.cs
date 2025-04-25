@@ -13,7 +13,7 @@ namespace Client.Main.Scenes
     {
         private readonly PlayerObject _hero = new();
         private readonly MainControl _main;
-        private WorldControl _nextWorld = null;
+        private WorldControl _nextWorld;
         private LoadingScreenControl _loadingScreen;
         private MapListControl _mapListControl;
         private bool _isChangingWorld = false;
@@ -35,7 +35,7 @@ namespace Client.Main.Scenes
         public override async Task Load()
         {
             await base.Load();
-            await ChangeMap<NoriaWorld>();
+            await ChangeMap<LorenciaWorld>();
             await _hero.Load();
         }
 

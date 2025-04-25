@@ -83,6 +83,13 @@ namespace Client.Main
         private async void ChangeScene(Type sceneType)
         {
             Console.WriteLine($"Changing scene to {sceneType.Name}");
+
+            try
+            {
+                GraphicsManager.Instance.Sprite?.End();
+            }
+            catch {}
+
             ActiveScene?.Dispose();
             ActiveScene = (BaseScene)Activator.CreateInstance(sceneType);
             await ActiveScene.Initialize();

@@ -1,18 +1,14 @@
 ﻿using Client.Main.Controls;
 using Microsoft.Xna.Framework;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
-    public class World010World : WalkableWorldControl
+    public class DevilSquareWorld : WalkableWorldControl
     {
-        public World010World() : base(worldIndex: 10) // DEVIL SQUARE
+        public DevilSquareWorld() : base(worldIndex: 10) // DEVIL SQUARE
         {
-
+            Name = "Devil Square";
+            BackgroundMusicPath = "Music/devil_square_intro.mp3";
         }
 
         public override void AfterLoad()

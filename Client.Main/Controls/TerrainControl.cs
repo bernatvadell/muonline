@@ -8,6 +8,7 @@ using Client.Main.Controllers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -28,6 +29,14 @@ namespace Client.Main.Controls
 
         // Public properties for water animation parameters (adjustable per world)
         public float WaterSpeed { get; set; } = 0f; // Speed factor for water animation
+        private Vector2 _waterFlowDir = Vector2.UnitX;
+        public Vector2 WaterFlowDirection
+        {
+            get => _waterFlowDir;
+            set => _waterFlowDir = value.LengthSquared() < 1e-4f
+                                   ? Vector2.UnitX
+                                   : Vector2.Normalize(value);
+        }
         public float DistortionAmplitude { get; set; } = 0f; // Amplitude of UV distortion for water effect
         public float DistortionFrequency { get; set; } = 0f; // Frequency of UV distortion for water effect
 
@@ -172,6 +181,7 @@ namespace Client.Main.Controls
 
             _terrainGrassWind = new float[Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE];
 
+            PrecomputeBlockHeights();
             CreateTerrainNormal();
             CreateTerrainLight();
 
@@ -249,7 +259,7 @@ namespace Client.Main.Controls
                    xd * yd * h3 +
                    (1 - xd) * yd * h4;
         }
-        
+
         public Vector3 RequestTerrainLight(float xf, float yf)
         {
             if (_terrain?.TerrainWall == null || xf < 0.0f || yf < 0.0f || _backTerrainLight == null)
@@ -407,62 +417,57 @@ namespace Client.Main.Controls
             if (_terrainGrassWind == null) return;
 
             if (time.TotalGameTime.TotalMilliseconds - _lastUpdateTime < UPDATE_INTERVAL_MS)
-            {
                 return;
-            }
 
-            float windSpeed = (float)(time.TotalGameTime.TotalMilliseconds % 720000 * 0.002);
+            float windSpeed = (float)(time.TotalGameTime.TotalMilliseconds % 720_000 * 0.002);
 
             if (Math.Abs(windSpeed - _lastWindSpeed) < 0.01f)
-            {
                 return;
-            }
 
             _lastWindSpeed = windSpeed;
             _lastUpdateTime = time.TotalGameTime.TotalMilliseconds;
 
-            var camera = Camera.Instance;
-            int startX = Math.Max(0, (int)(camera.Position.X / Constants.TERRAIN_SCALE) - 32);
-            int startY = Math.Max(0, (int)(camera.Position.Y / Constants.TERRAIN_SCALE) - 32);
+            var cam = Camera.Instance;
+            int startX = Math.Max(0, (int)(cam.Position.X / Constants.TERRAIN_SCALE) - 32);
+            int startY = Math.Max(0, (int)(cam.Position.Y / Constants.TERRAIN_SCALE) - 32);
             int endX = Math.Min(Constants.TERRAIN_SIZE - 1, startX + 64);
             int endY = Math.Min(Constants.TERRAIN_SIZE - 1, startY + 64);
 
+            const float STEP = 5f;
+
             Parallel.For(startY, endY + 1, y =>
             {
+                int baseIdx = y * Constants.TERRAIN_SIZE;
                 for (int x = startX; x <= endX; x++)
                 {
-                    int index = GetTerrainIndex(x, y);
-                    _terrainGrassWind[index] = _windCache.FastSin(windSpeed + x * 5f) * WindScale;
+                    int idx = baseIdx + x;
+                    _terrainGrassWind[idx] =
+                        _windCache.FastSin(windSpeed + x * STEP) * WindScale;
                 }
             });
         }
+
 
         private void RenderTerrain(bool isAfter)
         {
             if (_backTerrainHeight == null) return;
 
-            var cameraPosition = new Vector2(Camera.Instance.Position.X, Camera.Instance.Position.Y);
-            UpdateVisibleBlocks(cameraPosition);
+            UpdateVisibleBlocks(new Vector2(Camera.Instance.Position.X,
+                                            Camera.Instance.Position.Y));
 
-            // Pre-allocate buffers and cache common objects
             var effect = GraphicsManager.Instance.BasicEffect3D;
             effect.Projection = Camera.Instance.Projection;
             effect.View = Camera.Instance.View;
 
             foreach (var block in _visibleBlocks)
             {
-                if (block.IsVisible)
-                {
-                    float xStart = block.Xi * Constants.TERRAIN_SCALE;
-                    RenderTerrainBlock(
-                        xStart / Constants.TERRAIN_SCALE,
-                        block.Yi * Constants.TERRAIN_SCALE / Constants.TERRAIN_SCALE,
-                        block.Xi,
-                        block.Yi,
-                        isAfter,
-                        LOD_STEPS[block.LODLevel]
-                    );
-                }
+                if (block == null || !block.IsVisible) continue;
+
+                RenderTerrainBlock(
+                    block.Xi, block.Yi,
+                    block.Xi, block.Yi,
+                    isAfter,
+                    LOD_STEPS[block.LODLevel]);
             }
         }
 
@@ -517,92 +522,93 @@ namespace Client.Main.Controls
             public TerrainBlock GetBlock(int x, int y) => _blocks[y, x];
         }
 
-        private void UpdateVisibleBlocks(Vector2 cameraPosition)
+        private void PrecomputeBlockHeights()
         {
-            if (Vector2.Distance(_lastCameraPosition, cameraPosition) < CAMERA_MOVE_THRESHOLD)
+            if (_backTerrainHeight == null) return;
+
+            for (int gy = 0; gy < Constants.TERRAIN_SIZE / BlockSize; gy++)
+            {
+                for (int gx = 0; gx < Constants.TERRAIN_SIZE / BlockSize; gx++)
+                {
+                    TerrainBlock block = _blockCache.GetBlock(gx, gy);
+
+                    float minZ = float.MaxValue;
+                    float maxZ = float.MinValue;
+
+                    for (int y = 0; y < BlockSize; y++)
+                        for (int x = 0; x < BlockSize; x++)
+                        {
+                            int idx = GetTerrainIndexRepeat(block.Xi + x, block.Yi + y);
+                            float h = _backTerrainHeight[idx].B * 1.5f;
+                            if (h < minZ) minZ = h;
+                            if (h > maxZ) maxZ = h;
+                        }
+
+                    block.MinZ = minZ;
+                    block.MaxZ = maxZ;
+
+                    float sx = block.Xi * Constants.TERRAIN_SCALE;
+                    float sy = block.Yi * Constants.TERRAIN_SCALE;
+                    float ex = (block.Xi + BlockSize) * Constants.TERRAIN_SCALE;
+                    float ey = (block.Yi + BlockSize) * Constants.TERRAIN_SCALE;
+
+                    block.Bounds = new BoundingBox(
+                        new Vector3(sx, sy, minZ),
+                        new Vector3(ex, ey, maxZ));
+                }
+            }
+        }
+
+        private void UpdateVisibleBlocks(Vector2 cameraPos)
+        {
+            const float THRESHOLD_SQ = CAMERA_MOVE_THRESHOLD * CAMERA_MOVE_THRESHOLD;
+            if (Vector2.DistanceSquared(_lastCameraPosition, cameraPos) < THRESHOLD_SQ)
                 return;
 
-            _lastCameraPosition = cameraPosition;
+            _lastCameraPosition = cameraPos;
             _visibleBlocks.Clear();
 
-            float renderDistance = Camera.Instance.ViewFar * 1.5f;
-            float renderDistanceSq = renderDistance * renderDistance;
+            float renderDist = Camera.Instance.ViewFar * 1.5f;
+            float renderDistSq = renderDist * renderDist;
+            int cellWorld = (int)(Constants.TERRAIN_SCALE * BlockSize);
 
-            const int EXTRA_BLOCKS_MARGIN = 2;
+            const int EXTRA = 2;
 
-            int startX = Math.Max(0, (int)((cameraPosition.X - renderDistance) / (Constants.TERRAIN_SCALE * BlockSize)) - EXTRA_BLOCKS_MARGIN);
-            int startY = Math.Max(0, (int)((cameraPosition.Y - renderDistance) / (Constants.TERRAIN_SCALE * BlockSize)) - EXTRA_BLOCKS_MARGIN);
-            int endX = Math.Min(Constants.TERRAIN_SIZE / BlockSize - 1, (int)((cameraPosition.X + renderDistance) / (Constants.TERRAIN_SCALE * BlockSize)) + EXTRA_BLOCKS_MARGIN);
-            int endY = Math.Min(Constants.TERRAIN_SIZE / BlockSize - 1, (int)((cameraPosition.Y + renderDistance) / (Constants.TERRAIN_SCALE * BlockSize)) + EXTRA_BLOCKS_MARGIN);
+            int tilesPerAxis = Constants.TERRAIN_SIZE / BlockSize;
+
+            int startX = Math.Max(0, (int)((cameraPos.X - renderDist) / cellWorld) - EXTRA);
+            int startY = Math.Max(0, (int)((cameraPos.Y - renderDist) / cellWorld) - EXTRA);
+            int endX = Math.Min(tilesPerAxis - 1, (int)((cameraPos.X + renderDist) / cellWorld) + EXTRA);
+            int endY = Math.Min(tilesPerAxis - 1, (int)((cameraPos.Y + renderDist) / cellWorld) + EXTRA);
 
             var frustum = Camera.Instance.Frustum;
-            var visibleBlocksList = new List<TerrainBlock>((endX - startX + 1) * (endY - startY + 1));
+            var visible = new List<TerrainBlock>((endX - startX + 1) * (endY - startY + 1));
 
-            Parallel.For(startY, endY + 1, gridY =>
-            {
-                var localBlocks = new List<TerrainBlock>();
-                for (int gridX = startX; gridX <= endX; gridX++)
+            for (int gy = startY; gy <= endY; gy++)
+                for (int gx = startX; gx <= endX; gx++)
                 {
-                    var block = _blockCache.GetBlock(gridX, gridY);
+                    TerrainBlock block = _blockCache.GetBlock(gx, gy);
 
-                    float xStart = block.Xi * Constants.TERRAIN_SCALE;
-                    float yStart = block.Yi * Constants.TERRAIN_SCALE;
-                    float xEnd = (block.Xi + BlockSize) * Constants.TERRAIN_SCALE;
-                    float yEnd = (block.Yi + BlockSize) * Constants.TERRAIN_SCALE;
+                    block.Center = new Vector2(
+                        (block.Xi + BlockSize * 0.5f) * Constants.TERRAIN_SCALE,
+                        (block.Yi + BlockSize * 0.5f) * Constants.TERRAIN_SCALE);
 
-                    block.Center = new Vector2((xStart + xEnd) * 0.5f, (yStart + yEnd) * 0.5f);
-                    float distanceToCamera = Vector2.DistanceSquared(block.Center, cameraPosition);
-
-                    if (distanceToCamera <= renderDistanceSq)
-                    {
-                        block.LODLevel = GetLODLevel(MathF.Sqrt(distanceToCamera));
-
-                        // Find min/max height more efficiently
-                        float minZ = float.MaxValue;
-                        float maxZ = float.MinValue;
-
-                        for (int y = 0; y < BlockSize; y += 2)
-                        {
-                            for (int x = 0; x < BlockSize; x += 2)
-                            {
-                                int terrainIndex = GetTerrainIndexRepeat(block.Xi + x, block.Yi + y);
-                                float height = _backTerrainHeight[terrainIndex].B * 1.5f;
-
-                                minZ = Math.Min(minZ, height);
-                                maxZ = Math.Max(maxZ, height);
-                            }
-                        }
-
-                        block.MinZ = minZ;
-                        block.MaxZ = maxZ;
-
-                        block.Bounds = new BoundingBox(
-                            new Vector3(xStart, yStart, block.MinZ),
-                            new Vector3(xEnd, yEnd, block.MaxZ)
-                        );
-
-                        block.IsVisible = frustum.Contains(block.Bounds) != ContainmentType.Disjoint;
-                        if (block.IsVisible)
-                        {
-                            localBlocks.Add(block);
-                        }
-                    }
-                    else
+                    float distSq = Vector2.DistanceSquared(block.Center, cameraPos);
+                    if (distSq > renderDistSq)
                     {
                         block.IsVisible = false;
+                        continue;
                     }
+
+                    block.LODLevel = GetLODLevel(MathF.Sqrt(distSq));
+                    block.IsVisible = frustum.Contains(block.Bounds) != ContainmentType.Disjoint;
+
+                    if (block.IsVisible)
+                        visible.Add(block);
                 }
 
-                lock (visibleBlocksList)
-                {
-                    visibleBlocksList.AddRange(localBlocks);
-                }
-            });
-
-            foreach (var block in visibleBlocksList)
-            {
+            foreach (var block in visible)
                 _visibleBlocks.Enqueue(block);
-            }
         }
 
         private void RenderTerrainBlock(float xf, float yf, int xi, int yi, bool isAfter, int lodStep)
@@ -744,24 +750,36 @@ namespace Client.Main.Controls
             float uvWidth = baseWidth * lodScale;
             float uvHeight = baseHeight * lodScale;
 
-            if (textureIndex == 5) // Water TILE
+            if (textureIndex == 5) // TileWater01
             {
-                // Calculate a wrapped offset for distortion computations
-                float wrapPeriod = (float)(2 * Math.PI / DistortionFrequency);
-                float waterOffset = waterTotal % wrapPeriod;
+                Vector2 flowOffset = _waterFlowDir * waterTotal;
 
-                // Use waterTotal for the base UV offset and waterOffset for distortion.
-                _terrainTextureCoord[0].X = suf + waterTotal + (float)Math.Sin((suf + waterOffset) * DistortionFrequency) * DistortionAmplitude;
-                _terrainTextureCoord[0].Y = svf + (float)Math.Cos((svf + waterOffset) * DistortionFrequency) * DistortionAmplitude;
+                float wrapPeriod = (float)(2 * Math.PI / Math.Max(0.0001f, DistortionFrequency));
+                float waterPhase = waterTotal % wrapPeriod;
 
-                _terrainTextureCoord[1].X = suf + uvWidth + waterTotal + (float)Math.Sin((suf + uvWidth + waterOffset) * DistortionFrequency) * DistortionAmplitude;
-                _terrainTextureCoord[1].Y = svf + (float)Math.Cos((svf + waterOffset) * DistortionFrequency) * DistortionAmplitude;
+                // 0
+                _terrainTextureCoord[0].X = suf + flowOffset.X +
+                                            (float)Math.Sin((suf + waterPhase) * DistortionFrequency) * DistortionAmplitude;
+                _terrainTextureCoord[0].Y = svf + flowOffset.Y +
+                                            (float)Math.Cos((svf + waterPhase) * DistortionFrequency) * DistortionAmplitude;
 
-                _terrainTextureCoord[2].X = suf + uvWidth + waterTotal + (float)Math.Sin((suf + uvWidth + waterOffset) * DistortionFrequency) * DistortionAmplitude;
-                _terrainTextureCoord[2].Y = svf + uvHeight + (float)Math.Cos((svf + uvHeight + waterOffset) * DistortionFrequency) * DistortionAmplitude;
+                // 1
+                _terrainTextureCoord[1].X = suf + uvWidth + flowOffset.X +
+                                            (float)Math.Sin((suf + uvWidth + waterPhase) * DistortionFrequency) * DistortionAmplitude;
+                _terrainTextureCoord[1].Y = svf + flowOffset.Y +
+                                            (float)Math.Cos((svf + waterPhase) * DistortionFrequency) * DistortionAmplitude;
 
-                _terrainTextureCoord[3].X = suf + waterTotal + (float)Math.Sin((suf + waterOffset) * DistortionFrequency) * DistortionAmplitude;
-                _terrainTextureCoord[3].Y = svf + uvHeight + (float)Math.Cos((svf + uvHeight + waterOffset) * DistortionFrequency) * DistortionAmplitude;
+                // 2
+                _terrainTextureCoord[2].X = suf + uvWidth + flowOffset.X +
+                                            (float)Math.Sin((suf + uvWidth + waterPhase) * DistortionFrequency) * DistortionAmplitude;
+                _terrainTextureCoord[2].Y = svf + uvHeight + flowOffset.Y +
+                                            (float)Math.Cos((svf + uvHeight + waterPhase) * DistortionFrequency) * DistortionAmplitude;
+
+                // 3
+                _terrainTextureCoord[3].X = suf + flowOffset.X +
+                                            (float)Math.Sin((suf + waterPhase) * DistortionFrequency) * DistortionAmplitude;
+                _terrainTextureCoord[3].Y = svf + uvHeight + flowOffset.Y +
+                                            (float)Math.Cos((svf + uvHeight + waterPhase) * DistortionFrequency) * DistortionAmplitude;
             }
             else
             {

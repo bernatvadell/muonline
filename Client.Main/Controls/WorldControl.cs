@@ -11,10 +11,26 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
 namespace Client.Main.Controls
 {
+
+    sealed class WorldObjectDepthAsc : IComparer<WorldObject>
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int Compare(WorldObject a, WorldObject b)
+            => a.Depth.CompareTo(b.Depth);
+    }
+
+    sealed class WorldObjectDepthDesc : IComparer<WorldObject>
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int Compare(WorldObject a, WorldObject b)
+            => b.Depth.CompareTo(a.Depth);
+    }
+    
     public abstract class WorldControl : GameControl
     {
         public string BackgroundMusicPath { get; set; }
@@ -27,6 +43,10 @@ namespace Client.Main.Controls
         private readonly List<WorldObject> solidBehind = new List<WorldObject>();
         private readonly List<WorldObject> transparentObjects = new List<WorldObject>();
         private readonly List<WorldObject> solidInFront = new List<WorldObject>();
+
+        private DepthStencilState _currentDepthState = DepthStencilState.Default;
+        private readonly WorldObjectDepthAsc _cmpAsc = new();
+        private readonly WorldObjectDepthDesc _cmpDesc = new();
 
         private static readonly DepthStencilState DepthStateDefault = DepthStencilState.Default;
         private static readonly DepthStencilState DepthStateDepthRead = DepthStencilState.DepthRead;
@@ -46,6 +66,16 @@ namespace Client.Main.Controls
             Camera.Instance.CameraMoved += OnCameraMoved;
 
             UpdateBoundingFrustum();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void SetDepthState(DepthStencilState state)
+        {
+            if (_currentDepthState != state)
+            {
+                GraphicsDevice.DepthStencilState = state;
+                _currentDepthState = state;
+            }
         }
 
         private void OnCameraMoved(object sender, EventArgs e)
@@ -117,12 +147,11 @@ namespace Client.Main.Controls
         public override void Update(GameTime time)
         {
             base.Update(time);
-
             if (Status != GameControlStatus.Ready)
                 return;
 
-            for (var i = 0; i < Objects.Count; i++)
-                Objects[i].Update(time);
+            foreach (var obj in Objects)
+                obj.Update(time);
         }
 
         public override void Draw(GameTime time)
@@ -156,90 +185,76 @@ namespace Client.Main.Controls
             transparentObjects.Clear();
             solidInFront.Clear();
 
-            // Partition objects into groups based on transparency
             foreach (var obj in Objects)
             {
-                if (!IsObjectInView(obj))
-                    continue;
+                if (!IsObjectInView(obj)) continue;
 
                 if (obj.IsTransparent)
-                {
                     transparentObjects.Add(obj);
-                }
                 else if (obj.AffectedByTransparency)
-                {
                     solidBehind.Add(obj);
-                }
                 else
-                {
                     solidInFront.Add(obj);
-                }
             }
 
-            // Render objects behind the transparent ones
+            if (solidBehind.Count > 1) solidBehind.Sort(_cmpAsc);
+            SetDepthState(DepthStateDefault);
+            foreach (var obj in solidBehind)
+            {
+                obj.DepthState = DepthStateDefault;
+                obj.Draw(gameTime);
+                obj.RenderOrder = ++renderCounter;
+            }
+
+            if (transparentObjects.Count > 1) transparentObjects.Sort(_cmpDesc);
+            if (transparentObjects.Count > 0)
+                SetDepthState(DepthStateDepthRead);
+            foreach (var obj in transparentObjects)
+            {
+                obj.DepthState = DepthStateDepthRead;
+                obj.Draw(gameTime);
+                obj.RenderOrder = ++renderCounter;
+            }
+
+            if (solidInFront.Count > 1) solidInFront.Sort(_cmpAsc);
+            if (solidInFront.Count > 0)
+                SetDepthState(DepthStateDefault);
+            foreach (var obj in solidInFront)
+            {
+                obj.DepthState = DepthStateDefault;
+                obj.Draw(gameTime);
+                obj.RenderOrder = ++renderCounter;
+            }
+
             if (solidBehind.Count > 0)
             {
-                solidBehind.Sort((a, b) => a.Depth.CompareTo(b.Depth));
-                GraphicsDevice.DepthStencilState = DepthStateDefault;
-
-                foreach (var obj in solidBehind)
-                {
-                    obj.DepthState = DepthStateDefault;
-                    obj.Draw(gameTime);
-                    obj.RenderOrder = ++renderCounter;
-                }
+                SetDepthState(DepthStateDefault);
+                foreach (var obj in solidBehind) obj.DrawAfter(gameTime);
             }
 
-            // Render transparent objects with depth buffer in read-only mode (no depth writes)
             if (transparentObjects.Count > 0)
             {
-                transparentObjects.Sort((a, b) => b.Depth.CompareTo(a.Depth));
-                GraphicsDevice.DepthStencilState = DepthStateDepthRead;
-
-                foreach (var obj in transparentObjects)
-                {
-                    obj.DepthState = DepthStateDepthRead;
-                    obj.Draw(gameTime);
-                    obj.RenderOrder = ++renderCounter;
-                }
+                SetDepthState(DepthStateDepthRead);
+                foreach (var obj in transparentObjects) obj.DrawAfter(gameTime);
             }
 
-            // Render objects in front of transparent ones
             if (solidInFront.Count > 0)
             {
-                solidInFront.Sort((a, b) => a.Depth.CompareTo(b.Depth));
-                GraphicsDevice.DepthStencilState = DepthStateDefault;
-
-                foreach (var obj in solidInFront)
-                {
-                    obj.DepthState = DepthStateDefault;
-                    obj.Draw(gameTime);
-                    obj.RenderOrder = ++renderCounter;
-                }
+                SetDepthState(DepthStateDefault);
+                foreach (var obj in solidInFront) obj.DrawAfter(gameTime);
             }
-
-            // Set the DepthStencilState for DrawAfter calls
-            // DrawAfter for solidBehind objects with default state
-            GraphicsDevice.DepthStencilState = DepthStateDefault;
-            foreach (var obj in solidBehind)
-                obj.DrawAfter(gameTime);
-
-            // DrawAfter for transparent objects with depth read state to avoid writing depth
-            GraphicsDevice.DepthStencilState = DepthStateDepthRead;
-            foreach (var obj in transparentObjects)
-                obj.DrawAfter(gameTime);
-
-            // DrawAfter for solidInFront objects with default state
-            GraphicsDevice.DepthStencilState = DepthStateDefault;
-            foreach (var obj in solidInFront)
-                obj.DrawAfter(gameTime);
         }
+
 
         private bool IsObjectInView(WorldObject obj)
         {
-            float cullingRadius = cullingOffset;
-            BoundingSphere objectBoundingSphere = new BoundingSphere(obj.Position, cullingRadius);
-            return boundingFrustum.Contains(objectBoundingSphere) != ContainmentType.Disjoint;
+            Vector2 cam2D = new(Camera.Instance.Position.X, Camera.Instance.Position.Y);
+            if (Vector2.DistanceSquared(cam2D, new Vector2(obj.Position.X, obj.Position.Y))
+                > (Camera.Instance.ViewFar + cullingOffset) * (Camera.Instance.ViewFar + cullingOffset))
+                return false;
+
+            return boundingFrustum.Contains(new BoundingSphere(obj.Position, cullingOffset))
+                   != ContainmentType.Disjoint;
         }
 
         private void UpdateBoundingFrustum()

@@ -18,7 +18,7 @@ namespace Client.Main
                 // Game settings
 
 #if DEBUG
-                public static Type ENTRY_SCENE = typeof(Scenes.GameScene);
+                public static Type ENTRY_SCENE = typeof(Scenes.LoadScene);
                 public static bool BACKGROUND_MUSIC = true;
                 public static bool SOUND_EFFECTS = true;
                 public static bool DRAW_BOUNDING_BOXES = false;
@@ -38,7 +38,7 @@ namespace Client.Main
 #if DEBUG
                 public static bool UNLIMITED_FPS = true;
 #else
-                public static bool UNLIMITED_FPS = false;
+                public static bool UNLIMITED_FPS = true;
 #endif
 
                 // Camera control constants
@@ -57,8 +57,8 @@ namespace Client.Main
                 public const float DEFAULT_CAMERA_YAW = 30.5f;
 
                 // Rotation limits
-                public static readonly float MAX_PITCH = MathHelper.ToRadians(0); // Limit upward rotation
-                public static readonly float MIN_PITCH = MathHelper.ToRadians(135); // Limit downward rotation
+                public static readonly float MAX_PITCH = MathHelper.ToRadians(160); // Limit upward rotation
+                public static readonly float MIN_PITCH = MathHelper.ToRadians(110); // Limit downward rotation
 
                 // Player movement speed
                 public const float MOVE_SPEED = 550f; // Default(?) walk speed
