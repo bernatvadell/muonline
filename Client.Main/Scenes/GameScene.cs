@@ -59,22 +59,23 @@ namespace Client.Main.Scenes
             Cursor.BringToFront();
         }
 
+
         private void AddChatTestData()
         {
             if (_chatLog == null) return;
 
-            _chatLog.AddMessage(string.Empty, "Witaj w świecie Mu!", MessageType.System);
-            _chatLog.AddMessage("Gracz1", "Cześć wszystkim!", MessageType.Chat);
-            _chatLog.AddMessage("System", "Serwer zostanie zrestartowany za 5 minut.", MessageType.Info);
-            _chatLog.AddMessage("GM_Tester", "Proszę zgłosić się na rozmowę.", MessageType.GM);
-            _chatLog.AddMessage("AllyMember", "Idziemy na bossa?", MessageType.Guild);
-            _chatLog.AddMessage("PartyDude", "Mam spota!", MessageType.Party);
-            _chatLog.AddMessage("Whisperer", "Spotkamy się w Lorencii?", MessageType.Whisper);
-            for (int i = 0; i < 10; i++) // Dodaj więcej wiadomości, aby przetestować przewijanie
+            _chatLog.AddMessage(string.Empty, "Welcome to the world of Mu!", MessageType.System);
+            _chatLog.AddMessage("Player1", "Hello everyone!", MessageType.Chat);
+            _chatLog.AddMessage("System", "Server will restart in 5 minutes.", MessageType.Info);
+            _chatLog.AddMessage("GM_Tester", "Please report for an interview.", MessageType.GM);
+            _chatLog.AddMessage("AllyMember", "Shall we go for the boss?", MessageType.Guild);
+            _chatLog.AddMessage("PartyDude", "I've got a spot!", MessageType.Party);
+            _chatLog.AddMessage("Whisperer", "Shall we meet in Lorencia?", MessageType.Whisper);
+            for (int i = 0; i < 10; i++) // Add more messages to test scrolling
             {
-                _chatLog.AddMessage("Spammer", $"Testowa wiadomość numer {i + 1} aby wypełnić okno czatu i sprawdzić jak działa przewijanie.", MessageType.Chat);
+                _chatLog.AddMessage("Spammer", $"Test message number {i + 1} to fill the chat window and check how scrolling works.", MessageType.Chat);
             }
-            _chatLog.AddMessage(string.Empty, "Wystąpił nieoczekiwany błąd.", MessageType.Error);
+            _chatLog.AddMessage(string.Empty, "An unexpected error has occurred.", MessageType.Error);
         }
 
         public override async Task Load()
