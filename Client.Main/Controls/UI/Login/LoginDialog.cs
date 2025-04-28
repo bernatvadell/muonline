@@ -27,8 +27,8 @@ namespace Client.Main.Controls.UI.Login
             Controls.Add(new LabelControl { Text = "Password", Y = 120, X = 20, AutoViewSize = false, ViewSize = new Point(70, 20), TextAlign = HorizontalAlign.Right, FontSize = 12f });
             Controls.Add(_line2 = new TextureControl { TexturePath = "Interface/GFx/popup_line_m.ozd", X = 10, Y = 150, AutoViewSize = false, Alpha = 0.7f });
 
-            _userInput = new TextFieldControl { X = 100, Y = 87 };
-            _passwordInput = new TextFieldControl { X = 100, Y = 117, MaskValue =  true };
+            _userInput = new TextFieldControl { X = 100, Y = 87, Skin = TextFieldSkin.NineSlice };
+            _passwordInput = new TextFieldControl { X = 100, Y = 117, MaskValue =  true, Skin = TextFieldSkin.NineSlice };
             _passwordInput.ValueChanged += OnLoginClick;
             Controls.Add(_userInput);
             Controls.Add(_passwordInput);

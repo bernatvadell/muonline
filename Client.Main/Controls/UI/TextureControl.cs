@@ -10,7 +10,7 @@ namespace Client.Main.Controls.UI
 {
     public class TextureControl : ExtendedUIControl
     {
-        protected Texture2D Texture { get; private set; }
+        public Texture2D Texture { get; protected set; }
         private string _texturePath;
         public Rectangle TextureRectangle { get; set; }
         public virtual Rectangle SourceRectangle => TextureRectangle;

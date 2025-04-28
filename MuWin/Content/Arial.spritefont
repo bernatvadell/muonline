@@ -37,23 +37,23 @@ with.
     -->
     <Style>Regular</Style>
 
-    <!--
-    If you uncomment this line, the default character will be substituted if you draw
-    or measure text that contains characters which were not included in the font.
-    -->
-    <!-- <DefaultCharacter>*</DefaultCharacter> -->
+    <DefaultCharacter>?</DefaultCharacter>
 
-    <!--
-    CharacterRegions control what letters are available in the font. Every
-    character from Start to End will be built and made available for drawing. The
-    default range is from 32, (ASCII space), to 126, ('~'), covering the basic Latin
-    character set. The characters are ordered according to the Unicode standard.
-    See the documentation for more information.
-    -->
     <CharacterRegions>
+      <!-- ASCII Standard -->
       <CharacterRegion>
-        <Start>&#32;</Start>
-        <End>&#126;</End>
+        <Start> </Start>
+        <End>~</End>
+      </CharacterRegion>
+      <!-- Latin-1 Supplement -->
+      <CharacterRegion>
+        <Start>À</Start> <!-- À (U+00C0) -->
+        <End>ÿ</End>   <!-- ÿ (U+00FF) -->
+      </CharacterRegion>
+      <!-- Latin Extended-A -->
+      <CharacterRegion>
+        <Start>Ā</Start> <!-- Ā (U+0100) -->
+        <End>ſ</End>   <!-- ſ (U+017F) -->
       </CharacterRegion>
     </CharacterRegions>
   </Asset>
