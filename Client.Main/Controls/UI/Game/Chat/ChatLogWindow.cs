@@ -37,7 +37,7 @@ namespace Client.Main.Controls.UI
 
         // --- State ---
         private readonly Dictionary<MessageType, List<ChatMessage>> _messages;
-        // private readonly List<string> _filters; // Omitted filters
+        // private readonly List<string> _filters; // Omitted filters for now
         private SpriteFont _font;
         private SpriteFont _fontBold;
         private float _fontScale = 0.40f; // Font scale if needed
@@ -137,6 +137,14 @@ namespace Client.Main.Controls.UI
             if (!_messages.ContainsKey(type)) return; // Ignore unknown types
 
             // TODO: In future, filtering logic will go here (CheckFilterText)
+            // C++ plays whisper sound for incoming chat messages that match a filter.
+            // For now, we'll play it for incoming whisper messages if the option is enabled.
+            // Adjust this logic if you implement filters and want the C++ behavior.
+            if (type == MessageType.Whisper) // && (MuGame.Instance.GameOptions?.IsWhisperSoundEnabled ?? false)) // Assuming GameOptions exists and has this property
+            {
+                SoundController.Instance.PlayBuffer("Sound/iWhisper.wav");
+            }
+
 
             // Split text into lines if too long
             List<ChatMessage> splitLines = SplitText(senderId, text, type);
@@ -428,6 +436,7 @@ namespace Client.Main.Controls.UI
                     // Draw message background if any
                     if (bgColor.A > 0)
                     {
+                        // MeasureString can be slow, consider caching or estimating
                         float textWidth = currentFont.MeasureString(msg.DisplayText).X * _fontScale;
                         float bgWidth = Math.Min(clientWidth, textWidth);
                         Rectangle bgRect = new Rectangle((int)textPos.X, (int)textPos.Y, (int)bgWidth, (int)_lineHeight);
@@ -538,7 +547,7 @@ namespace Client.Main.Controls.UI
             if (hoverResize && mouse.LeftButton == ButtonState.Pressed && prevMouse.LeftButton == ButtonState.Released)
             {
                 CycleSize();
-                // TODO: Play click sound if ChatInputBox did
+                // Sound is played by ChatInputBoxControl when F4 is pressed or button is clicked
             }
             // Dragging logic can be added here if needed
             else if (_isDraggingResize && mouse.LeftButton == ButtonState.Pressed) { }
@@ -786,6 +795,7 @@ namespace Client.Main.Controls.UI
                         if (_font.MeasureString(sub).X * _fontScale <= availableWidth)
                         {
                             int lastSpace = sub.LastIndexOf(' ');
+                            // Prefer splitting at space if it's not too far back
                             splitIndex = (lastSpace > 0 && (i - lastSpace < 15)) ? lastSpace : i + 1;
                             break;
                         }
