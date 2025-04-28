@@ -19,6 +19,7 @@ namespace Client.Main.Scenes
         public DebugPanel DebugPanel { get; }
 
         public WorldObject MouseHoverObject { get; set; }
+        public bool IsMouseHandledByUI { get; set; }
 
         public BaseScene()
         {

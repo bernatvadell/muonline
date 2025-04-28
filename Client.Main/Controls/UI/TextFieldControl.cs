@@ -5,43 +5,36 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Controls.UI
 {
+    public enum TextFieldSkin
+    {
+        Flat,
+        NineSlice
+    }
+
     public class TextFieldControl : UIControl
     {
-        private Texture2D _cornerTopLeftTexture;
-        private Texture2D _topLineTexture;
-        private Texture2D _cornerTopRightTexture;
-        private Texture2D _leftLineTexture;
-        private Texture2D _backgroundTexture;
-        private Texture2D _rightLineTexture;
-        private Texture2D _cornerBottomLeftTexture;
-        private Texture2D _bottomLineTexture;
-        private Texture2D _cornerBottomRightTexture;
         private readonly StringBuilder _inputText = new();
         private double _cursorBlinkTimer;
         private bool _showCursor;
         private float _scrollOffset;
 
-        private const int TextMargin = 10;
+        private const int TextMargin = 5;
         private const int CursorBlinkInterval = 500;
 
-        // Controls the size of the rendered text.
+        private Texture2D[] _nineSlice = new Texture2D[9];
+
+        public TextFieldSkin Skin { get; set; } = TextFieldSkin.Flat;
+        public Color TextColor { get; set; } = Color.White;
         public float FontSize { get; set; } = 12f;
         public TextFieldControl NextInput { get; set; }
         public bool IsFocused { get; private set; }
-
-        public TextFieldControl()
-        {
-            AutoViewSize = false;
-            ViewSize = new Point(170, 25);
-            Interactive = true;
-            IsFocused = false;
-        }
 
         public string Value
         {
@@ -49,26 +42,35 @@ namespace Client.Main.Controls.UI
             set
             {
                 _inputText.Clear();
-                _inputText.Append(value);
+                _inputText.Append(value ?? string.Empty);
+                UpdateScrollOffset();
+                MoveCursorToEnd();
             }
         }
 
         public bool MaskValue { get; set; }
         public event EventHandler ValueChanged;
 
+        public TextFieldControl()
+        {
+            AutoViewSize = false;
+            ViewSize = new Point(176, 14);
+            Interactive = true;
+            IsFocused = false;
+        }
+
         public override async Task Load()
         {
             await base.Load();
-            var windowName = "textbg";
-            _cornerTopLeftTexture = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/{windowName}01.ozd");
-            _topLineTexture = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/{windowName}02.ozd");
-            _cornerTopRightTexture = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/{windowName}03.ozd");
-            _leftLineTexture = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/{windowName}04.ozd");
-            _backgroundTexture = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/{windowName}05.ozd");
-            _rightLineTexture = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/{windowName}06.ozd");
-            _cornerBottomLeftTexture = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/{windowName}07.ozd");
-            _bottomLineTexture = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/{windowName}08.ozd");
-            _cornerBottomRightTexture = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/{windowName}09.ozd");
+
+            if (Skin == TextFieldSkin.NineSlice)
+            {
+                var names = new[] { "01", "02", "03", "04", "05", "06", "07", "08", "09" };
+                for (int i = 0; i < 9; i++)
+                {
+                    _nineSlice[i] = await TextureLoader.Instance.PrepareAndGetTexture($"Interface/GFx/textbg{names[i]}.ozd");
+                }
+            }
         }
 
         public override void OnFocus()
@@ -87,11 +89,38 @@ namespace Client.Main.Controls.UI
             _cursorBlinkTimer = 0;
         }
 
+        public new void Focus() => OnFocus();
+        public new void Blur() => OnBlur();
+
+        public void MoveCursorToEnd()
+        {
+            UpdateScrollOffset();
+            if (IsFocused)
+            {
+                _showCursor = true;
+                _cursorBlinkTimer = 0;
+            }
+        }
+
+        private void UpdateScrollOffset()
+        {
+            if (GraphicsManager.Instance?.Font == null) return;
+
+            float scaleFactor = FontSize / Constants.BASE_FONT_SIZE;
+            var textToDisplay = MaskValue ? new string('*', _inputText.Length) : _inputText.ToString();
+            var textWidth = GraphicsManager.Instance.Font.MeasureString(textToDisplay).X * scaleFactor;
+            float maxVisibleWidth = DisplayRectangle.Width - TextMargin * 2;
+
+            _scrollOffset = textWidth > maxVisibleWidth ? textWidth - maxVisibleWidth : 0;
+        }
+
         private void ProcessKey(Keys key, bool shift, bool capsLock)
         {
+            bool textChanged = false;
             if (key == Keys.Back && _inputText.Length > 0)
             {
                 _inputText.Remove(_inputText.Length - 1, 1);
+                textChanged = true;
             }
             else if (key == Keys.Enter)
             {
@@ -103,12 +132,17 @@ namespace Client.Main.Controls.UI
                 if (character != '\0')
                 {
                     _inputText.Append(character);
+                    textChanged = true;
                 }
+            }
+
+            if (textChanged)
+            {
+                UpdateScrollOffset();
+                MoveCursorToEnd();
             }
         }
 
-        // Converts a key press into the corresponding character,
-        // handling letters, digits (from top row and numpad) and common special characters.
         private char KeyToChar(Keys key, bool shift, bool capsLock)
         {
             if (key >= Keys.A && key <= Keys.Z)
@@ -165,19 +199,25 @@ namespace Client.Main.Controls.UI
         {
             base.Update(gameTime);
 
-            if (!IsFocused) return;
+            if (!IsFocused || !Visible) return;
 
             var keysPressed = MuGame.Instance.Keyboard.GetPressedKeys();
             bool shift = MuGame.Instance.Keyboard.IsKeyDown(Keys.LeftShift) || MuGame.Instance.Keyboard.IsKeyDown(Keys.RightShift);
-            // Check caps lock state: on Windows, use Console.CapsLock; on other platforms, default to false.
             bool capsLock = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? Console.CapsLock : false;
 
+            bool textModifiedByKey = false;
             foreach (var key in keysPressed)
             {
                 if (MuGame.Instance.PrevKeyboard.IsKeyUp(key))
                 {
                     ProcessKey(key, shift, capsLock);
+                    textModifiedByKey = true;
                 }
+            }
+
+            if (textModifiedByKey || (IsFocused && !MuGame.Instance.PrevKeyboard.GetPressedKeys().Any()))
+            {
+                UpdateScrollOffset();
             }
 
             _cursorBlinkTimer += gameTime.ElapsedGameTime.TotalMilliseconds;
@@ -186,13 +226,6 @@ namespace Client.Main.Controls.UI
                 _showCursor = !_showCursor;
                 _cursorBlinkTimer = 0;
             }
-
-            float scaleFactor = FontSize / Constants.BASE_FONT_SIZE;
-            var measuredText = MaskValue ? new string('*', _inputText.Length) : _inputText.ToString();
-            var textWidth = GraphicsManager.Instance.Font.MeasureString(measuredText).X * scaleFactor;
-            float maxVisibleWidth = DisplayRectangle.Width - TextMargin * 2;
-
-            _scrollOffset = textWidth > maxVisibleWidth ? textWidth - maxVisibleWidth : 0;
         }
 
         public override void Draw(GameTime gameTime)
@@ -200,56 +233,92 @@ namespace Client.Main.Controls.UI
             if (Status != GameControlStatus.Ready || !Visible)
                 return;
 
-            var sprite = GraphicsManager.Instance.Sprite;
+            var spriteBatch = GraphicsManager.Instance.Sprite;
 
-            sprite.Begin(
-                SpriteSortMode.Deferred,
-                BlendState.AlphaBlend,
-                SamplerState.PointClamp,
-                DepthStencilState.Default,
-                RasterizerState.CullNone,
-                GraphicsManager.Instance.AlphaTestEffectUI
-            );
+            if (Skin == TextFieldSkin.NineSlice && _nineSlice[0] != null)
+                DrawNineSliceBackground(spriteBatch);
+            else
+                DrawFlatBackground(spriteBatch);
 
-            sprite.Draw(_cornerTopLeftTexture, new Rectangle(DisplayRectangle.X, DisplayRectangle.Y, _cornerTopLeftTexture.Width, _cornerTopLeftTexture.Height), Color.White);
-            sprite.Draw(_cornerTopRightTexture, new Rectangle(DisplayRectangle.X + DisplayRectangle.Width - _cornerTopRightTexture.Width, DisplayRectangle.Y, _cornerTopRightTexture.Width, _cornerTopRightTexture.Height), Color.White);
-            sprite.Draw(_cornerBottomLeftTexture, new Rectangle(DisplayRectangle.X, DisplayRectangle.Y + DisplayRectangle.Height - _cornerBottomLeftTexture.Height, _cornerBottomLeftTexture.Width, _cornerBottomLeftTexture.Height), Color.White);
-            sprite.Draw(_cornerBottomRightTexture, new Rectangle(DisplayRectangle.X + DisplayRectangle.Width - _cornerBottomRightTexture.Width, DisplayRectangle.Y + DisplayRectangle.Height - _cornerBottomRightTexture.Height, _cornerBottomRightTexture.Width, _cornerBottomRightTexture.Height), Color.White);
-            sprite.Draw(_topLineTexture, new Rectangle(DisplayRectangle.X + _cornerTopLeftTexture.Width, DisplayRectangle.Y, DisplayRectangle.Width - _cornerTopLeftTexture.Width - _cornerTopRightTexture.Width, _topLineTexture.Height), Color.White);
-            sprite.Draw(_bottomLineTexture, new Rectangle(DisplayRectangle.X + _cornerBottomLeftTexture.Width, DisplayRectangle.Y + DisplayRectangle.Height - _bottomLineTexture.Height, DisplayRectangle.Width - _cornerBottomLeftTexture.Width - _cornerBottomRightTexture.Width, _bottomLineTexture.Height), Color.White);
-            sprite.Draw(_leftLineTexture, new Rectangle(DisplayRectangle.X, DisplayRectangle.Y + _cornerTopLeftTexture.Height, _leftLineTexture.Width, DisplayRectangle.Height - _cornerTopLeftTexture.Height - _cornerBottomLeftTexture.Height), Color.White);
-            sprite.Draw(_rightLineTexture, new Rectangle(DisplayRectangle.X + DisplayRectangle.Width - _rightLineTexture.Width, DisplayRectangle.Y + _cornerTopRightTexture.Height, _rightLineTexture.Width, DisplayRectangle.Height - _cornerTopRightTexture.Height - _cornerBottomRightTexture.Height), Color.White);
-            sprite.Draw(_backgroundTexture, new Rectangle(DisplayRectangle.X + _leftLineTexture.Width, DisplayRectangle.Y + _topLineTexture.Height, DisplayRectangle.Width - _leftLineTexture.Width - _rightLineTexture.Width, DisplayRectangle.Height - _topLineTexture.Height - _bottomLineTexture.Height), Color.White);
+            DrawTextAndCursor(spriteBatch);
+        }
 
-            sprite.End();
+        private void DrawFlatBackground(SpriteBatch spriteBatch)
+        {
+            spriteBatch.Begin();
+            DrawBackground();
+            DrawBorder();
+            spriteBatch.End();
+        }
 
-            GraphicsDevice.ScissorRectangle = new Rectangle(DisplayRectangle.X + TextMargin, DisplayRectangle.Y, DisplayRectangle.Width - TextMargin * 2, DisplayRectangle.Height);
+        private void DrawNineSliceBackground(SpriteBatch spriteBatch)
+        {
+            var TL = _nineSlice[0];
+            var T = _nineSlice[1];
+            var TR = _nineSlice[2];
+            var L = _nineSlice[3];
+            var C = _nineSlice[4];
+            var R = _nineSlice[5];
+            var BL = _nineSlice[6];
+            var B = _nineSlice[7];
+            var BR = _nineSlice[8];
+
+            spriteBatch.Begin(SpriteSortMode.Deferred,
+                              BlendState.AlphaBlend,
+                              SamplerState.PointClamp);
+
+            spriteBatch.Draw(TL, new Rectangle(DisplayRectangle.X, DisplayRectangle.Y, TL.Width, TL.Height), Color.White);
+            spriteBatch.Draw(TR, new Rectangle(DisplayRectangle.Right - TR.Width, DisplayRectangle.Y, TR.Width, TR.Height), Color.White);
+            spriteBatch.Draw(BL, new Rectangle(DisplayRectangle.X, DisplayRectangle.Bottom - BL.Height, BL.Width, BL.Height), Color.White);
+            spriteBatch.Draw(BR, new Rectangle(DisplayRectangle.Right - BR.Width, DisplayRectangle.Bottom - BR.Height, BR.Width, BR.Height), Color.White);
+
+            spriteBatch.Draw(T, new Rectangle(DisplayRectangle.X + TL.Width, DisplayRectangle.Y, DisplayRectangle.Width - TL.Width - TR.Width, T.Height), Color.White);
+            spriteBatch.Draw(B, new Rectangle(DisplayRectangle.X + BL.Width, DisplayRectangle.Bottom - B.Height, DisplayRectangle.Width - BL.Width - BR.Width, B.Height), Color.White);
+            spriteBatch.Draw(L, new Rectangle(DisplayRectangle.X, DisplayRectangle.Y + TL.Height, L.Width, DisplayRectangle.Height - TL.Height - BL.Height), Color.White);
+            spriteBatch.Draw(R, new Rectangle(DisplayRectangle.Right - R.Width, DisplayRectangle.Y + TR.Height, R.Width, DisplayRectangle.Height - TR.Height - BR.Height), Color.White);
+
+            spriteBatch.Draw(C, new Rectangle(DisplayRectangle.X + L.Width, DisplayRectangle.Y + T.Height, DisplayRectangle.Width - L.Width - R.Width, DisplayRectangle.Height - T.Height - B.Height), Color.White);
+
+            spriteBatch.End();
+        }
+
+        private void DrawTextAndCursor(SpriteBatch spriteBatch)
+        {
+            if (GraphicsManager.Instance.Font == null) return;
+
+            var originalScissorRect = GraphicsDevice.ScissorRectangle;
+            var textRenderArea = new Rectangle(DisplayRectangle.X + TextMargin, DisplayRectangle.Y, Math.Max(0, DisplayRectangle.Width - TextMargin * 2), DisplayRectangle.Height);
+
+            GraphicsDevice.ScissorRectangle = Rectangle.Intersect(textRenderArea, originalScissorRect);
+
+            spriteBatch.Begin(SpriteSortMode.Deferred,
+                              BlendState.AlphaBlend,
+                              SamplerState.PointClamp,
+                              DepthStencilState.None,
+                              new RasterizerState { ScissorTestEnable = true });
 
             float scaleFactor = FontSize / Constants.BASE_FONT_SIZE;
             var textToDisplay = MaskValue ? new string('*', _inputText.Length) : _inputText.ToString();
-            var textPosition = new Vector2(DisplayRectangle.X + TextMargin - _scrollOffset, DisplayRectangle.Y + (DisplayRectangle.Height - GraphicsManager.Instance.Font.LineSpacing * scaleFactor) / 2);
+            float textHeight = GraphicsManager.Instance.Font.MeasureString("A").Y * scaleFactor;
+            float textOffsetY = (DisplayRectangle.Height - textHeight) / 2f;
+            var textPosition = new Vector2(DisplayRectangle.X + TextMargin - _scrollOffset, DisplayRectangle.Y + textOffsetY);
 
-            sprite.Begin(
-                SpriteSortMode.Deferred,
-                BlendState.AlphaBlend,
-                SamplerState.PointClamp,
-                DepthStencilState.Default,
-                new RasterizerState { ScissorTestEnable = true },
-                null
-            );
-
-            sprite.DrawString(GraphicsManager.Instance.Font, textToDisplay, textPosition, Color.White, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 0f);
+            spriteBatch.DrawString(GraphicsManager.Instance.Font, textToDisplay, textPosition, TextColor, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 0f);
 
             if (IsFocused && _showCursor)
             {
                 var textWidth = GraphicsManager.Instance.Font.MeasureString(textToDisplay).X * scaleFactor;
                 var cursorPosition = textPosition + new Vector2(textWidth, 0);
-                sprite.DrawString(GraphicsManager.Instance.Font, "|", cursorPosition, Color.White, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 0f);
+                if (cursorPosition.X >= textRenderArea.Left && cursorPosition.X <= textRenderArea.Right)
+                {
+                    spriteBatch.DrawString(GraphicsManager.Instance.Font, "|", cursorPosition, TextColor, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 0f);
+                }
             }
 
-            sprite.End();
+            spriteBatch.End();
 
-            base.Draw(gameTime);
+            GraphicsDevice.ScissorRectangle = originalScissorRect;
+            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
         }
     }
 }
