@@ -272,15 +272,12 @@ namespace Client.Main.Controls.UI
 
         private void HandleKeyboardInput()
         {
-            bool chatFocus = Scene.FocusControl == _chatInput;
-            bool whisperFocus = Scene.FocusControl == _whisperIdInput && _whisperIdInput.Visible;
-
-            if (!chatFocus && !whisperFocus) return; // Only process if one of our inputs has focus
+            if (!Visible) return;
 
             var keyboard = MuGame.Instance.Keyboard;
             var prevKeyboard = MuGame.Instance.PrevKeyboard;
 
-            // --- Enter Key ---
+            // --- Handle Enter key (with suppression of the first Enter after Show) ---
             if (keyboard.IsKeyDown(Keys.Enter) && prevKeyboard.IsKeyUp(Keys.Enter))
             {
                 if (_suppressNextEnter)
@@ -291,14 +288,25 @@ namespace Client.Main.Controls.UI
                 {
                     ProcessEnterKey();
                 }
+                return; // Skip further processing after Enter
             }
-            // --- Escape Key ---
-            else if (keyboard.IsKeyDown(Keys.Escape) && prevKeyboard.IsKeyUp(Keys.Escape))
+
+            // --- Handle Escape key to hide the chat box ---
+            if (keyboard.IsKeyDown(Keys.Escape) && prevKeyboard.IsKeyUp(Keys.Escape))
             {
                 Hide();
+                return;
             }
-            // --- Tab Key ---
-            else if (keyboard.IsKeyDown(Keys.Tab) && prevKeyboard.IsKeyUp(Keys.Tab))
+
+            // Proceed with other inputs only if input fields have focus
+            bool chatFocus = Scene.FocusControl == _chatInput;
+            bool whisperFocus = Scene.FocusControl == _whisperIdInput && _whisperIdInput.Visible;
+
+            if (!chatFocus && !whisperFocus)
+                return;
+
+            // --- Tab key to switch focus between input fields ---
+            if (keyboard.IsKeyDown(Keys.Tab) && prevKeyboard.IsKeyUp(Keys.Tab))
             {
                 if (_isWhisperSendMode)
                 {
@@ -318,7 +326,7 @@ namespace Client.Main.Controls.UI
                     }
                 }
             }
-            // --- Up/Down Arrows (History) ---
+            // --- Navigate message history ---
             else if (keyboard.IsKeyDown(Keys.Up) && prevKeyboard.IsKeyUp(Keys.Up))
             {
                 NavigateHistory(-1);
@@ -327,12 +335,13 @@ namespace Client.Main.Controls.UI
             {
                 NavigateHistory(1);
             }
-            // --- F-Keys ---
+            // --- Toggle whisper mode ---
             else if (keyboard.IsKeyDown(Keys.F3) && prevKeyboard.IsKeyUp(Keys.F3))
             {
                 ToggleWhisperSendMode();
                 SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
             }
+            // --- Cycle chat size ---
             else if (keyboard.IsKeyDown(Keys.F4) && prevKeyboard.IsKeyUp(Keys.F4))
             {
                 if (_chatLogWindowRef?.IsFrameVisible ?? false)
@@ -341,12 +350,14 @@ namespace Client.Main.Controls.UI
                     SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
                 }
             }
+            // --- Toggle chat frame ---
             else if (keyboard.IsKeyDown(Keys.F5) && prevKeyboard.IsKeyUp(Keys.F5))
             {
                 _chatLogWindowRef?.ToggleFrame();
                 SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
             }
         }
+
 
         private void ProcessEnterKey()
         {
