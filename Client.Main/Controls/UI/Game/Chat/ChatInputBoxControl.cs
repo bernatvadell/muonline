@@ -91,6 +91,7 @@ namespace Client.Main.Controls.UI
             {
                 X = 72,
                 Y = 30,
+
                 ViewSize = new Point(176, 14), // Width adjusted slightly
                 FontSize = 10f, // Adjust as needed
                 BackgroundColor = Color.Black * 0.1f,
@@ -221,14 +222,16 @@ namespace Client.Main.Controls.UI
             Visible = true;
             _chatInput.Visible = true;
             _whisperIdInput.Visible = _isWhisperSendMode;
+
             _suppressNextEnter = true;
             foreach (var btn in GetAllButtons()) btn.Visible = true;
 
             _chatInput.Value = string.Empty; // Clear text on show
 
             _chatInput.Focus();
-            Scene.FocusControl = _chatInput;
 
+            Scene.FocusControl = _chatInput;
+            
             _chatInput.MoveCursorToEnd();
 
             // Reset history navigation
