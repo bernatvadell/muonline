@@ -45,7 +45,8 @@ namespace Client.Main.Controls.UI
         // --- State ---
         private InputMessageType _currentInputType = InputMessageType.Chat;
         private bool _isWhisperLocked = false; // Corresponds to m_bBlockWhisper
-        private bool _isWhisperSendMode = false; // Corresponds to m_bWhisperSend (true = show ID box)
+        private bool _isWhisperSendMode = true; // Corresponds to m_bWhisperSend (true = show ID box)
+        private bool _suppressNextEnter;
         private ChatLogWindow _chatLogWindowRef; // Reference to the chat log
 
         // --- History ---
@@ -58,7 +59,7 @@ namespace Client.Main.Controls.UI
         public InputMessageType CurrentInputType => _currentInputType;
         public bool IsWhisperLocked => _isWhisperLocked;
 
-        // Added cooldown for chat messages based on C++
+        // Added cooldown for chat messages
         private const long ChatCooldownMs = 1000; // 1 Second
         private long _lastChatTime = 0;
 
@@ -90,7 +91,8 @@ namespace Client.Main.Controls.UI
             {
                 X = 72,
                 Y = 30,
-                ViewSize = new Point(176, 14), // Width adjusted slightly based on C++
+
+                ViewSize = new Point(176, 14), // Width adjusted slightly
                 FontSize = 10f, // Adjust as needed
                 BackgroundColor = Color.Black * 0.1f,
                 TextColor = new Color(230, 210, 255)
@@ -220,11 +222,16 @@ namespace Client.Main.Controls.UI
             Visible = true;
             _chatInput.Visible = true;
             _whisperIdInput.Visible = _isWhisperSendMode;
+
+            _suppressNextEnter = true;
             foreach (var btn in GetAllButtons()) btn.Visible = true;
 
             _chatInput.Value = string.Empty; // Clear text on show
 
             _chatInput.Focus();
+
+            Scene.FocusControl = _chatInput;
+            
             _chatInput.MoveCursorToEnd();
 
             // Reset history navigation
@@ -276,20 +283,19 @@ namespace Client.Main.Controls.UI
             // --- Enter Key ---
             if (keyboard.IsKeyDown(Keys.Enter) && prevKeyboard.IsKeyUp(Keys.Enter))
             {
-                // Check cooldown before processing chat
-                long currentTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                if (currentTime - _lastChatTime >= ChatCooldownMs)
+                if (_suppressNextEnter)
                 {
-                    _lastChatTime = currentTime;
+                    _suppressNextEnter = false;
+                }
+                else
+                {
                     ProcessEnterKey();
                 }
-                // Don't consume the event, let the base scene handle focus changes if needed
             }
             // --- Escape Key ---
             else if (keyboard.IsKeyDown(Keys.Escape) && prevKeyboard.IsKeyUp(Keys.Escape))
             {
                 Hide();
-                // Don't consume, might be used elsewhere
             }
             // --- Tab Key ---
             else if (keyboard.IsKeyDown(Keys.Tab) && prevKeyboard.IsKeyUp(Keys.Tab))
@@ -311,58 +317,72 @@ namespace Client.Main.Controls.UI
                         _chatInput.MoveCursorToEnd();
                     }
                 }
-                // Consume Tab
             }
             // --- Up/Down Arrows (History) ---
             else if (keyboard.IsKeyDown(Keys.Up) && prevKeyboard.IsKeyUp(Keys.Up))
             {
                 NavigateHistory(-1);
-                // Consume Up arrow
             }
             else if (keyboard.IsKeyDown(Keys.Down) && prevKeyboard.IsKeyUp(Keys.Down))
             {
                 NavigateHistory(1);
-                // Consume Down arrow
             }
-            // --- F-Keys (like C++) ---
+            // --- F-Keys ---
             else if (keyboard.IsKeyDown(Keys.F3) && prevKeyboard.IsKeyUp(Keys.F3))
             {
                 ToggleWhisperSendMode();
-                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on F3
+                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
             }
             else if (keyboard.IsKeyDown(Keys.F4) && prevKeyboard.IsKeyUp(Keys.F4))
             {
-                // C++ plays sound only if frame is visible
                 if (_chatLogWindowRef?.IsFrameVisible ?? false)
                 {
                     _chatLogWindowRef?.CycleSize();
-                    SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on F4
+                    SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
                 }
             }
             else if (keyboard.IsKeyDown(Keys.F5) && prevKeyboard.IsKeyUp(Keys.F5))
             {
                 _chatLogWindowRef?.ToggleFrame();
-                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on F5
+                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
             }
-            // F2 is handled by GameScene interacting with ChatLogWindow directly
         }
 
         private void ProcessEnterKey()
         {
+            long currentTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            if (currentTime - _lastChatTime < ChatCooldownMs)
+            {
+                if (!Visible)
+                {
+                    Show();
+                }
+                return;
+            }
+
+            _lastChatTime = currentTime;
+
             string messageText = _chatInput.Value.Trim();
             string whisperTarget = _whisperIdInput.Value.Trim();
 
             if (string.IsNullOrEmpty(messageText))
             {
-                Hide(); // Hide if no message entered
+                if (!Visible)
+                {
+                    Show();
+                }
+                else
+                {
+                    Hide();
+                }
                 return;
             }
 
-            // --- Determine Message Type and Prefix ---
-            MessageType finalType = MessageType.Chat; // Default
             string prefix = "";
             string sender = "You"; // Placeholder for local display
 
+            // --- Determine Message Type and Prefix ---
+            MessageType finalType;
             // TODO: Implement command checking like C++ CheckCommand(szChatText)
             // If it's a command, process it and return without sending a message
             // e.g., if (CheckCommand(messageText)) { Hide(); return; }
@@ -378,7 +398,7 @@ namespace Client.Main.Controls.UI
             }
             else
             {
-                // Check for explicit prefixes like C++
+                // Check for explicit prefixes
                 if (messageText.StartsWith("~"))
                 {
                     finalType = MessageType.Party;
@@ -420,7 +440,6 @@ namespace Client.Main.Controls.UI
             _chatInput.Value = "";
             Hide();
         }
-
 
         private void NavigateHistory(int direction)
         {

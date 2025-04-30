@@ -30,7 +30,7 @@ namespace Client.Main.Controls
         public int Compare(WorldObject a, WorldObject b)
             => b.Depth.CompareTo(a.Depth);
     }
-    
+
     public abstract class WorldControl : GameControl
     {
         public string BackgroundMusicPath { get; set; }
@@ -53,7 +53,7 @@ namespace Client.Main.Controls
 
         private BoundingFrustum boundingFrustum;
 
-        private readonly float cullingOffset = 500f;
+        private readonly float cullingOffset = 800f;
 
         public WorldControl(short worldIndex)
         {
@@ -165,7 +165,7 @@ namespace Client.Main.Controls
 
         public bool IsWalkable(Vector2 position)
         {
-            var terrainFlag = Terrain.RequestTerraingFlag((int)position.X, (int)position.Y);
+            var terrainFlag = Terrain.RequestTerrainFlag((int)position.X, (int)position.Y);
             return !terrainFlag.HasFlag(TWFlags.NoMove);
         }
 
