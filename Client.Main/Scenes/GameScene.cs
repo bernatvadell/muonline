@@ -172,7 +172,7 @@ namespace Client.Main.Scenes
                         Controls.Add(_mapListControl);
                         _mapListControl.BringToFront(); // Ensure it's visible
                                                         // Also bring other top elements over it if needed
-                        // _miniMap?.BringToFront();
+                                                        // _miniMap?.BringToFront();
                         DebugPanel.BringToFront();
                         Cursor.BringToFront();
                     }
@@ -249,6 +249,8 @@ namespace Client.Main.Scenes
                     _chatLog.ScrollLines(scrollDelta); // Przekaż poprawną deltę
                 }
             }
+
+            _previousKeyboardState = currentKeyboardState;
         }
 
         public override void Draw(GameTime gameTime)

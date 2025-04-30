@@ -19,6 +19,7 @@ namespace Client.Main.Controls
 {
     public class TerrainControl : GameControl
     {
+        // Constants
         private const float SpecialHeight = 1200f;
         private const int BlockSize = 4;
         private const int MAX_LOD_LEVELS = 2;
@@ -26,32 +27,16 @@ namespace Client.Main.Controls
         private const float WindScale = 10f;
         private const int UPDATE_INTERVAL_MS = 32;
         private const float CAMERA_MOVE_THRESHOLD = 32f;
+        private const byte BASE_GRASS_TEXTURE_INDEX = 0;
 
-        // Public properties for water animation parameters (adjustable per world)
-        public float WaterSpeed { get; set; } = 0f; // Speed factor for water animation
-        private Vector2 _waterFlowDir = Vector2.UnitX;
-        public Vector2 WaterFlowDirection
-        {
-            get => _waterFlowDir;
-            set => _waterFlowDir = value.LengthSquared() < 1e-4f
-                                   ? Vector2.UnitX
-                                   : Vector2.Normalize(value);
-        }
-        public float DistortionAmplitude { get; set; } = 0f; // Amplitude of UV distortion for water effect
-        public float DistortionFrequency { get; set; } = 0f; // Frequency of UV distortion for water effect
+        // Grass Constants
+        private const float GRASS_NEAR = 2500f;
+        private const float GRASS_FAR = 3300f;
+        private const float GRASS_FAR_SQ = GRASS_FAR * GRASS_FAR;
+        private const int GRASS_BATCH_QUADS = 4096;          // 4096 tufts per batch
+        private const int GRASS_BATCH_VERTS = GRASS_BATCH_QUADS * 6;
 
-        // Continuous accumulator for water texture offset (do not wrap it)
-        private float waterTotal = 0f;
-
-        private TerrainAttribute _terrain;
-        private TerrainMapping _mapping;
-        private Texture2D[] _textures;
-        private float[] _terrainGrassWind;
-        private Color[] _backTerrainLight;
-        private Vector3[] _terrainNormal;
-        private Color[] _backTerrainHeight;
-        private Color[] _terrainLightData;
-
+        // Public Properties
         public short WorldIndex { get; set; }
         public Vector3 Light { get; set; } = new Vector3(0.5f, -0.5f, 0.5f);
         public Dictionary<int, string> TextureMappingFiles { get; set; } = new Dictionary<int, string>
@@ -79,21 +64,58 @@ namespace Client.Main.Controls
             { 103, "rain02.ozt" },
             { 104, "rain03.ozt" }
         };
+        public float WaterSpeed { get; set; } = 0f; // Speed factor for water animation
+        public float DistortionAmplitude { get; set; } = 0f; // Amplitude of UV distortion for water effect
+        public float DistortionFrequency { get; set; } = 0f; // Frequency of UV distortion for water effect
+        public float GrassBrightness { get; set; } = 2f;
 
+        // Private Fields
+        private TerrainAttribute _terrain;
+        private TerrainMapping _mapping;
+        private Texture2D[] _textures;
+        private float[] _terrainGrassWind;
+        private Color[] _backTerrainLight;
+        private Vector3[] _terrainNormal;
+        private Color[] _backTerrainHeight;
+        private Color[] _terrainLightData;
+
+        private Vector2 _waterFlowDir = Vector2.UnitX;
+        private float waterTotal = 0f; // Continuous accumulator for water texture offset (do not wrap it)
+
+        // Grass Resources
+        private Texture2D _grassSpriteTexture; // TileGrass01.ozt/tga texture
+        private AlphaTestEffect _grassEffect; // Effect for drawing grass
+
+        // Terrain Rendering Data
         private readonly VertexPositionColorTexture[] _terrainVertices = new VertexPositionColorTexture[6];
         private readonly Vector2[] _terrainTextureCoord;
         private readonly Vector3[] _tempTerrainVertex;
         private readonly Color[] _tempTerrainLights;
 
+        // Wind Data
         private float _lastWindSpeed = float.MinValue;
         private double _lastUpdateTime;
-
-        private readonly int[] LOD_STEPS = { 1, 4 };
         private readonly WindCache _windCache = new WindCache();
 
+        // LOD and Culling Data
+        private readonly int[] LOD_STEPS = { 1, 4 };
         private readonly TerrainBlockCache _blockCache;
         private readonly Queue<TerrainBlock> _visibleBlocks = new Queue<TerrainBlock>(64);
         private Vector2 _lastCameraPosition;
+
+        // Grass Batching Data
+        private readonly VertexPositionColorTexture[] _grassBatch =
+                           new VertexPositionColorTexture[GRASS_BATCH_VERTS];
+        private int _grassBatchCount = 0;
+
+        // Water Flow Direction Property
+        public Vector2 WaterFlowDirection
+        {
+            get => _waterFlowDir;
+            set => _waterFlowDir = value.LengthSquared() < 1e-4f
+                                   ? Vector2.UnitX
+                                   : Vector2.Normalize(value);
+        }
 
         public TerrainControl()
         {
@@ -185,6 +207,26 @@ namespace Client.Main.Controls
             CreateTerrainNormal();
             CreateTerrainLight();
 
+            string grassSpritePath = Path.Combine(worldFolder, "TileGrass01.ozt");
+            try
+            {
+                _grassSpriteTexture = await TextureLoader.Instance.PrepareAndGetTexture(grassSpritePath);
+                if (_grassSpriteTexture != null)
+                {
+                    PremultiplyAlpha(_grassSpriteTexture);
+                }
+                if (_grassSpriteTexture == null)
+                {
+                    Console.WriteLine($"Warning: Could not load grass sprite texture: {grassSpritePath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading grass sprite texture '{grassSpritePath}': {ex.Message}");
+            }
+
+            _grassEffect = GraphicsManager.Instance.AlphaTestEffect3D;
+
             await base.Load();
         }
 
@@ -217,7 +259,7 @@ namespace Client.Main.Controls
             base.DrawAfter(gameTime);
         }
 
-        public TWFlags RequestTerraingFlag(int x, int y) => _terrain.TerrainWall[GetTerrainIndex(x, y)];
+        public TWFlags RequestTerrainFlag(int x, int y) => _terrain.TerrainWall[GetTerrainIndex(x, y)];
 
         public float RequestTerrainHeight(float xf, float yf)
         {
@@ -469,6 +511,8 @@ namespace Client.Main.Controls
                     isAfter,
                     LOD_STEPS[block.LODLevel]);
             }
+
+            FlushGrassBatch();
         }
 
         private int GetLODLevel(float distance)
@@ -568,11 +612,11 @@ namespace Client.Main.Controls
             _lastCameraPosition = cameraPos;
             _visibleBlocks.Clear();
 
-            float renderDist = Camera.Instance.ViewFar * 1.5f;
+            float renderDist = Camera.Instance.ViewFar * 1.7f;
             float renderDistSq = renderDist * renderDist;
             int cellWorld = (int)(Constants.TERRAIN_SCALE * BlockSize);
 
-            const int EXTRA = 2;
+            const int EXTRA = 4;
 
             int tilesPerAxis = Constants.TERRAIN_SIZE / BlockSize;
 
@@ -630,13 +674,94 @@ namespace Client.Main.Controls
             }
         }
 
-        private void RenderTerrainTile(float xf, float yf, int xi, int yi, float lodf, int lodi, bool isAfter)
+
+        private static void PremultiplyAlpha(Texture2D tex)
+        {
+            if (tex.Format != SurfaceFormat.Color || tex.IsDisposed)
+                return;
+
+            int len = tex.Width * tex.Height;
+            Color[] px = new Color[len];
+            tex.GetData(px);
+
+            for (int i = 0; i < len; i++)
+            {
+                byte a = px[i].A;
+                if (a == 255) continue;                // full alpha - no change
+                px[i] = new Color(
+                    (byte)(px[i].R * a / 255),
+                    (byte)(px[i].G * a / 255),
+                    (byte)(px[i].B * a / 255),
+                    a);
+            }
+
+            tex.SetData(px);
+        }
+
+        /// <summary>Renders the buffered grass tufts and restores GPU states.</summary>
+        private void FlushGrassBatch()
+        {
+            if (_grassBatchCount == 0 || _grassSpriteTexture == null)
+                return;
+
+            //--------------------------------------------------------------------
+            // 1)  SAVE STATES that are changed during grass drawing
+            //--------------------------------------------------------------------
+            var dev = GraphicsDevice;
+            var prevBlend = dev.BlendState;
+            var prevDepth = dev.DepthStencilState;
+            var prevRaster = dev.RasterizerState;
+            var prevSampler0 = dev.SamplerStates[0];
+
+            //--------------------------------------------------------------------
+            // 2)  SET STATES for grass
+            //--------------------------------------------------------------------
+            dev.BlendState = BlendState.AlphaBlend;          // pre-multiplied alpha
+            dev.DepthStencilState = DepthStencilState.Default;
+            dev.RasterizerState = RasterizerState.CullNone;       // no culling for quads
+            dev.SamplerStates[0] = SamplerState.PointClamp;        // atlas + sharp edges
+
+            //--------------------------------------------------------------------
+            // 3)  CONFIGURE EFFECT AND DRAW BUFFER
+            //--------------------------------------------------------------------
+            _grassEffect.World = Matrix.Identity;
+            _grassEffect.View = Camera.Instance.View;
+            _grassEffect.Projection = Camera.Instance.Projection;
+            _grassEffect.Texture = _grassSpriteTexture;
+            _grassEffect.AlphaFunction = CompareFunction.Greater;
+            _grassEffect.ReferenceAlpha = 64;
+            _grassEffect.VertexColorEnabled = true;
+
+            foreach (var pass in _grassEffect.CurrentTechnique.Passes)
+            {
+                pass.Apply();
+                dev.DrawUserPrimitives(
+                    PrimitiveType.TriangleList,
+                    _grassBatch, 0,
+                    _grassBatchCount / 3);      // 3 vertices = 1 triangle
+            }
+
+            _grassBatchCount = 0;               // buffer ready for the next frame
+
+            //--------------------------------------------------------------------
+            // 4)  RESTORE PREVIOUS STATES (terrain will return to LinearWrap)
+            //--------------------------------------------------------------------
+            dev.BlendState = prevBlend;
+            dev.DepthStencilState = prevDepth;
+            dev.RasterizerState = prevRaster;
+            dev.SamplerStates[0] = prevSampler0;
+        }
+
+        private void RenderTerrainTile(
+            float xf, float yf,
+            int xi, int yi,
+            float lodf, int lodi,
+            bool isAfter)
         {
             if (isAfter || _terrain == null)
                 return;
 
             int idx1 = GetTerrainIndex(xi, yi);
-
             if (_terrain.TerrainWall[idx1].HasFlag(TWFlags.NoGround))
                 return;
 
@@ -647,33 +772,142 @@ namespace Client.Main.Controls
             PrepareTileVertices(xi, yi, xf, yf, idx1, idx2, idx3, idx4, lodf);
             PrepareTileLights(idx1, idx2, idx3, idx4);
 
+            byte a1 = idx1 < _mapping.Alpha.Length ? _mapping.Alpha[idx1] : (byte)0;
+            byte a2 = idx2 < _mapping.Alpha.Length ? _mapping.Alpha[idx2] : (byte)0;
+            byte a3 = idx3 < _mapping.Alpha.Length ? _mapping.Alpha[idx3] : (byte)0;
+            byte a4 = idx4 < _mapping.Alpha.Length ? _mapping.Alpha[idx4] : (byte)0;
+
+            bool isOpaque = a1 == 255 && a2 == 255 && a3 == 255 && a4 == 255;
+            bool hasAlpha = a1 > 0 || a2 > 0 || a3 > 0 || a4 > 0;
+
             float lodScale = lodf;
 
-            byte alpha1 = idx1 >= _mapping.Alpha.Length ? (byte)0 : _mapping.Alpha[idx1];
-            byte alpha2 = idx2 >= _mapping.Alpha.Length ? (byte)0 : _mapping.Alpha[idx2];
-            byte alpha3 = idx3 >= _mapping.Alpha.Length ? (byte)0 : _mapping.Alpha[idx3];
-            byte alpha4 = idx4 >= _mapping.Alpha.Length ? (byte)0 : _mapping.Alpha[idx4];
-
-            bool isOpaque = alpha1 >= 255 && alpha2 >= 255 && alpha3 >= 255 && alpha4 >= 255;
-            bool hasAlpha = alpha1 > 0 || alpha2 > 0 || alpha3 > 0 || alpha4 > 0;
-
             if (isOpaque)
-            {
                 RenderTexture(_mapping.Layer2[idx1], xf, yf, lodScale);
-            }
             else
-            {
                 RenderTexture(_mapping.Layer1[idx1], xf, yf, lodScale);
-            }
 
             if (hasAlpha && !isOpaque)
             {
-                ApplyAlphaToLights(alpha1, alpha2, alpha3, alpha4);
+                ApplyAlphaToLights(a1, a2, a3, a4);
                 GraphicsDevice.BlendState = BlendState.AlphaBlend;
                 RenderTexture(_mapping.Layer2[idx1], xf, yf, lodScale);
             }
+
+            byte baseTex = (a1 < 255) ? _mapping.Layer1[idx1] : _mapping.Layer2[idx1];
+            if (baseTex != BASE_GRASS_TEXTURE_INDEX || _grassSpriteTexture == null)
+                return;
+
+            // Calculate distance to the center of the tile
+            Vector3 camPos = Camera.Instance.Position;
+            float tileCenterX = (xf + 0.5f * lodf) * Constants.TERRAIN_SCALE;
+            float tileCenterY = (yf + 0.5f * lodf) * Constants.TERRAIN_SCALE;
+            float dx = camPos.X - tileCenterX;
+            float dy = camPos.Y - tileCenterY;
+            float distSq = dx * dx + dy * dy;
+
+            // Outside grass range → do not draw anything
+            if (distSq > GRASS_FAR_SQ)
+                return;
+
+            Color tileLight = (idx1 < _backTerrainLight.Length) ? _backTerrainLight[idx1] : Color.White;
+            float windBase = GetWindValue(xi, yi);
+
+            // Adjust grass amount per tile
+            int grassPerTile = distSq < GRASS_NEAR * GRASS_NEAR ? 12 :
+                               distSq < GRASS_FAR * GRASS_FAR ? 4 : 1;
+
+            const float GRASS_U_WIDTH = 0.30f;
+            const float SCALE_MIN = 1.0f, SCALE_MAX = 3.0f;
+            const float ROT_JITTER_DEG = 90f;
+            const float HEIGHT_OFFSET = 55f;
+
+            for (int i = 0; i < grassPerTile; ++i)
+            {
+                // Random UV slice
+                float u0 = PseudoRandom(xi, yi, 123 + i) * (1f - GRASS_U_WIDTH);
+                float u1 = u0 + GRASS_U_WIDTH;
+
+                // Random offset within the tile
+                float halfUV = GRASS_U_WIDTH * 0.5f;
+                float maxOffset = 0.5f - halfUV;
+
+                float rx = (PseudoRandom(xi, yi, 17 + i) * 2f - 1f) * maxOffset;
+                float ry = (PseudoRandom(xi, yi, 91 + i) * 2f - 1f) * maxOffset;
+
+                float worldX = (xf + 0.5f * lodf + rx * lodf) * Constants.TERRAIN_SCALE;
+                float worldY = (yf + 0.5f * lodf + ry * lodf) * Constants.TERRAIN_SCALE;
+                float h = RequestTerrainHeight(worldX, worldY);
+
+                // Random scale and rotation jitter
+                float scale = MathHelper.Lerp(SCALE_MIN, SCALE_MAX, PseudoRandom(xi, yi, 33 + i));
+                float jitter = MathHelper.ToRadians((PseudoRandom(xi, yi, 57 + i) - 0.5f) * 2f * ROT_JITTER_DEG);
+                float windZ = MathHelper.ToRadians(windBase * 0.05f) + jitter;
+
+                // --- add to buffer ---
+                RenderGrassQuad(
+                    new Vector3(worldX, worldY, h + HEIGHT_OFFSET),
+                    lodf * scale,
+                    windZ,
+                    tileLight,
+                    u0, u1);
+            }
         }
 
+        private void RenderGrassQuad(
+            Vector3 position,
+            float lodFactor,
+            float windRotationZ,
+            Color lightColor,
+            float u0,
+            float u1)
+        {
+            if (_grassSpriteTexture == null) return;
+
+            const float BASE_W = 130f, BASE_H = 30f;
+            float w = BASE_W * (u1 - u0) * lodFactor;
+            float h = BASE_H * lodFactor;
+            float hw = w * 0.5f;
+
+            // local vertices
+            Vector3 p1 = new(-hw, 0, 0), p2 = new(hw, 0, 0),
+                    p3 = new(-hw, 0, h), p4 = new(hw, 0, h);
+
+            Vector2 t1 = new(u0, 1), t2 = new(u1, 1),
+                    t3 = new(u0, 0), t4 = new(u1, 0);
+
+            Matrix world =
+                Matrix.CreateRotationZ(MathHelper.ToRadians(45f) + windRotationZ) *
+                Matrix.CreateTranslation(position);
+
+            Vector3 wp1 = Vector3.Transform(p1, world);
+            Vector3 wp2 = Vector3.Transform(p2, world);
+            Vector3 wp3 = Vector3.Transform(p3, world);
+            Vector3 wp4 = Vector3.Transform(p4, world);
+
+            Vector3 c3 = lightColor.ToVector3() * GrassBrightness;
+            c3 = Vector3.Min(c3, Vector3.One);
+            Color final = new Color(c3);
+
+            // --- copy to batched buffer ---
+            if (_grassBatchCount + 6 >= GRASS_BATCH_VERTS)
+                FlushGrassBatch();                           // out of space → flush
+
+            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp1, final, t1);
+            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp2, final, t2);
+            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp3, final, t3);
+            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp2, final, t2);
+            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp4, final, t4);
+            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp3, final, t3);
+        }
+
+        private static float PseudoRandom(int x, int y, int salt = 0)
+        {
+            // 32-bit "Xorshift*" hash - fast and without libraries
+            uint h = (uint)(x * 73856093 ^ y * 19349663 ^ salt * 83492791);
+            h ^= h >> 13; h *= 0x165667B1u; h ^= h >> 16;
+            return (h & 0xFFFFFF) / 16777215f;       // 0 .. 1
+        }
         private void PrepareTileVertices(int xi, int yi, float xf, float yf, int idx1, int idx2, int idx3, int idx4, float lodf)
         {
             float terrainHeight1 = idx1 >= _backTerrainHeight.Length ? 0f : _backTerrainHeight[idx1].B * 1.5f;
