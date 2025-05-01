@@ -8,6 +8,14 @@ using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 
+// **** ADDED USINGS ****
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Client.Main.Configuration; // Namespace for MuOnlineSettings
+using Client.Main.Networking;
+using System.Collections.Concurrent;    // Namespace for NetworkManager (will be created next)
+// **** END ADDED USINGS ****
+
 namespace Client.Main
 {
     public class MuGame : Game
@@ -33,6 +41,29 @@ namespace Client.Main
         public KeyboardState Keyboard { get; private set; }
         public TouchCollection PrevTouchState { get; private set; }
         public TouchCollection Touch { get; private set; }
+
+        // **** ADDED PROPERTIES ****
+        public static IConfiguration AppConfiguration { get; private set; }
+        public static ILoggerFactory AppLoggerFactory { get; private set; }
+        public static MuOnlineSettings AppSettings { get; private set; }
+        public static NetworkManager Network { get; private set; } // The network manager instance
+        // **** END ADDED PROPERTIES ****
+
+        // **** ADDED QUEUE AND SCHEDULER ****
+        private static readonly ConcurrentQueue<Action> _mainThreadActions = new ConcurrentQueue<Action>();
+
+        /// <summary>
+        /// Schedules an action to be executed on the main game thread during the next Update cycle.
+        /// </summary>
+        /// <param name="action">The action to execute.</param>
+        public static void ScheduleOnMainThread(Action action)
+        {
+            if (action != null)
+            {
+                _mainThreadActions.Enqueue(action);
+            }
+        }
+        // **** END ADDED QUEUE AND SCHEDULER ****
 
         public Ray MouseRay { get; private set; }
 
@@ -73,7 +104,24 @@ namespace Client.Main
             _graphics.GraphicsProfile = GraphicsProfile.HiDef;
             _graphics.ApplyChanges();
             Content.RootDirectory = "Content";
-        } 
+        }
+
+        // **** ADDED VALIDATION METHOD ****
+        private static bool ValidateSettings(MuOnlineSettings? settings, ILogger logger)
+        {
+            // Reuse the validation logic from MuOnlineConsole's App.axaml.cs
+            // (Ensure necessary using for TargetProtocolVersion is present)
+            if (settings == null) { logger.LogError("❌ Failed to load config from 'MuOnlineSettings'."); return false; }
+            bool isValid = true;
+            if (string.IsNullOrWhiteSpace(settings.ConnectServerHost) || settings.ConnectServerPort == 0) { logger.LogError("❌ Connect Server host/port invalid."); isValid = false; }
+            if (string.IsNullOrWhiteSpace(settings.Username) || string.IsNullOrWhiteSpace(settings.Password)) { logger.LogError("❌ Username/password invalid."); isValid = false; }
+            if (string.IsNullOrWhiteSpace(settings.ProtocolVersion) || !Enum.TryParse<Client.TargetProtocolVersion>(settings.ProtocolVersion, true, out _)) // Case-insensitive parse
+            { logger.LogError("❌ ProtocolVersion '{V}' invalid. Valid: {Vs}", settings.ProtocolVersion, string.Join(", ", Enum.GetNames<Client.TargetProtocolVersion>())); isValid = false; }
+            if (string.IsNullOrWhiteSpace(settings.ClientVersion)) { logger.LogWarning("⚠️ ClientVersion not set."); }
+            if (string.IsNullOrWhiteSpace(settings.ClientSerial)) { logger.LogWarning("⚠️ ClientSerial not set."); }
+            return isValid;
+        }
+        // **** END ADDED VALIDATION METHOD ****
 
         public void ChangeScene<T>() where T : BaseScene, new()
         {
@@ -88,7 +136,7 @@ namespace Client.Main
             {
                 GraphicsManager.Instance.Sprite?.End();
             }
-            catch {}
+            catch { }
 
             ActiveScene?.Dispose();
             ActiveScene = (BaseScene)Activator.CreateInstance(sceneType);
@@ -97,7 +145,48 @@ namespace Client.Main
 
         protected override void Initialize()
         {
-            IsMouseVisible = false;
+            // --- Configuration Setup ---
+            AppConfiguration = new ConfigurationBuilder()
+                .SetBasePath(AppContext.BaseDirectory)
+                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                .Build();
+
+            // --- Logging Setup ---
+            AppLoggerFactory = LoggerFactory.Create(builder =>
+            {
+                builder.ClearProviders();
+                // Configure logging based on appsettings.json
+                builder.AddConfiguration(AppConfiguration.GetSection("Logging"));
+                // Add Console logger (can add others like Debug, File)
+                builder.AddSimpleConsole(options =>
+                {
+                    AppConfiguration.GetSection("Logging:SimpleConsole").Bind(options);
+                    options.IncludeScopes = true; // Optional: Include scopes if you use them
+                });
+            });
+
+            var bootLogger = AppLoggerFactory.CreateLogger("MuGame"); // Logger for startup
+
+            // --- Load Settings ---
+            AppSettings = AppConfiguration.GetSection("MuOnlineSettings").Get<MuOnlineSettings>();
+            if (AppSettings == null || !ValidateSettings(AppSettings, bootLogger)) // Add validation
+            {
+                bootLogger.LogCritical("❌ Invalid application settings found in appsettings.json. Shutting down.");
+                Exit(); // Stop the game if settings are invalid
+                return;
+            }
+            bootLogger.LogInformation("✅ Configuration loaded.");
+
+            // --- Initialize Network Manager ---
+            // Needs CharacterState and ScopeManager - create basic instances for now
+            // You'll likely manage these more centrally later
+            var characterState = new Client.CharacterState(AppLoggerFactory);
+            var scopeManager = new Client.ScopeManager(AppLoggerFactory, characterState);
+            Network = new NetworkManager(AppLoggerFactory, AppSettings, characterState, scopeManager);
+            bootLogger.LogInformation("✅ Network Manager initialized.");
+
+
+            IsMouseVisible = false; // Keep this if you want a custom cursor
             base.Initialize();
             float baseAspectRatio = 16f / 9f; // Relación de aspecto base (ejemplo: 16:9)
             float currentAspectRatio = (float)_graphics.PreferredBackBufferWidth / _graphics.PreferredBackBufferHeight;
@@ -111,24 +200,48 @@ namespace Client.Main
         {
             base.UnloadContent();
             GraphicsManager.Instance.Dispose();
+
+            // --- DISPOSE NETWORK MANAGER ---
+            // Use ?. operator for safety
+            Network?.DisposeAsync().AsTask().Wait(); // Dispose network resources cleanly
+            AppLoggerFactory?.Dispose(); // Dispose logger factory
+            // --- END DISPOSE ---
         }
 
         protected override void Update(GameTime gameTime)
         {
+            // --- Process Main Thread Actions ---
+            while (_mainThreadActions.TryDequeue(out Action? action))
+            {
+                try
+                {
+                    action?.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    // Log error if an action fails
+                    AppLoggerFactory?.CreateLogger("MuGame.MainThreadQueue")?.LogError(ex, "Error executing action scheduled on main thread.");
+                }
+            }
+            // --- End Process Main Thread Actions ---
+
+
+            // --- Existing Update Logic ---
             try
             {
                 GameTime = gameTime;
                 UpdateInputInfo(gameTime);
                 CheckShaderToggles();
-                ActiveScene?.Update(gameTime);
+                ActiveScene?.Update(gameTime); // Update the active scene AFTER processing the queue
                 base.Update(gameTime);
             }
             catch (Exception e)
             {
                 Debug.WriteLine(e);
             }
+            // --- End Existing Update Logic ---
         }
-
+        
         private void CheckShaderToggles()
         {
             if (Keyboard.IsKeyDown(Keys.LeftShift))
@@ -143,11 +256,30 @@ namespace Client.Main
         protected override void LoadContent()
         {
             GraphicsManager.Instance.Init(GraphicsDevice, Content);
+
+            // --- START NETWORK CONNECTION ---
+            // Start connecting to the Connect Server when the game loads
+            // We do this *after* GraphicsManager is init because some UI might depend on it
+            if (Network != null) // Ensure network was initialized
+            {
+                // Start connection without blocking LoadContent
+                _ = Network.ConnectToConnectServerAsync();
+            }
+            else
+            {
+                AppLoggerFactory?.CreateLogger<MuGame>()?.LogCritical("Network Manager is null during LoadContent. Cannot connect.");
+                // Potentially exit or handle error
+            }
+            // --- END NETWORK CONNECTION ---
+
+
+            // Load the initial scene (e.g., LoginScene) AFTER network connection starts
             ChangeSceneAsync(Constants.ENTRY_SCENE).ContinueWith(t =>
             {
                 if (t.Exception != null)
-                    Debug.WriteLine("Error when changing the scene: " + t.Exception);
+                    Debug.WriteLine("Error changing scene: " + t.Exception);
             });
+
         }
 
         private async Task ChangeSceneAsync(Type sceneType)
@@ -303,8 +435,15 @@ namespace Client.Main
 
         protected override void Dispose(bool disposing)
         {
+            if (disposing)
+            {
+                // Dispose managed resources like NetworkManager if not already done in UnloadContent
+                // Use ?. operator for safety
+                Network?.DisposeAsync().AsTask().Wait(); // Ensure disposal if UnloadContent wasn't called
+                AppLoggerFactory?.Dispose();
+            }
             base.Dispose(disposing);
-            Instance = null;
+            Instance = null; // Clear singleton instance
         }
     }
 }

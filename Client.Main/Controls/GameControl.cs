@@ -173,6 +173,17 @@ namespace Client.Main.Controls
                 AlignControl();
         }
 
+        public virtual void SetVisible(bool isVisible)
+        {
+            // Można dodać logikę tutaj, jeśli potrzebne przy zmianie widoczności
+            // np. anulowanie animacji, zatrzymanie dźwięków itp.
+            if (Visible != isVisible)
+            {
+                Visible = isVisible;
+                // OnVisibilityChanged?.Invoke(this, EventArgs.Empty); // Opcjonalny event
+            }
+        }
+
         protected virtual void AlignControl()
         {
             if (Parent == null)

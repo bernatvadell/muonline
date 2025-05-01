@@ -14,8 +14,28 @@ namespace Client.Main.Controls.UI.Login
         private readonly TextFieldControl _userInput;
         private readonly LabelControl _serverNameLabel;
         private readonly TextFieldControl _passwordInput;
+        private readonly OkButton _okButton; // Dodaj pole dla przycisku
 
         public string ServerName { get => _serverNameLabel.Text; set => _serverNameLabel.Text = value; }
+
+        // **** NOWE WŁAŚCIWOŚCI ****
+        /// <summary>
+        /// Pobiera nazwę użytkownika wpisaną w polu tekstowym.
+        /// </summary>
+        public string Username => _userInput.Value;
+
+        /// <summary>
+        /// Pobiera hasło wpisane w polu tekstowym.
+        /// </summary>
+        public string Password => _passwordInput.Value;
+        // **** KONIEC NOWYCH WŁAŚCIWOŚCI ****
+
+        // **** NOWY EVENT ****
+        /// <summary>
+        /// Wywoływany, gdy użytkownik potwierdzi logowanie (kliknie OK lub naciśnie Enter w haśle).
+        /// </summary>
+        public event EventHandler? LoginAttempt;
+        // **** KONIEC NOWEGO EVENTU ****
 
         public LoginDialog()
         {
@@ -28,31 +48,61 @@ namespace Client.Main.Controls.UI.Login
             Controls.Add(_line2 = new TextureControl { TexturePath = "Interface/GFx/popup_line_m.ozd", X = 10, Y = 150, AutoViewSize = false, Alpha = 0.7f });
 
             _userInput = new TextFieldControl { X = 100, Y = 87, Skin = TextFieldSkin.NineSlice };
-            _passwordInput = new TextFieldControl { X = 100, Y = 117, MaskValue =  true, Skin = TextFieldSkin.NineSlice };
-            _passwordInput.ValueChanged += OnLoginClick;
+            _passwordInput = new TextFieldControl { X = 100, Y = 117, MaskValue = true, Skin = TextFieldSkin.NineSlice };
+            // ZMIEŃ OBSŁUGĘ EVENTU HASŁA
+            _passwordInput.ValueChanged += PasswordInput_EnterPressed; // Użyj dedykowanej metody
             Controls.Add(_userInput);
             Controls.Add(_passwordInput);
 
-            // Add mouse click event handlers to change focus when clicking on the text fields
-            _userInput.Click += (s, e) =>
+            _userInput.Click += (s, e) => { _userInput.OnFocus(); _passwordInput.OnBlur(); };
+            _passwordInput.Click += (s, e) => { _passwordInput.OnFocus(); _userInput.OnBlur(); };
+
+            // ZMIEŃ OBSŁUGĘ EVENTU PRZYCISKU
+            _okButton = new OkButton { Y = 160, Align = ControlAlign.HorizontalCenter };
+            _okButton.Click += OkButton_Click; // Użyj dedykowanej metody
+            Controls.Add(_okButton);
+
+            // Ustaw fokus na polu użytkownika na starcie
+            // Potrzebujemy opóźnienia, aby kontrolka była gotowa
+            // Lepiej zrobić to w scenie po pokazaniu dialogu
+            // _userInput.OnFocus();
+        }
+
+        // Metoda wywoływana po kliknięciu przycisku OK
+        private void OkButton_Click(object? sender, EventArgs e)
+        {
+            AttemptLogin();
+        }
+
+        // Metoda wywoływana po naciśnięciu Enter w polu hasła
+        private void PasswordInput_EnterPressed(object? sender, EventArgs e)
+        {
+            // ValueChanged jest też wywoływane przy zmianie tekstu,
+            // więc sprawdzamy, czy Enter został właśnie naciśnięty.
+            // Lepszym rozwiązaniem byłby dedykowany event KeyDown/EnterPressed w TextFieldControl.
+            // Na razie zakładamy, że ValueChanged w haśle oznacza Enter.
+            // Możesz dodać sprawdzanie Keys.Enter w Update, jeśli ValueChanged jest zbyt ogólne.
+            if (MuGame.Instance.Keyboard.IsKeyDown(Keys.Enter) && MuGame.Instance.PrevKeyboard.IsKeyUp(Keys.Enter))
             {
-                // Set focus to user input and remove focus from password input
-                _userInput.OnFocus();
-                _passwordInput.OnBlur();
-            };
+                AttemptLogin();
+            }
+        }
 
-            _passwordInput.Click += (s, e) =>
+        // Wywołuje event LoginAttempt
+        private void AttemptLogin()
+        {
+            Console.WriteLine("LoginDialog: Login attempt triggered."); // Debug log
+            LoginAttempt?.Invoke(this, EventArgs.Empty);
+        }
+
+        // Ustawia fokus na polu użytkownika (wywoływane ze sceny)
+        public void FocusUsername()
+        {
+            MuGame.ScheduleOnMainThread(() => // Upewnij się, że jest w głównym wątku
             {
-                // Set focus to password input and remove focus from user input
-                _passwordInput.OnFocus();
-                _userInput.OnBlur();
-            };
-
-            var button = new OkButton { Y = 160, Align = ControlAlign.HorizontalCenter };
-            button.Click += OnLoginClick;
-            Controls.Add(button);
-
-            _userInput.OnFocus();
+                _userInput?.OnFocus();
+                _passwordInput?.OnBlur();
+            });
         }
 
         private void OnLoginClick(object sender, EventArgs e)
@@ -70,8 +120,6 @@ namespace Client.Main.Controls.UI.Login
 
         public override void Update(GameTime gameTime)
         {
-            base.Update(gameTime);
-
             // Handle Tab key to switch focus between input fields
             if (MuGame.Instance.Keyboard.IsKeyDown(Keys.Tab) && MuGame.Instance.PrevKeyboard.IsKeyUp(Keys.Tab))
             {
@@ -86,6 +134,8 @@ namespace Client.Main.Controls.UI.Login
                     _userInput.OnFocus();
                 }
             }
+
+            base.Update(gameTime);
         }
     }
 }

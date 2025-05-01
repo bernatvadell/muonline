@@ -39,6 +39,15 @@
     <PackageReference Include="MUnique.OpenMU.Network.Packets" Version="0.9.4" />
     <PackageReference Include="NLayer" Version="1.16.0" />
     <PackageReference Include="Pipelines.Sockets.Unofficial" Version="2.2.8" />
+
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.4" />
+    <!-- System.IO.Pipelines might be included transitively, but add if needed -->
+    <PackageReference Include="System.IO.Pipelines" Version="9.0.4" />
+
   </ItemGroup>
   <ItemGroup>
     <TrimmerRootAssembly Include="MonoGame.Framework" />
@@ -52,6 +61,14 @@
     <EmbeddedResource Include="Controls\UI\Game\Layouts\MapNameLayout.json" />
     <EmbeddedResource Include="Controls\UI\Game\Layouts\MapNameRect.json" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>appsettings.json</Link>
+    </None>
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Client.Data\Client.Data.csproj" />
   </ItemGroup>
