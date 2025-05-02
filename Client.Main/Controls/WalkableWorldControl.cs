@@ -23,6 +23,13 @@ namespace Client.Main.Controls
             Interactive = true;
         }
 
+        public WalkableWorldControl(short worldIndex, WalkerObject walker)
+        : this(worldIndex)
+        {
+            Walker = walker;     // dzięki temu w blokach inicjalizacyjnych już nie jest null
+        }
+
+
         public override async Task Load()
         {
             Objects.Add(_cursor = new CursorObject());

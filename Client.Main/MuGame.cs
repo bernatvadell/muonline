@@ -34,6 +34,8 @@ namespace Client.Main
         public int Width => _graphics.PreferredBackBufferWidth;
         public int Height => _graphics.PreferredBackBufferHeight;
 
+        private bool _networkDisposed = false;
+
         // Mouse and keyboard states
         public MouseState PrevMouseState { get; private set; }
         public MouseState Mouse { get; private set; }
@@ -252,13 +254,10 @@ namespace Client.Main
         protected override void UnloadContent()
         {
             base.UnloadContent();
-            GraphicsManager.Instance.Dispose();
 
-            // --- DISPOSE NETWORK MANAGER ---
-            // Use ?. operator for safety
-            Network?.DisposeAsync().AsTask().Wait(); // Dispose network resources cleanly
-            AppLoggerFactory?.Dispose(); // Dispose logger factory
-            // --- END DISPOSE ---
+            GraphicsManager.Instance.Dispose();
+            DisposeNetworkSafely();   // ← jedyne miejsce wołania w UnloadContent
+            AppLoggerFactory?.Dispose();
         }
 
         protected override void Update(GameTime gameTime)
@@ -378,13 +377,6 @@ namespace Client.Main
             await ActiveScene.Initialize();
         }
 
-        // *** POCZĄTEK NOWEJ METODY ***
-        /// <summary>
-        /// Changes the active scene to the provided scene instance.
-        /// Handles disposal of the old scene and initialization of the new one.
-        /// </summary>
-        /// <param name="newScene">The pre-initialized scene instance to switch to.</param>
-        // Add a logger field for use in instance methods
         private ILogger? _logger => AppLoggerFactory?.CreateLogger<MuGame>();
 
         private void UpdateInputInfo(GameTime gameTime)
@@ -531,17 +523,45 @@ namespace Client.Main
             }
         }
 
+        /// <summary>
+        /// Synchronously disposes <see cref="Network"/> exactly once,
+        /// swallowing <see cref="ObjectDisposedException"/> which occurs,
+        /// if the CancellationTokenSource inside NetworkManager was already disposed.
+        /// </summary>
+        private void DisposeNetworkSafely()
+        {
+            if (_networkDisposed || Network == null)
+                return;
+
+            _networkDisposed = true;
+
+            try
+            {
+                // DisposeAsync → Task → synchroniczne GetResult() – bez dead-locka
+                Network.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Ignorujemy – NetworkManager już posprzątany wcześniej
+            }
+            catch (Exception ex)
+            {
+                AppLoggerFactory?
+                    .CreateLogger<MuGame>()
+                    .LogError(ex, "Unexpected error while disposing NetworkManager.");
+            }
+        }
+
         protected override void Dispose(bool disposing)
         {
             if (disposing)
-            { 
-                // Dispose managed resources like NetworkManager if not already done in UnloadContent
-                // Use ?. operator for safety
-                Network?.DisposeAsync().AsTask().Wait(); // Ensure disposal if UnloadContent wasn't called
+            {
+                DisposeNetworkSafely();   // ← nie wywoła się drugi raz
                 AppLoggerFactory?.Dispose();
             }
+
             base.Dispose(disposing);
-            Instance = null; // Clear singleton instance
+            Instance = null;
         }
     }
 }

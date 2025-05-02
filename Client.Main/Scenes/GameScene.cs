@@ -54,7 +54,8 @@ namespace Client.Main.Scenes
 
             Debug.WriteLine($"GameScene constructor called for Character: {_characterInfo.Name} ({_characterInfo.Class})");
 
-            Controls.Add(_main = new MainControl());
+            _main = new MainControl(MuGame.Network.GetCharacterState());
+            Controls.Add(_main);
             Controls.Add(NpcShopControl.Instance);
             _mapListControl = new MapListControl { Visible = false };
 
@@ -159,22 +160,28 @@ namespace Client.Main.Scenes
 
             if (_loadingScreen == null)
             {
-                _loadingScreen = new LoadingScreenControl { Message = "Loading...", Visible = true };
-                Controls.Add(_loadingScreen);
+                _loadingScreen = new LoadingScreenControl
+                {
+                    Visible = true          // pokaż od razu
+                };
+                Controls.Add(_loadingScreen); // doda => wywoła Initialize/Load
             }
             else
             {
-                _loadingScreen.Message = "Loading...";
                 _loadingScreen.Visible = true;
             }
 
+            _loadingScreen.Message = $"Loading {worldType.Name}…";
+
             _main.Visible = false;
-            await Task.Yield();
 
             // Tworzymy instancję nowego świata dynamicznie
-            _nextWorld = (WorldControl?)Activator.CreateInstance(worldType) ?? throw new InvalidOperationException($"Cannot create world: {worldType}");
+            // POPRAWNA wersja – bez parametrów konstruktora
+            _nextWorld = (WorldControl?)Activator.CreateInstance(worldType)
+                         ?? throw new InvalidOperationException($"Cannot create world: {worldType}");
+
             if (_nextWorld is WalkableWorldControl walkable)
-                walkable.Walker = _hero;
+                walkable.Walker = _hero;   // przypisujemy tuż po stworzeniu
             _nextWorld.Objects.Add(_hero);
 
             Debug.WriteLine($"ChangeMap<{worldType.Name}>: Added _hero to world objects.");
@@ -222,10 +229,10 @@ namespace Client.Main.Scenes
             _main.Visible = false;
             // _miniMap?.Hide(); // Hide minimap during load
 
-            await Task.Yield();
-
             // --- _hero already has the correct class set in GameScene.Load ---
-            _nextWorld = new T() { Walker = _hero };
+            _nextWorld = new T();
+            if (_nextWorld is WalkableWorldControl walkable)
+                walkable.Walker = _hero;
             _nextWorld.Objects.Add(_hero); // Add _hero BEFORE Initialize
             Debug.WriteLine($"ChangeMap<{typeof(T).Name}>: Added _hero (Class: {_hero.CharacterClass}) to world objects.");
             await _nextWorld.Initialize(); // Initialize should call Load on _hero

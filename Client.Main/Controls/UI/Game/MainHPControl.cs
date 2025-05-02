@@ -64,12 +64,25 @@ namespace Client.Main.Controls.UI.Game
             base.Draw(gameTime);
         }
 
-        // This method is called later from MainControl.Draw to render the label on top.
+        private void CenterLabel()
+        {
+            var rect = DisplayRectangle;
+            _label.X = rect.X + (rect.Width - _label.ControlSize.X) / 2;
+            _label.Y = rect.Y + (rect.Height - _label.ControlSize.Y) / 2;
+        }
+
+        public void SetValues(int current, int max)  // wygodny setter
+        {
+            _currentHP = current;
+            _maxHP = max;
+            UpdatePercent();
+        }
+
         public void DrawLabel(GameTime gameTime)
         {
-            _label.X = 320; //TODO Caclucate this
-            _label.Y = 651; //TODO Caclucate this
+            CenterLabel();
             _label.Draw(gameTime);
         }
+        
     }
 }

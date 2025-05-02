@@ -4,6 +4,7 @@ using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 
@@ -86,26 +87,24 @@ namespace Client.Main.Controls
 
         public virtual async Task Initialize()
         {
-            if (Status != GameControlStatus.NonInitialized) return;
+            if (Status != GameControlStatus.NonInitialized)
+                return;
 
             try
             {
                 Status = GameControlStatus.Initializing;
 
-                var tasks = new Task[Controls.Count];
                 var controls = Controls.ToArray();
+                var taskList = new List<Task>(controls.Length);
 
                 for (int i = 0; i < controls.Length; i++)
                 {
                     var control = controls[i];
-
                     if (control.Status == GameControlStatus.NonInitialized)
-                        tasks[i] = control.Initialize();
-                    else
-                        tasks[i] = Task.CompletedTask;
+                        taskList.Add(control.Initialize());
                 }
 
-                await Task.WhenAll(tasks);
+                await Task.WhenAll(taskList);
 
                 await Load();
                 AfterLoad();
@@ -118,6 +117,7 @@ namespace Client.Main.Controls
                 Status = GameControlStatus.Error;
             }
         }
+
 
         public virtual Task Load()
         {

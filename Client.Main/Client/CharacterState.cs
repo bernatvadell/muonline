@@ -123,6 +123,56 @@ namespace Client.Main.Client
 
         // --- Update Methods ---
 
+        // ───────── ALIASY ─────────
+        public uint CurrentHp => CurrentHealth;
+        public uint MaxHp => MaximumHealth;
+        public uint CurrentMp => CurrentMana;
+        public uint MaxMp => MaximumMana;
+
+        // ───────── ZDARZENIA ──────
+        public event Action<uint, uint>? HealthChanged; // (current, max)
+        public event Action<uint, uint>? ManaChanged;
+
+        private void RaiseHealth() => HealthChanged?.Invoke(CurrentHealth, MaximumHealth);
+        private void RaiseMana() => ManaChanged?.Invoke(CurrentMana, MaximumMana);
+
+        // ───────── PATCH metody aktualizujące ─────────
+        public void UpdateCurrentHealthShield(uint currentHealth, uint currentShield)
+        {
+            CurrentHealth = currentHealth;
+            CurrentShield = currentShield;
+            RaiseHealth();
+            _logger.LogInformation("❤️ HP: {Current}/{Max} | 🛡️ SD: {Shield}/{MaxShield}",
+                                   CurrentHealth, MaximumHealth, CurrentShield, MaximumShield);
+        }
+
+        public void UpdateMaximumHealthShield(uint maximumHealth, uint maximumShield)
+        {
+            MaximumHealth = Math.Max(1, maximumHealth);
+            MaximumShield = maximumShield;
+            RaiseHealth();
+            _logger.LogInformation("❤️ Max HP: {Max} | 🛡️ Max SD: {MaxShield}",
+                                   MaximumHealth, MaximumShield);
+        }
+
+        public void UpdateCurrentManaAbility(uint currentMana, uint currentAbility)
+        {
+            CurrentMana = currentMana;
+            CurrentAbility = currentAbility;
+            RaiseMana();
+            _logger.LogInformation("💧 Mana: {Current}/{Max} | ✨ AG: {Ability}/{MaxAbility}",
+                                   CurrentMana, MaximumMana, CurrentAbility, MaximumAbility);
+        }
+
+        public void UpdateMaximumManaAbility(uint maximumMana, uint maximumAbility)
+        {
+            MaximumMana = Math.Max(1, maximumMana);
+            MaximumAbility = maximumAbility;
+            RaiseMana();
+            _logger.LogInformation("💧 Max Mana: {Max} | ✨ Max AG: {MaxAbility}",
+                                   MaximumMana, MaximumAbility);
+        }
+
         /// <summary>
         /// Updates the character's position coordinates.
         /// </summary>
@@ -173,50 +223,6 @@ namespace Client.Main.Client
         {
             Experience += addedExperience;
             _logger.LogDebug("Added experience: {AddedExperience}. Total Experience: {Experience}", addedExperience, Experience);
-        }
-
-        /// <summary>
-        /// Updates the character's current health and shield points.
-        /// </summary>
-        public void UpdateCurrentHealthShield(uint currentHealth, uint currentShield)
-        {
-            CurrentHealth = currentHealth;
-            CurrentShield = currentShield;
-            _logger.LogInformation("❤️ HP: {CurrentHealth}/{MaximumHealth} | 🛡️ SD: {CurrentShield}/{MaximumShield}",
-                CurrentHealth, MaximumHealth, CurrentShield, MaximumShield);
-        }
-
-        /// <summary>
-        /// Updates the character's maximum health and shield points.
-        /// </summary>
-        public void UpdateMaximumHealthShield(uint maximumHealth, uint maximumShield)
-        {
-            MaximumHealth = Math.Max(1, maximumHealth);
-            MaximumShield = maximumShield;
-            _logger.LogInformation("❤️ Max HP: {MaximumHealth} | 🛡️ Max SD: {MaximumShield}",
-                MaximumHealth, MaximumShield);
-        }
-
-        /// <summary>
-        /// Updates the character's current mana and ability points.
-        /// </summary>
-        public void UpdateCurrentManaAbility(uint currentMana, uint currentAbility)
-        {
-            CurrentMana = currentMana;
-            CurrentAbility = currentAbility;
-            _logger.LogInformation("💧 Mana: {CurrentMana}/{MaximumMana} | ✨ AG: {CurrentAbility}/{MaximumAbility}",
-                CurrentMana, MaximumMana, CurrentAbility, MaximumAbility);
-        }
-
-        /// <summary>
-        /// Updates the character's maximum mana and ability points.
-        /// </summary>
-        public void UpdateMaximumManaAbility(uint maximumMana, uint maximumAbility)
-        {
-            MaximumMana = Math.Max(1, maximumMana);
-            MaximumAbility = maximumAbility;
-            _logger.LogInformation("💧 Max Mana: {MaximumMana} | ✨ Max AG: {MaximumAbility}",
-                MaximumMana, MaximumAbility);
         }
 
         /// <summary>
