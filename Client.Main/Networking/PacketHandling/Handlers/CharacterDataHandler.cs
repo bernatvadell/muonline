@@ -88,6 +88,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                                         MapDatabase.GetMapName(_characterState.MapId), _characterState.MapId, _characterState.PositionX, _characterState.PositionY);
                 // _networkManager.UpdateStatsDisplay(); // Powiadom ViewModel
                 // _networkManager.SetInGameStatus(true); // This will log "Entered game world..."
+                _networkManager.ProcessCharacterInformation();
             }
             catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing CharacterInformation packet."); }
             return Task.CompletedTask;

@@ -105,12 +105,6 @@ namespace Client.Main.Controls.UI.Login
             });
         }
 
-        private void OnLoginClick(object sender, EventArgs e)
-        {
-            // Change scene after login
-            MuGame.Instance.ChangeScene<SelectCharacterScene>();
-        }
-
         protected override void OnScreenSizeChanged()
         {
             _line1.ViewSize = new Point(DisplaySize.X - 20, 8);

@@ -48,15 +48,17 @@ namespace Client.Main.Networking
         public event EventHandler<ClientConnectionState>? ConnectionStateChanged;
         public event EventHandler<List<ServerInfo>>? ServerListReceived;
         public event EventHandler<string>? ErrorOccurred;
-        public event EventHandler<List<(string Name, CharacterClassNumber Class)>>? CharacterListReceived;
-        public event EventHandler? LoginSuccess; // Specific event for successful login
-        public event EventHandler? LoginFailed; // Specific event for failed login
-        public event EventHandler? EnteredGame; // Specific event for successful character selection
+        // *** CHANGE EVENT SIGNATURE HERE ***
+        public event EventHandler<List<(string Name, CharacterClassNumber Class, ushort Level)>>? CharacterListReceived;
+        public event EventHandler? LoginSuccess;
+        public event EventHandler? LoginFailed;
+        public event EventHandler? EnteredGame;
         // Add more events as needed (e.g., ChatMessageReceived, CharacterStatsUpdated)
 
         // --- Public Properties ---
         public ClientConnectionState CurrentState => _currentState;
         public bool IsConnected => _connectionManager.IsConnected;
+        public CharacterState GetCharacterState() => _characterState;
 
         public NetworkManager(ILoggerFactory loggerFactory, MuOnlineSettings settings, CharacterState characterState, ScopeManager scopeManager)
         {
@@ -144,29 +146,31 @@ namespace Client.Main.Networking
 
         public async Task RequestGameServerConnectionAsync(ushort serverId)
         {
+            // **** ZMIENIONY WARUNEK: Sprawdź stany "w trakcie" lub "połączony" ****
+            if (_currentState >= ClientConnectionState.RequestingConnectionInfo && _currentState < ClientConnectionState.InGame)
+            {
+                _logger.LogWarning("RequestGameServerConnectionAsync called while already connecting/connected to GS or requesting info. Ignoring request for ServerId: {ServerId}. CurrentState: {State}", serverId, _currentState);
+                return; // Już w trakcie lub zakończono ten etap, zignoruj
+            }
+            // **** KONIEC ZMIENIONEGO WARUNKU ****
+
             _logger.LogDebug("NetworkManager.RequestGameServerConnectionAsync called. ServerId: {ServerId}. CurrentState: {State}", serverId, _currentState);
 
-            // Ten warunek jest poprawny - sprawdzamy CZY MOŻNA zainicjować żądanie
+            // Sprawdzenie stanu początkowego (musi być ReceivedServerList)
             if (_currentState != ClientConnectionState.ReceivedServerList)
             {
-                // Ten OnErrorOccurred jest POPRAWNY - informuje o błędnej próbie wywołania
-                OnErrorOccurred($"Cannot initiate game server connection request in state: {_currentState}");
+                OnErrorOccurred($"Cannot initiate game server connection request from state: {_currentState}");
                 return;
             }
-            // Sprawdź też połączenie z Connect Serverem
-            if (!_connectionManager.IsConnected)
+            if (!_connectionManager.IsConnected) // Sprawdź połączenie z CS
             {
                 OnErrorOccurred("Cannot request game server connection: Not connected to Connect Server.");
                 return;
             }
 
             _logger.LogInformation("Requesting connection info for Server ID: {ServerId}", serverId);
-            // Zmień stan OD RAZU, ZANIM wywołasz serwis
-            UpdateState(ClientConnectionState.RequestingConnectionInfo);
-            // Wywołaj serwis, który wyśle pakiet
+            UpdateState(ClientConnectionState.RequestingConnectionInfo); // Ustaw stan PRZED wysłaniem
             await _connectServerService.RequestConnectionInfoAsync(serverId);
-
-            // Upewnij się, że TUTAJ NIE MA już żadnego OnErrorOccurred !!!
         }
 
         // **** DODAJ TĘ METODĘ ****
@@ -251,31 +255,27 @@ namespace Client.Main.Networking
             if (_currentState != newState)
             {
                 var oldState = _currentState;
-                _logger.LogInformation("State changed: {OldState} -> {NewState}", oldState, newState);
-                // **** ZMIANA: Ustaw stan OD RAZU ****
-                _currentState = newState;
+                _logger.LogInformation(">>> UpdateState: Changing state from {OldState} to {NewState}", oldState, newState);
+                _currentState = newState; // Set state immediately
+                _logger.LogInformation("=== UpdateState: _currentState is now {CurrentState}", _currentState); // Log ZMIENIONY stan
 
-                // Zaplanuj tylko podniesienie eventu dla UI na główny wątek
                 MuGame.ScheduleOnMainThread(() =>
                 {
-                    _logger.LogTrace("Raising ConnectionStateChanged event for state {NewState} on main thread.", newState);
-                    ConnectionStateChanged?.Invoke(this, newState);
-
-                    // **** PRZENIESIONA LOGIKA REAKCJI NA ZMIANĘ STANU ****
-                    // Reaguj na zmianę stanu TUTAJ, w głównym wątku, PO zmianie _currentState
-                    if (newState == ClientConnectionState.ConnectedToConnectServer)
+                    _logger.LogTrace("--- UpdateState: Raising ConnectionStateChanged event for state {NewState} on main thread.", newState);
+                    try
                     {
-                        _logger.LogInformation("State is now ConnectedToConnectServer (on main thread), requesting server list...");
-                        // Wywołaj asynchronicznie, aby nie blokować pętli Update
-                        _ = Task.Run(() => RequestServerListAsync(initiatedByUi: false));
+                        ConnectionStateChanged?.Invoke(this, newState);
                     }
-                    // Dodaj reakcję na ConnectedToGameServer, jeśli chcesz automatyczne logowanie z ustawień
-                    // else if (newState == ClientConnectionState.ConnectedToGameServer)
-                    // {
-                    //     _logger.LogInformation("State is now ConnectedToGameServer (on main thread), attempting auto-login from settings...");
-                    //     _ = Task.Run(() => SendLoginRequestFromSettingsAsync());
-                    // }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "--- UpdateState: Exception during ConnectionStateChanged event invocation for state {NewState}", newState);
+                    }
+                    _logger.LogTrace("<<< UpdateState: ConnectionStateChanged event raising scheduled/attempted on main thread.", newState);
                 });
+            }
+            else
+            {
+                _logger.LogTrace(">>> UpdateState: State {NewState} is the same as current. No change.", newState);
             }
         }
 
@@ -288,12 +288,32 @@ namespace Client.Main.Networking
             });
         }
 
+        internal void ProcessCharacterList(List<(string Name, CharacterClassNumber Class, ushort Level)> characters)
+        {
+            _logger.LogInformation(">>> ProcessCharacterList: Received list with {Count} characters. Raising event on UI thread...", characters?.Count ?? 0);
+            MuGame.ScheduleOnMainThread(() =>
+            {
+                _logger.LogTrace("--- ProcessCharacterList: Raising CharacterListReceived event on main thread.");
+                try
+                {
+                    // *** PASS THE UPDATED LIST TYPE ***
+                    CharacterListReceived?.Invoke(this, characters ?? new()); // Pass empty list if null
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "--- ProcessCharacterList: Exception during CharacterListReceived event invocation.");
+                }
+                _logger.LogTrace("<<< ProcessCharacterList: CharacterListReceived event raising scheduled/attempted.");
+            });
+        }
+
         // Called by ConnectServerHandler
         internal void ProcessHelloPacket()
         {
-            _logger.LogInformation("Processing Hello packet. Updating state.");
-            // Od razu zmień stan. Reakcja (wysłanie RequestServerList) nastąpi w UpdateState.
+            _logger.LogInformation("Processing Hello packet. Updating state and requesting server list.");
             UpdateState(ClientConnectionState.ConnectedToConnectServer);
+            // Po zmianie stanu od razu wyślij żądanie listy serwerów
+            _ = RequestServerListAsync(initiatedByUi: false); // Wywołaj jako nową Tasketę
         }
 
         // Called by ConnectServerHandler
@@ -354,54 +374,56 @@ namespace Client.Main.Networking
         // Called by MiscGamePacketHandler on F1 00
         internal void ProcessGameServerEntered()
         {
-            _logger.LogInformation("Received welcome packet from Game Server. Ready to log in.");
+            _logger.LogInformation(">>> ProcessGameServerEntered: Received welcome packet. Calling UpdateState(ConnectedToGameServer)...");
             UpdateState(ClientConnectionState.ConnectedToGameServer);
-            // Usunięto automatyczne wywołanie logowania stąd.
-            // Logowanie nastąpi po interakcji użytkownika w LoginDialog.
-            // Jeśli CHCESZ próbować automatycznego logowania z ustawień, możesz tu wywołać:
-            // _ = SendLoginRequestFromSettingsAsync();
+            _logger.LogInformation("<<< ProcessGameServerEntered: UpdateState called.");
+        }
+
+        // Called by MiscGamePacketHandler on F1 01 (Success)
+        internal void ProcessLoginSuccess()
+        {
+            _logger.LogInformation(">>> ProcessLoginSuccess: Login OK. Updating state back to ConnectedToGameServer and requesting character list...");
+            // Zmień stan z powrotem, aby umożliwić wybór postaci
+            UpdateState(ClientConnectionState.ConnectedToGameServer);
+            // Podnieś event LoginSuccess dla UI
+            MuGame.ScheduleOnMainThread(() => LoginSuccess?.Invoke(this, EventArgs.Empty));
+            // Wyślij żądanie listy postaci
+            _ = _characterService.RequestCharacterListAsync();
+            _logger.LogInformation("<<< ProcessLoginSuccess: State updated and CharacterList requested.");
         }
 
         // Called by MiscGamePacketHandler on F1 01
+        // Metoda ProcessLoginResponse teraz tylko decyduje co dalej
         internal void ProcessLoginResponse(LoginResponse.LoginResult result)
         {
             if (result == LoginResponse.LoginResult.Okay)
             {
-                _logger.LogInformation("Login successful. Requesting character list.");
-                LoginSuccess?.Invoke(this, EventArgs.Empty); // Raise event for UI
-                                                             // Request character list automatically after successful login
-                _ = _characterService.RequestCharacterListAsync();
+                // Wywołaj nową metodę dla sukcesu
+                ProcessLoginSuccess();
             }
             else
             {
+                // Logika dla nieudanego logowania pozostaje
                 string reason = result.ToString();
                 _logger.LogError("Login failed: {Reason}", reason);
                 OnErrorOccurred($"Login failed: {reason}");
-                LoginFailed?.Invoke(this, EventArgs.Empty); // Raise event for UI
-                                                            // Consider disconnecting or allowing retry? For now, stay ConnectedToGameServer.
-                UpdateState(ClientConnectionState.ConnectedToGameServer); // Revert state
+                MuGame.ScheduleOnMainThread(() => LoginFailed?.Invoke(this, EventArgs.Empty));
+                UpdateState(ClientConnectionState.ConnectedToGameServer); // Pozwól na ponowną próbę
             }
-        }
-
-        // Called by MiscGamePacketHandler on F3 00
-        internal void ProcessCharacterList(List<(string Name, CharacterClassNumber Class)> characters)
-        {
-            _logger.LogInformation("Character list received ({Count} characters).", characters.Count);
-            // State remains ConnectedToGameServer until character is selected
-            // Raise event on UI thread
-            MuGame.ScheduleOnMainThread(() =>
-            {
-                CharacterListReceived?.Invoke(this, characters);
-            });
         }
 
         // Called by CharacterDataHandler on F3 03
         internal void ProcessCharacterInformation()
         {
-            _logger.LogInformation("Successfully entered game world with character: {Name}", _characterState.Name);
-            UpdateState(ClientConnectionState.InGame);
-            EnteredGame?.Invoke(this, EventArgs.Empty);
-            // ScopeManager and CharacterState are updated by the handlers directly
+            if (_currentState != ClientConnectionState.SelectingCharacter) { /* ... log warning ... */ return; }
+
+            _logger.LogInformation(">>> ProcessCharacterInformation: Character selected successfully. Updating state to InGame and raising EnteredGame event...");
+            UpdateState(ClientConnectionState.InGame); // Zmień stan (to zaplanuje ConnectionStateChanged)
+
+            _logger.LogInformation("--- ProcessCharacterInformation: Raising EnteredGame event directly...");
+            try { EnteredGame?.Invoke(this, EventArgs.Empty); } // Podnieś event od razu
+            catch (Exception ex) { _logger.LogError(ex, "--- ProcessCharacterInformation: Exception during EnteredGame event invocation."); }
+            _logger.LogInformation("<<< ProcessCharacterInformation: State updated and EnteredGame event raised.");
         }
 
 
@@ -422,7 +444,8 @@ namespace Client.Main.Networking
             MuGame.ScheduleOnMainThread(() =>
             {
                 ServerListReceived?.Invoke(this, new List<ServerInfo>());
-                CharacterListReceived?.Invoke(this, new List<(string Name, CharacterClassNumber Class)>()); // Clear UI list
+                // *** PASS EMPTY LIST OF CORRECT TUPLE TYPE ***
+                CharacterListReceived?.Invoke(this, new List<(string Name, CharacterClassNumber Class, ushort Level)>()); // Update this line
             });
 
             return new ValueTask(_packetRouter.OnDisconnected()); // Notify router

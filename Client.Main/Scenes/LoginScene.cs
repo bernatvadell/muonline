@@ -50,86 +50,53 @@ namespace Client.Main.Scenes
         public override async Task Load()
         {
             _logger.LogInformation("LoginScene Load starting...");
-            // Pobierz instancję NetworkManager z MuGame
             _networkManager = MuGame.Network ?? throw new InvalidOperationException("NetworkManager not initialized in MuGame");
-
-            // Zasubskrybuj eventy NetworkManager *przed* potencjalnym wywołaniem akcji
-            SubscribeToNetworkEvents();
-
-            // Załaduj świat dla sceny logowania
-            await ChangeWorldAsync<NewLoginWorld>(); // Użyj świata z lepszą grafiką
-            await base.Load(); // Załaduj bazowe elementy sceny
-
-            // Odtwórz muzykę w tle
+            SubscribeToNetworkEvents(); // Subskrybuj PRZED połączeniem
+            await ChangeWorldAsync<NewLoginWorld>();
+            await base.Load();
             SoundController.Instance.PlayBackgroundMusic("Music/login_theme.mp3");
-
-            // Zaktualizuj etykietę statusu na podstawie bieżącego stanu sieci
             UpdateStatusLabel(_networkManager.CurrentState);
 
-            // Sprawdź, czy już jesteśmy połączeni (np. powrót do sceny)
+            // Logika połączenia i UI
             if (_networkManager.CurrentState >= ClientConnectionState.ConnectedToConnectServer)
             {
                 _logger.LogInformation("LoginScene loaded, NetworkManager already connected or connecting. State: {State}", _networkManager.CurrentState);
-                // Upewnij się, że UI jest odpowiednie dla bieżącego stanu
-                HandleConnectionStateChange(this, _networkManager.CurrentState); // Wywołaj handler, aby zsynchronizować UI
-                // Jeśli otrzymaliśmy już listę serwerów, ale UI nie było gotowe, zainicjuj je
+                HandleConnectionStateChange(this, _networkManager.CurrentState);
                 if (!_uiInitialized && _networkManager.CurrentState >= ClientConnectionState.ReceivedServerList)
                 {
                     InitializeServerSelectionUI();
                 }
             }
-            // Jeśli nie jesteśmy połączeni, spróbuj nawiązać połączenie
             else if (_networkManager.CurrentState == ClientConnectionState.Initial || _networkManager.CurrentState == ClientConnectionState.Disconnected)
             {
                 _logger.LogInformation("LoginScene loaded, initiating connection to Connect Server...");
-                _ = _networkManager.ConnectToConnectServerAsync(); // Rozpocznij próbę połączenia w tle
+                _ = _networkManager.ConnectToConnectServerAsync();
             }
             _logger.LogInformation("LoginScene Load finished.");
         }
 
-        // Inicjalizacja kontrolek UI wyboru serwera/grupy
         private void InitializeServerSelectionUI()
         {
-            if (_uiInitialized) return; // Wykonaj tylko raz
-
+            if (_uiInitialized) return;
             _logger.LogInformation("Initializing Server Selection UI...");
 
-            _nonEventGroup = new ServerGroupSelector(false)
-            {
-                Align = ControlAlign.HorizontalCenter | ControlAlign.VerticalCenter,
-                Margin = new Margin { Left = -220 },
-                Visible = true // Pokaż od razu po utworzeniu
-            };
-            // TODO: W przyszłości te grupy mogą pochodzić z konfiguracji lub Connect Servera
-            for (byte i = 0; i < 1; i++) // Na razie statyczna grupa
-                _nonEventGroup.AddServer(i, $"Servers");
+            _nonEventGroup = new ServerGroupSelector(false) { Align = ControlAlign.HorizontalCenter | ControlAlign.VerticalCenter, Margin = new Margin { Left = -220 }, Visible = true };
+            for (byte i = 0; i < 1; i++) _nonEventGroup.AddServer(i, $"Servers");
 
-            _eventGroup = new ServerGroupSelector(true)
-            {
-                Align = ControlAlign.HorizontalCenter | ControlAlign.VerticalCenter,
-                Margin = new Margin { Right = -220 },
-                Visible = true // Pokaż od razu po utworzeniu
-            };
-            for (byte i = 0; i < 1; i++) // Na razie statyczna grupa
-                _eventGroup.AddServer(i, $"Events");
+            _eventGroup = new ServerGroupSelector(true) { Align = ControlAlign.HorizontalCenter | ControlAlign.VerticalCenter, Margin = new Margin { Right = -220 }, Visible = true };
+            for (byte i = 0; i < 1; i++) _eventGroup.AddServer(i, $"Events");
 
-            _serverList = new ServerList
-            {
-                Align = ControlAlign.VerticalCenter | ControlAlign.HorizontalCenter,
-                Visible = false // Ukryta, aż grupa zostanie wybrana
-            };
+            _serverList = new ServerList { Align = ControlAlign.VerticalCenter | ControlAlign.HorizontalCenter, Visible = false };
 
-            // Podłącz handlery zdarzeń do nowo utworzonych kontrolek
             _nonEventGroup.SelectedIndexChanged += NonEventGroup_SelectedIndexChanged;
             _eventGroup.SelectedIndexChanged += EventGroup_SelectedIndexChanged;
             _serverList.ServerClick += ServerList_ServerClick;
 
-            // Dodaj nowe kontrolki do kolekcji Controls sceny, aby były rysowane i aktualizowane
             Controls.Add(_nonEventGroup);
             Controls.Add(_eventGroup);
             Controls.Add(_serverList);
 
-            _uiInitialized = true; // Ustaw flagę, że UI zostało zainicjowane
+            _uiInitialized = true;
             _logger.LogInformation("Server Selection UI Initialized and added to scene controls.");
         }
 
@@ -140,30 +107,26 @@ namespace Client.Main.Scenes
             {
                 _networkManager.ConnectionStateChanged += HandleConnectionStateChange;
                 _networkManager.ServerListReceived += HandleServerListReceived;
-                _networkManager.CharacterListReceived += HandleCharacterListReceived;
+                _networkManager.CharacterListReceived += HandleCharacterListReceived; // Ten jest potrzebny do zmiany sceny
                 _networkManager.LoginSuccess += HandleLoginSuccess;
                 _networkManager.LoginFailed += HandleLoginFailed;
-                _networkManager.EnteredGame += HandleEnteredGame;
+                // _networkManager.EnteredGame -= HandleEnteredGame; // Upewnij się, że jest usunięty lub zakomentowany
                 _networkManager.ErrorOccurred += HandleNetworkError;
                 _logger.LogDebug("Subscribed to NetworkManager events.");
             }
-            else
-            {
-                _logger.LogError("Cannot subscribe to NetworkManager events: NetworkManager is null.");
-            }
+            else { _logger.LogError("Cannot subscribe to NetworkManager events: NetworkManager is null."); }
         }
 
-        // Anulowanie subskrypcji eventów NetworkManager
         private void UnsubscribeFromNetworkEvents()
         {
             if (_networkManager != null)
             {
                 _networkManager.ConnectionStateChanged -= HandleConnectionStateChange;
                 _networkManager.ServerListReceived -= HandleServerListReceived;
-                _networkManager.CharacterListReceived -= HandleCharacterListReceived;
+                _networkManager.CharacterListReceived -= HandleCharacterListReceived; // Ten jest potrzebny
                 _networkManager.LoginSuccess -= HandleLoginSuccess;
                 _networkManager.LoginFailed -= HandleLoginFailed;
-                _networkManager.EnteredGame -= HandleEnteredGame;
+                // _networkManager.EnteredGame -= HandleEnteredGame; // Upewnij się, że jest usunięty lub zakomentowany
                 _networkManager.ErrorOccurred -= HandleNetworkError;
                 _logger.LogDebug("Unsubscribed from NetworkManager events.");
             }
@@ -171,125 +134,92 @@ namespace Client.Main.Scenes
 
         // --- Network Event Handlers ---
 
-        // Handler zmiany stanu połączenia
         private void HandleConnectionStateChange(object? sender, ClientConnectionState newState)
         {
-            // Użyj harmonogramu, aby upewnić się, że operacje na UI są wykonywane w głównym wątku gry
             MuGame.ScheduleOnMainThread(() =>
             {
-                _logger.LogDebug("UI received ConnectionStateChanged: {NewState}", newState);
-                UpdateStatusLabel(newState); // Zaktualizuj etykietę statusu
+                _logger.LogDebug(">>> HandleConnectionStateChange (UI Thread): Received state {NewState}", newState);
+                UpdateStatusLabel(newState);
 
-                // Domyślne wartości widoczności kontrolek
                 bool showServerSelectionUi = false;
                 bool showLoginDialog = false;
+                bool hideAll = false;
 
-                // Ustaw widoczność kontrolek w zależności od nowego stanu sieciowego
                 switch (newState)
                 {
                     case ClientConnectionState.ConnectedToConnectServer:
+                    case ClientConnectionState.RequestingServerList:
                     case ClientConnectionState.ReceivedServerList:
-                        // Jeśli jesteśmy połączeni z Connect Serverem lub otrzymaliśmy listę serwerów,
-                        // pokaż UI wyboru grupy/serwera.
-                        if (!_uiInitialized)
-                        {
-                            // Zainicjuj UI wyboru serwera, jeśli to pierwszy raz
-                            InitializeServerSelectionUI();
-                        }
+                        if (!_uiInitialized) InitializeServerSelectionUI();
                         showServerSelectionUi = true;
+                        _logger.LogDebug("HandleConnectionStateChange: Setting showServerSelectionUi = true");
                         break;
-
                     case ClientConnectionState.RequestingConnectionInfo:
                     case ClientConnectionState.ReceivedConnectionInfo:
                     case ClientConnectionState.ConnectingToGameServer:
+                        hideAll = true;
+                        _logger.LogDebug("HandleConnectionStateChange: Setting hideAll = true");
+                        break;
                     case ClientConnectionState.ConnectedToGameServer:
-                    case ClientConnectionState.Authenticating:
-                        // W stanach związanych z łączeniem/logowaniem do Game Servera,
-                        // pokaż dialog logowania.
                         showLoginDialog = true;
-                        showServerSelectionUi = false; // Ukryj wybór serwera/grupy
-
-                        // Jeśli właśnie przeszliśmy do stanu ConnectedToGameServer,
-                        // ustaw fokus na polu nazwy użytkownika w dialogu logowania.
-                        if (newState == ClientConnectionState.ConnectedToGameServer)
-                        {
-                            _loginDialog?.FocusUsername(); // Użyj ?. dla bezpieczeństwa
-                        }
+                        _loginDialog?.FocusUsername();
+                        _logger.LogDebug("HandleConnectionStateChange: Setting showLoginDialog = true and focusing username.");
                         break;
-
+                    case ClientConnectionState.Authenticating:
+                        showLoginDialog = true;
+                        _logger.LogDebug("HandleConnectionStateChange: Setting showLoginDialog = true (Authenticating)");
+                        break;
+                    case ClientConnectionState.SelectingCharacter: // Nadal pokazuj dialog logowania? Raczej ukryj wszystko.
                     case ClientConnectionState.InGame:
-                        // Stan InGame jest obsługiwany przez zmianę sceny,
-                        // więc tutaj nie musimy nic robić z UI tej sceny.
+                        hideAll = true;
+                        _logger.LogDebug("HandleConnectionStateChange: Setting hideAll = true (Post-Login)");
                         break;
-
                     case ClientConnectionState.Disconnected:
-                    case ClientConnectionState.Initial: // Również dla stanu początkowego
-                                                        // Po rozłączeniu lub w stanie początkowym, zresetuj UI.
-                        _uiInitialized = false; // Zresetuj flagę inicjalizacji UI
-
-                        // Usuń kontrolki wyboru serwera z kolekcji Controls sceny, jeśli istnieją
-                        if (_nonEventGroup != null) Controls.Remove(_nonEventGroup);
-                        if (_eventGroup != null) Controls.Remove(_eventGroup);
-                        if (_serverList != null) Controls.Remove(_serverList);
-
-                        // Ustaw referencje na null, aby GC mógł je zebrać
-                        _nonEventGroup = null;
-                        _eventGroup = null;
-                        _serverList = null;
-
-                        // Ukryj również dialog logowania
-                        showLoginDialog = false;
-                        showServerSelectionUi = false;
+                    case ClientConnectionState.Initial:
+                        if (_uiInitialized)
+                        {
+                            if (_nonEventGroup != null) Controls.Remove(_nonEventGroup);
+                            if (_eventGroup != null) Controls.Remove(_eventGroup);
+                            if (_serverList != null) Controls.Remove(_serverList);
+                            _nonEventGroup = null; _eventGroup = null; _serverList = null;
+                            _uiInitialized = false;
+                            _logger.LogDebug("HandleConnectionStateChange: Resetting Server Selection UI.");
+                        }
+                        hideAll = true;
+                        _logger.LogDebug("HandleConnectionStateChange: Setting hideAll = true (Disconnected/Initial)");
                         break;
-
-                        // Obsługa innych stanów, jeśli zajdzie taka potrzeba
-                        // case ClientConnectionState.SelectingCharacter:
-                        //     // Można by np. zablokować dialog logowania
-                        //     break;
                 }
 
-                // Zastosuj obliczoną widoczność do kontrolek UI
-                // Używaj operatora ?. (null-conditional), aby uniknąć błędów, jeśli kontrolki
-                // zostały usunięte (np. po rozłączeniu).
-                _nonEventGroup?.SetVisible(showServerSelectionUi);
-                _eventGroup?.SetVisible(showServerSelectionUi);
+                _nonEventGroup?.SetVisible(showServerSelectionUi && !hideAll);
+                _eventGroup?.SetVisible(showServerSelectionUi && !hideAll);
+                _loginDialog?.SetVisible(showLoginDialog && !hideAll);
 
-                // Lista serwerów jest widoczna tylko, gdy UI wyboru jest aktywne ORAZ gdy lista ma elementy.
-                // (Logika wypełniania listy jest w handlerach SelectedIndexChanged grup).
                 if (_serverList != null)
                 {
-                    _serverList.Visible = _serverList.Controls.Count > 0 && showServerSelectionUi;
+                    bool groupSelected = (_nonEventGroup?.ActiveIndex != -1) || (_eventGroup?.ActiveIndex != -1);
+                    _serverList.Visible = showServerSelectionUi && groupSelected && _serverList.Controls.Count > 0 && !hideAll;
+                    _logger.LogTrace("HandleConnectionStateChange: ServerList Visible = {IsVisible} (showUI={showUI}, groupSel={grpSel}, count={count}, hideAll={hide})", _serverList.Visible, showServerSelectionUi, groupSelected, _serverList.Controls.Count, hideAll);
                 }
-
-                _loginDialog?.SetVisible(showLoginDialog); // Użyj metody SetVisible dla pewności
+                _logger.LogDebug("<<< HandleConnectionStateChange (UI Thread): Finished applying visibility.");
             });
         }
 
-        // **** NOWY HANDLER DLA LOGIN DIALOG ****
         private void LoginDialog_LoginAttempt(object? sender, EventArgs e)
         {
-            // Sprawdź, czy jesteśmy w odpowiednim stanie do logowania
-            if (_networkManager.CurrentState == ClientConnectionState.ConnectedToGameServer)
+            if (_networkManager.CurrentState == ClientConnectionState.ConnectedToGameServer || _networkManager.CurrentState == ClientConnectionState.Authenticating)
             {
                 string username = _loginDialog.Username;
                 string password = _loginDialog.Password;
-
-                if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
-                {
-                    MessageWindow.Show("Please enter Username and Password.");
-                    return;
-                }
-
+                if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password)) { MessageWindow.Show("Please enter Username and Password."); return; }
                 _logger.LogInformation("Login attempt from dialog for user: {Username}", username);
-                // Wywołaj nową metodę w NetworkManager, przekazując dane
                 _ = _networkManager.SendLoginRequestAsync(username, password);
             }
             else
             {
                 _logger.LogWarning("Login attempt ignored, invalid state: {State}", _networkManager.CurrentState);
+                MessageWindow.Show($"Cannot login in state: {_networkManager.CurrentState}");
             }
         }
-        // **** KONIEC NOWEGO HANDLERA ****
 
         // Handler otrzymania listy serwerów
         private void HandleServerListReceived(object? sender, List<ServerInfo> servers)
@@ -297,42 +227,67 @@ namespace Client.Main.Scenes
             MuGame.ScheduleOnMainThread(() =>
             {
                 _logger.LogInformation("UI processing ServerListReceived: {Count} servers", servers.Count);
-
-                // Zainicjuj UI wyboru serwera, jeśli jeszcze nie istnieje
-                if (!_uiInitialized)
-                {
-                    InitializeServerSelectionUI();
-                }
-                else // Jeśli UI już istnieje, upewnij się, że grupy są widoczne
+                if (!_uiInitialized) { InitializeServerSelectionUI(); }
+                else
                 {
                     if (_nonEventGroup != null) _nonEventGroup.Visible = true;
                     if (_eventGroup != null) _eventGroup.Visible = true;
-                    if (_serverList != null) _serverList.Visible = false; // Ukryj listę serwerów
-                    _loginDialog.Visible = false; // Ukryj dialog logowania
+                    if (_serverList != null) _serverList.Visible = false;
+                    _loginDialog.Visible = false;
                 }
-                // Nie wypełniamy _serverList tutaj, tylko po kliknięciu grupy
             });
         }
 
         // Handler otrzymania listy postaci
-        private void HandleCharacterListReceived(object? sender, List<(string Name, CharacterClassNumber Class)> characters)
+        private void HandleCharacterListReceived(object? sender, List<(string Name, CharacterClassNumber Class, ushort Level)> characters)
         {
-            _logger.LogInformation("Character list received ({Count}), waiting for selection (handled in SelectCharacterScene).", characters.Count);
-            // Ta scena nie robi nic z listą postaci, tylko loguje
+            MuGame.ScheduleOnMainThread(() =>
+            {
+                _logger.LogInformation(">>> HandleCharacterListReceived (UI Thread) starting execution for {Count} characters.", characters?.Count ?? 0);
+                if (MuGame.Instance.ActiveScene != this) { _logger.LogWarning("HandleCharacterListReceived (UI Thread): Scene changed before execution. Aborting."); return; }
+
+                if (characters != null) // Check if the list is not null
+                {
+                    SelectCharacterScene? newScene = null;
+                    try
+                    {
+                        _logger.LogInformation("--- HandleCharacterListReceived (UI Thread): Attempting to create SelectCharacterScene instance...");
+                        // *** The 'characters' variable now has the correct type ***
+                        newScene = new SelectCharacterScene(characters);
+                        _logger.LogInformation("--- HandleCharacterListReceived (UI Thread): SelectCharacterScene instance created successfully.");
+
+                        _logger.LogInformation("--- HandleCharacterListReceived (UI Thread): Preparing to call ChangeScene...");
+                        MuGame.Instance.ChangeScene(newScene); // Call ChangeScene with the new scene instance
+                        _logger.LogInformation("--- HandleCharacterListReceived (UI Thread): MuGame.Instance.ChangeScene call finished (async void, execution continues).");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "!!! HandleCharacterListReceived (UI Thread): Exception DURING scene creation or ChangeScene call.");
+                        MessageWindow.Show("Error preparing character selection scene.");
+                        // Reset state if something went wrong during scene change
+                        if (_networkManager != null) _networkManager.UpdateState(ClientConnectionState.ConnectedToGameServer);
+                    }
+                }
+                else // Handle the case where the list itself is null (though NetworkManager sends an empty list now)
+                {
+                    _logger.LogError("<<< HandleCharacterListReceived (UI Thread): Received null character list reference.");
+                    MessageWindow.Show("Error receiving character list data.");
+                    if (_networkManager != null) _networkManager.UpdateState(ClientConnectionState.ConnectedToGameServer);
+                }
+                _logger.LogInformation("<<< HandleCharacterListReceived (UI Thread) finished execution.");
+            });
         }
 
-        // Handler pomyślnego zalogowania (przed otrzymaniem listy postaci)
+
         private void HandleLoginSuccess(object? sender, EventArgs e)
         {
             MuGame.ScheduleOnMainThread(() =>
             {
                 _logger.LogInformation("UI received LoginSuccess.");
                 if (_statusLabel != null) _statusLabel.Text = "Status: Logged In - Requesting Characters...";
-                // Dialog logowania pozostaje widoczny
             });
         }
 
-        // Handler nieudanego logowania
         private void HandleLoginFailed(object? sender, EventArgs e)
         {
             MuGame.ScheduleOnMainThread(() =>
@@ -340,8 +295,6 @@ namespace Client.Main.Scenes
                 _logger.LogWarning("UI received LoginFailed.");
                 if (_statusLabel != null) _statusLabel.Text = "Status: Login Failed!";
                 MessageWindow.Show("Login Failed. Check credentials or server status.");
-
-                // Pokaż ponownie dialog logowania, ukryj wybór serwera
                 if (_nonEventGroup != null) _nonEventGroup.Visible = false;
                 if (_eventGroup != null) _eventGroup.Visible = false;
                 if (_serverList != null) _serverList.Visible = false;
@@ -352,11 +305,27 @@ namespace Client.Main.Scenes
         // Handler wejścia do gry (po wyborze postaci)
         private void HandleEnteredGame(object? sender, EventArgs e)
         {
-            _logger.LogInformation("UI received EnteredGame. Changing scene...");
-            // Użyj ScheduleOnMainThread do zmiany sceny
-            MuGame.ScheduleOnMainThread(() =>
+            // Ten handler może być teraz wywołany z wątku sieciowego!
+            _logger.LogInformation(">>> HandleEnteredGame: Event received. Scheduling scene change to GameScene on main thread...");
+            MuGame.ScheduleOnMainThread(() => // Nadal używamy harmonogramu do zmiany sceny
             {
-                MuGame.Instance.ChangeScene<GameScene>();
+                _logger.LogInformation("--- HandleEnteredGame (UI Thread): Executing scheduled scene change...");
+                if (MuGame.Instance.ActiveScene == this)
+                {
+                    try
+                    {
+                        MuGame.Instance.ChangeScene<GameScene>();
+                        _logger.LogInformation("<<< HandleEnteredGame (UI Thread): ChangeScene to GameScene call completed.");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "!!! HandleEnteredGame (UI Thread): Exception during ChangeScene to GameScene.");
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("<<< HandleEnteredGame (UI Thread): Scene changed before execution. Aborting change to GameScene.");
+                }
             });
         }
 
@@ -456,10 +425,13 @@ namespace Client.Main.Scenes
             _loginDialog.ServerName = e.Name; // Ustaw nazwę w dialogu logowania
 
             // Ukryj UI wyboru serwera/grupy
-            if (_nonEventGroup != null) _nonEventGroup.Visible = false;
-            if (_eventGroup != null) _eventGroup.Visible = false;
-            if (_serverList != null) _serverList.Visible = false;
-            // Dialog logowania stanie się widoczny po zmianie stanu na ConnectingToGameServer lub Authenticating
+            MuGame.ScheduleOnMainThread(() => // Użyj harmonogramu dla operacji UI
+            {
+                if (_nonEventGroup != null) _nonEventGroup.Visible = false;
+                if (_eventGroup != null) _eventGroup.Visible = false;
+                if (_serverList != null) _serverList.Visible = false;
+                _loginDialog.Visible = false; // Ukryj też dialog na czas łączenia
+            });
 
             // Wyślij żądanie informacji o połączeniu do wybranego serwera gry
             _ = _networkManager.RequestGameServerConnectionAsync(e.Index);

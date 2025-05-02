@@ -1,3 +1,4 @@
+// GameScene.cs
 using Client.Main.Controls;
 using Client.Main.Controls.UI;
 using Client.Main.Controls.UI.Game;
@@ -8,11 +9,18 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Threading.Tasks;
+using Client.Main.Client;
+using System.Diagnostics;
+using MUnique.OpenMU.Network.Packets;
+using System.Collections.Generic; // For CharacterClassNumber
 
 namespace Client.Main.Scenes
 {
     public class GameScene : BaseScene
     {
+        // *** REMOVE _characterState - no longer needed here ***
+        // private readonly CharacterState _characterState;
+
         private readonly PlayerObject _hero = new();
         private readonly MainControl _main;
         private WorldControl _nextWorld;
@@ -24,10 +32,28 @@ namespace Client.Main.Scenes
         // private MiniMapControl _miniMap;
         private KeyboardState _previousKeyboardState;
 
+        // *** ADD FIELD FOR PASSED CHARACTER INFO ***
+        private readonly (string Name, CharacterClassNumber Class, ushort Level) _characterInfo;
+
         public PlayerObject Hero => _hero;
 
-        public GameScene()
+        private static readonly Dictionary<byte, Type> MapWorldRegistry = new()
         {
+            { 0, typeof(LorenciaWorld) },
+            { 1, typeof(DungeonWorld) },
+            { 2, typeof(DeviasWorld) },
+            { 3, typeof(NoriaWorld) },
+            // Dodawaj kolejne mapy według mapId
+        };
+
+        // *** MODIFY CONSTRUCTOR TO ACCEPT CHARACTER INFO ***
+        public GameScene((string Name, CharacterClassNumber Class, ushort Level) characterInfo)
+        {
+            _characterInfo = characterInfo; // Store the passed info
+            // _characterState = MuGame.Network?.GetCharacterState() ?? throw new InvalidOperationException("CharacterState not available."); // No longer needed here
+
+            Debug.WriteLine($"GameScene constructor called for Character: {_characterInfo.Name} ({_characterInfo.Class})");
+
             Controls.Add(_main = new MainControl());
             Controls.Add(NpcShopControl.Instance);
             _mapListControl = new MapListControl { Visible = false };
@@ -44,22 +70,38 @@ namespace Client.Main.Scenes
             Controls.Add(_chatInput);
             // --- CHAT END ---
 
-            // // --- MINIMAP --- //
-            // _miniMap = new MiniMapControl(this); // Pass scene reference
-            // Controls.Add(_miniMap);
-            // // --- MINIMAP END ---
-
             _loadingScreen = new LoadingScreenControl { Visible = true };
             Controls.Add(_loadingScreen);
 
-            // Ensure minimap is drawn last among these UI elements initially
-            // _miniMap.BringToFront();
+            // Ensure UI elements are drawn in the correct order
             _chatInput.BringToFront();
             DebugPanel.BringToFront();
             Cursor.BringToFront();
         }
 
+        /* ───────────────────────── ADD THIS ───────────────────────── */
+        /// <summary>
+        /// Required by MuGame.ChangeScene&lt;T&gt;().  
+        /// Pulls the selected-character data from the CharacterState that
+        /// NetworkManager keeps up-to-date.
+        /// </summary>
+        public GameScene()
+            : this(GetCharacterInfoFromState()) { }
 
+        private static (string, CharacterClassNumber, ushort) GetCharacterInfoFromState()
+        {
+            var state = MuGame.Network?.GetCharacterState();     // adjust to your actual API
+            if (state != null)
+            {
+                return (state.Name ?? "Unknown",
+                        state.Class,
+                        state.Level);
+            }
+
+            // Fallback – the scene will still load, you can correct it later.
+            return ("Unknown", CharacterClassNumber.DarkKnight, 1);
+        }
+        /* ──────────────────────────────────────────────────────────── */
         private void AddChatTestData()
         {
             if (_chatLog == null) return;
@@ -81,12 +123,88 @@ namespace Client.Main.Scenes
         public override async Task Load()
         {
             await base.Load();
-            // ChangeMap will load minimap content
-            await ChangeMap<LorenciaWorld>();
-            await _hero.Load();
+
+            /* 1) dane postaci */
+            _hero.CharacterClass = _characterInfo.Class;
+            _hero.Name = _characterInfo.Name;
+
+            /* 2) pozycja z serwera */
+            var state = MuGame.Network?.GetCharacterState();
+            if (state != null)
+            {
+                _hero.Location = new Vector2(state.PositionX, state.PositionY);
+                Debug.WriteLine($"GameScene.Load: Spawn pos from server -> ({state.PositionX},{state.PositionY})");
+            }
+
+            if (state != null && MapWorldRegistry.TryGetValue((byte)state.MapId, out var worldType))
+            {
+                await ChangeMap(worldType);
+            }
+            else
+            {
+                Debug.WriteLine($"Unknown MapId: {state?.MapId}. Defaulting to Lorencia.");
+                await ChangeMap(typeof(LorenciaWorld));
+            }
+
+            /* 4) upewnij się, że model gracza jest wczytany */
+            if (_hero.Status is GameControlStatus.NonInitialized or GameControlStatus.Initializing)
+                await _hero.Load();
+
             AddChatTestData();
         }
 
+        private async Task ChangeMap(Type worldType)
+        {
+            _isChangingWorld = true;
+
+            if (_loadingScreen == null)
+            {
+                _loadingScreen = new LoadingScreenControl { Message = "Loading...", Visible = true };
+                Controls.Add(_loadingScreen);
+            }
+            else
+            {
+                _loadingScreen.Message = "Loading...";
+                _loadingScreen.Visible = true;
+            }
+
+            _main.Visible = false;
+            await Task.Yield();
+
+            // Tworzymy instancję nowego świata dynamicznie
+            _nextWorld = (WorldControl?)Activator.CreateInstance(worldType) ?? throw new InvalidOperationException($"Cannot create world: {worldType}");
+            if (_nextWorld is WalkableWorldControl walkable)
+                walkable.Walker = _hero;
+            _nextWorld.Objects.Add(_hero);
+
+            Debug.WriteLine($"ChangeMap<{worldType.Name}>: Added _hero to world objects.");
+            await _nextWorld.Initialize();
+
+            World?.Dispose();
+            World = _nextWorld;
+            _nextWorld = null;
+            Controls.Insert(0, World);
+
+            Controls.Remove(_loadingScreen);
+            _loadingScreen = null;
+
+            _main.Visible = true;
+            _isChangingWorld = false;
+
+            if (World.Name != null)
+            {
+                var mapNameControl = new MapNameControl { LabelText = World.Name };
+                Controls.Add(mapNameControl);
+                mapNameControl.BringToFront();
+                _chatLog.BringToFront();
+                _chatInput.BringToFront();
+                _mapListControl?.BringToFront();
+                DebugPanel.BringToFront();
+                Cursor.BringToFront();
+            }
+        }
+
+        // ChangeMap remains the same, as _hero configuration happens before it now
         public async Task ChangeMap<T>() where T : WalkableWorldControl, new()
         {
             _isChangingWorld = true;
@@ -106,15 +224,18 @@ namespace Client.Main.Scenes
 
             await Task.Yield();
 
+            // --- _hero already has the correct class set in GameScene.Load ---
             _nextWorld = new T() { Walker = _hero };
-            _nextWorld.Objects.Add(_hero);
-            await _nextWorld.Initialize();
+            _nextWorld.Objects.Add(_hero); // Add _hero BEFORE Initialize
+            Debug.WriteLine($"ChangeMap<{typeof(T).Name}>: Added _hero (Class: {_hero.CharacterClass}) to world objects.");
+            await _nextWorld.Initialize(); // Initialize should call Load on _hero
+            Debug.WriteLine($"ChangeMap<{typeof(T).Name}>: World initialized. _hero status: {_hero.Status}");
 
             World?.Dispose();
             World = _nextWorld;
             _nextWorld = null;
             Controls.Insert(0, World);
-            _hero.Reset();
+            // _hero.Reset(); // Reset movement state if needed
 
             // Load minimap content for the new world
             // if (_miniMap != null)
@@ -144,6 +265,7 @@ namespace Client.Main.Scenes
             }
         }
 
+        // Update and Draw methods remain the same
         public override void Update(GameTime gameTime)
         {
             if (_isChangingWorld)
@@ -223,7 +345,7 @@ namespace Client.Main.Scenes
                 if (_chatLog != null)
                 {
                     MessageType nextType = _chatLog.CurrentViewType + 1;
-                    if (!Enum.IsDefined(typeof(MessageType), nextType) || nextType == MessageType.Unknown)
+                    if (!System.Enum.IsDefined(typeof(MessageType), nextType) || nextType == MessageType.Unknown)
                     {
                         nextType = MessageType.All; // Wróć do początku
                     }

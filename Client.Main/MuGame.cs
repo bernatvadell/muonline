@@ -123,24 +123,77 @@ namespace Client.Main
         }
         // **** END ADDED VALIDATION METHOD ****
 
+        // Istniejąca metoda generyczna
         public void ChangeScene<T>() where T : BaseScene, new()
         {
-            ChangeScene(typeof(T));
+            if (typeof(T) == typeof(GameScene))
+            {
+                // Ten kod nie powinien być już nigdy wywołany dla GameScene
+                // Możesz rzucić wyjątek lub zalogować ostrzeżenie
+                throw new InvalidOperationException("GameScene requires parameters. Use ChangeScene(BaseScene newScene) instead.");
+            }
+            _logger.LogInformation(">>> ChangeScene<{SceneType}>() called (generic)", typeof(T).Name);
+            BaseScene newScene = new T(); // Tworzenie instancji za pomocą konstruktora bez parametrów
+            ChangeSceneInternal(newScene); // Wywołanie metody pomocniczej
         }
 
-        private async void ChangeScene(Type sceneType)
+        // NOWA metoda akceptująca instancję sceny
+        public void ChangeScene(BaseScene newScene)
         {
-            Console.WriteLine($"Changing scene to {sceneType.Name}");
+            if (newScene == null)
+            {
+                _logger.LogError("Attempted to change scene to a null instance.");
+                throw new ArgumentNullException(nameof(newScene));
+            }
+            _logger.LogInformation(">>> ChangeScene(BaseScene newScene) called with scene type: {SceneType}", newScene.GetType().Name);
+            ChangeSceneInternal(newScene); // Wywołanie metody pomocniczej
+        }
 
+        // Prywatna metoda pomocnicza do zmiany sceny
+        private async void ChangeSceneInternal(BaseScene newScene)
+        {
+            _logger.LogInformation("--- ChangeSceneInternal: Starting scene change to {SceneType}...", newScene.GetType().Name);
+
+            // Opcjonalnie: Pokaż ekran ładowania przed usunięciem starej sceny
+            // ShowLoadingScreen();
+
+            // Usuń starą scenę
+            if (ActiveScene != null)
+            {
+                _logger.LogDebug("--- ChangeSceneInternal: Disposing previous scene ({SceneType})...", ActiveScene.GetType().Name);
+                ActiveScene.Dispose();
+                _logger.LogDebug("--- ChangeSceneInternal: Previous scene disposed.");
+            }
+            ActiveScene = null; // Zapewnij, że nie ma odniesienia podczas ładowania nowej
+
+            // Ustaw nową scenę
+            ActiveScene = newScene;
+            _logger.LogDebug("--- ChangeSceneInternal: ActiveScene set to {SceneType}.", ActiveScene.GetType().Name);
+
+
+            // Zainicjalizuj/Załaduj nową scenę (zakładając, że Initialize/Load jest asynchroniczne)
             try
             {
-                GraphicsManager.Instance.Sprite?.End();
+                _logger.LogDebug("--- ChangeSceneInternal: Calling Initialize() for {SceneType}...", ActiveScene.GetType().Name);
+                // Upewnij się, że metoda Initialize istnieje i jest odpowiednia,
+                // lub użyj await ActiveScene.Load(), jeśli tak działa Twój system.
+                await ActiveScene.Initialize();
+                _logger.LogDebug("--- ChangeSceneInternal: Initialize() completed for {SceneType}.", ActiveScene.GetType().Name);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "!!! ChangeSceneInternal: Exception during Initialize() for {SceneType}.", ActiveScene.GetType().Name);
+                // Obsłuż błąd - może powrót do LoginScene?
+                // ActiveScene = new LoginScene(); // Awaryjny powrót
+                // await ActiveScene.Initialize();
+                return; // Zakończ zmianę sceny po błędzie
+            }
 
-            ActiveScene?.Dispose();
-            ActiveScene = (BaseScene)Activator.CreateInstance(sceneType);
-            await ActiveScene.Initialize();
+
+            // Opcjonalnie: Ukryj ekran ładowania po załadowaniu nowej sceny
+            // HideLoadingScreen();
+
+            _logger.LogInformation("<<< ChangeSceneInternal: Scene change to {SceneType} complete.", ActiveScene.GetType().Name);
         }
 
         protected override void Initialize()
@@ -211,37 +264,73 @@ namespace Client.Main
         protected override void Update(GameTime gameTime)
         {
             // --- Process Main Thread Actions ---
+            // **** DODAJ LOGOWANIE ****
+            int actionCount = 0;
+            var queueLogger = AppLoggerFactory?.CreateLogger("MuGame.MainThreadQueue"); // Logger dla kolejki
+                                                                                        // **** KONIEC DODAWANIA LOGOWANIA ****
+
             while (_mainThreadActions.TryDequeue(out Action? action))
             {
+                // **** DODAJ LOGOWANIE ****
+                actionCount++;
+                queueLogger?.LogTrace("Dequeued action #{Count}. Attempting execution...", actionCount);
+                // **** KONIEC DODAWANIA LOGOWANIA ****
                 try
                 {
                     action?.Invoke();
+                    // **** DODAJ LOGOWANIE ****
+                    queueLogger?.LogTrace("Action #{Count} executed successfully.", actionCount);
+                    // **** KONIEC DODAWANIA LOGOWANIA ****
                 }
                 catch (Exception ex)
                 {
-                    // Log error if an action fails
-                    AppLoggerFactory?.CreateLogger("MuGame.MainThreadQueue")?.LogError(ex, "Error executing action scheduled on main thread.");
+                    queueLogger?.LogError(ex, "Error executing action #{Count} scheduled on main thread.", actionCount);
                 }
             }
+            // **** DODAJ LOGOWANIE ****
+            // if (actionCount > 0) queueLogger?.LogDebug("Processed {Count} actions from queue this frame.", actionCount);
+            // **** KONIEC DODAWANIA LOGOWANIA ****
             // --- End Process Main Thread Actions ---
 
 
             // --- Existing Update Logic ---
-            try
+            try // Dodaj zewnętrzny try
             {
                 GameTime = gameTime;
                 UpdateInputInfo(gameTime);
                 CheckShaderToggles();
-                ActiveScene?.Update(gameTime); // Update the active scene AFTER processing the queue
-                base.Update(gameTime);
+
+                try // Dodaj wewnętrzny try dla ActiveScene.Update
+                {
+                    ActiveScene?.Update(gameTime);
+                }
+                catch (Exception sceneEx)
+                {
+                    _logger?.LogCritical(sceneEx, "Unhandled exception in ActiveScene.Update ({SceneType})!", ActiveScene?.GetType().Name ?? "null");
+                    // Rozważ zatrzymanie gry lub powrót do bezpiecznej sceny
+                    // Exit();
+                }
+
+                try // Dodaj wewnętrzny try dla base.Update
+                {
+                    base.Update(gameTime);
+                }
+                catch (Exception baseEx)
+                {
+                    _logger?.LogCritical(baseEx, "Unhandled exception in base.Update!");
+                    // Rozważ zatrzymanie gry
+                    // Exit();
+                }
             }
-            catch (Exception e)
+            catch (Exception e) // Złap inne nieoczekiwane błędy w Update
             {
                 Debug.WriteLine(e);
+                _logger?.LogCritical(e, "Unhandled exception in MuGame.Update loop (outside scene/base update)!");
+                // Exit();
             }
             // --- End Existing Update Logic ---
         }
-        
+
         private void CheckShaderToggles()
         {
             if (Keyboard.IsKeyDown(Keys.LeftShift))
@@ -288,6 +377,15 @@ namespace Client.Main
             ActiveScene = (BaseScene)Activator.CreateInstance(sceneType);
             await ActiveScene.Initialize();
         }
+
+        // *** POCZĄTEK NOWEJ METODY ***
+        /// <summary>
+        /// Changes the active scene to the provided scene instance.
+        /// Handles disposal of the old scene and initialization of the new one.
+        /// </summary>
+        /// <param name="newScene">The pre-initialized scene instance to switch to.</param>
+        // Add a logger field for use in instance methods
+        private ILogger? _logger => AppLoggerFactory?.CreateLogger<MuGame>();
 
         private void UpdateInputInfo(GameTime gameTime)
         {
@@ -436,7 +534,7 @@ namespace Client.Main
         protected override void Dispose(bool disposing)
         {
             if (disposing)
-            {
+            { 
                 // Dispose managed resources like NetworkManager if not already done in UnloadContent
                 // Use ?. operator for safety
                 Network?.DisposeAsync().AsTask().Wait(); // Ensure disposal if UnloadContent wasn't called

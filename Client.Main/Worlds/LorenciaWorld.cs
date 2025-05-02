@@ -24,14 +24,15 @@ namespace Client.Main.Worlds
 
         public override void AfterLoad()
         {
-            Walker.Location = new Vector2(138, 124);
+            // ‼ NIE ustawiamy Walker.Location na sztywno
+            // jeśli jednak spawn nie został przekazany, ustaw domyślny
+            if (Walker.Location == Vector2.Zero)
+                Walker.Location = new Vector2(138, 124);
 
-            // water animation parameters for LorenciaWorld
-            Terrain.WaterSpeed = 0.05f;             // Example: faster water movement
-            Terrain.DistortionAmplitude = 0.2f;      // Example: stronger distortion
-            Terrain.DistortionFrequency = 1.0f;      // Example: lower frequency for distortion
+            Terrain.WaterSpeed = 0.05f;
+            Terrain.DistortionAmplitude = 0.2f;
+            Terrain.DistortionFrequency = 1.0f;
 
-            // Preload the pub music to avoid frame freeze on first entry into the pub area
             SoundController.Instance.PreloadBackgroundMusic(pubMusicPath);
 
             base.AfterLoad();
