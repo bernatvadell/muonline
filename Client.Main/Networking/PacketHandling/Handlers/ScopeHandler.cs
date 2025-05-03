@@ -6,6 +6,13 @@ using Client.Main.Core.Models;
 using System;
 using System.Threading.Tasks;
 using System.Linq;
+using MUnique.OpenMU.Network.Packets;
+using Client.Main.Objects.Player;
+using Client.Main.Controls;
+using Microsoft.Xna.Framework;
+using System.Collections.Generic;
+using Client.Main.Models;
+using System.Diagnostics;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
@@ -51,110 +58,111 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
+        private static readonly List<PlayerScopeObject> _pendingPlayers = new();
+
+        /// <summary>
+        /// Podaj bufor do GameScene po załadowaniu świata.
+        /// </summary>
+        internal static List<PlayerScopeObject> TakePendingPlayers()
+        {
+            lock (_pendingPlayers)
+            {
+                var copy = _pendingPlayers.ToList();
+                _pendingPlayers.Clear();
+                return copy;
+            }
+        }
+        /* -------------------------------------------------------------- */
+
+
+        /* -------------------- Uaktualniony parser 0x12 ---------------- */
         private void ParseAndAddCharactersToScope(Memory<byte> packet)
         {
-            ushort foundCharacterId = 0xFFFF;
-            string characterNameToFind = _characterState.Name;
+            var scope = new AddCharactersToScopeRef(packet.Span);
 
-            switch (_targetVersion)
+            for (int i = 0; i < scope.CharacterCount; i++)
             {
-                case TargetProtocolVersion.Season6:
-                    var scopeS6 = new AddCharactersToScopeRef(packet.Span);
-                    if (packet.Length < scopeS6.FinalSize)
-                    {
-                        _logger.LogWarning("AddCharactersToScope (S6) packet too short (Length: {Length}, Expected: {Expected})", packet.Length, scopeS6.FinalSize);
-                        return;
-                    }
-                    _logger.LogInformation("Received AddCharactersToScope (S6): {Count} characters.", scopeS6.CharacterCount);
-                    for (int i = 0; i < scopeS6.CharacterCount; i++)
-                    {
-                        var c = scopeS6[i];
-                        ushort rawId = c.Id;
-                        ushort maskedId = (ushort)(rawId & 0x7FFF);
-                        string name = c.Name;
-                        byte x = c.CurrentPositionX;
-                        byte y = c.CurrentPositionY;
-                        _logger.LogDebug("Parsed AddCharacter: ID={MaskedId:X4}, Name={Name}, ParsedPos=({X},{Y})", maskedId, name, x, y);
+                var c = scope[i];
+                CharacterClassNumber cls = ClassFromAppearance(c.Appearance);
+                ushort raw = c.Id;
+                ushort masked = (ushort)(raw & 0x7FFF);
 
-                        _scopeManager.AddOrUpdatePlayerInScope(maskedId, rawId, x, y, name);
-                        var playerObj = new PlayerScopeObject(maskedId, rawId, x, y, name);
-                        // _networkManager.ViewModel.AddOrUpdateMapObject(playerObj);
+                // ───────────── POMIŃ SWOJEGO GRACZA ─────────────
+                if (masked == _characterState.Id)
+                {
+                    // tylko zaktualizuj pozycję w ScopeManagerze
+                    _scopeManager.AddOrUpdatePlayerInScope(masked, raw, c.CurrentPositionX, c.CurrentPositionY, c.Name);
+                    continue;
+                }
 
-                        // Identify and set the player's own character ID if not already set
-                        if (c.Name == characterNameToFind && _characterState.Id == 0xFFFF)
-                        {
-                            _logger.LogInformation("Player '{Name}' (ID: {MaskedId:X4}) appeared at ({X},{Y}).", c.Name, maskedId, x, y);
-                            foundCharacterId = maskedId;
-                        }
-                    }
-                    break;
-                case TargetProtocolVersion.Version097:
-                    var scope097 = new AddCharactersToScope095(packet);
-                    // Packet length check for 0.97 needed if structure size is variable or includes counts
-                    _logger.LogInformation("Received AddCharactersToScope (0.97): {Count} characters.", scope097.CharacterCount);
-                    for (int i = 0; i < scope097.CharacterCount; i++)
-                    {
-                        var c = scope097[i];
-                        ushort rawId097 = c.Id;
-                        ushort maskedId097 = (ushort)(rawId097 & 0x7FFF);
-                        string name = c.Name;
-                        byte x = c.CurrentPositionX;
-                        byte y = c.CurrentPositionY;
-                        _logger.LogDebug("Parsed AddCharacter: ID={MaskedId:X4}, Name={Name}, ParsedPos=({X},{Y})", maskedId097, name, x, y);
+                byte x = c.CurrentPositionX;
+                byte y = c.CurrentPositionY;
+                string name = c.Name;
 
-                        _scopeManager.AddOrUpdatePlayerInScope(maskedId097, rawId097, x, y, name);
-                        var playerObj = new PlayerScopeObject(maskedId097, rawId097, x, y, name);
-                        // _networkManager.ViewModel.AddOrUpdateMapObject(playerObj);
+                _scopeManager.AddOrUpdatePlayerInScope(masked, raw, x, y, name);
 
-                        if (c.Name == characterNameToFind && _characterState.Id == 0xFFFF)
-                        {
-                            _logger.LogInformation("Player '{Name}' (ID: {MaskedId:X4}) appeared at ({X},{Y}).", c.Name, maskedId097, x, y);
-                            foundCharacterId = maskedId097;
-                        }
-                    }
-                    break;
-                case TargetProtocolVersion.Version075:
-                    var scope075 = new AddCharactersToScope075(packet);
-                    // Packet length check for 0.75 needed
-                    _logger.LogInformation("Received AddCharactersToScope (0.75): {Count} characters.", scope075.CharacterCount);
-                    for (int i = 0; i < scope075.CharacterCount; i++)
-                    {
-                        var c = scope075[i];
-                        ushort rawId075 = c.Id;
-                        ushort maskedId075 = (ushort)(rawId075 & 0x7FFF);
-                        string name = c.Name;
-                        byte x = c.CurrentPositionX;
-                        byte y = c.CurrentPositionY;
-                        _logger.LogDebug("Parsed AddCharacter: ID={MaskedId:X4}, Name={Name}, ParsedPos=({X},{Y})", maskedId075, name, x, y);
-
-                        _scopeManager.AddOrUpdatePlayerInScope(maskedId075, rawId075, x, y, name);
-                        var playerObj = new PlayerScopeObject(maskedId075, rawId075, x, y, name);
-                        // _networkManager.ViewModel.AddOrUpdateMapObject(playerObj);
-
-                        if (c.Name == characterNameToFind && _characterState.Id == 0xFFFF)
-                        {
-                            _logger.LogInformation("Player '{Name}' (ID: {MaskedId:X4}) appeared at ({X},{Y}).", c.Name, maskedId075, x, y);
-                            foundCharacterId = maskedId075;
-                        }
-                    }
-                    break;
-                default:
-                    _logger.LogWarning("Unsupported protocol version ({Version}) for AddCharacterToScope.", _targetVersion);
-                    break;
+                /* Spawn – zależnie od tego, czy świat już istnieje */
+                if (MuGame.Instance.ActiveScene?.World is WalkableWorldControl w &&
+                    w.Status == GameControlStatus.Ready)
+                {
+                    SpawnRemotePlayerIntoWorld(w, masked, x, y, name, cls);
+                }
+                else
+                {
+                    lock (_pendingPlayers)
+                        _pendingPlayers.Add(
+                            new PlayerScopeObject(masked, raw, x, y, name, cls));
+                }
             }
-
-            // Set character ID if found and not already set
-            if (foundCharacterId != 0xFFFF && _characterState.Id == 0xFFFF)
-            {
-                _characterState.Id = foundCharacterId;
-                _logger.LogInformation("Character ID set: {CharacterId:X4}", _characterState.Id);
-                // _networkManager.ViewModel.UpdateCharacterStateDisplay();
-                // _networkManager.UpdateConsoleTitle();
-            }
-
-            // _networkManager.ViewModel.UpdateScopeDisplay();
         }
 
+        private static CharacterClassNumber ClassFromAppearance(ReadOnlySpan<byte> app)
+        {
+            if (app.Length == 0) return CharacterClassNumber.DarkWizard;
+            int raw = (app[0] >> 3) & 0b1_1111;
+            return raw switch
+            {
+                0 => CharacterClassNumber.DarkWizard,
+                1 => CharacterClassNumber.SoulMaster,
+                2 => CharacterClassNumber.GrandMaster,
+                4 => CharacterClassNumber.DarkKnight,
+                6 => CharacterClassNumber.BladeKnight,
+                8 => CharacterClassNumber.FairyElf,
+                10 => CharacterClassNumber.MuseElf,
+                12 => CharacterClassNumber.MagicGladiator,
+                16 => CharacterClassNumber.DarkLord,
+                20 => CharacterClassNumber.Summoner,
+                24 => CharacterClassNumber.RageFighter,
+                _ => CharacterClassNumber.DarkWizard
+            };
+        }
+
+        private static void SpawnRemotePlayerIntoWorld(
+       WalkableWorldControl world,
+       ushort maskedId, byte x, byte y, string name,
+       CharacterClassNumber cls = CharacterClassNumber.DarkWizard)
+        {
+            // JEŚLI maskedId == Walker bieżącej mapy ⇒ to jest gracz lokalny – pomijamy
+            if (world.Walker is PlayerObject local && local.NetworkId == maskedId)
+                return;
+
+            MuGame.ScheduleOnMainThread(async () =>
+            {
+                if (world.Objects.OfType<PlayerObject>().Any(p => p.NetworkId == maskedId))
+                    return;   // już istnieje
+
+                var p = new PlayerObject
+                {
+                    NetworkId = maskedId,
+                    CharacterClass = cls,
+                    Name = name,
+                    Location = new Vector2(x, y)
+                };
+
+                world.Objects.Add(p);
+                await p.Load();        // tylko Load (bez Initialize)
+            });
+        }
 
         [PacketHandler(0x13, PacketRouter.NoSubCode)] // AddNpcToScope
         public Task HandleAddNpcToScopeAsync(Memory<byte> packet)
@@ -510,66 +518,35 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
-        [PacketHandler(0x14, PacketRouter.NoSubCode)] // MapObjectOutOfScope
+        [PacketHandler(0x14, PacketRouter.NoSubCode)]
         public Task HandleMapObjectOutOfScopeAsync(Memory<byte> packet)
         {
-            try
+            var outPkt = new MapObjectOutOfScope(packet);
+            int count = outPkt.ObjectCount;
+
+            MuGame.ScheduleOnMainThread(() =>
             {
-                var outOfScopePacket = new MapObjectOutOfScope(packet);
-                int count = outOfScopePacket.ObjectCount;
+                if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl world) return;
 
-                if (count > 0)
+                for (int i = 0; i < count; i++)
                 {
-                    _logger.LogInformation("Received MapObjectOutOfScope (14): {Count} object(s).", count);
-                    for (int i = 0; i < count; i++)
+                    ushort raw = outPkt[i].Id;
+                    ushort id = (ushort)(raw & 0x7FFF);
+
+                    // 1) usuwamy z ScopeManagera
+                    _scopeManager.RemoveObjectFromScope(id);
+
+                    // 2) usuwamy z listy renderowanej
+                    var remote = world.Objects
+                        .OfType<PlayerObject>()
+                        .FirstOrDefault(p => p.NetworkId == id);
+                    if (remote != null)
                     {
-                        try
-                        {
-                            var outOfScopeObject = outOfScopePacket[i];
-                            ushort objectIdRaw = outOfScopeObject.Id;
-                            ushort objectIdMasked = (ushort)(objectIdRaw & 0x7FFF);
-
-                            // Try to get a name before removing
-                            string objectName = "Object";
-                            if (_scopeManager.TryGetScopeObjectName(objectIdRaw, out var name))
-                            {
-                                objectName = name ?? objectName;
-                            }
-
-                            // Remove the object from the scope manager
-                            if (_scopeManager.RemoveObjectFromScope(objectIdMasked))
-                            {
-                                _logger.LogInformation("💨 {ObjectName} (ID: {MaskedId:X4}) went out of scope.", objectName, objectIdMasked);
-                            }
-                            else
-                            {
-                                _logger.LogDebug("Attempted to remove object {MaskedId:X4} from scope (Out of Scope packet), but it was not found.", objectIdMasked);
-                            }
-
-                            // Remove the object from the map display
-                            // _networkManager.ViewModel.RemoveMapObject(objectIdMasked);
-                        }
-                        catch (IndexOutOfRangeException ex)
-                        {
-                            _logger.LogError(ex, "Index out of range while processing object out of scope at index {Index} in MapObjectOutOfScope (14). Packet length: {PacketLen}, Count: {Count}", i, packet.Length, count);
-                            break; // Stop processing if index is invalid
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Error processing object out of scope at index {Index} in MapObjectOutOfScope (14).", i);
-                        }
+                        world.Objects.Remove(remote);
                     }
                 }
-                else
-                {
-                    _logger.LogDebug("Received empty MapObjectOutOfScope (14) packet.");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error parsing MapObjectOutOfScope (14).");
-            }
-            // _networkManager.ViewModel.UpdateScopeDisplay(); // Update scope display after removals
+            });
+
             return Task.CompletedTask;
         }
 
@@ -634,87 +611,38 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         }
 
 
-        [PacketHandler(0xD4, PacketRouter.NoSubCode)] // ObjectWalked
+        [PacketHandler(0xD4, PacketRouter.NoSubCode)]
         public Task HandleObjectWalkedAsync(Memory<byte> packet)
         {
-            ushort objectIdMasked = 0xFFFF;
-            try
+            const int ExpectedLen = 7;
+            if (packet.Length < ExpectedLen)
+                return Task.CompletedTask;
+
+            var walk = new ObjectWalked(packet);
+            ushort raw = walk.ObjectId;
+            ushort id = (ushort)(raw & 0x7FFF);
+            byte tx = walk.TargetX;
+            byte ty = walk.TargetY;
+
+            MuGame.ScheduleOnMainThread(() =>
             {
-                const int ExpectedWalkPacketLength = 7; // typical size for ObjectWalked packet
-                if (packet.Length < ExpectedWalkPacketLength)
-                {
-                    _logger.LogWarning("ObjectWalked packet (0xD4) too short. Length: {Length}", packet.Length);
-                    return Task.CompletedTask;
-                }
-                var walk = new ObjectWalked(packet);
-                ushort objectIdRaw = walk.ObjectId;
-                objectIdMasked = (ushort)(objectIdRaw & 0x7FFF);
-                byte targetX = walk.TargetX;
-                byte targetY = walk.TargetY;
-                byte stepCount = walk.StepCount;
-                _logger.LogDebug("Parsed ObjectWalked: ID={MaskedId:X4}, ParsedTargetPos=({X},{Y}), StepCount={StepCount}", objectIdMasked, targetX, targetY, stepCount);
+                if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl world)
+                    return;
 
+                // jeżeli to nie jest lokalny gracz – aktualizujemy tylko wizualnie
+                var remote = world.Objects
+                                  .OfType<PlayerObject>()
+                                  .FirstOrDefault(p => p.NetworkId == id);
 
-                // Update target position in scope manager
-                if (_scopeManager.TryUpdateScopeObjectPosition(objectIdMasked, targetX, targetY))
+                if (remote != null)
                 {
-                    _logger.LogTrace("Updated position for {Id:X4} in scope via walk packet.", objectIdMasked);
+                    remote.MoveTo(new Vector2(tx, ty), sendToServer: false);
                 }
-                else
-                {
-                    _logger.LogTrace("Object {Id:X4} not found in scope for walk update (or not tracked).", objectIdMasked);
-                }
+                // lokalny gracz?  pozycję zaktualizuje CharacterService
+            });
 
-                // Update target position on the map display
-                // _networkManager.ViewModel.UpdateMapObjectPosition(objectIdMasked, targetX, targetY);
-
-                // If it's our character
-                if (objectIdMasked == _characterState.Id)
-                {
-                    _characterState.UpdatePosition(targetX, targetY); // Update character state with the target position
-                    // _networkManager.UpdateConsoleTitle();
-                    // _networkManager.ViewModel.UpdateCharacterStateDisplay();
-
-                    // A stepCount of 0 often indicates the end of the walk sequence
-                    if (stepCount == 0)
-                    {
-                        _logger.LogInformation("🚶‍➡️ Character walk ended/rotated at ({TargetX},{TargetY}) via 0xD4 (Steps=0)", targetX, targetY);
-                        // _networkManager.SignalMovementHandled(); // Signal that the walk is complete
-                    }
-                    else
-                    {
-                        _logger.LogInformation("🚶‍➡️ Character walking -> [Server Target:({TargetX},{TargetY})] Steps:{Steps}", targetX, targetY, stepCount);
-                        // For ongoing walks (stepCount > 0), we don't signal completion yet.
-                        // We wait for the final 0xD4 (stepCount 0), a 0x15 (teleport/stop), or another command completion signal.
-                    }
-                }
-                else
-                {
-                    // Log walk of other objects for debugging
-                    _logger.LogDebug("Other object ({Id:X4}) walking -> [Server Target:({TargetX},{TargetY})] Steps:{Steps}", objectIdMasked, targetX, targetY, stepCount);
-                }
-
-                // _networkManager.ViewModel.UpdateScopeDisplay(); // Update scope display in UI
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error parsing ObjectWalked (D4).");
-            }
-            finally
-            {
-                // This finally block ensures the movement lock is eventually released
-                // if it was held for a walk sequence, especially important if exceptions occur.
-                // The SignalMovementHandledIfWalking() method checks if a walk is pending.
-                if (objectIdMasked == _characterState.Id)
-                {
-                    // Check stepCount again if needed, but rely on the logic within SignalMovementHandledIfWalking
-                    // It's safer to just call the method that manages the lock state.
-                    // _networkManager.SignalMovementHandledIfWalking();
-                }
-            }
             return Task.CompletedTask;
         }
-
 
         [PacketHandler(0x17, PacketRouter.NoSubCode)] // ObjectGotKilled
         public Task HandleObjectGotKilledAsync(Memory<byte> packet)
@@ -765,7 +693,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         }
 
 
-        [PacketHandler(0x18, PacketRouter.NoSubCode)] // ObjectAnimation
+        [PacketHandler(0x18, PacketRouter.NoSubCode)]          // ObjectAnimation
         public Task HandleObjectAnimationAsync(Memory<byte> packet)
         {
             try
@@ -775,27 +703,48 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     _logger.LogWarning("ObjectAnimation packet (0x18) too short. Length: {Length}", packet.Length);
                     return Task.CompletedTask;
                 }
-                var animation = new ObjectAnimation(packet);
-                ushort objectIdRaw = animation.ObjectId;
-                ushort objectIdMasked = (ushort)(objectIdRaw & 0x7FFF);
-                string animDesc = animation.Animation == 0 ? "Stop" : $"Anim={animation.Animation}";
 
-                // Log animation event for our character or other objects
-                if (objectIdMasked == _characterState.Id)
+                var anim = new ObjectAnimation(packet);
+                ushort id = (ushort)(anim.ObjectId & 0x7FFF);
+
+                // 0 = stop, wszystko inne = ruch (MU tak właśnie nadaje)
+                bool walking = anim.Animation != 0;
+
+                // --- LOCAL PLAYER ------------------------------------------------
+                if (id == _characterState.Id)
                 {
-                    _logger.LogInformation("🤺 Our character -> {AnimDesc}, Direction={Dir}, TargetID={Target:X4}", animDesc, animation.Direction, animation.TargetId);
-                }
-                else
-                {
-                    _logger.LogDebug("Other object ({Id:X4}) -> {AnimDesc}, Direction={Dir}, TargetID={Target:X4}", objectIdMasked, animDesc, animation.Direction, animation.TargetId);
+                    // wystarczy zaktualizować CharacterState,
+                    // PlayerObject localny sam dobierze animację w Update()
+                    _logger.LogInformation("🏃‍♂️ Local animation → {Anim} (dir {Dir})", anim.Animation, anim.Direction);
+                    return Task.CompletedTask;
                 }
 
-                // Note: Updating map object animation/state might be done here if the ViewModel supports it.
+                // --- REMOTE PLAYER ----------------------------------------------
+                // szukamy obiektu w aktualnym świecie
+                if (MuGame.Instance.ActiveScene?.World is WalkableWorldControl world)
+                {
+                    var remote = world.Objects
+                                      .OfType<PlayerObject>()
+                                      .FirstOrDefault(p => p.NetworkId == id);
+
+                    if (remote != null)
+                    {
+                        remote.CurrentAction = walking
+                            ? PlayerAction.WalkMale     // lub Run/Fly → w razie potrzeby mapuj kody animacji
+                            : PlayerAction.StopMale;
+
+                        // jeżeli serwer przesyła kierunek, ustaw go również
+                        remote.Direction = (Models.Direction)anim.Direction;
+                    }
+                }
+
+                _logger.LogDebug("Remote {Id:X4} anim={Anim} dir={Dir}", id, anim.Animation, anim.Direction);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error parsing ObjectAnimation (18).");
+                _logger.LogError(ex, "Error parsing ObjectAnimation (0x18).");
             }
+
             return Task.CompletedTask;
         }
 

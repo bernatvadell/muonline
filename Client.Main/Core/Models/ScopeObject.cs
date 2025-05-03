@@ -81,33 +81,22 @@ namespace Client.Main.Core.Models
     /// </summary>
     public class PlayerScopeObject : ScopeObject
     {
-        /// <summary>
-        /// Gets or sets the name of the player character.
-        /// </summary>
         public string Name { get; set; }
+        public CharacterClassNumber Class { get; set; }   //  ← NOWA WŁAŚCIWOŚĆ
 
-        /// <inheritdoc />
         public override ScopeObjectType ObjectType => ScopeObjectType.Player;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="PlayerScopeObject"/> class.
-        /// </summary>
-        /// <param name="maskedId">The masked identifier of the player scope object.</param>
-        /// <param name="rawId">The raw identifier of the player scope object.</param>
-        /// <param name="x">The X-coordinate of the player's position.</param>
-        /// <param name="y">The Y-coordinate of the player's position.</param>
-        /// <param name="name">The name of the player.</param>
-        public PlayerScopeObject(ushort maskedId, ushort rawId, byte x, byte y, string name)
+        public PlayerScopeObject(ushort maskedId, ushort rawId,
+                                 byte x, byte y, string name,
+                                 CharacterClassNumber cls = CharacterClassNumber.DarkWizard)
             : base(maskedId, rawId, x, y)
         {
             Name = name;
+            Class = cls;
         }
 
-        /// <inheritdoc />
         public override string ToString()
-        {
-            return $"ID: {Id:X4} (Raw: {RawId:X4}) (Player: {Name}) at [{PositionX},{PositionY}]";
-        }
+            => $"ID: {Id:X4} ({RawId:X4})  Player: {Name}  Class: {Class}  @[{PositionX},{PositionY}]";
     }
 
     /// <summary>

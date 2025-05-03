@@ -22,6 +22,8 @@ namespace Client.Main.Objects.Player
 
         // Identification and Network Class
         public string Name { get; set; } = "Character";
+        public ushort NetworkId { get; set; }  // ID z pakietów serwera (masked 0x7FFF)
+
         private CharacterClassNumber _characterClass;
         public CharacterClassNumber CharacterClass
         {
@@ -79,7 +81,7 @@ namespace Client.Main.Objects.Player
             Pants = new PlayerPantObject { LinkParentAnimation = true };
             Gloves = new PlayerGloveObject { LinkParentAnimation = true };
             Boots = new PlayerBootObject { LinkParentAnimation = true };
-            Wings = new Wing403 { LinkParentAnimation = false, Hidden = false }; // Example Wing
+            Wings = new Wing403 { LinkParentAnimation = false, Hidden = true }; // Example Wing
 
             // Add children AFTER they are created
             Children.Add(HelmMask);

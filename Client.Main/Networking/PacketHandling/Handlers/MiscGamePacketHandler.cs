@@ -17,30 +17,37 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         private readonly NetworkManager _networkManager;
         private readonly CharacterService _characterService;
         private readonly TargetProtocolVersion _targetVersion;
+        private readonly CharacterState _characterState;
 
-        public MiscGamePacketHandler(ILoggerFactory loggerFactory, NetworkManager networkManager, CharacterService characterService, TargetProtocolVersion targetVersion)
+        public MiscGamePacketHandler(ILoggerFactory loggerFactory, NetworkManager networkManager, CharacterService characterService, CharacterState characterState, TargetProtocolVersion targetVersion)
         {
             _logger = loggerFactory.CreateLogger<MiscGamePacketHandler>();
             _networkManager = networkManager;
             _characterService = characterService;
             _targetVersion = targetVersion;
+            _characterState = characterState;
         }
 
-        [PacketHandler(0xF1, 0x00)] // GameServerEntered
+        [PacketHandler(0xF1, 0x00)]                              // GameServerEntered
         public Task HandleGameServerEnteredAsync(Memory<byte> packet)
         {
             try
             {
                 var entered = new GameServerEntered(packet);
-                _logger.LogInformation(">>> HandleGameServerEnteredAsync: Received F1 00 from GS (PlayerID: {PlayerId}). Calling NetworkManager.ProcessGameServerEntered...", entered.PlayerId);
-                // Wywołaj metodę w NetworkManager
-                _networkManager.ProcessGameServerEntered();
-                _logger.LogInformation("<<< HandleGameServerEnteredAsync: NetworkManager.ProcessGameServerEntered called.");
+
+                // ───────── 1) zapisz ID znane już serwerowi ─────────
+                _characterState.Id = entered.PlayerId;            // <-- NEW
+
+                _logger.LogInformation("👋 Witamy na GS. PlayerId = {Pid:X4}", entered.PlayerId);
+
+                // (opcjonalnie) ustaw wstępne koordynaty, jeżeli struktura je zwraca
+                // _characterState.UpdatePosition(entered.StartX, entered.StartY);
+
+                _networkManager.ProcessGameServerEntered();       // twoja dalsza logika
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "💥 Error processing GameServerEntered (F1, 00).");
-                // _networkManager.OnErrorOccurred("Error processing server welcome packet."); // Powiadom o błędzie
+                _logger.LogError(ex, "Error processing GameServerEntered (F1 00).");
             }
             return Task.CompletedTask;
         }

@@ -14,8 +14,8 @@ namespace Client.Main.Objects
 {
     public abstract class ModelObject : WorldObject
     {
-        private VertexBuffer[] _boneVertexBuffers;
-        private IndexBuffer[] _boneIndexBuffers;
+        private DynamicVertexBuffer[] _boneVertexBuffers;
+        private DynamicIndexBuffer[] _boneIndexBuffers;
         private Texture2D[] _boneTextures;
         private TextureScript[] _scriptTextures;
         private TextureData[] _dataTextures;
@@ -82,8 +82,8 @@ namespace Client.Main.Objects
             }
 
             int meshCount = Model.Meshes.Length;
-            _boneVertexBuffers = new VertexBuffer[meshCount];
-            _boneIndexBuffers = new IndexBuffer[meshCount];
+            _boneVertexBuffers = new DynamicVertexBuffer[meshCount];
+            _boneIndexBuffers = new DynamicIndexBuffer[meshCount];
             _boneTextures = new Texture2D[meshCount];
             _scriptTextures = new TextureScript[meshCount];
             _dataTextures = new TextureData[meshCount];
@@ -647,10 +647,9 @@ namespace Client.Main.Objects
 
                         BMDLoader.Instance.GetModelBuffers(
                             Model, meshIndex, bodyColor, bones,
-                            out var vbuf, out var ibuf);
+                            ref _boneVertexBuffers[meshIndex],
+                            ref _boneIndexBuffers[meshIndex]);
 
-                        _boneVertexBuffers[meshIndex] = vbuf;
-                        _boneIndexBuffers[meshIndex] = ibuf;
 
                         if (_boneTextures[meshIndex] == null)
                         {

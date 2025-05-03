@@ -19,8 +19,6 @@ namespace Client.Main.Content
         private readonly BMDReader _reader = new();
         private readonly Dictionary<string, Task<BMD>> _bmds = [];
         private readonly Dictionary<BMD, Dictionary<string, string>> _texturePathMap = [];
-        private readonly Dictionary<BMD, DynamicVertexBuffer[]> _vertexs = [];
-        private readonly Dictionary<BMD, DynamicIndexBuffer[]> _indexs = [];
 
         private GraphicsDevice _graphicsDevice;
 
@@ -89,12 +87,12 @@ namespace Client.Main.Content
         /// Uses ArrayPool to eliminate per‑frame allocations.
         /// </summary>
         public void GetModelBuffers(
-            BMD asset,
-            int meshIndex,
-            Color color,
-            Matrix[] boneMatrix,
-            out DynamicVertexBuffer vertexBuffer,
-            out DynamicIndexBuffer indexBuffer)
+         BMD asset,
+         int meshIndex,
+         Color color,
+         Matrix[] boneMatrix,
+         ref DynamicVertexBuffer vertexBuffer,
+         ref DynamicIndexBuffer indexBuffer)
         {
             if (boneMatrix == null)
             {
@@ -103,41 +101,30 @@ namespace Client.Main.Content
                 return;
             }
 
-            // dictionaries initialisation
-            if (!_vertexs.TryGetValue(asset, out var vertexs))
-                _vertexs[asset] = vertexs = new DynamicVertexBuffer[asset.Meshes.Length];
-
-            if (!_indexs.TryGetValue(asset, out var indexs))
-                _indexs[asset] = indexs = new DynamicIndexBuffer[asset.Meshes.Length];
-
             var mesh = asset.Meshes[meshIndex];
             int totalVertices = mesh.Triangles.Sum(t => t.Polygon);
-            int totalIndices = totalVertices; // 1‑to‑1 mapping
+            int totalIndices = totalVertices;
 
-            // (re)allocate GPU buffers only when needed
-            vertexBuffer = vertexs[meshIndex];
             if (vertexBuffer == null || vertexBuffer.VertexCount < totalVertices)
             {
                 vertexBuffer?.Dispose();
-                vertexBuffer = vertexs[meshIndex] = new DynamicVertexBuffer(
+                vertexBuffer = new DynamicVertexBuffer(
                     _graphicsDevice,
                     VertexPositionColorNormalTexture.VertexDeclaration,
                     totalVertices,
                     BufferUsage.None);
             }
 
-            indexBuffer = indexs[meshIndex];
             if (indexBuffer == null || indexBuffer.IndexCount < totalIndices)
             {
                 indexBuffer?.Dispose();
-                indexBuffer = indexs[meshIndex] = new DynamicIndexBuffer(
+                indexBuffer = new DynamicIndexBuffer(
                     _graphicsDevice,
                     IndexElementSize.ThirtyTwoBits,
                     totalIndices,
                     BufferUsage.None);
             }
 
-            // ---------- rent arrays ----------
             var vertices = ArrayPool<VertexPositionColorNormalTexture>.Shared.Rent(totalVertices);
             var indices = ArrayPool<int>.Shared.Rent(totalIndices);
 
@@ -168,15 +155,12 @@ namespace Client.Main.Content
                 }
             }
 
-            // upload to GPU
             vertexBuffer.SetData(vertices, 0, totalVertices, SetDataOptions.Discard);
             indexBuffer.SetData(indices, 0, totalIndices, SetDataOptions.Discard);
 
-            // ---------- return arrays ----------
             ArrayPool<VertexPositionColorNormalTexture>.Shared.Return(vertices);
             ArrayPool<int>.Shared.Return(indices, clearArray: true);
         }
-
 
         public string GetTexturePath(BMD bmd, string texturePath)
         {

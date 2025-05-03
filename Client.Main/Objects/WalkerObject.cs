@@ -200,17 +200,27 @@ namespace Client.Main.Objects
             Position = new Vector3(MoveTargetPosition.X, MoveTargetPosition.Y, newZ);
         }
 
-        public void MoveTo(Vector2 targetLocation)
+        public void MoveTo(Vector2 targetLocation, bool sendToServer = true)
         {
-            if (World == null) return;
+            if (World == null)
+                return;
 
-            List<Vector2> path = Pathfinding.FindPath(new Vector2((int)Location.X, (int)Location.Y), targetLocation, World);
+            // znajdź ścieżkę tylko dla sąsiadujących pól
+            List<Vector2> path = Pathfinding.FindPath(
+                new Vector2((int)Location.X, (int)Location.Y),
+                targetLocation,
+                World);
+
             if (path == null || path.Count == 0)
                 return;
 
             _currentPath = path;
 
-            SendWalkPathToServer(path);
+            /*  *** TYLKO GRACZ-LOKALNY WYSYŁA PAKIETY ***  */
+            if (sendToServer && IsMainWalker)
+            {
+                SendWalkPathToServer(path);
+            }
         }
 
         private async void SendWalkPathToServer(List<Vector2> path)

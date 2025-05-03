@@ -83,7 +83,7 @@ namespace Client.Main.Networking.PacketHandling
             _scopeHandler = new ScopeHandler(loggerFactory, scopeManager, characterState, networkManager, targetVersion);
             _chatMessageHandler = new ChatMessageHandler(loggerFactory);
             _connectServerHandler = new ConnectServerHandler(loggerFactory, networkManager);
-            _miscGamePacketHandler = new MiscGamePacketHandler(loggerFactory, networkManager, characterService, targetVersion);
+            _miscGamePacketHandler = new MiscGamePacketHandler(loggerFactory, networkManager, characterService, characterState, targetVersion);
 
             RegisterAttributeBasedHandlers(); // Automatically register handlers using attributes
             RegisterConnectServerHandlers(); // Manually register Connect Server handlers

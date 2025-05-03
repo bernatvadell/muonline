@@ -12,7 +12,9 @@ using System.Threading.Tasks;
 using Client.Main.Client;
 using System.Diagnostics;
 using MUnique.OpenMU.Network.Packets;
-using System.Collections.Generic; // For CharacterClassNumber
+using System.Collections.Generic;
+using Client.Main.Networking.PacketHandling.Handlers;
+using System.Linq; // For CharacterClassNumber
 
 namespace Client.Main.Scenes
 {
@@ -133,6 +135,7 @@ namespace Client.Main.Scenes
             var state = MuGame.Network?.GetCharacterState();
             if (state != null)
             {
+                _hero.NetworkId = state.Id; // ← DODANE: ustaw ID postaci
                 _hero.Location = new Vector2(state.PositionX, state.PositionY);
                 Debug.WriteLine($"GameScene.Load: Spawn pos from server -> ({state.PositionX},{state.PositionY})");
             }
@@ -152,6 +155,37 @@ namespace Client.Main.Scenes
                 await _hero.Load();
 
             AddChatTestData();
+        }
+
+        private async Task ImportPendingRemotePlayers()
+        {
+            if (World is not WalkableWorldControl w)
+                return;
+
+            // pobierz i wyczyść bufor zgromadzony w ScopeHandler
+            var list = ScopeHandler.TakePendingPlayers();
+
+            foreach (var s in list)
+            {
+                // pomiń samego siebie
+                if (s.Id == MuGame.Network.GetCharacterState().Id)
+                    continue;
+
+                // jeżeli już istnieje obiekt z tym NetworkId → nie twórz drugiego
+                if (w.Objects.OfType<PlayerObject>().Any(p => p.NetworkId == s.Id))
+                    continue;
+
+                var remote = new PlayerObject
+                {
+                    NetworkId = s.Id,
+                    Name = s.Name,
+                    CharacterClass = s.Class,   // brak w 0x12
+                    Location = new Vector2(s.PositionX, s.PositionY)
+                };
+
+                w.Objects.Add(remote);
+                await remote.Load();
+            }
         }
 
         private async Task ChangeMap(Type worldType)
@@ -189,6 +223,9 @@ namespace Client.Main.Scenes
 
             World?.Dispose();
             World = _nextWorld;
+
+            await ImportPendingRemotePlayers();
+
             _nextWorld = null;
             Controls.Insert(0, World);
 
@@ -240,6 +277,9 @@ namespace Client.Main.Scenes
 
             World?.Dispose();
             World = _nextWorld;
+
+            await ImportPendingRemotePlayers();
+
             _nextWorld = null;
             Controls.Insert(0, World);
             // _hero.Reset(); // Reset movement state if needed
