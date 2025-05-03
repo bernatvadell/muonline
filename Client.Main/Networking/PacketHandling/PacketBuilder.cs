@@ -71,6 +71,60 @@ namespace Client.Main.Networking.PacketHandling
         }
 
         /// <summary>
+        /// Builds a public chat message packet.
+        /// </summary>
+        /// <param name="writer">The buffer writer to which the packet will be written.</param>
+        /// <param name="characterName">The name of the sending character.</param>
+        /// <param name="message">The chat message content.</param>
+        /// <returns>The size of the built packet in bytes.</returns>
+        public static int BuildPublicChatMessagePacket(IBufferWriter<byte> writer, string characterName, string message)
+        {
+            int messageByteLength = Encoding.UTF8.GetByteCount(message);
+            int packetSize = PublicChatMessage.GetRequiredSize(messageByteLength);
+            var memory = writer.GetMemory(packetSize).Slice(0, packetSize);
+            var packet = new PublicChatMessage(memory); // Uses C1 header
+
+            packet.Character = characterName;
+            packet.Message = message;
+
+            return packetSize;
+        }
+
+        /// <summary>
+        /// Builds a whisper message packet.
+        /// </summary>
+        /// <param name="writer">The buffer writer to which the packet will be written.</param>
+        /// <param name="receiverName">The name of the receiving character.</param>
+        /// <param name="message">The whisper message content.</param>
+        /// <returns>The size of the built packet in bytes.</returns>
+        public static int BuildWhisperMessagePacket(IBufferWriter<byte> writer, string receiverName, string message)
+        {
+            int messageByteLength = Encoding.UTF8.GetByteCount(message);
+            int packetSize = WhisperMessage.GetRequiredSize(messageByteLength);
+            var memory = writer.GetMemory(packetSize).Slice(0, packetSize);
+            var packet = new WhisperMessage(memory); // Uses C1 header
+
+            packet.ReceiverName = receiverName;
+            packet.Message = message;
+
+            return packetSize;
+        }
+
+        /// <summary>
+        ///  Encrypts a span of bytes using XOR3 encryption with the provided keys.
+        ///  This method modifies the input span directly, applying the XOR3 encryption in-place.
+        /// </summary>
+        /// <param name="data">The span of bytes to encrypt.</param>
+        /// <param name="xor3Keys">The XOR3 encryption keys (3 bytes).</param>
+        private static void EncryptXor3(Span<byte> data, byte[] xor3Keys)
+        {
+            for (int i = 0; i < data.Length; i++)
+            {
+                data[i] ^= xor3Keys[i % 3]; // Apply XOR with key, cycling through the 3 keys
+            }
+        }
+
+        /// <summary>
         /// Builds a packet to select a character with the given name.
         /// </summary>
         /// <param name="writer">The buffer writer to which the packet will be written.</param>
@@ -217,23 +271,6 @@ namespace Client.Main.Networking.PacketHandling
             var packet = new ConnectionInfoRequest(memory);
             packet.ServerId = serverId; // Set the server ID for the connection info request
             return packetSize; // Return the size of the packet
-        }
-
-
-        // --- Helper Methods ---
-
-        /// <summary>
-        ///  Encrypts a span of bytes using XOR3 encryption with the provided keys.
-        ///  This method modifies the input span directly, applying the XOR3 encryption in-place.
-        /// </summary>
-        /// <param name="data">The span of bytes to encrypt.</param>
-        /// <param name="xor3Keys">The XOR3 encryption keys (3 bytes).</param>
-        private static void EncryptXor3(Span<byte> data, byte[] xor3Keys)
-        {
-            for (int i = 0; i < data.Length; i++)
-            {
-                data[i] ^= xor3Keys[i % 3]; // Apply XOR with key, cycling through the 3 keys
-            }
         }
     }
 }

@@ -40,6 +40,8 @@ namespace Client.Main.Networking
         private readonly CharacterState _characterState; // Keep track of character state
         private readonly ScopeManager _scopeManager;     // Keep track of objects in scope
         private readonly Dictionary<byte, byte> _serverDirectionMap;
+        private string? _selectedCharacterNameForLogin; // To store the name temporarily
+
 
         private ClientConnectionState _currentState = ClientConnectionState.Initial;
         private List<ServerInfo> _serverList = new();
@@ -98,7 +100,73 @@ namespace Client.Main.Networking
 
         // --- Public Methods for UI Interaction ---
 
-        // **** DODAJ TĘ METODĘ ****
+        /// <summary>
+        /// Sends a public chat message (including party, guild, gens with prefixes) to the server.
+        /// </summary>
+        /// <param name="message">The message content, potentially including prefixes like ~, @, $.</param>
+        public async Task SendPublicChatMessageAsync(string message)
+        {
+            if (!IsConnected || _currentState < ClientConnectionState.InGame)
+            {
+                _logger.LogWarning("Cannot send public chat message, not connected or not in game. State: {State}", _currentState);
+                // Optionally inform the user via OnErrorOccurred
+                // OnErrorOccurred("Cannot send chat message: Not in game.");
+                return;
+            }
+
+            // Get character name from state
+            string characterName = _characterState?.Name ?? "Unknown";
+            if (characterName == "???" || characterName == "Unknown")
+            {
+                _logger.LogWarning("Cannot send public chat message, character name not available yet.");
+                OnErrorOccurred("Cannot send chat message: Character data not loaded.");
+                return;
+            }
+
+
+            _logger.LogInformation("✉️ Sending Public Chat: '{Message}'", message);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                    PacketBuilder.BuildPublicChatMessagePacket(_connectionManager.Connection.Output, characterName, message)
+                );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error sending public chat message.");
+                OnErrorOccurred("Error sending chat message.");
+            }
+        }
+
+        /// <summary>
+        /// Sends a whisper message to the specified receiver.
+        /// </summary>
+        /// <param name="receiver">The name of the character to receive the whisper.</param>
+        /// <param name="message">The message content.</param>
+        public async Task SendWhisperMessageAsync(string receiver, string message)
+        {
+            if (!IsConnected || _currentState < ClientConnectionState.InGame)
+            {
+                _logger.LogWarning("Cannot send whisper message, not connected or not in game. State: {State}", _currentState);
+                // OnErrorOccurred("Cannot send whisper: Not in game.");
+                return;
+            }
+
+            _logger.LogInformation("Sending Whisper to '{Receiver}': '{Message}'", receiver, message);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                   PacketBuilder.BuildWhisperMessagePacket(_connectionManager.Connection.Output, receiver, message)
+               );
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error sending whisper message to {Receiver}.", receiver);
+                OnErrorOccurred($"Error sending whisper to {receiver}.");
+            }
+        }
+        // **** END ADDED METHODS ****
+
         /// <summary>
         /// Gets a read-only view of the currently cached server list.
         /// </summary>
@@ -259,9 +327,15 @@ namespace Client.Main.Networking
                 return;
             }
             _logger.LogInformation("Sending select character request for: {CharacterName}", characterName);
+
+            // **** STORE SELECTED NAME ****
+            _selectedCharacterNameForLogin = characterName;
+            // **** END STORE SELECTED NAME ****
+
             UpdateState(ClientConnectionState.SelectingCharacter); // Update state
             await _characterService.SelectCharacterAsync(characterName);
         }
+
 
         // --- Internal State and Event Handling ---
 
@@ -431,13 +505,37 @@ namespace Client.Main.Networking
         // Called by CharacterDataHandler on F3 03
         internal void ProcessCharacterInformation()
         {
-            if (_currentState != ClientConnectionState.SelectingCharacter) { /* ... log warning ... */ return; }
+            // **** ADDED: Check if we are in the correct state transition ****
+            if (_currentState != ClientConnectionState.SelectingCharacter)
+            {
+                _logger.LogWarning("ProcessCharacterInformation called in unexpected state ({CurrentState}). Character name might not be set correctly.", _currentState);
+                // We might still proceed to update the state to InGame, but the name setup is potentially skipped.
+            }
+            else if (string.IsNullOrEmpty(_selectedCharacterNameForLogin))
+            {
+                _logger.LogError("ProcessCharacterInformation called, but _selectedCharacterNameForLogin is null or empty. Cannot set character name in state.");
+                // Decide how to handle this - maybe revert state or raise error?
+                // For now, proceed but log the error.
+            }
+            else
+            {
+                // **** SET CHARACTER NAME IN STATE ****
+                _characterState.Name = _selectedCharacterNameForLogin;
+                _logger.LogInformation("CharacterState.Name set to '{Name}' based on selection.", _characterState.Name);
+                _selectedCharacterNameForLogin = null; // Clear the temporary storage
+                                                       // **** END SET CHARACTER NAME ****
+            }
 
+            // Proceed with the rest of the logic AFTER potentially setting the name
             _logger.LogInformation(">>> ProcessCharacterInformation: Character selected successfully. Updating state to InGame and raising EnteredGame event...");
             UpdateState(ClientConnectionState.InGame); // Zmień stan (to zaplanuje ConnectionStateChanged)
 
             _logger.LogInformation("--- ProcessCharacterInformation: Raising EnteredGame event directly...");
-            try { EnteredGame?.Invoke(this, EventArgs.Empty); } // Podnieś event od razu
+            try
+            {
+                // Raise the event AFTER setting the name and updating the state
+                EnteredGame?.Invoke(this, EventArgs.Empty);
+            }
             catch (Exception ex) { _logger.LogError(ex, "--- ProcessCharacterInformation: Exception during EnteredGame event invocation."); }
             _logger.LogInformation("<<< ProcessCharacterInformation: State updated and EnteredGame event raised.");
         }

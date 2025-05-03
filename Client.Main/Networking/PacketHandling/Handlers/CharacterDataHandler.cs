@@ -43,36 +43,76 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 CharacterHeroState heroState = CharacterHeroState.Normal;
                 uint money = 0;
 
-                // Determine level based on experience if not directly in packet (needed for some versions?)
-                // (Assuming level is part of the packet structure for simplicity here, adjust if needed)
-
+                // --- Parse packet based on protocol version ---
                 switch (_targetVersion)
                 {
-                    // (Parsing logic remains the same, just without assigning to local charClass)
                     case TargetProtocolVersion.Season6:
-                        if (packet.Length >= CharacterInformationExtended.Length) { var info = new CharacterInformationExtended(packet); version = "S6 Extended"; mapId = info.MapId; x = info.X; y = info.Y; currentExp = info.CurrentExperience; nextExp = info.ExperienceForNextLevel; levelUpPoints = info.LevelUpPoints; str = info.Strength; agi = info.Agility; vit = info.Vitality; ene = info.Energy; cmd = info.Leadership; initialHp = info.CurrentHealth; maxHp = info.MaximumHealth; initialSd = info.CurrentShield; maxSd = info.MaximumShield; initialMana = info.CurrentMana; maxMana = info.MaximumMana; initialAg = info.CurrentAbility; maxAg = info.MaximumAbility; money = info.Money; heroState = info.HeroState; status = info.Status; inventoryExpansion = info.InventoryExtensions; /* Level? */ }
-                        else if (packet.Length >= CharacterInformation.Length) { var info = new CharacterInformation(packet); version = "S6 Standard"; mapId = info.MapId; x = info.X; y = info.Y; currentExp = info.CurrentExperience; nextExp = info.ExperienceForNextLevel; levelUpPoints = info.LevelUpPoints; str = info.Strength; agi = info.Agility; vit = info.Vitality; ene = info.Energy; cmd = info.Leadership; initialHp = info.CurrentHealth; maxHp = info.MaximumHealth; initialSd = info.CurrentShield; maxSd = info.MaximumShield; initialMana = info.CurrentMana; maxMana = info.MaximumMana; initialAg = info.CurrentAbility; maxAg = info.MaximumAbility; money = info.Money; heroState = info.HeroState; status = info.Status; inventoryExpansion = info.InventoryExtensions; /* Level? */ }
+                        if (packet.Length >= CharacterInformationExtended.Length)
+                        {
+                            var info = new CharacterInformationExtended(packet);
+                            version = "S6 Extended";
+                            // **** REMOVED characterName = info.Name; ****
+                            mapId = info.MapId; x = info.X; y = info.Y;
+                            currentExp = info.CurrentExperience; nextExp = info.ExperienceForNextLevel; levelUpPoints = info.LevelUpPoints;
+                            str = info.Strength; agi = info.Agility; vit = info.Vitality; ene = info.Energy; cmd = info.Leadership;
+                            initialHp = info.CurrentHealth; maxHp = info.MaximumHealth; initialSd = info.CurrentShield; maxSd = info.MaximumShield;
+                            initialMana = info.CurrentMana; maxMana = info.MaximumMana; initialAg = info.CurrentAbility; maxAg = info.MaximumAbility;
+                            money = info.Money; heroState = info.HeroState; status = info.Status; inventoryExpansion = info.InventoryExtensions;
+                        }
+                        else if (packet.Length >= CharacterInformation.Length)
+                        {
+                            var info = new CharacterInformation(packet);
+                            version = "S6 Standard";
+                            mapId = info.MapId; x = info.X; y = info.Y;
+                            currentExp = info.CurrentExperience; nextExp = info.ExperienceForNextLevel; levelUpPoints = info.LevelUpPoints;
+                            str = info.Strength; agi = info.Agility; vit = info.Vitality; ene = info.Energy; cmd = info.Leadership;
+                            initialHp = info.CurrentHealth; maxHp = info.MaximumHealth; initialSd = info.CurrentShield; maxSd = info.MaximumShield;
+                            initialMana = info.CurrentMana; maxMana = info.MaximumMana; initialAg = info.CurrentAbility; maxAg = info.MaximumAbility;
+                            money = info.Money; heroState = info.HeroState; status = info.Status; inventoryExpansion = info.InventoryExtensions;
+                        }
                         else goto default;
                         break;
                     case TargetProtocolVersion.Version097:
-                        if (packet.Length >= CharacterInformation097.Length) { var info = new CharacterInformation097(packet); version = "0.97"; mapId = info.MapId; x = info.X; y = info.Y; currentExp = info.CurrentExperience; nextExp = info.ExperienceForNextLevel; levelUpPoints = info.LevelUpPoints; str = info.Strength; agi = info.Agility; vit = info.Vitality; ene = info.Energy; cmd = info.Leadership; initialHp = info.CurrentHealth; maxHp = info.MaximumHealth; initialSd = 0; maxSd = 0; initialMana = info.CurrentMana; maxMana = info.MaximumMana; initialAg = info.CurrentAbility; maxAg = info.MaximumAbility; money = info.Money; heroState = info.HeroState; status = info.Status; inventoryExpansion = 0; /* Level? */}
+                        if (packet.Length >= CharacterInformation097.Length)
+                        {
+                            var info = new CharacterInformation097(packet);
+                            version = "0.97";
+                            mapId = info.MapId; x = info.X; y = info.Y;
+                            currentExp = info.CurrentExperience; nextExp = info.ExperienceForNextLevel; levelUpPoints = info.LevelUpPoints;
+                            str = info.Strength; agi = info.Agility; vit = info.Vitality; ene = info.Energy; cmd = info.Leadership;
+                            initialHp = info.CurrentHealth; maxHp = info.MaximumHealth; initialSd = 0; maxSd = 0;
+                            initialMana = info.CurrentMana; maxMana = info.MaximumMana; initialAg = info.CurrentAbility; maxAg = info.MaximumAbility;
+                            money = info.Money; heroState = info.HeroState; status = info.Status; inventoryExpansion = 0;
+                        }
                         else goto default;
                         break;
                     case TargetProtocolVersion.Version075:
-                        if (packet.Length >= CharacterInformation075.Length) { var info = new CharacterInformation075(packet); version = "0.75"; mapId = info.MapId; x = info.X; y = info.Y; currentExp = info.CurrentExperience; nextExp = info.ExperienceForNextLevel; levelUpPoints = info.LevelUpPoints; str = info.Strength; agi = info.Agility; vit = info.Vitality; ene = info.Energy; cmd = 0; initialHp = info.CurrentHealth; maxHp = info.MaximumHealth; initialSd = 0; maxSd = 0; initialMana = info.CurrentMana; maxMana = info.MaximumMana; initialAg = 0; maxAg = 0; money = info.Money; heroState = info.HeroState; status = info.Status; inventoryExpansion = 0; /* Level? */}
+                        if (packet.Length >= CharacterInformation075.Length)
+                        {
+                            var info = new CharacterInformation075(packet);
+                            version = "0.75";
+                            mapId = info.MapId; x = info.X; y = info.Y;
+                            currentExp = info.CurrentExperience; nextExp = info.ExperienceForNextLevel; levelUpPoints = info.LevelUpPoints;
+                            str = info.Strength; agi = info.Agility; vit = info.Vitality; ene = info.Energy; cmd = 0;
+                            initialHp = info.CurrentHealth; maxHp = info.MaximumHealth; initialSd = 0; maxSd = 0;
+                            initialMana = info.CurrentMana; maxMana = info.MaximumMana; initialAg = 0; maxAg = 0;
+                            money = info.Money; heroState = info.HeroState; status = info.Status; inventoryExpansion = 0;
+                        }
                         else goto default;
                         break;
-                    default: _logger.LogWarning("⚠️ Unexpected length ({Length}) or unsupported version ({Version}) for CharacterInformation.", packet.Length, _targetVersion); return Task.CompletedTask;
+                    default:
+                        _logger.LogWarning("⚠️ Unexpected length ({Length}) or unsupported version ({Version}) for CharacterInformation.", packet.Length, _targetVersion);
+                        return Task.CompletedTask;
                 }
 
-                // Determine level based on experience for older versions if needed
-                // Example placeholder: if (_targetVersion <= TargetProtocolVersion.Version097) { level = ExperienceCalculator.GetLevelFromExperience(currentExp); }
+                _logger.LogInformation("✅ Successfully entered the game world (received CharacterInformation).");
 
-                _logger.LogInformation("✅ Successfully entered the game world.");
+                // --- Update CharacterState ---
+                // Log the name that *should* already be in the state
+                _logger.LogInformation("Character name from state: {Name}", _characterState.Name ?? "NULL/NOT SET");
 
-                // Update CharacterState with data FROM THIS PACKET
                 _characterState.UpdatePosition(x, y);
-                _characterState.UpdateMap(mapId); // Update state first
+                _characterState.UpdateMap(mapId);
                 _characterState.UpdateLevelAndExperience(level, currentExp, nextExp, levelUpPoints);
                 _characterState.UpdateStats(str, agi, vit, ene, cmd);
                 _characterState.UpdateMaximumHealthShield(maxHp, maxSd);
@@ -83,11 +123,10 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 _characterState.UpdateStatus(status, heroState);
                 _characterState.InventoryExpansionState = inventoryExpansion;
 
-                // Log map change using the updated state and MapDatabase
                 _logger.LogInformation("🗺️ Entered map: {MapName} ({MapId}) at ({X},{Y}).",
                                         MapDatabase.GetMapName(_characterState.MapId), _characterState.MapId, _characterState.PositionX, _characterState.PositionY);
-                // _networkManager.UpdateStatsDisplay(); // Powiadom ViewModel
-                // _networkManager.SetInGameStatus(true); // This will log "Entered game world..."
+
+                // Notify NetworkManager that character info is loaded
                 _networkManager.ProcessCharacterInformation();
             }
             catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing CharacterInformation packet."); }

@@ -65,7 +65,7 @@ namespace Client.Main.Scenes
             _chatLog.Y = MuGame.Instance.Height - 160 - ChatInputBoxControl.CHATBOX_HEIGHT;
             Controls.Add(_chatLog);
 
-            _chatInput = new ChatInputBoxControl(_chatLog);
+            _chatInput = new ChatInputBoxControl(_chatLog, MuGame.AppLoggerFactory);
             _chatInput.X = 5;
             _chatInput.Y = MuGame.Instance.Height - 65 - ChatInputBoxControl.CHATBOX_HEIGHT;
             Controls.Add(_chatInput);
