@@ -39,6 +39,7 @@ namespace Client.Main.Networking
         private readonly ConnectServerService _connectServerService;
         private readonly CharacterState _characterState; // Keep track of character state
         private readonly ScopeManager _scopeManager;     // Keep track of objects in scope
+        private readonly Dictionary<byte, byte> _serverDirectionMap;
 
         private ClientConnectionState _currentState = ClientConnectionState.Initial;
         private List<ServerInfo> _serverList = new();
@@ -84,6 +85,15 @@ namespace Client.Main.Networking
             _packetRouter = new PacketRouter(loggerFactory, _characterService, _loginService, targetVersion, this, _characterState, _scopeManager, _settings); // Pass 'this'
 
             _managerCts = new CancellationTokenSource();
+
+            _serverDirectionMap = settings.DirectionMap?.ToDictionary(kv => Convert.ToByte(kv.Key), kv => kv.Value)
+                      ?? new Dictionary<byte, byte>();
+
+        }
+
+        public IReadOnlyDictionary<byte, byte> GetDirectionMap()
+        {
+            return _serverDirectionMap;
         }
 
         // --- Public Methods for UI Interaction ---
@@ -102,6 +112,12 @@ namespace Client.Main.Networking
             return new ReadOnlyCollection<ServerInfo>(_serverList);
         }
         // **** KONIEC DODANEJ METODY ****
+
+        public Task SendWalkRequestAsync(byte startX, byte startY, byte[] path)
+            => _characterService.SendWalkRequestAsync(startX, startY, path);
+
+        public Task SendInstantMoveRequestAsync(byte x, byte y)
+            => _characterService.SendInstantMoveRequestAsync(x, y);
 
         public async Task ConnectToConnectServerAsync()
         {

@@ -252,7 +252,10 @@ namespace Client.Main.Controls
         {
             var controls = Controls.ToArray();
 
-            Parallel.For(0, controls.Length, i => controls[i].Dispose());
+            for (int i = 0; i < controls.Length; i++)
+            {
+                controls[i].Dispose();
+            }
 
             Controls.Clear();
 

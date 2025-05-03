@@ -202,9 +202,81 @@ namespace Client.Main.Objects
 
         public void MoveTo(Vector2 targetLocation)
         {
+            if (World == null) return;
+
             List<Vector2> path = Pathfinding.FindPath(new Vector2((int)Location.X, (int)Location.Y), targetLocation, World);
-            if (path == null) return;
+            if (path == null || path.Count == 0)
+                return;
+
             _currentPath = path;
+
+            SendWalkPathToServer(path);
+        }
+
+        private async void SendWalkPathToServer(List<Vector2> path)
+        {
+            if (path == null || path.Count == 0) return;
+            var net = MuGame.Network;
+            if (net == null) return;
+
+            // 1) StartX/StartY: obecna pozycja klienta
+            byte startX = (byte)Location.X;
+            byte startY = (byte)Location.Y;
+
+            // 2) Funkcja zwracająca KOD KLIENTA (0-7) wg dokumentacji MU Online
+            //    W =0, SW =1, S =2, SE =3, E =4, NE =5, N =6, NW =7
+            static byte Dir(Vector2 from, Vector2 to)
+            {
+                int dx = (int)(to.X - from.X); // poziomo (X): lewo / prawo – działa poprawnie
+                int dy = (int)(to.Y - from.Y); // pionowo (Y): góra / dół – poprawka tutaj
+
+                return (dx, dy) switch
+                {
+                    (-1, 0) => 0,  // West
+                    (-1, 1) => 1,  // South-West
+                    (0, 1) => 2,  // South
+                    (1, 1) => 3,  // South-East
+                    (1, 0) => 4,  // East
+                    (1, -1) => 5,  // North-East
+                    (0, -1) => 6,  // North
+                    (-1, -1) => 7,  // North-West
+                    _ => 0xFF
+                };
+            }
+
+
+            // 3) Zbuduj listę kierunków klienta
+            List<byte> dirs = new(path.Count);
+            Vector2 cur = Location;
+
+            foreach (var step in path)
+            {
+                byte d = Dir(cur, step);
+                if (d > 7) break;          // nie-sąsiad – koniec
+                dirs.Add(d);
+                cur = step;
+                if (dirs.Count == 15) break;
+            }
+
+            if (dirs.Count == 0) return;   // klik w to samo pole
+
+            // 4) PRZETŁUMACZ na kody serwera przy użyciu DirectionMap z konfiguracji
+            // ------------------------------------------------------------------
+            // DirectionMap: 0→7, 1→6, 2→5, 3→4, 4→3, 5→2, 6→1, 7→0
+            // znajduje się w  net.GetDirectionMap()  (przykład)
+            // ------------------------------------------------------------------
+            var map = MuGame.Network?.GetDirectionMap();    // IDictionary<byte, byte>
+            if (map != null)
+            {
+                for (int i = 0; i < dirs.Count; i++)
+                {
+                    if (map.TryGetValue(dirs[i], out byte srvDir))
+                        dirs[i] = srvDir;
+                }
+            }
+
+            // 5) Wyślij do serwera
+            await net.SendWalkRequestAsync(startX, startY, dirs.ToArray());
         }
 
         private void UpdateMoveTargetPosition(GameTime time)
