@@ -1,5 +1,6 @@
 ﻿using Client.Main.Controls;
 using Client.Main.Models;
+using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -83,6 +84,8 @@ namespace Client.Main.Objects
 
         private const float RotationSpeed = 8;
 
+        public ushort NetworkId { get; set; }
+
         public override async Task Load()
         {
             MoveTargetPosition = Vector3.Zero;
@@ -142,16 +145,26 @@ namespace Client.Main.Objects
         {
             base.Update(gameTime);
 
+            // 1) Sterowanie kamerą i zoomem dla lokalnego gracza
             if (IsMainWalker)
                 HandleMouseInput();
 
+            // 2) Aktualizacja pozycji kamery i interpolacja wysokości
             UpdatePosition(gameTime);
 
+            // 3) Wykonaj następny krok ścieżki (_currentPath jest ustawiane w MoveTo)
             if (_currentPath != null && _currentPath.Count > 0 && !IsMoving)
             {
-                Vector2 nextStep = _currentPath[0];
-                MoveTowards(nextStep, gameTime);
+                var next = _currentPath[0];
+                MoveTowards(next, gameTime);
                 _currentPath.RemoveAt(0);
+            }
+
+            if (!IsMoving)
+            {
+                const byte idleAction = 1;
+                if (Model?.Actions?.Length > idleAction && CurrentAction != idleAction)
+                    CurrentAction = idleAction;
             }
         }
 

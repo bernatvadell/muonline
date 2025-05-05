@@ -2,6 +2,7 @@
 using Client.Data.Texture;
 using Client.Main.Content;
 using Client.Main.Controllers;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -63,7 +64,9 @@ namespace Client.Main.Objects
             }
         }
         public bool RenderShadow { get => _renderShadow; set { _renderShadow = value; OnRenderShadowChanged(); } }
-        public float AnimationSpeed { get; set; } = 4f;
+        public float AnimationSpeed { get; set; } = 8f;
+        public static ILoggerFactory AppLoggerFactory { get; private set; }
+        private ILogger? _logger => AppLoggerFactory?.CreateLogger<ModelObject>();
 
         public ModelObject()
         {
@@ -524,49 +527,156 @@ namespace Client.Main.Objects
 
         private void Animation(GameTime gameTime)
         {
-            if (LinkParentAnimation || Model == null || Model.Actions.Length == 0)
+            // Pomiń, jeśli obiekt nie ma animacji rodzica lub nie ma modelu/akcji
+            if (LinkParentAnimation || Model == null || Model.Actions == null || Model.Actions.Length == 0)
                 return;
 
-            var currentActionData = Model.Actions[CurrentAction];
+            // **** DODANE SPRAWDZENIE GRANIC CurrentAction ****
+            int currentActionIndex = CurrentAction; // Użyj int dla indeksowania
+            if (currentActionIndex < 0 || currentActionIndex >= Model.Actions.Length)
+            {
+                // Loguj błąd ze szczegółami: jaki obiekt, jaki model, jaka nieprawidłowa akcja
+                _logger?.LogError("Animation Error: Invalid CurrentAction index {InvalidAction} for object {ObjectName} (Model: {ModelName}). Action count: {ActionCount}. Defaulting to action 0.",
+                                 currentActionIndex,
+                                 this.ObjectName ?? GetType().Name,
+                                 Model.Name ?? "Unknown",
+                                 Model.Actions.Length);
+
+                // Ustaw bezpieczną domyślną akcję (np. 0 - stanie)
+                currentActionIndex = 0;
+
+                // Sprawdź, czy nawet akcja 0 jest prawidłowa (bardzo rzadki przypadek błędu w BMD)
+                if (currentActionIndex >= Model.Actions.Length)
+                {
+                    _logger?.LogError("Animation Error: Default action 0 is also invalid for object {ObjectName} (Model: {ModelName}). Cannot animate.", this.ObjectName ?? GetType().Name, Model.Name ?? "Unknown");
+                    return; // Nie można animować, wyjdź
+                }
+                // Opcjonalnie: Zaktualizuj pole CurrentAction obiektu, aby uniknąć powtarzania błędu
+                // CurrentAction = currentActionIndex; // Odkomentuj, jeśli chcesz na stałe zmienić akcję obiektu
+            }
+            // **** KONIEC SPRAWDZENIA GRANIC ****
+
+            // Teraz używaj bezpiecznego currentActionIndex
+            var currentActionData = Model.Actions[currentActionIndex];
+
+            // Jeśli akcja ma tylko jedną klatkę lub mniej, ustaw ją i wyjdź
             if (currentActionData.NumAnimationKeys <= 1)
             {
-                if (_priorAction != CurrentAction)
-                    GenerateBoneMatrix(CurrentAction, 0, 0, 0);
+                // Wygeneruj macierze tylko jeśli akcja się zmieniła (lub jeśli użyto domyślnej)
+                if (_priorAction != currentActionIndex) // Porównaj z bezpiecznym indeksem
+                    GenerateBoneMatrix(currentActionIndex, 0, 0, 0);
 
-                _priorAction = CurrentAction;
+                _priorAction = currentActionIndex; // Zapisz bezpieczny indeks jako poprzedni
                 return;
             }
 
-            float frame = (float)(gameTime.TotalGameTime.TotalSeconds * AnimationSpeed);
+            // Obliczanie klatek (bez zmian, ale używa danych z bezpiecznej akcji)
+            float frame = (float)(gameTime.TotalGameTime.TotalSeconds * AnimationSpeed); // Użyj TotalSeconds dla płynności
             int totalFrames = currentActionData.NumAnimationKeys - 1;
-            frame = frame - MathF.Floor(frame / totalFrames) * totalFrames;
+            if (totalFrames <= 0) // Dodatkowe zabezpieczenie
+            {
+                _logger?.LogWarning("Animation Warning: totalFrames <= 0 for action {ActionIndex} in {ObjectName}. NumKeys: {NumKeys}", currentActionIndex, this.ObjectName ?? GetType().Name, currentActionData.NumAnimationKeys);
+                // Ustaw statyczną klatkę 0
+                GenerateBoneMatrix(currentActionIndex, 0, 0, 0);
+                _priorAction = currentActionIndex;
+                return;
+            }
+
+            // Użyj modulo zamiast odejmowania dla poprawnego zapętlania
+            frame = frame % totalFrames; // Wynik będzie w zakresie [0, totalFrames)
 
             int f0 = (int)frame;
-            int f1 = (f0 + 1) % totalFrames;
-            GenerateBoneMatrix(CurrentAction, f0, f1, frame - f0);
+            // Użyj modulo również tutaj dla bezpieczeństwa, chociaż frame % totalFrames powinno to załatwić
+            int f1 = (f0 + 1) % currentActionData.NumAnimationKeys; // Użyj NumAnimationKeys do zawijania f1
+            // Poprawka: Jeśli f1 wróci do 0 (koniec animacji), a mamy tylko np. 5 klatek (indeksy 0-4),
+            // to f1 powinno być ostatnią klatką (4), a nie 0, do interpolacji z f0=4.
+            // Lepsze podejście:
+            f1 = (f0 + 1);
+            if (f1 >= currentActionData.NumAnimationKeys)
+            {
+                f1 = currentActionData.NumAnimationKeys - 1; // Ostatnia klatka
+                                                             // Można też rozważyć interpolację między ostatnią a pierwszą, ale to bardziej złożone
+            }
 
-            _priorAction = CurrentAction;
+
+            // Wywołaj GenerateBoneMatrix z bezpiecznym indeksem akcji i obliczonymi klatkami
+            GenerateBoneMatrix(currentActionIndex, f0, f1, frame - f0);
+
+            _priorAction = currentActionIndex; // Zapisz bezpieczny indeks jako poprzedni
         }
 
         protected void GenerateBoneMatrix(int actionIdx, int frame0, int frame1, float t)
         {
+            // Dodaj null check dla Model i Model.Bones na początku
             if (Model?.Bones == null)
+            {
+                // Loguj ostrzeżenie lub błąd, jeśli model/kości są null
+                _logger?.LogWarning("GenerateBoneMatrix called with null Model or Model.Bones for {ObjectName}", this.ObjectName ?? GetType().Name);
                 return;
+            }
+
 
             Matrix[] transforms = BoneTransform ??= new Matrix[Model.Bones.Length];
             var bones = Model.Bones;
-            var action = Model.Actions[actionIdx];
+
+            // Dodaj sprawdzenie: Czy actionIdx jest prawidłowy dla Model.Actions
+            if (actionIdx < 0 || actionIdx >= Model.Actions.Length)
+            {
+                _logger?.LogError("GenerateBoneMatrix: Invalid actionIdx {ActionIndex} for model {ModelName}. Max actions: {MaxActions}. Defaulting to action 0.", actionIdx, Model.Name ?? "Unknown", Model.Actions.Length);
+                actionIdx = 0; // Użyj domyślnej akcji 0
+                if (actionIdx >= Model.Actions.Length)
+                {
+                    _logger?.LogError("GenerateBoneMatrix: Default action 0 is also invalid for model {ModelName}. Cannot generate bone matrix.", Model.Name ?? "Unknown");
+                    return; // Nadal nieprawidłowy po ustawieniu domyślnego? Wyjdź.
+                }
+            }
+
+            var action = Model.Actions[actionIdx]; // Teraz actionIdx jest bezpieczniejszy
 
             bool changedAny = false;
 
             for (int i = 0; i < bones.Length; i++)
             {
                 var bone = bones[i];
+
+                // Dodaj sprawdzenie: Czy actionIdx jest prawidłowy dla Matrixes tej kości
                 if (bone == BMDTextureBone.Dummy || bone.Matrixes == null || actionIdx >= bone.Matrixes.Length)
-                    continue;
+                    continue; // Pomiń, jeśli kość jest dummy lub nie ma danych dla tej akcji
 
-                var bm = bone.Matrixes[actionIdx];
+                var bm = bone.Matrixes[actionIdx]; // Teraz actionIdx jest bezpieczniejszy
 
+                // **** DODAJ SPRAWDZANIE GRANIC DLA KLATEK ****
+                int numPosKeys = bm.Position?.Length ?? 0;
+                int numQuatKeys = bm.Quaternion?.Length ?? 0;
+
+                // Sprawdź, czy tablice klatek nie są puste
+                if (numPosKeys == 0 || numQuatKeys == 0)
+                {
+                    _logger?.LogWarning("GenerateBoneMatrix: Bone {BoneIndex} (Name: {BoneName}), Action {ActionIndex} has 0 position ({PosLen}) or quaternion ({QuatLen}) keys. Skipping animation update for this bone.", i, bone.Name ?? "N/A", actionIdx, numPosKeys, numQuatKeys);
+                    // Można ustawić domyślną transformację lub po prostu pominąć
+                    // transforms[i] = Matrix.Identity; // Reset do identity?
+                    continue; // Przejdź do następnej kości
+                }
+
+                // Sprawdź, czy indeksy klatek są w prawidłowym zakresie
+                if (frame0 < 0 || frame1 < 0 || frame0 >= numPosKeys || frame1 >= numPosKeys || frame0 >= numQuatKeys || frame1 >= numQuatKeys)
+                {
+                    // Loguj błąd ze szczegółami
+                    _logger?.LogWarning("GenerateBoneMatrix: Frame index out of bounds for Bone {BoneIndex} (Name: {BoneName}), Action {ActionIndex}. frame0={f0}, frame1={f1}, PosKeys={PosLen}, QuatKeys={QuatLen}. Clamping frames.", i, bone.Name ?? "N/A", actionIdx, frame0, frame1, numPosKeys, numQuatKeys);
+
+                    // Ogranicz indeksy klatek do prawidłowego zakresu, aby zapobiec crashowi
+                    int maxValidIndex = Math.Min(numPosKeys, numQuatKeys) - 1;
+                    if (maxValidIndex < 0) maxValidIndex = 0; // Upewnij się, że nie jest ujemny
+
+                    frame0 = Math.Clamp(frame0, 0, maxValidIndex);
+                    frame1 = Math.Clamp(frame1, 0, maxValidIndex);
+
+                    // Jeśli po ograniczeniu klatki są takie same, ustaw t na 0, aby uniknąć dziwnych interpolacji
+                    if (frame0 == frame1) t = 0f;
+                }
+                // **** KONIEC SPRAWDZANIA GRANIC ****
+
+                // Teraz dostęp do tablic powinien być bezpieczny
                 Quaternion q = Quaternion.Slerp(bm.Quaternion[frame0], bm.Quaternion[frame1], t);
                 Matrix m = Matrix.CreateFromQuaternion(q);
 

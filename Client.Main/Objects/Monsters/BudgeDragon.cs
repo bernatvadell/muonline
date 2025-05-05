@@ -9,7 +9,7 @@ namespace Client.Main.Objects.Monsters
         public BudgeDragon()
         {
             RenderShadow = true;
-            Scale = 0.7f;
+            Scale = 0.5f;
         }
 
         public override async Task Load()

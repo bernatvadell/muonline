@@ -177,15 +177,15 @@ namespace Client.Main.Worlds
             await base.Load();
 
             Objects.Add(new Spider() { Location = new Vector2(181, 127), Direction = Models.Direction.South });
-            Objects.Add(new BudgeDragon() { Location = new Vector2(182, 127), Direction = Models.Direction.South });
-            Objects.Add(new BullFighter() { Location = new Vector2(183, 127), Direction = Models.Direction.South });
-            Objects.Add(new DarkKnight() { Location = new Vector2(184, 127), Direction = Models.Direction.South });
-            Objects.Add(new Ghost() { Location = new Vector2(185, 127), Direction = Models.Direction.South });
-            Objects.Add(new HellSpider() { Location = new Vector2(186, 127), Direction = Models.Direction.South });
-            Objects.Add(new Hound() { Location = new Vector2(187, 127), Direction = Models.Direction.South });
-            Objects.Add(new Larva() { Location = new Vector2(188, 127), Direction = Models.Direction.South });
-            Objects.Add(new Giant() { Location = new Vector2(189, 127), Direction = Models.Direction.South });
-            Objects.Add(new Lich() { Location = new Vector2(190, 127), Direction = Models.Direction.South });
+            // Objects.Add(new BudgeDragon() { Location = new Vector2(182, 127), Direction = Models.Direction.South });
+            // Objects.Add(new BullFighter() { Location = new Vector2(183, 127), Direction = Models.Direction.South });
+            // Objects.Add(new DarkKnight() { Location = new Vector2(184, 127), Direction = Models.Direction.South });
+            // Objects.Add(new Ghost() { Location = new Vector2(185, 127), Direction = Models.Direction.South });
+            // Objects.Add(new HellSpider() { Location = new Vector2(186, 127), Direction = Models.Direction.South });
+            // Objects.Add(new Hound() { Location = new Vector2(187, 127), Direction = Models.Direction.South });
+            // Objects.Add(new Larva() { Location = new Vector2(188, 127), Direction = Models.Direction.South });
+            // Objects.Add(new Giant() { Location = new Vector2(189, 127), Direction = Models.Direction.South });
+            // Objects.Add(new Lich() { Location = new Vector2(190, 127), Direction = Models.Direction.South });
 
         }
     }

@@ -169,30 +169,39 @@ namespace Client.Main.Networking.PacketHandling
         /// <returns>A Task representing the asynchronous packet dispatch operation.</returns>
         private Task DispatchPacketInternalAsync(Memory<byte> packet, byte code, byte? subCode, byte headerType)
         {
-            byte lookupSubCode = subCode ?? NoSubCode; // Use NoSubCode if subCode is null for dictionary lookup
+            byte lookupSubCode = subCode ?? NoSubCode;
 
-            // Check if packet should be skipped based on logging settings
+            // **** ADDED: Log ALL received packets BEFORE filtering/handling ****
+            _logger.LogTrace("--- Dispatching Packet ({Mode}): Header={H:X2} Code={C:X2} Sub={S}, Length={L}",
+                            _isConnectServerRouting ? "CS" : "GS",
+                            headerType, code, lookupSubCode == NoSubCode ? "N/A" : lookupSubCode.ToString("X2"), packet.Length);
+            // **** END ADDED ****
+
+
             if (ShouldSkipPacket(code, subCode))
             {
                 return Task.CompletedTask;
             }
 
-            var handlerKey = (code, lookupSubCode); // Create handler key tuple
+            var handlerKey = (code, lookupSubCode);
 
-            // Try to get a specific handler for the packet code and sub-code
             if (_packetHandlers.TryGetValue(handlerKey, out var specificHandler))
             {
-                return ExecuteHandler(specificHandler, packet, code, lookupSubCode); // Execute the specific handler
+                // **** ADDED: Log which handler is being executed ****
+                _logger.LogTrace("   -> Executing specific handler for {C:X2}-{S}", code, lookupSubCode == NoSubCode ? "FF" : lookupSubCode.ToString("X2"));
+                // **** END ADDED ****
+                return ExecuteHandler(specificHandler, packet, code, lookupSubCode);
             }
 
-            // If no specific handler found, try to get a main code handler (for packets with sub-codes but no specific sub-code handler)
             if (lookupSubCode != NoSubCode && _packetHandlers.TryGetValue((code, NoSubCode), out var mainCodeHandler))
             {
-                _logger.LogTrace("No specific handler for {Code:X2}-{SubCode:X2}, using main code handler {Code:X2}-FF.", code, lookupSubCode, code);
-                return ExecuteHandler(mainCodeHandler, packet, code, NoSubCode); // Execute the main code handler
+                // **** ADDED: Log which handler is being executed ****
+                _logger.LogTrace("   -> Executing main code handler for {C:X2}-FF (Original Sub: {Sub})", code, lookupSubCode.ToString("X2"));
+                // **** END ADDED ****
+                return ExecuteHandler(mainCodeHandler, packet, code, NoSubCode);
             }
 
-            LogUnhandled(code, subCode); // Log unhandled packet if no handler is found
+            LogUnhandled(code, subCode);
             return Task.CompletedTask;
         }
 
@@ -442,9 +451,12 @@ namespace Client.Main.Networking.PacketHandling
         /// <param name="subCode">The sub-code of the unhandled packet (nullable).</param>
         private void LogUnhandled(byte code, byte? subCode)
         {
-            _logger.LogWarning("⚠️ Unhandled packet ({Mode}): Code={Code:X2} SubCode={SubCode}",
-                _isConnectServerRouting ? "CS" : "GS", // Indicate packet mode in log message
-                code, subCode.HasValue ? subCode.Value.ToString("X2") : "N/A"); // Log code and sub-code in hex format
+            // **** MODIFIED: Change level to Debug for unhandled, maybe Trace? ****
+            // Warning jest trochę za mocne, jeśli serwer wysyła dużo nieistotnych pakietów
+            _logger.LogDebug("⚠️ Unhandled packet ({Mode}): Code={Code:X2} SubCode={SubCode}",
+                _isConnectServerRouting ? "CS" : "GS",
+                code, subCode.HasValue ? subCode.Value.ToString("X2") : "N/A");
+            // **** END MODIFIED ****
         }
 
         // --- Packet Handler Methods are now moved to separate Handler classes ---

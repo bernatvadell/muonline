@@ -14,7 +14,8 @@ using System.Diagnostics;
 using MUnique.OpenMU.Network.Packets;
 using System.Collections.Generic;
 using Client.Main.Networking.PacketHandling.Handlers;
-using System.Linq; // For CharacterClassNumber
+using System.Linq;
+using Client.Main.Objects; // For CharacterClassNumber
 
 namespace Client.Main.Scenes
 {
@@ -154,7 +155,33 @@ namespace Client.Main.Scenes
             if (_hero.Status is GameControlStatus.NonInitialized or GameControlStatus.Initializing)
                 await _hero.Load();
 
-            AddChatTestData();
+            // AddChatTestData();
+        }
+
+        private async Task ImportPendingNpcsMonsters()
+        {
+            if (World is not WalkableWorldControl w)
+                return;
+
+            var list = ScopeHandler.TakePendingNpcsMonsters();
+            if (!list.Any()) return;
+
+            foreach (var s in list)
+            {
+                if (w.Objects.OfType<WalkerObject>().Any(p => p.NetworkId == s.Id))
+                    continue;
+
+                if (!ScopeHandler.NpcMonsterTypeMap.TryGetValue(s.TypeNumber, out Type? objectType))
+                    continue;
+
+                if (Activator.CreateInstance(objectType) is WalkerObject npcMonster)
+                {
+                    npcMonster.NetworkId = s.Id;
+                    npcMonster.Location = new Vector2(s.PositionX, s.PositionY);
+                    w.Objects.Add(npcMonster);
+                    await npcMonster.Load();
+                }
+            }
         }
 
         private async Task ImportPendingRemotePlayers()
@@ -225,6 +252,7 @@ namespace Client.Main.Scenes
             World = _nextWorld;
 
             await ImportPendingRemotePlayers();
+            await ImportPendingNpcsMonsters(); // Import NPCs/Monsters AFTER world is ready
 
             _nextWorld = null;
             Controls.Insert(0, World);
@@ -279,6 +307,7 @@ namespace Client.Main.Scenes
             World = _nextWorld;
 
             await ImportPendingRemotePlayers();
+            await ImportPendingNpcsMonsters(); // Import NPCs/Monsters AFTER world is ready
 
             _nextWorld = null;
             Controls.Insert(0, World);

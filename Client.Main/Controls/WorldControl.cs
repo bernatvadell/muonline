@@ -1,4 +1,5 @@
-﻿using Client.Data.ATT;
+﻿// --- START OF FILE WorldControl.cs ---
+using Client.Data.ATT;
 using Client.Data.CAP;
 using Client.Data.OBJS;
 using Client.Main.Controllers;
@@ -8,11 +9,14 @@ using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
-using System.Collections.Generic;
+using System.Collections.Generic; // Potrzebne dla Dictionary
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using Client.Main.Objects; // Potrzebne dla WalkerObject
+using System.Linq; // Potrzebne dla OfType (nadal może być używane gdzie indziej)
+
 
 namespace Client.Main.Controls
 {
@@ -55,13 +59,18 @@ namespace Client.Main.Controls
 
         private readonly float cullingOffset = 800f;
 
+        // **** RE-ADDED DICTIONARY ****
+        // Słownik do szybkiego wyszukiwania WalkerObject po NetworkId
+        protected Dictionary<ushort, WalkerObject> WalkerObjectsById { get; } = new Dictionary<ushort, WalkerObject>();
+        // **** END RE-ADDED DICTIONARY ****
+
         public WorldControl(short worldIndex)
         {
             AutoViewSize = false;
             ViewSize = new(MuGame.Instance.Width, MuGame.Instance.Height);
             WorldIndex = worldIndex;
             Controls.Add(Terrain = new TerrainControl() { WorldIndex = worldIndex });
-            Objects.ControlAdded += Object_Added;
+            Objects.ControlAdded += Object_Added; // Subskrybuj event
 
             Camera.Instance.CameraMoved += OnCameraMoved;
 
@@ -83,10 +92,20 @@ namespace Client.Main.Controls
             UpdateBoundingFrustum();
         }
 
+        // **** RE-ADDED LOGIC TO Object_Added ****
         private void Object_Added(object sender, ChildrenEventArgs<WorldObject> e)
         {
             e.Control.World = this;
+            // Dodaj do słownika, jeśli to WalkerObject z poprawnym ID
+            if (e.Control is WalkerObject walker && walker.NetworkId != 0 && walker.NetworkId != 0xFFFF)
+            {
+                if (!WalkerObjectsById.TryAdd(walker.NetworkId, walker))
+                {
+                    Debug.WriteLine($"Warning: WalkerObject with NetworkId {walker.NetworkId:X4} already exists in WalkerObjectsById dictionary.");
+                }
+            }
         }
+        // **** END RE-ADDED LOGIC ****
 
         public override async Task Load()
         {
@@ -150,8 +169,20 @@ namespace Client.Main.Controls
             if (Status != GameControlStatus.Ready)
                 return;
 
-            foreach (var obj in Objects)
-                obj.Update(time);
+            // **** MODIFIED: Iterate over a copy ****
+            // Stwórz kopię kolekcji, aby uniknąć problemów z modyfikacją podczas iteracji
+            var objectsCopy = Objects.ToArray();
+            foreach (var obj in objectsCopy)
+            {
+                // Sprawdź, czy obiekt nie został usunięty w międzyczasie (opcjonalne, ale bezpieczniejsze)
+                // W tym konkretnym miejscu (Update) jest to mniej prawdopodobne niż w Draw,
+                // ale dobra praktyka. Można by też sprawdzać Status obiektu.
+                if (obj.Status != GameControlStatus.Disposed)
+                {
+                    obj.Update(time);
+                }
+            }
+            // **** END MODIFIED ****
         }
 
         public override void Draw(GameTime time)
@@ -177,6 +208,29 @@ namespace Client.Main.Controls
                 MapTileObjects[i] = typeMapObject;
         }
 
+        // **** RE-ADDED HELPER METHODS ****
+        public bool TryGetWalkerById(ushort networkId, out WalkerObject? walker)
+        {
+            return WalkerObjectsById.TryGetValue(networkId, out walker);
+        }
+
+        public bool ContainsWalkerId(ushort networkId)
+        {
+            return WalkerObjectsById.ContainsKey(networkId);
+        }
+
+        // Metoda do usuwania obiektu - teraz aktualizuje też słownik
+        public bool RemoveObject(WorldObject obj)
+        {
+            bool removed = Objects.Remove(obj); // Usuń z głównej listy
+            if (removed && obj is WalkerObject walker && walker.NetworkId != 0 && walker.NetworkId != 0xFFFF)
+            {
+                WalkerObjectsById.Remove(walker.NetworkId); // Usuń ze słownika
+            }
+            return removed;
+        }
+        // **** END RE-ADDED HELPER METHODS ****
+
         private void RenderObjects(GameTime gameTime)
         {
             renderCounter = 0;
@@ -185,8 +239,14 @@ namespace Client.Main.Controls
             transparentObjects.Clear();
             solidInFront.Clear();
 
-            foreach (var obj in Objects)
+            // **** MODIFIED: Iterate over a copy ****
+            // Stwórz kopię kolekcji, aby uniknąć problemów z modyfikacją podczas iteracji
+            var objectsCopy = Objects.ToArray();
+            foreach (var obj in objectsCopy)
             {
+                // Sprawdź, czy obiekt nie został usunięty lub ukryty w międzyczasie
+                if (obj.Status == GameControlStatus.Disposed || !obj.Visible) continue;
+
                 if (!IsObjectInView(obj)) continue;
 
                 if (obj.IsTransparent)
@@ -196,7 +256,9 @@ namespace Client.Main.Controls
                 else
                     solidInFront.Add(obj);
             }
+            // **** END MODIFIED ****
 
+            // --- Logika sortowania i rysowania (bez zmian) ---
             if (solidBehind.Count > 1) solidBehind.Sort(_cmpAsc);
             SetDepthState(DepthStateDefault);
             foreach (var obj in solidBehind)
@@ -226,6 +288,7 @@ namespace Client.Main.Controls
                 obj.RenderOrder = ++renderCounter;
             }
 
+            // --- Rysowanie DrawAfter (bez zmian) ---
             if (solidBehind.Count > 0)
             {
                 SetDepthState(DepthStateDefault);
@@ -245,55 +308,79 @@ namespace Client.Main.Controls
             }
         }
 
-
         private bool IsObjectInView(WorldObject obj)
         {
+            // Sprawdzenie null dla obj i jego pozycji
+            if (obj == null) return false;
+
+            // Sprawdzenie null dla Camera.Instance
+            if (Camera.Instance == null) return false;
+
+
             Vector2 cam2D = new(Camera.Instance.Position.X, Camera.Instance.Position.Y);
-            if (Vector2.DistanceSquared(cam2D, new Vector2(obj.Position.X, obj.Position.Y))
-                > (Camera.Instance.ViewFar + cullingOffset) * (Camera.Instance.ViewFar + cullingOffset))
+            // Użyj WorldPosition.Translation zamiast Position, bo Position może być lokalne
+            Vector3 objPos = obj.WorldPosition.Translation;
+            Vector2 obj2D = new(objPos.X, objPos.Y);
+
+            float viewFarSq = (Camera.Instance.ViewFar + cullingOffset) * (Camera.Instance.ViewFar + cullingOffset);
+
+            if (Vector2.DistanceSquared(cam2D, obj2D) > viewFarSq)
                 return false;
 
-            return boundingFrustum.Contains(new BoundingSphere(obj.Position, cullingOffset))
-                   != ContainmentType.Disjoint;
+            // Sprawdzenie null dla boundingFrustum
+            if (boundingFrustum == null)
+            {
+                UpdateBoundingFrustum(); // Spróbuj zaktualizować, jeśli null
+                if (boundingFrustum == null) return false; // Jeśli nadal null, nie można sprawdzić
+            }
+
+            // Użyj BoundingBoxWorld zamiast Position
+            //return boundingFrustum.Contains(new BoundingSphere(objPos, cullingOffset)) != ContainmentType.Disjoint;
+            return boundingFrustum.Contains(obj.BoundingBoxWorld) != ContainmentType.Disjoint; // Sprawdź BoundingBox
         }
 
         private void UpdateBoundingFrustum()
         {
+            // Sprawdzenie null dla Camera.Instance
+            if (Camera.Instance == null) return;
+
             Matrix view = Camera.Instance.View;
             Matrix projection = Camera.Instance.Projection;
             Matrix viewProjection = view * projection;
             boundingFrustum = new BoundingFrustum(viewProjection);
         }
 
+        // **** RE-ADDED LOGIC TO Dispose ****
         public override void Dispose()
         {
             var sw = Stopwatch.StartNew();
 
-            var objects = Objects.ToArray();
+            var objects = Objects.ToArray(); // Nadal potrzebujemy kopii do iteracji podczas usuwania
 
             for (var i = 0; i < objects.Length; i++)
             {
-                if (this is WalkableWorldControl walkeableWorld && objects[i] is PlayerObject player && walkeableWorld.Walker == player)
+                var obj = objects[i];
+                // Nie usuwaj lokalnego gracza
+                if (this is WalkableWorldControl walkeableWorld && obj is PlayerObject player && walkeableWorld.Walker == player)
                     continue;
 
-                objects[i].Dispose();
+                RemoveObject(obj); // Usuń z listy i słownika
+                obj.Dispose();
             }
 
-            Objects.Clear();
+            Objects.Clear(); // Upewnij się, że lista jest czysta
+            WalkerObjectsById.Clear(); // Wyczyść słownik
 
             sw.Stop();
-
             var elapsedDisposingObjects = sw.ElapsedMilliseconds;
-
             sw.Restart();
-
             base.Dispose();
-
             sw.Stop();
-
             var elapsedDisposingBase = sw.ElapsedMilliseconds;
 
             Debug.WriteLine($"Dispose WorldControl {WorldIndex} - Disposing Objects: {elapsedDisposingObjects}ms - Disposing Base: {elapsedDisposingBase}ms");
         }
+        // **** END RE-ADDED LOGIC ****
     }
 }
+// --- END OF FILE WorldControl.cs ---
