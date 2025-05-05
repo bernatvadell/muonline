@@ -28,9 +28,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         private readonly ILogger<ScopeHandler> _logger;
         private readonly ScopeManager _scopeManager;
         private readonly CharacterState _characterState;
-        private readonly NetworkManager _networkManager;
         private readonly TargetProtocolVersion _targetVersion;
-        public static readonly Dictionary<ushort, Type> NpcMonsterTypeMap = InitializeNpcMonsterMap();
         private static readonly List<NpcScopeObject> _pendingNpcsMonsters = new();
 
 
@@ -234,7 +232,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 WorldControl w = null;
                 bool worldReady = MuGame.Instance.ActiveScene?.World is WorldControl worldControl && (w = worldControl).Status == GameControlStatus.Ready;
 
-                if (worldReady && NpcMonsterTypeMap.TryGetValue(type, out var cls))
+                if (worldReady && NpcDatabase.TryGetNpcType(type, out var cls))
                 {
                     //  SPOWN OD RAZU NA MAPIE  ------------------------------------------------
                     var worldRef = w; // capture for lambda
@@ -847,26 +845,6 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
-        private static Dictionary<ushort, Type> InitializeNpcMonsterMap()
-        {
-            var map = new Dictionary<ushort, Type>
-            {
-                // --- Monsters ---
-                { 0, typeof(BullFighter) },
-                { 2, typeof(BudgeDragon) },
-                { 3, typeof(Spider) },
-                { 25,  typeof(IceQueen) },
-                // ... kolejne klasy potworów ...
-
-                // --- NPCs ---
-                { 237, typeof(Charon) },
-                { 242, typeof(EoTheCraftsman) },
-                { 251, typeof(ElfLala) },
-
-                // ... kolejne klasy NPC ...
-            };
-            return map;
-        }
 
         internal static List<NpcScopeObject> TakePendingNpcsMonsters()
         {

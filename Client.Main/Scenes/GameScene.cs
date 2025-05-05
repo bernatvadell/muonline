@@ -9,13 +9,13 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Threading.Tasks;
-using Client.Main.Client;
 using System.Diagnostics;
 using MUnique.OpenMU.Network.Packets;
 using System.Collections.Generic;
 using Client.Main.Networking.PacketHandling.Handlers;
 using System.Linq;
-using Client.Main.Objects; // For CharacterClassNumber
+using Client.Main.Objects;
+using Client.Main.Core.Utilities; // For CharacterClassNumber
 
 namespace Client.Main.Scenes
 {
@@ -171,7 +171,7 @@ namespace Client.Main.Scenes
                 if (w.Objects.OfType<WalkerObject>().Any(p => p.NetworkId == s.Id))
                     continue;
 
-                if (!ScopeHandler.NpcMonsterTypeMap.TryGetValue(s.TypeNumber, out Type? objectType))
+                if (!NpcDatabase.TryGetNpcType(s.TypeNumber, out Type? objectType))
                     continue;
 
                 if (Activator.CreateInstance(objectType) is WalkerObject npcMonster)

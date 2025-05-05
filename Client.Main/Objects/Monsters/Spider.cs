@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
 {
+    [NpcInfo(3, "Spider")]
     public class Spider : MonsterObject
     {
         public Spider()
