@@ -40,7 +40,7 @@ namespace Client.Main.Scenes
 
         public PlayerObject Hero => _hero;
 
-        private static readonly Dictionary<byte, Type> MapWorldRegistry = new()
+        public static readonly IReadOnlyDictionary<byte, Type> MapWorldRegistry = new Dictionary<byte, Type>
         {
             { 0, typeof(LorenciaWorld) },
             { 1, typeof(DungeonWorld) },
@@ -215,7 +215,7 @@ namespace Client.Main.Scenes
             }
         }
 
-        private async Task ChangeMap(Type worldType)
+        public async Task ChangeMap(Type worldType)
         {
             _isChangingWorld = true;
 

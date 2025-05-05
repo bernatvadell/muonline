@@ -80,7 +80,7 @@ namespace Client.Main.Objects
             }
         }
 
-        public Vector3 MoveTargetPosition { get; private set; }
+        public Vector3 MoveTargetPosition { get; set; }
         public float MoveSpeed { get; set; } = Constants.MOVE_SPEED;
         public bool IsMoving => Vector3.Distance(MoveTargetPosition, TargetPosition) > 0f;
 

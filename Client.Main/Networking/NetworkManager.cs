@@ -1,13 +1,14 @@
 using Client.Main.Client;
 using Client.Main.Configuration;
+using Client.Main.Controls;
 using Client.Main.Core.Models;
 using Client.Main.Networking.PacketHandling;
 using Client.Main.Networking.Services;
+using Client.Main.Scenes;
 using Microsoft.Extensions.Logging;
+using Microsoft.Xna.Framework;
 using MUnique.OpenMU.Network;
 using MUnique.OpenMU.Network.Packets; // For CharacterClassNumber
-using MUnique.OpenMU.Network.Packets.ClientToServer;
-using MUnique.OpenMU.Network.Packets.ConnectServer;
 using MUnique.OpenMU.Network.Packets.ServerToClient;
 using MUnique.OpenMU.Network.SimpleModulus;
 using MUnique.OpenMU.Network.Xor;
@@ -180,6 +181,67 @@ namespace Client.Main.Networking
             return new ReadOnlyCollection<ServerInfo>(_serverList);
         }
         // **** KONIEC DODANEJ METODY ****
+
+        internal void ProcessCharacterRespawn(ushort mapId, byte x, byte y, byte direction)
+        {
+            _logger.LogInformation("🕯  ProcessCharacterRespawn → map {Map}, pos ({X},{Y}), dir {Dir}",
+                                   mapId, x, y, direction);
+
+            _characterState.UpdateMap(mapId);
+            _characterState.UpdatePosition(x, y);
+
+            MuGame.ScheduleOnMainThread(async () =>
+            {
+                try
+                {
+                    var game = MuGame.Instance;
+                    if (game?.ActiveScene is not GameScene gs)
+                    {
+                        // nie w grze? wczytaj scenę od nowa
+                        game.ChangeScene(new GameScene());
+                        return;
+                    }
+
+                    var world = gs.World as WalkableWorldControl;
+                    if (world == null || world.WorldIndex != mapId)
+                    {
+                        // mapa się zmieniła – najpierw ustaw bohatera na spawn, potem rebuild
+                        var hero = gs.Hero;
+                        hero.Reset();
+                        hero.Location = new Vector2(x, y);
+                        hero.Direction = (Models.Direction)(Direction)direction;
+
+                        if (GameScene.MapWorldRegistry.TryGetValue((byte)mapId, out var worldType))
+                        {
+                            _logger.LogDebug("Respawn zmienia mapę → ChangeMap({WorldType})", worldType.Name);
+                            await gs.ChangeMap(worldType);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Nieznane mapId {MapId} przy respawnie – new GameScene()", mapId);
+                            game.ChangeScene(new GameScene());
+                        }
+                        return;
+                    }
+
+                    // ta sama mapa – teleport lokalny
+                    {
+                        var hero = gs.Hero;
+                        hero.Reset();
+                        hero.Location = new Microsoft.Xna.Framework.Vector2(x, y);
+                        hero.Direction = (Models.Direction)(Direction)direction;
+                        hero.MoveTargetPosition = hero.TargetPosition;
+                        hero.Position = hero.TargetPosition;
+                        _logger.LogDebug("Hero teleported na ({X},{Y}) na mapie {Map}.", x, y, mapId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "💥 ProcessCharacterRespawn exception.");
+                }
+            });
+        }
+
 
         public Task SendWalkRequestAsync(byte startX, byte startY, byte[] path)
             => _characterService.SendWalkRequestAsync(startX, startY, path);

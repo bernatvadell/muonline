@@ -133,6 +133,109 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
+        [PacketHandler(0xF3, 0x04)] // RespawnAfterDeath
+        public Task HandleRespawnAfterDeathAsync(Memory<byte> packet)
+        {
+            try
+            {
+                byte x = 0, y = 0, mapIdByte = 0, direction = 0;
+                ushort currentHealth = 0, currentMana = 0, currentAbility = 0;
+                uint experience = 0, money = 0;
+                ushort mapId = 0; // Use ushort for consistency, even if older versions use byte
+
+                // --- Parse packet based on protocol version ---
+                switch (_targetVersion)
+                {
+                    case TargetProtocolVersion.Season6: // Assume S6 uses the 0.95 structure or similar if no specific S6 respawn packet exists
+                    case TargetProtocolVersion.Version097:
+                        if (packet.Length >= RespawnAfterDeath095.Length)
+                        {
+                            var respawn = new RespawnAfterDeath095(packet);
+                            x = respawn.PositionX; y = respawn.PositionY; mapIdByte = respawn.MapNumber; direction = respawn.Direction;
+                            currentHealth = respawn.CurrentHealth; currentMana = respawn.CurrentMana; currentAbility = respawn.CurrentAbility;
+                            experience = respawn.Experience; money = respawn.Money;
+                            mapId = mapIdByte; // Assign byte to ushort
+                            _logger.LogInformation("🔄 Received Respawn (0.95+): Pos=({X},{Y}), Map={Map}, HP={HP}, MP={MP}, AG={AG}", x, y, mapId, currentHealth, currentMana, currentAbility);
+                        }
+                        else goto default;
+                        break;
+                    case TargetProtocolVersion.Version075:
+                        if (packet.Length >= RespawnAfterDeath075.Length)
+                        {
+                            var respawn = new RespawnAfterDeath075(packet);
+                            x = respawn.PositionX; y = respawn.PositionY; mapIdByte = respawn.MapNumber; direction = respawn.Direction;
+                            currentHealth = respawn.CurrentHealth; currentMana = respawn.CurrentMana; currentAbility = 0; // 0.75 doesn't have AG
+                            experience = respawn.Experience; money = respawn.Money;
+                            mapId = mapIdByte; // Assign byte to ushort
+                            _logger.LogInformation("🔄 Received Respawn (0.75): Pos=({X},{Y}), Map={Map}, HP={HP}, MP={MP}", x, y, mapId, currentHealth, currentMana);
+                        }
+                        else goto default;
+                        break;
+                    default:
+                        _logger.LogWarning("⚠️ Unexpected length ({Length}) or unsupported version ({Version}) for RespawnAfterDeath.", packet.Length, _targetVersion);
+                        return Task.CompletedTask;
+                }
+
+                mapId = (ushort)(mapId + 1);
+
+                // --- Update CharacterState ---
+                _characterState.UpdatePosition(x, y);
+                _characterState.UpdateMap(mapId); // Update map just in case
+                _characterState.UpdateCurrentHealthShield(currentHealth, _characterState.MaximumShield); // Reset HP, keep max shield
+                _characterState.UpdateCurrentManaAbility(currentMana, currentAbility); // Reset MP/AG
+                                                                                       // Experience and Money might be reduced by death penalty on server, update them too
+                _characterState.Experience = experience;
+                _characterState.UpdateInventoryZen(money);
+
+                // --- Trigger Visual Update on Main Thread ---
+                // Use the NetworkManager to schedule the visual update
+                _networkManager.ProcessCharacterRespawn(mapId, x, y, direction);
+
+            }
+            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing RespawnAfterDeath packet (F3, 04)."); }
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0x1C, 0x0F)]      // MapChanged (respawn/teleport)
+        public Task HandleMapChangedAsync(Memory<byte> packet)
+        {
+            byte x = 0, y = 0, direction = 0;
+            ushort mapId = 0;
+
+            switch (_targetVersion)
+            {
+                case TargetProtocolVersion.Version075:
+                    var m75 = new MapChanged075(packet);
+                    x = m75.PositionX;
+                    y = m75.PositionY;
+                    mapId = m75.MapNumber;
+                    direction = m75.Rotation;
+                    break;
+
+                case TargetProtocolVersion.Version097:
+                case TargetProtocolVersion.Season6:
+                default:                           // 0.97+ ma rozszerzoną wersję
+                    var m = new MapChanged(packet);
+                    x = m.PositionX;
+                    y = m.PositionY;
+                    mapId = (ushort)m.MapNumber;
+                    direction = m.Rotation;
+                    break;
+            }
+
+            mapId = (ushort)(mapId + 1);
+
+            _logger.LogInformation("🔄 MapChanged/Respawn: map={Map}, pos=({X},{Y}), dir={Dir}",
+                                   mapId, x, y, direction);
+
+            // zaktualizuj stan i daj znać menedżerowi
+            _characterState.UpdatePosition(x, y);
+            _characterState.UpdateMap(mapId);
+            _networkManager.ProcessCharacterRespawn(mapId, x, y, direction);
+
+            return Task.CompletedTask;
+        }
+
         [PacketHandler(0xF3, 0x05)] // CharacterLevelUpdate
         public Task HandleCharacterLevelUpdateAsync(Memory<byte> packet)
         {
