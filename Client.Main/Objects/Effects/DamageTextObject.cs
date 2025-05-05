@@ -1,156 +1,149 @@
-// --- START OF FILE DamageTextObject.cs ---
-using Client.Main.Controllers;
+// W folderze Objects/Effects lub podobnym
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using System.Threading.Tasks;
+using Client.Main.Controllers; // Dla GraphicsManager
+using Client.Main.Models;
 using System;
-using System.Text;
-using System.Threading.Tasks; // For StringBuilder
+using System.Diagnostics;     // Dla GameControlStatus
 
-namespace Client.Main.Objects.Effects // Or Objects.UI
+namespace Client.Main.Objects.Effects
 {
     public class DamageTextObject : WorldObject
     {
         public string Text { get; }
         public Color TextColor { get; }
-        public float FontSize { get; }
-        public float Lifetime { get; } // Total duration in seconds
-        public float RiseSpeed { get; } // Pixels per second to rise
-        public float FadeDuration { get; } // Duration of fade-out in seconds
 
-        private float _elapsedTime;
+        private float _lifetime = 1.2f; // Czas życia w sekundach (np. 1.2 sekundy)
+        private float _elapsedTime = 0f;
         private Vector2 _screenPosition;
-        private float _currentAlpha = 1.0f;
-        private SpriteFont _font;
-        private StringBuilder _stringBuilder = new StringBuilder(); // Reuse StringBuilder
+        private float _verticalSpeed = 40f; // Prędkość unoszenia w pikselach na sekundę (ujemna = w górę)
+        private float _initialZOffset = 40f; // Początkowe przesunięcie w górę nad pozycją trafienia
 
-        public DamageTextObject(string text, Vector3 initialPosition, Color color, float lifetime = 2.0f, float fontSize = 14f, float riseSpeed = 30f, float fadeStartOffset = 0.5f)
+        // Konstruktor
+        public DamageTextObject(string text, Vector3 worldHitPosition, Color color)
         {
             Text = text;
-            Position = initialPosition; // Set initial 3D position
+            // Ustaw początkową pozycję nieco nad miejscem trafienia
+            Position = worldHitPosition + Vector3.UnitZ * _initialZOffset;
             TextColor = color;
-            Lifetime = lifetime;
-            FontSize = fontSize;
-            RiseSpeed = riseSpeed;
-            FadeDuration = Math.Max(0.1f, lifetime * fadeStartOffset); // Fade starts in the last part of lifetime
-            _elapsedTime = 0f;
-
-            // We don't need a model, so BlendState isn't critical here,
-            // but set Alpha for clarity if needed elsewhere.
-            BlendState = BlendState.AlphaBlend;
-            Alpha = 1.0f; // Initial world object alpha (might not be used directly for text)
+            Alpha = 1.0f; // Start w pełni widoczny
+            Scale = 1.0f; // Domyślna skala, można dostosować
+            IsTransparent = true; // Ważne dla poprawnego sortowania przez WorldControl
+            AffectedByTransparency = false; // Nie powinien być sortowany jako solidny obiekt
+            Status = GameControlStatus.Ready; // Oznaczamy jako gotowy od razu
         }
 
+        // Load nie jest potrzebny, jeśli nie ładujemy specyficznych zasobów
         public override Task Load()
         {
-            // Font is loaded globally via GraphicsManager
-            _font = GraphicsManager.Instance.Font;
-            if (_font == null)
-            {
-                Status = Models.GameControlStatus.Error;
-                System.Diagnostics.Debug.WriteLine("Error: DamageTextObject could not get font from GraphicsManager.");
-            }
-            // No other specific content to load for this object
-            return base.Load(); // Marks status as Ready if font is okay
+            Status = GameControlStatus.Ready;
+            return Task.CompletedTask;
         }
 
         public override void Update(GameTime gameTime)
         {
-            // Don't call base.Update if you don't need its logic (like bounding box checks)
-            // base.Update(gameTime);
+            base.Update(gameTime);
 
-            if (Status != Models.GameControlStatus.Ready) return;
+            if (Status != GameControlStatus.Ready) return;
 
             float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
             _elapsedTime += deltaTime;
 
-            // Make the text rise
-            Position = new Vector3(Position.X, Position.Y, Position.Z + RiseSpeed * deltaTime);
-            // Recalculate world position if needed (though it's simple translation here)
-            RecalculateWorldPosition();
-
-            // Calculate fading alpha
-            if (_elapsedTime >= Lifetime - FadeDuration)
+            // Zanikanie (Fade out)
+            float fadeStartTime = _lifetime * 0.4f;
+            if (_elapsedTime > fadeStartTime)
             {
-                float fadeProgress = (_elapsedTime - (Lifetime - FadeDuration)) / FadeDuration;
-                _currentAlpha = MathHelper.Lerp(1.0f, 0.0f, fadeProgress);
-            }
-            else
-            {
-                _currentAlpha = 1.0f;
+                Alpha = MathHelper.Clamp(1.0f - (_elapsedTime - fadeStartTime) / (_lifetime - fadeStartTime), 0f, 1f);
             }
 
-            // Check if lifetime expired
-            if (_elapsedTime >= Lifetime)
+            // Unoszenie się w górę
+            Position += Vector3.UnitZ * _verticalSpeed * deltaTime;
+            RecalculateWorldPosition(); // Aktualizuj WorldPosition
+
+            // Sprawdzenie końca czasu życia
+            if (_elapsedTime >= _lifetime)
             {
-                Dispose(); // Mark for removal
+                World?.RemoveObject(this);
+                Dispose();
                 return;
             }
 
-            // Project 3D position to 2D screen coordinates for drawing
+            // Oblicz pozycję na ekranie dla DrawAfter
             Vector3 screenPos3D = GraphicsDevice.Viewport.Project(
-                WorldPosition.Translation, // Use the calculated WorldPosition
+                WorldPosition.Translation,
                 Camera.Instance.Projection,
                 Camera.Instance.View,
-                Matrix.Identity
-            );
+                Matrix.Identity);
 
-            // Check if the text is behind the camera
+            // Ukryj, jeśli za kamerą lub za daleko (projekcja nieudana)
+            // Ustawiamy flagę Hidden, która jest sprawdzana przez standardową właściwość Visible
             if (screenPos3D.Z < 0 || screenPos3D.Z > 1)
             {
-                // Off-screen or behind camera, effectively invisible
-                _screenPosition = new Vector2(-1000, -1000); // Move off-screen
+                Hidden = true;
             }
             else
             {
+                Hidden = false; // Upewnij się, że resetujesz Hidden, gdy jest widoczny
                 _screenPosition = new Vector2(screenPos3D.X, screenPos3D.Y);
             }
+
+            // Logowanie dla debugowania (opcjonalne)
+            //Debug.WriteLine($"DamageText Update: ID {this.GetHashCode()}, Elapsed: {_elapsedTime:F2}, Alpha: {Alpha:F2}, Hidden: {Hidden}, ScreenPos: {_screenPosition}");
         }
 
-        // Use DrawAfter to ensure text appears on top of other objects
+        // Draw nie rysuje nic w 3D
+        public override void Draw(GameTime gameTime)
+        {
+            base.Draw(gameTime); // Puste lub pominięte
+        }
+
+        // Rysowanie tekstu odbywa się w DrawAfter
         public override void DrawAfter(GameTime gameTime)
         {
-            if (Status != Models.GameControlStatus.Ready || _font == null || _currentAlpha <= 0.01f)
-                return;
+            base.DrawAfter(gameTime); // Puste lub pominięte
+            //Debug.WriteLine($"--- DamageText DrawAfter CALLED: ID {this.GetHashCode()}, Visible: {Visible} ---");
+            // Używamy właściwości Visible z WorldObject, która sprawdza Status, Hidden i OutOfView
+            if (!Visible) return;
 
-            SpriteBatch spriteBatch = GraphicsManager.Instance.Sprite;
-            float scaleFactor = FontSize / Constants.BASE_FONT_SIZE;
+            var spriteBatch = GraphicsManager.Instance.Sprite;
+            var font = GraphicsManager.Instance.Font;
 
-            // Reuse StringBuilder
-            _stringBuilder.Clear();
-            _stringBuilder.Append(Text);
+            // Sprawdzenie null dla pewności
+            if (spriteBatch == null || font == null) return;
 
-            Vector2 textSize = _font.MeasureString(_stringBuilder) * scaleFactor;
-            Vector2 textOrigin = textSize / 2f; // Center the text
-            Vector2 drawPosition = _screenPosition - textOrigin;
+            // Ustawienia rysowania tekstu
+            float fontSize = 14f; // Rozmiar czcionki
+            float scale = fontSize / Constants.BASE_FONT_SIZE; // Skala na podstawie bazowego rozmiaru
+            Vector2 origin = font.MeasureString(Text) * 0.5f; // Wyśrodkowanie tekstu
+            Color color = TextColor * Alpha; // Zastosuj przezroczystość zanikania
 
-            // Use NonPremultiplied for cleaner text rendering with alpha
-            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.NonPremultiplied, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
+            try
+            {
+                // Używamy Deferred, bo DrawAfter jest zwykle na końcu
+                spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
 
-            // Draw shadow first (optional, but common)
-            Color shadowColor = Color.Black * (_currentAlpha * 0.6f); // Semi-transparent black shadow
-            spriteBatch.DrawString(_font, _stringBuilder, drawPosition + Vector2.One, shadowColor, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 0f);
+                // Rysuj tekst
+                //Debug.WriteLine($"Drawing DamageText: Text='{Text}', Pos={_screenPosition}, Color={color}, Scale={scale}, Alpha={Alpha}");
+                spriteBatch.DrawString(font, Text, _screenPosition, color, 0f, origin, scale, SpriteEffects.None, 0f);
 
-            // Draw main text
-            Color finalColor = TextColor * _currentAlpha;
-            spriteBatch.DrawString(_font, _stringBuilder, drawPosition, finalColor, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 0f);
-
-            spriteBatch.End();
-
-            // Restore default render states if needed (though SpriteBatch usually handles this)
-            GraphicsDevice.BlendState = BlendState.Opaque;
-            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
-
-            // Don't call base.DrawAfter if it does nothing relevant
-            // base.DrawAfter(gameTime);
-        }
-
-        // Ensure Dispose cleans up if needed, though this object has few resources
-        public override void Dispose()
-        {
-            // If we had specific resources like textures, dispose them here
-            base.Dispose(); // Calls Parent?.Children.Remove(this)
+                spriteBatch.End();
+            }
+            catch (Exception ex)
+            {
+                // Logowanie błędu rysowania, jeśli wystąpi
+                // _logger?.LogError(ex, "Error drawing DamageTextObject"); // Potrzebowałbyś ILogger w tej klasie
+                //Debug.WriteLine($"Error drawing DamageTextObject: {ex.Message}");
+            }
+            finally
+            {
+                // Upewnij się, że stany renderowania są resetowane, jeśli Begin/End je zmieniają
+                // Chociaż główna pętla renderowania powinna to robić.
+                GraphicsDevice.BlendState = BlendState.Opaque;
+                GraphicsDevice.DepthStencilState = DepthStencilState.Default;
+                GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+                GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
+            }
         }
     }
 }
-// --- END OF FILE DamageTextObject.cs ---

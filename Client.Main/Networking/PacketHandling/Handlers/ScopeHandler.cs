@@ -16,6 +16,7 @@ using System.Diagnostics;
 using Client.Main.Objects.Monsters;
 using Client.Main.Objects.NPCS;
 using Client.Main.Objects;
+using Client.Main.Objects.Effects;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
@@ -89,35 +90,31 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             for (int i = 0; i < scope.CharacterCount; i++)
             {
                 var c = scope[i];
-                CharacterClassNumber cls = ClassFromAppearance(c.Appearance);
                 ushort raw = c.Id;
                 ushort masked = (ushort)(raw & 0x7FFF);
+                CharacterClassNumber cls = ClassFromAppearance(c.Appearance);
 
-                // ───────────── POMIŃ SWOJEGO GRACZA ─────────────
+                // Pomiń własnego gracza
                 if (masked == _characterState.Id)
                 {
-                    // tylko zaktualizuj pozycję w ScopeManagerze
                     _scopeManager.AddOrUpdatePlayerInScope(masked, raw, c.CurrentPositionX, c.CurrentPositionY, c.Name);
                     continue;
                 }
 
-                byte x = c.CurrentPositionX;
-                byte y = c.CurrentPositionY;
-                string name = c.Name;
-
-                _scopeManager.AddOrUpdatePlayerInScope(masked, raw, x, y, name);
+                // Dodaj do scope zawsze po masked ID
+                _scopeManager.AddOrUpdatePlayerInScope(masked, raw, c.CurrentPositionX, c.CurrentPositionY, c.Name);
 
                 /* Spawn – zależnie od tego, czy świat już istnieje */
                 if (MuGame.Instance.ActiveScene?.World is WalkableWorldControl w &&
                     w.Status == GameControlStatus.Ready)
                 {
-                    SpawnRemotePlayerIntoWorld(w, masked, x, y, name, cls);
+                    SpawnRemotePlayerIntoWorld(w, masked, c.CurrentPositionX, c.CurrentPositionY, c.Name, cls);
                 }
                 else
                 {
                     lock (_pendingPlayers)
                         _pendingPlayers.Add(
-                            new PlayerScopeObject(masked, raw, x, y, name, cls));
+                            new PlayerScopeObject(masked, raw, c.CurrentPositionX, c.CurrentPositionY, c.Name, cls));
                 }
             }
         }
@@ -178,129 +175,99 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
+        [PacketHandler(0x16, PacketRouter.NoSubCode)]   // AddMonstersToScope
+        public Task HandleAddMonstersToScopeAsync(Memory<byte> packet)
+        {
+            _ = Task.Run(() => ParseAndAddNpcsToScopeWithStaggering(packet.ToArray()));
+            return Task.CompletedTask;
+        }
+
         private async Task ParseAndAddNpcsToScopeWithStaggering(byte[] packetData)
         {
             Memory<byte> packet = packetData;
-            int npcCount = 0, firstNpcOffset = 0, npcDataSizeEstimate = 0;
-            Func<Memory<byte>, (ushort Id, ushort TypeNumber, byte PosX, byte PosY)> npcParser = null;
+            int npcCount = 0, firstNpcOffset = 0, npcDataSize = 0;
+            Func<Memory<byte>, (ushort id, ushort type, byte x, byte y)> readNpc = null!;
 
-            try
+            // ---------- nagłówek zależny od wersji ---------------------------------
+            switch (_targetVersion)
             {
-                switch (_targetVersion)
-                {
-                    case TargetProtocolVersion.Season6:
-                        var scopeS6 = new AddNpcsToScope(packet);
-                        npcCount = scopeS6.NpcCount;
-                        firstNpcOffset = 5;
-                        npcDataSizeEstimate = AddNpcsToScope.NpcData.Length;
-                        npcParser = mem =>
-                        {
-                            var d = new AddNpcsToScope.NpcData(mem);
-                            return (d.Id, d.TypeNumber, d.CurrentPositionX, d.CurrentPositionY);
-                        };
-                        break;
-                    case TargetProtocolVersion.Version097:
-                        var scope097 = new AddNpcsToScope095(packet);
-                        npcCount = scope097.NpcCount;
-                        firstNpcOffset = 5;
-                        npcDataSizeEstimate = AddNpcsToScope095.NpcData.Length;
-                        npcParser = mem =>
-                        {
-                            var d = new AddNpcsToScope095.NpcData(mem);
-                            return (d.Id, d.TypeNumber, d.CurrentPositionX, d.CurrentPositionY);
-                        };
-                        break;
-                    case TargetProtocolVersion.Version075:
-                        var scope075 = new AddNpcsToScope075(packet);
-                        npcCount = scope075.NpcCount;
-                        firstNpcOffset = 5;
-                        npcDataSizeEstimate = AddNpcsToScope075.NpcData.Length;
-                        npcParser = mem =>
-                        {
-                            var d = new AddNpcsToScope075.NpcData(mem);
-                            return (d.Id, d.TypeNumber, d.CurrentPositionX, d.CurrentPositionY);
-                        };
-                        break;
-                    default:
-                        _logger.LogWarning("Unsupported protocol version ({Version}) for AddNpcToScope.", _targetVersion);
-                        return;
-                }
-                _logger.LogInformation("Processing AddNpcToScope ({Version}): {Count} NPC(s)/Monster(s).", _targetVersion, npcCount);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error parsing AddNpcToScope header/count.");
-                return;
-            }
-
-            int offset = firstNpcOffset;
-            for (int i = 0; i < npcCount; i++)
-            {
-                if (offset + npcDataSizeEstimate > packet.Length)
-                {
-                    _logger.LogWarning("Packet too short while parsing NPC/Monster at index {Index}.", i);
+                case TargetProtocolVersion.Season6:
+                    var s6 = new AddNpcsToScope(packet);
+                    npcCount = s6.NpcCount;
+                    firstNpcOffset = 5;
+                    npcDataSize = AddNpcsToScope.NpcData.Length;
+                    readNpc = m => { var d = new AddNpcsToScope.NpcData(m); return (d.Id, d.TypeNumber, d.CurrentPositionX, d.CurrentPositionY); };
                     break;
-                }
 
-                var mem = packet.Slice(offset);
-                var (rawId, typeNumber, x, y) = npcParser(mem);
-                ushort npcId = rawId;                                   // <--- TU: pełne rawId
-                string name = NpcDatabase.GetNpcName(typeNumber);
+                case TargetProtocolVersion.Version097:
+                    var v97 = new AddNpcsToScope095(packet);
+                    npcCount = v97.NpcCount;
+                    firstNpcOffset = 5;
+                    npcDataSize = AddNpcsToScope095.NpcData.Length;
+                    readNpc = m => { var d = new AddNpcsToScope095.NpcData(m); return (d.Id, d.TypeNumber, d.CurrentPositionX, d.CurrentPositionY); };
+                    break;
 
-                _logger.LogDebug("Parsed NPC/Monster: RawID={RawId:X4}, Type={Type} ({Name}), Pos=({X},{Y})",
-                                 rawId, typeNumber, name, x, y);
+                case TargetProtocolVersion.Version075:
+                    var v75 = new AddNpcsToScope075(packet);
+                    npcCount = v75.NpcCount;
+                    firstNpcOffset = 5;
+                    npcDataSize = AddNpcsToScope075.NpcData.Length;
+                    readNpc = m => { var d = new AddNpcsToScope075.NpcData(m); return (d.Id, d.TypeNumber, d.CurrentPositionX, d.CurrentPositionY); };
+                    break;
 
-                // 1) ScopeManager
-                _scopeManager.AddOrUpdateNpcInScope(npcId, rawId, x, y, typeNumber, name);
+                default:
+                    _logger.LogWarning("Unsupported protocol version {Version} for AddNpcToScope.", _targetVersion);
+                    return;
+            }
+            _logger.LogInformation("AddNpcToScope → {Count} obiektów.", npcCount);
 
-                // 2) Jeśli świat gotowy, spawnujemy
-                if (MuGame.Instance.ActiveScene?.World is WorldControl world && world.Status == GameControlStatus.Ready)
+            // ---------- iteracja po obiektach ---------------------------------------
+            int offset = firstNpcOffset;
+            for (int i = 0; i < npcCount; i++, offset += npcDataSize)
+            {
+                var (rawId, type, x, y) = readNpc(packet.Slice(offset));
+                ushort maskedId = (ushort)(rawId & 0x7FFF);
+                string name = NpcDatabase.GetNpcName(type);
+
+                _scopeManager.AddOrUpdateNpcInScope(maskedId, rawId, x, y, type, name);
+
+                WorldControl w = null;
+                bool worldReady = MuGame.Instance.ActiveScene?.World is WorldControl worldControl && (w = worldControl).Status == GameControlStatus.Ready;
+
+                if (worldReady && NpcMonsterTypeMap.TryGetValue(type, out var cls))
                 {
-                    if (NpcMonsterTypeMap.TryGetValue(typeNumber, out var objectType))
+                    //  SPOWN OD RAZU NA MAPIE  ------------------------------------------------
+                    var worldRef = w; // capture for lambda
+                    MuGame.ScheduleOnMainThread(async () =>
                     {
-                        var idToSpawn = npcId;
-                        var px = x;
-                        var py = y;
-                        var cls = objectType;
+                        if (worldRef.Objects.OfType<WalkerObject>().Any(o => o.NetworkId == maskedId))
+                            return;
 
-                        MuGame.ScheduleOnMainThread(async () =>
+                        if (Activator.CreateInstance(cls) is WalkerObject obj)
                         {
-                            // <--- TU: rawId jako klucz
-                            if (world.Objects.OfType<WalkerObject>().Any(w => w.NetworkId == idToSpawn))
-                            {
-                                _logger.LogTrace("NPC/Monster {Id:X4} already exists visually, skipping.", idToSpawn);
-                                return;
-                            }
-
-                            if (Activator.CreateInstance(cls) is WalkerObject mo)
-                            {
-                                mo.NetworkId = idToSpawn;
-                                mo.Location = new Vector2(px, py);
-                                world.Objects.Add(mo);
-                                await mo.Load();
-                                _logger.LogInformation("✅ Spawned {Name} (ID: {Id:X4}) at ({X},{Y})", cls.Name, idToSpawn, px, py);
-                            }
-                        });
-
-                        await Task.Delay(50);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("No C# class for TypeNumber {TypeNumber}.", typeNumber);
-                    }
+                            obj.NetworkId = maskedId;
+                            obj.Location = new Vector2(x, y);
+                            worldRef.Objects.Add(obj);
+                            await obj.Load();
+                        }
+                    });
+                    await Task.Delay(50);     // delikatne rozłożenie w czasie
                 }
-
-                offset += npcDataSizeEstimate;
+                else
+                {
+                    //  MAPA JESZCZE SIĘ ŁADUJE → wrzuć do bufora ------------------------
+                    lock (_pendingNpcsMonsters)
+                        _pendingNpcsMonsters.Add(new NpcScopeObject(maskedId, rawId, x, y, type, name));
+                }
             }
         }
 
-        // **** ADDED HANDLER FOR 0x11 ****
         [PacketHandler(0x11, PacketRouter.NoSubCode)] // ObjectHit / ObjectGotHit
         public Task HandleObjectHitAsync(Memory<byte> packet)
         {
             try
             {
-                // Sprawdź długość pakietu - ObjectHit ma stały rozmiar
+                // 1) wstępne parsowanie pakietu
                 if (packet.Length < ObjectHit.Length)
                 {
                     _logger.LogWarning("ObjectHit packet (0x11) too short. Length: {Length}", packet.Length);
@@ -308,48 +275,87 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 }
 
                 var hitInfo = new ObjectHit(packet);
-                ushort objectIdRaw = hitInfo.ObjectId;
-                ushort objectIdMasked = (ushort)(objectIdRaw & 0x7FFF);
-                uint healthDamage = hitInfo.HealthDamage; // Obrażenia zadane w HP
-                uint shieldDamage = hitInfo.ShieldDamage; // Obrażenia zadane w SD
+                ushort rawId = hitInfo.ObjectId;
+                ushort maskedId = (ushort)(rawId & 0x7FFF); // Zawsze maskujemy ID do logowania i porównań
+                uint healthDmg = hitInfo.HealthDamage;
+                uint shieldDmg = hitInfo.ShieldDamage;
+                uint totalDmg = healthDmg + shieldDmg;
 
-                // Spróbuj uzyskać nazwę obiektu, który otrzymał cios
-                string objectName = _scopeManager.TryGetScopeObjectName(objectIdRaw, out var name) ? (name ?? "Object") : "Object";
-
+                // 2) logujemy w konsoli (używamy maskedId do wyszukania nazwy)
+                string objectName = _scopeManager.TryGetScopeObjectName(maskedId, out var nm) // Szukamy po maskedId
+                                        ? (nm ?? "Object")
+                                        : "Object";
                 _logger.LogInformation("💥 {ObjectName} (ID: {Id:X4}) received hit! HP Dmg: {HpDmg}, SD Dmg: {SdDmg}",
-                                     objectName, objectIdMasked, healthDamage, shieldDamage);
+                                         objectName, maskedId, healthDmg, shieldDmg);
 
-                // Aktualizuj stan HP/SD, jeśli to nasz gracz
-                if (objectIdMasked == _characterState.Id)
+                // 3) tworzymy tekst obrażeń na głowie ofiary (na głównym wątku)
+                MuGame.ScheduleOnMainThread(() =>
                 {
-                    // Odejmij obrażenia (zabezpiecz przed ujemnymi wartościami)
-                    uint newHp = (uint)Math.Max(0, (int)_characterState.CurrentHealth - (int)healthDamage);
-                    uint newSd = (uint)Math.Max(0, (int)_characterState.CurrentShield - (int)shieldDamage);
+                    // Pobierz świat wewnątrz akcji na głównym wątku
+                    if (MuGame.Instance.ActiveScene?.World is not WorldControl world)
+                    {
+                        _logger.LogWarning("Cannot show damage text: Active world is null or not WorldControl.");
+                        return;
+                    }
 
+                    WalkerObject target = null;
+
+                    // --- POPRAWIONA LOGIKA WYSZUKIWANIA ---
+                    // Sprawdź NAJPIERW, czy ID pasuje do ID lokalnego gracza ZAPISANEGO W STANIE
+                    if (maskedId == _characterState.Id && world is WalkableWorldControl walkableWorld)
+                    {
+                        // Jeśli tak, użyj referencji do lokalnego gracza
+                        target = walkableWorld.Walker;
+                        if (target == null)
+                        {
+                            _logger.LogWarning("Local player (ID {Id:X4}) hit, but world.Walker is null.", maskedId);
+                            return; // Nie można kontynuować bez obiektu gracza
+                        }
+                        _logger.LogTrace("Damage target identified as local player (ID {Id:X4}).", maskedId);
+                    }
+                    else
+                    {
+                        // Jeśli to nie lokalny gracz, spróbuj znaleźć inny obiekt WalkerObject po ID
+                        if (!world.TryGetWalkerById(maskedId, out target)) // Używamy metody pomocniczej
+                        {
+                            _logger.LogWarning("Cannot find Walker {Id:X4} using TryGetWalkerById to show damage text.", maskedId);
+                            return; // Nie znaleziono obiektu
+                        }
+                        _logger.LogTrace("Damage target identified as remote walker (ID {Id:X4}, Type: {Type}).", maskedId, target.GetType().Name);
+                    }
+                    // --- KONIEC POPRAWIONEJ LOGIKI WYSZUKIWANIA ---
+
+                    // Jeśli mamy poprawny cel (target != null)
+                    // pozycja nieco nad głową
+                    var headPos = target.WorldPosition.Translation
+                                + Vector3.UnitZ * (target.BoundingBoxWorld.Max.Z - target.WorldPosition.Translation.Z + 30f);
+
+                    var txt = new DamageTextObject(
+                        totalDmg == 0 ? "Miss" : totalDmg.ToString(),
+                        headPos,
+                        totalDmg == 0 ? Color.White : Color.Red);
+
+                    world.Objects.Add(txt); // Dodaj obiekt tekstu obrażeń do świata
+                    _logger.LogDebug("Spawned DamageTextObject '{Text}' for target ID {Id:X4}", txt.Text, maskedId);
+                });
+
+                // 4) aktualizacja stanu HP/SD jeśli to nasz gracz (bez zmian)
+                if (maskedId == _characterState.Id)
+                {
+                    uint newHp = (uint)Math.Max(0, (int)_characterState.CurrentHealth - (int)healthDmg);
+                    uint newSd = (uint)Math.Max(0, (int)_characterState.CurrentShield - (int)shieldDmg);
                     _characterState.UpdateCurrentHealthShield(newHp, newSd);
-                    // _networkManager.UpdateConsoleTitle(); // Zaktualizuj tytuł konsoli/UI
-                    // _networkManager.ViewModel.UpdateStatsDisplay(); // Zaktualizuj wyświetlanie statystyk
-
-                    // Można też dodać logikę odtworzenia animacji otrzymania ciosu (hitAnimation)
-                    // np. poprzez ustawienie specjalnej akcji w PlayerObject
-                    // _characterState.TriggerHitAnimation(hitAnimation);
                 }
                 else
                 {
-                    // TODO: Opcjonalnie, jeśli chcesz wizualizować obrażenia innych obiektów,
-                    // możesz zaktualizować ich stan w ScopeManager lub wywołać efekt wizualny.
-                    // Możesz też chcieć odtworzyć animację otrzymania ciosu dla NPC/Potwora.
+                    // ewentualna animacja hit dla NPC/Potwora... (bez zmian)
                     MuGame.ScheduleOnMainThread(() =>
                     {
-                        if (MuGame.Instance.ActiveScene?.World is WorldControl world)
+                        if (MuGame.Instance.ActiveScene?.World is WorldControl world
+                            && world.TryGetWalkerById(maskedId, out var walker))
                         {
-                            if (world.TryGetWalkerById(objectIdMasked, out var walker))
-                            {
-                                // Ustawienie animacji otrzymania ciosu - wymaga zmapowania hitAnimation na PlayerAction
-                                // PlayerAction hitAction = MapHitAnimationToAction(hitAnimation);
-                                // walker.CurrentAction = hitAction;
-                                _logger.LogDebug("Triggering hit animation for {ObjectType} {Id:X4}", walker.GetType().Name, objectIdMasked);
-                            }
+                            // tu można zmienić walker.CurrentAction na animację otrzymania ciosu
+                            _logger.LogDebug("Triggering hit animation for {Type} {Id:X4}", walker.GetType().Name, maskedId);
                         }
                     });
                 }
@@ -360,56 +366,6 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             }
             return Task.CompletedTask;
         }
-
-        // **** ADDED SPAWN METHOD ****
-        private void SpawnNpcMonsterIntoWorld(WalkableWorldControl world, ushort maskedId, byte x, byte y, ushort typeNumber)
-        {
-            // Check if already exists in the world
-            if (world.Objects.OfType<WalkerObject>().Any(w => w.NetworkId == maskedId))
-            {
-                _logger.LogTrace("NPC/Monster {MaskedId:X4} Type {Type} already exists in world, skipping spawn.", maskedId, typeNumber);
-                return;
-            }
-
-            // Find the C# type for this NPC/Monster
-            if (!NpcMonsterTypeMap.TryGetValue(typeNumber, out Type? objectType))
-            {
-                _logger.LogWarning("❓ No C# class registered in NpcMonsterTypeMap for TypeNumber {TypeNumber}. Cannot spawn.", typeNumber);
-                return;
-            }
-
-            _logger.LogDebug("Scheduling spawn for NPC/Monster {MaskedId:X4} Type {Type} ({ClassName}) at ({X},{Y})", maskedId, typeNumber, objectType.Name, x, y);
-
-            MuGame.ScheduleOnMainThread(async () =>
-            {
-                // Double-check existence just before creation on main thread
-                if (world.Objects.OfType<WalkerObject>().Any(w => w.NetworkId == maskedId)) return;
-
-                try
-                {
-                    // Create instance using Activator
-                    if (Activator.CreateInstance(objectType) is WalkerObject npcMonster)
-                    {
-                        npcMonster.NetworkId = maskedId;
-                        npcMonster.Location = new Vector2(x, y);
-                        // npcMonster.Name = NpcDatabase.GetNpcName(typeNumber); // Name is usually handled by the specific class or not needed
-
-                        world.Objects.Add(npcMonster);
-                        await npcMonster.Load(); // Load the object's content (model etc.)
-                        _logger.LogInformation("✅ Spawned {ClassName} (ID: {MaskedId:X4}, Type: {Type}) at ({X},{Y})", objectType.Name, maskedId, typeNumber, x, y);
-                    }
-                    else
-                    {
-                        _logger.LogError("Failed to create or cast instance of {ClassName} for TypeNumber {TypeNumber}.", objectType.Name, typeNumber);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "💥 Exception during NPC/Monster spawn for Type {Type} ({ClassName}).", typeNumber, objectType.Name);
-                }
-            });
-        }
-        // **** END ADDED SPAWN METHOD ****
 
         private void ParseAndAddDroppedItemsToScope(Memory<byte> packet)
         {
@@ -785,28 +741,27 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 return Task.CompletedTask;
 
             var walk = new ObjectWalked(packet);
-            ushort id = walk.ObjectId;          // RAW ID
-            byte targetX = walk.TargetX;
-            byte targetY = walk.TargetY;
+            ushort rawId = walk.ObjectId;
+            ushort maskedId = (ushort)(rawId & 0x7FFF);  // <-- masked
+            byte x = walk.TargetX;
+            byte y = walk.TargetY;
 
-            // 1) aktualizacja w ScopeManagerze
-            _scopeManager.TryUpdateScopeObjectPosition(id, targetX, targetY);
+            _scopeManager.TryUpdateScopeObjectPosition(maskedId, x, y);
 
-            // 2) aktualizacja wizualna na głównym wątku
             MuGame.ScheduleOnMainThread(() =>
             {
+
                 if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl world)
-                    return;
+                return;
 
                 /* ---------- GRACZ ------------------------------------------------- */
-                var player = world.Objects
-                                  .OfType<PlayerObject>()
-                                  .FirstOrDefault(p => p.NetworkId == id);
+                var player = world.Objects.OfType<PlayerObject>()
+                               .FirstOrDefault(p => p.NetworkId == maskedId);
                 if (player != null)
                 {
                     bool wasMoving = player.IsMoving;                 // <—  zapamiętaj
 
-                    player.MoveTo(new Vector2(targetX, targetY), sendToServer: false);
+                    player.MoveTo(new Vector2(x, y), sendToServer: false);
 
                     const byte walkActionPlayer = 1;                  // indeks „walk” gracza
                     if (!wasMoving                                           // zaczynał stać
@@ -820,12 +775,12 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 /* ---------- NPC / POTWÓR ----------------------------------------- */
                 var walker = world.Objects
                                   .OfType<WalkerObject>()
-                                  .FirstOrDefault(w => w.NetworkId == id);
+                                  .FirstOrDefault(w => w.NetworkId == maskedId);
                 if (walker != null)
                 {
                     bool wasMoving = walker.IsMoving;                 // <—  zapamiętaj
 
-                    walker.MoveTo(new Vector2(targetX, targetY), sendToServer: false);
+                    walker.MoveTo(new Vector2(x, y), sendToServer: false);
 
                     const byte walkActionNpc = 2;                     // indeks „walk” monstra
                     if (!wasMoving                                           // dopiero ruszył
@@ -935,19 +890,17 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 if (MuGame.Instance.ActiveScene?.World is not WorldControl world) return;
                 if (!world.TryGetWalkerById(id, out var walker)) return;
 
-                // ── DEKODOWANIE ───────────────────────────────────────────────
-                byte raw = anim.Animation;               // to samo co rawAnim na screenie
-                byte dir = anim.Direction;               // kierunek z pakietu (0-7)
+                byte raw = anim.Animation;           // pełny bajt z serwera
+                byte dir = anim.Direction;
 
+                // ── WYDZIEL numer akcji ────────────────────────────────
                 byte actionIdx = walker is MonsterObject
-                    ? (byte)(raw >> 5)   // POTWÓR ⇒ 5 bitów (7-5)
-                    : (byte)(raw >> 3);  // Postać ⇒ 5 bitów (7-3)
+                                 ? (byte)((raw & 0xE0) >> 5)   // bity 7-5
+                                 : (byte)((raw & 0xF8) >> 3);  // bity 7-3
 
-                // zabezpieczenie przed wyjściem poza tablicę   
-                if (walker.Model?.Actions?.Length > 0)
-                    actionIdx %= (byte)walker.Model.Actions.Length;
+                // ── ustaw animację zawsze od KLATKI 0 ──────────────────
+                walker.PlayAction(actionIdx);   // patrz § 2
 
-                walker.CurrentAction = actionIdx;
                 walker.Direction = (Models.Direction)dir;
             });
 

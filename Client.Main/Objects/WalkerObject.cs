@@ -1,11 +1,13 @@
 ﻿using Client.Main.Controls;
 using Client.Main.Models;
+using Client.Main.Objects.Monsters;
 using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects
@@ -162,10 +164,94 @@ namespace Client.Main.Objects
 
             if (!IsMoving)
             {
-                const byte idleAction = 1;
-                if (Model?.Actions?.Length > idleAction && CurrentAction != idleAction)
-                    CurrentAction = idleAction;
+                if (this is MonsterObject)          // potwory
+                {
+                    const byte MonsterWalk = 2;     // 2 = „walk”
+                    const byte MonsterIdle = 1;     // 1 = „idle”
+
+                    if (CurrentAction == MonsterWalk &&
+                        Model?.Actions?.Length > MonsterIdle)
+                    {
+                        CurrentAction = MonsterIdle;
+                    }
+                }
+                else                                // gracz-lokalny lub zdalny
+                {
+                    const byte PlayerWalk = 1;      // 1 = „walk” (male/female)
+                    const byte PlayerIdle = 0;      // 0 = „stop/idle”
+
+                    if (CurrentAction == PlayerWalk &&
+                        Model?.Actions?.Length > PlayerIdle)
+                    {
+                        CurrentAction = PlayerIdle;
+                    }
+                }
             }
+        }
+
+        private CancellationTokenSource? _autoIdleCts;
+
+        /// <summary>
+        /// Odtwarza wskazaną akcję.  
+        /// Dla potworów/NPC wraca automatycznie do idle,
+        /// gdy animacja zakończy się i obiekt stoi.
+        /// </summary>
+        public void PlayAction(byte actionIndex)
+        {
+            // ── nic do roboty ───────────────────────────────────
+            if (CurrentAction == actionIndex)
+                return;
+
+            CurrentAction = actionIndex;
+            
+
+            // ── gracz-lokalny i zdalni gracze bez auto-idle ─────
+            if (this is not MonsterObject)
+                return;
+
+            // Idle(1) i Walk(2) nie potrzebują resetu
+            if (actionIndex is 1 or 2)
+                return;
+
+            // ── długość animacji z NumAnimationKeys ─────────────
+            var actions = Model?.Actions;
+            if (actions == null || actionIndex >= actions.Length)
+                return;
+
+            var act = actions[actionIndex];
+            int frames = act?.NumAnimationKeys ?? 0;
+            if (frames <= 0)
+                return;
+
+            // FPS – jeśli nie masz w modelu, przyjmij 10 fps
+            float fps = 10f;
+            if (fps <= 0f) fps = 10f;
+
+            int msTotal = (int)(1000f * frames / fps) + 100;   // +mały margines
+
+            // ── anuluj poprzedni timer ──────────────────────────
+            _autoIdleCts?.Cancel();
+            _autoIdleCts = new CancellationTokenSource();
+            var token = _autoIdleCts.Token;
+
+            // ── uruchom jednorazowy “timer” ─────────────────────
+            _ = Task.Delay(msTotal, token).ContinueWith(_ =>
+            {
+                if (token.IsCancellationRequested) return;
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    // jeśli nadal stoimy i akcja nie zmieniła się w międzyczasie
+                    if (!IsMoving && CurrentAction == actionIndex)
+                    {
+                        const byte MonsterIdle = 1;
+                        if (Model?.Actions?.Length > MonsterIdle)
+                            CurrentAction = MonsterIdle;
+                    }
+                });
+            }, token,
+               TaskContinuationOptions.OnlyOnRanToCompletion,
+               TaskScheduler.Default);
         }
 
         private void UpdatePosition(GameTime gameTime)

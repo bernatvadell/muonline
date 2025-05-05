@@ -209,8 +209,18 @@ namespace Client.Main.Controls
         }
 
         // **** RE-ADDED HELPER METHODS ****
-        public bool TryGetWalkerById(ushort networkId, out WalkerObject? walker)
+        public virtual bool TryGetWalkerById(ushort networkId, out WalkerObject walker)
         {
+            // 1) jeżeli to świat „walkable” i ID pasuje do lokalnego gracza
+            if (this is WalkableWorldControl walkable &&
+                walkable.Walker is { NetworkId: > 0 } hero &&
+                hero.NetworkId == networkId)
+            {
+                walker = hero;
+                return true;
+            }
+
+            // 2) słownik wszystkich pozostałych obiektów
             return WalkerObjectsById.TryGetValue(networkId, out walker);
         }
 

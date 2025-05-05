@@ -598,7 +598,6 @@ namespace Client.Main.Objects
                                                              // Można też rozważyć interpolację między ostatnią a pierwszą, ale to bardziej złożone
             }
 
-
             // Wywołaj GenerateBoneMatrix z bezpiecznym indeksem akcji i obliczonymi klatkami
             GenerateBoneMatrix(currentActionIndex, f0, f1, frame - f0);
 
