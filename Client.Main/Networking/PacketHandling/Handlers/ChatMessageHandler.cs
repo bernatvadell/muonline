@@ -1,147 +1,176 @@
+using Client.Main.Controls.UI;           // For ChatLogWindow, NotificationManager
+using Client.Main.Core.Utilities;       // For PacketHandlerAttribute
+using Client.Main.Scenes;               // For GameScene
 using Microsoft.Extensions.Logging;
 using MUnique.OpenMU.Network.Packets.ServerToClient;
-using Client.Main.Core.Utilities;
 using System;
-using System.Threading.Tasks; // For PacketHandlerAttribute
-using Client.Main.Controls.UI; // For ChatLogWindow
-using System.Linq;             // For OfType()
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
     /// <summary>
-    /// Handles chat and server message packets.
+    /// Implements IGamePacketHandler to process server and chat messages.
     /// </summary>
     public class ChatMessageHandler : IGamePacketHandler
     {
+        // ──────────────────────────── Fields ────────────────────────────
         private readonly ILogger<ChatMessageHandler> _logger;
+        private static readonly List<(ServerMessage.MessageType Type, string Message)> _pendingServerMessages = new();
+        private static readonly object _pendingServerMessagesLock = new();
+        private static readonly Regex _leadingZerosRegex = new Regex(
+            @"^0+(?=[a-zA-Z])",
+            RegexOptions.Compiled);
 
+        // ───────────────────────── Constructors ─────────────────────────
         public ChatMessageHandler(ILoggerFactory loggerFactory)
         {
             _logger = loggerFactory.CreateLogger<ChatMessageHandler>();
         }
 
-        [PacketHandler(0x0D, PacketRouter.NoSubCode)] // ServerMessage
+        // ─────────────────────── Packet Handlers ────────────────────────
+
+        [PacketHandler(0x0D, PacketRouter.NoSubCode)]  // ServerMessage (0x0D)
         public Task HandleServerMessageAsync(Memory<byte> packet)
         {
+            var serverMsg = new ServerMessage(packet);
+            string original = serverMsg.Message;
+            string cleaned = _leadingZerosRegex.Replace(original, "");
+
+            var scene = MuGame.Instance?.ActiveScene as GameScene;
+            if (scene == null)
+            {
+                _logger.LogWarning(
+                    "GameScene is null when handling ServerMessage (0x0D). Queuing message: Type={Type}, Content='{Message}'",
+                    serverMsg.Type, cleaned);
+
+                lock (_pendingServerMessagesLock)
+                {
+                    _pendingServerMessages.Add((serverMsg.Type, cleaned));
+                }
+                return Task.CompletedTask;
+            }
+
             try
             {
-                var message = new ServerMessage(packet);
-                _logger.LogInformation("💬 Received ServerMessage: Type={Type}, Content='{Message}'", message.Type, message.Message);
+                _logger.LogInformation(
+                    "Received ServerMessage (0x0D): Type={Type}, Original='{Original}', Cleaned='{Cleaned}'",
+                    serverMsg.Type, original, cleaned);
 
-                MuGame.ScheduleOnMainThread(() =>
-                {
-                    var chatLog = MuGame.Instance?.ActiveScene?.Controls?.OfType<ChatLogWindow>().FirstOrDefault();
-                    if (chatLog != null)
-                    {
-                        var uiMessageType = message.Type switch
-                        {
-                            ServerMessage.MessageType.GoldenCenter => Models.MessageType.Info,
-                            ServerMessage.MessageType.BlueNormal => Models.MessageType.System,
-                            ServerMessage.MessageType.GuildNotice => Models.MessageType.Guild, // Guild Notice might be better as Guild type
-                            _ => Models.MessageType.System
-                        };
-                        // Server messages usually don't have a specific sender ID in this context
-                        chatLog.AddMessage(string.Empty, message.Message, uiMessageType);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("ChatLogWindow not found in active scene to display ServerMessage.");
-                    }
-                });
+                // Queue for UI-thread processing in GameScene
+                scene.ShowNotificationMessage(serverMsg.Type, cleaned);
 
-                // Keep console output for debugging if desired
-                string prefix = message.Type switch
+                // Also print to console with prefix based on message type
+                string prefix = serverMsg.Type switch
                 {
                     ServerMessage.MessageType.GoldenCenter => "[GOLDEN]: ",
                     ServerMessage.MessageType.BlueNormal => "[SYSTEM]: ",
-                    ServerMessage.MessageType.GuildNotice => "[GUILD_NOTICE]: ", // Differentiate notice from regular guild chat
+                    ServerMessage.MessageType.GuildNotice => "[GUILD_NOTICE]: ",
                     _ => "[SERVER]: "
                 };
-                Console.WriteLine($"{prefix}{message.Message}");
-
+                Console.WriteLine($"{prefix}{cleaned}");
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing ServerMessage (0D)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing ServerMessage (0x0D).");
+            }
+
             return Task.CompletedTask;
         }
 
-        [PacketHandler(0x00, PacketRouter.NoSubCode)] // ChatMessage
+        [PacketHandler(0x00, PacketRouter.NoSubCode)]  // ChatMessage (0x00)
         public Task HandleChatMessageAsync(Memory<byte> packet)
         {
+            var scene = MuGame.Instance?.ActiveScene as GameScene;
+            if (scene == null)
+            {
+                _logger.LogWarning(
+                    "GameScene is null when handling ChatMessage (0x00). Cannot display message.");
+                return Task.CompletedTask;
+            }
+
             try
             {
-                // Use the correct ChatMessage struct based on the provided definition
-                var message = new MUnique.OpenMU.Network.Packets.ServerToClient.ChatMessage(packet);
-                _logger.LogInformation("💬 Received ChatMessage (Packet 0x00): From={Sender}, Type={Type}, Content='{Message}'", message.Sender, message.Type, message.Message);
+                var chatMsg = new MUnique.OpenMU.Network.Packets.ServerToClient.ChatMessage(packet);
+                _logger.LogInformation(
+                    "Received ChatMessage (0x00): From={Sender}, Type={Type}, Message='{Message}'",
+                    chatMsg.Sender, chatMsg.Type, chatMsg.Message);
 
-                // Capture data needed for the UI thread
-                string sender = message.Sender;
-                string rawText = message.Message; // Get the raw message text
-                MUnique.OpenMU.Network.Packets.ServerToClient.ChatMessage.ChatMessageType packetType = message.Type;
+                string sender = chatMsg.Sender;
+                string rawText = chatMsg.Message;
+                var type = chatMsg.Type;
 
                 MuGame.ScheduleOnMainThread(() =>
                 {
-                    var chatLog = MuGame.Instance?.ActiveScene?.Controls?.OfType<ChatLogWindow>().FirstOrDefault();
+                    var chatLog = scene.Controls.OfType<ChatLogWindow>().FirstOrDefault();
                     if (chatLog != null)
                     {
-                        Models.MessageType uiMessageType;
-                        string displayText = rawText; // Start with the raw text
+                        Models.MessageType uiType;
+                        string display = rawText;
 
-                        if (packetType == MUnique.OpenMU.Network.Packets.ServerToClient.ChatMessage.ChatMessageType.Whisper)
+                        if (type == MUnique.OpenMU.Network.Packets.ServerToClient.ChatMessage.ChatMessageType.Whisper)
                         {
-                            uiMessageType = Models.MessageType.Whisper;
-                            // Whisper messages usually don't have prefixes to strip
+                            uiType = Models.MessageType.Whisper;
                         }
-                        else // Handle Normal messages (which might contain prefixes)
+                        else if (rawText.StartsWith("~"))
                         {
-                            // Check for prefixes and determine UI type
-                            if (rawText.StartsWith("~"))
-                            {
-                                uiMessageType = Models.MessageType.Party;
-                                displayText = rawText.Substring(1).TrimStart(); // Remove prefix for display
-                            }
-                            else if (rawText.StartsWith("@"))
-                            {
-                                uiMessageType = Models.MessageType.Guild;
-                                displayText = rawText.Substring(1).TrimStart(); // Remove prefix for display
-                            }
-                            else if (rawText.StartsWith("$")) // Assuming '$' for Gens, adjust if different
-                            {
-                                uiMessageType = Models.MessageType.Gens;
-                                displayText = rawText.Substring(1).TrimStart(); // Remove prefix for display
-                            }
-                            // Add checks for other potential prefixes (e.g., GM messages might have a specific format)
-                            // else if (IsGmMessage(sender, rawText)) { uiMessageType = Models.MessageType.GM; }
-                            else
-                            {
-                                uiMessageType = Models.MessageType.Chat; // Default to normal chat
-                            }
+                            uiType = Models.MessageType.Party;
+                            display = rawText[1..].TrimStart();
+                        }
+                        else if (rawText.StartsWith("@"))
+                        {
+                            uiType = Models.MessageType.Guild;
+                            display = rawText[1..].TrimStart();
+                        }
+                        else if (rawText.StartsWith("$"))
+                        {
+                            uiType = Models.MessageType.Gens;
+                            display = rawText[1..].TrimStart();
+                        }
+                        else
+                        {
+                            uiType = Models.MessageType.Chat;
                         }
 
-                        // Add the processed message to the chat log
-                        chatLog.AddMessage(sender, displayText, uiMessageType);
+                        chatLog.AddMessage(sender, display, uiType);
                     }
                     else
                     {
-                        _logger.LogWarning("ChatLogWindow not found in active scene to display ChatMessage from {Sender}.", sender);
+                        _logger.LogWarning("ChatLogWindow not found for ChatMessage from {Sender}.", sender);
                     }
                 });
 
-                // Keep console output for debugging if desired (using raw text here)
-                string prefix = message.Type switch
+                string prefix = type switch
                 {
-                    MUnique.OpenMU.Network.Packets.ServerToClient.ChatMessage.ChatMessageType.Whisper => $"귓속말 [{message.Sender}]: ",
-                    MUnique.OpenMU.Network.Packets.ServerToClient.ChatMessage.ChatMessageType.Normal => $"[{message.Sender}]: ", // Will log with prefix if present
-                    _ => $"[{message.Sender} ({message.Type})]: "
+                    MUnique.OpenMU.Network.Packets.ServerToClient.ChatMessage.ChatMessageType.Whisper => $"Whisper [{sender}]: ",
+                    MUnique.OpenMU.Network.Packets.ServerToClient.ChatMessage.ChatMessageType.Normal => $"[{sender}]: ",
+                    _ => $"[{sender} ({type})]: "
                 };
-                Console.WriteLine($"{prefix}{rawText}"); // Log raw text to console
-
+                Console.WriteLine($"{prefix}{rawText}");
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing ChatMessage (00)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing ChatMessage (0x00).");
+            }
+
             return Task.CompletedTask;
         }
 
-        // **** REMOVED UNNECESSARY HELPER METHOD ****
-        // The mapping logic is now directly inside HandleChatMessageAsync
-        // private Models.MessageType MapPacketChatTypeToUiType(MUnique.OpenMU.Network.Packets.ServerToClient.ChatMessage.ChatMessageType packetType) { ... }
+        // ───────────────────────── Static API ──────────────────────────
+
+        /// <summary>
+        /// Retrieves and clears any queued server messages for processing when the scene is ready.
+        /// </summary>
+        public static List<(ServerMessage.MessageType Type, string Message)> TakePendingServerMessages()
+        {
+            lock (_pendingServerMessagesLock)
+            {
+                var copy = new List<(ServerMessage.MessageType, string)>(_pendingServerMessages);
+                _pendingServerMessages.Clear();
+                return copy;
+            }
+        }
     }
 }

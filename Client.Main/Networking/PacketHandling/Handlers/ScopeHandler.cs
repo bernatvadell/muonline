@@ -28,6 +28,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         private readonly ILogger<ScopeHandler> _logger;
         private readonly ScopeManager _scopeManager;
         private readonly CharacterState _characterState;
+        private readonly NetworkManager _networkManager;
         private readonly TargetProtocolVersion _targetVersion;
         private static readonly List<NpcScopeObject> _pendingNpcsMonsters = new();
 
