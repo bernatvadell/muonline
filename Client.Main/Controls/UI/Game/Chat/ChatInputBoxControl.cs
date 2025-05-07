@@ -1,5 +1,7 @@
 using Client.Main.Controllers;
+using Client.Main.Core.Client;
 using Client.Main.Models;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -11,6 +13,7 @@ namespace Client.Main.Controls.UI
 {
     public class ChatInputBoxControl : UIControl
     {
+        // Fields
         private const int CHATBOX_WIDTH = 281;
         public const int CHATBOX_HEIGHT = 47;
         private const int BUTTON_WIDTH = 27;
@@ -30,7 +33,7 @@ namespace Client.Main.Controls.UI
         private const int MAX_CHAT_HISTORY = 12;
         private const int MAX_WHISPER_HISTORY = 5;
 
-        // --- Child Controls ---
+        // Child Controls
         private TextureControl _background;
         private TextFieldControl _chatInput;
         private TextFieldControl _whisperIdInput;
@@ -42,45 +45,52 @@ namespace Client.Main.Controls.UI
         private SpriteControl _sizeButton;
         private SpriteControl _transparencyButton;
 
-        // --- State ---
+        // State
         private InputMessageType _currentInputType = InputMessageType.Chat;
         private bool _isWhisperLocked = false; // Corresponds to m_bBlockWhisper
         private bool _isWhisperSendMode = true; // Corresponds to m_bWhisperSend (true = show ID box)
         private bool _suppressNextEnter;
         private ChatLogWindow _chatLogWindowRef; // Reference to the chat log
 
-        // --- History ---
+        // History
         private List<string> _chatHistory = new List<string>();
         private List<string> _whisperIdHistory = new List<string>();
         private int _currentChatHistoryIndex = 0;
         private int _currentWhisperHistoryIndex = 0;
+        private MessageType finalType;
 
-        // --- Properties ---
-        public InputMessageType CurrentInputType => _currentInputType;
-        public bool IsWhisperLocked => _isWhisperLocked;
-
-        // Added cooldown for chat messages
+        // Cooldown for chat messages
         private const long ChatCooldownMs = 1000; // 1 Second
         private long _lastChatTime = 0;
 
+        private readonly ILogger<ChatInputBoxControl> _logger;
 
-        public ChatInputBoxControl(ChatLogWindow chatLogWindow)
+        // Properties
+        public InputMessageType CurrentInputType => _currentInputType;
+        public bool IsWhisperLocked => _isWhisperLocked;
+
+        // Constructors
+        public ChatInputBoxControl(ChatLogWindow chatLogWindow, ILoggerFactory loggerFactory)
         {
+            if (loggerFactory == null) throw new ArgumentNullException(nameof(loggerFactory));
+            _logger = loggerFactory.CreateLogger<ChatInputBoxControl>();
+
             _chatLogWindowRef = chatLogWindow ?? throw new ArgumentNullException(nameof(chatLogWindow));
             AutoViewSize = false;
             ViewSize = new Point(CHATBOX_WIDTH, CHATBOX_HEIGHT);
             ControlSize = ViewSize;
-            Visible = false; // Start hidden
-            Interactive = true; // Needs mouse interaction
+            Visible = false; // Start hidden.
+            Interactive = true; // Needs mouse interaction.
         }
 
+        // Methods
         public override async Task Load()
         {
             // 1. Background
             _background = new TextureControl
             {
                 TexturePath = "Interface/newui_chat_back.jpg",
-                BlendState = BlendState.AlphaBlend, // Assuming JPG might need alpha blend if it has transparency layer, otherwise Opaque
+                BlendState = BlendState.AlphaBlend, // Assuming JPG might need alpha blend if it has a transparency layer, otherwise Opaque.
                 ViewSize = ViewSize,
                 AutoViewSize = false
             };
@@ -91,9 +101,8 @@ namespace Client.Main.Controls.UI
             {
                 X = 72,
                 Y = 30,
-
-                ViewSize = new Point(176, 14), // Width adjusted slightly
-                FontSize = 10f, // Adjust as needed
+                ViewSize = new Point(176, 14), // Width adjusted slightly.
+                FontSize = 10f, // Adjust as needed.
                 BackgroundColor = Color.Black * 0.1f,
                 TextColor = new Color(230, 210, 255)
             };
@@ -101,11 +110,11 @@ namespace Client.Main.Controls.UI
             {
                 X = 5,
                 Y = 30,
-                ViewSize = new Point(60, 14), // Width adjusted slightly
+                ViewSize = new Point(60, 14), // Width adjusted slightly.
                 FontSize = 10f,
                 BackgroundColor = Color.Black * 0.1f,
                 TextColor = new Color(200, 200, 200, 255),
-                Visible = false // Start hidden
+                Visible = false // Start hidden.
             };
             Controls.Add(_chatInput);
             Controls.Add(_whisperIdInput);
@@ -128,7 +137,7 @@ namespace Client.Main.Controls.UI
                 _typeButtons[i].Click += (s, e) =>
                 {
                     SetInputType((InputMessageType)typeIdx);
-                    SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on click
+                    SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on click.
                 };
                 Controls.Add(_typeButtons[i]);
             }
@@ -139,7 +148,7 @@ namespace Client.Main.Controls.UI
             _whisperToggleButton.Click += (s, e) =>
             {
                 ToggleWhisperLock();
-                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on click
+                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on click.
             };
             Controls.Add(_whisperToggleButton);
 
@@ -149,7 +158,7 @@ namespace Client.Main.Controls.UI
             _systemToggleButton.Click += (s, e) =>
             {
                 ToggleSystemMessages();
-                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on click
+                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on click.
             };
             Controls.Add(_systemToggleButton);
 
@@ -159,7 +168,7 @@ namespace Client.Main.Controls.UI
             _chatLogToggleButton.Click += (s, e) =>
             {
                 ToggleChatLogVisibility();
-                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on click
+                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on click.
             };
             Controls.Add(_chatLogToggleButton);
 
@@ -168,8 +177,8 @@ namespace Client.Main.Controls.UI
                                               "Interface/newui_chat_frame_on.jpg", "FrameToggle");
             _frameToggleButton.Click += (s, e) =>
             {
-                _chatLogWindowRef?.ToggleFrame();
-                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on click
+                _chatLogWindowRef.ToggleFrame();
+                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on click.
             };
             Controls.Add(_frameToggleButton);
 
@@ -178,8 +187,8 @@ namespace Client.Main.Controls.UI
                                        "Interface/newui_chat_btn_size.jpg", "SizeButton");
             _sizeButton.Click += (s, e) =>
             {
-                _chatLogWindowRef?.CycleSize();
-                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on click
+                _chatLogWindowRef.CycleSize();
+                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on click.
             };
             Controls.Add(_sizeButton);
 
@@ -188,15 +197,15 @@ namespace Client.Main.Controls.UI
                                                "Interface/newui_chat_btn_alpha.jpg", "AlphaButton");
             _transparencyButton.Click += (s, e) =>
             {
-                _chatLogWindowRef?.CycleBackgroundAlpha();
-                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on click
+                _chatLogWindowRef.CycleBackgroundAlpha();
+                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on click.
             };
             Controls.Add(_transparencyButton);
 
-            // Load textures for all children
-            await base.Load(); // This initializes children, including loading their textures
+            // Load textures for all children.
+            await base.Load(); // This initializes children, including loading their textures.
 
-            // Initial visual state update
+            // Initial visual state update.
             UpdateVisualStates();
         }
 
@@ -210,10 +219,10 @@ namespace Client.Main.Controls.UI
                 TileWidth = BUTTON_WIDTH,
                 TileHeight = BUTTON_HEIGHT,
                 ViewSize = new Point(BUTTON_WIDTH, BUTTON_HEIGHT),
-                BlendState = BlendState.AlphaBlend, // Use AlphaBlend for JPG/TGA with potential transparency
+                BlendState = BlendState.AlphaBlend, // Use AlphaBlend for JPG/TGA with potential transparency.
                 Interactive = true,
                 Name = name,
-                Visible = false // Start hidden, shown based on parent state
+                Visible = false // Start hidden, shown based on parent's state.
             };
         }
 
@@ -226,21 +235,18 @@ namespace Client.Main.Controls.UI
             _suppressNextEnter = true;
             foreach (var btn in GetAllButtons()) btn.Visible = true;
 
-            _chatInput.Value = string.Empty; // Clear text on show
-
+            _chatInput.Value = string.Empty; // Clear text on show.
             _chatInput.Focus();
-
             Scene.FocusControl = _chatInput;
-            
             _chatInput.MoveCursorToEnd();
 
-            // Reset history navigation
+            // Reset history navigation.
             _currentChatHistoryIndex = _chatHistory.Count;
             _currentWhisperHistoryIndex = _whisperIdHistory.Count;
 
             UpdateVisualStates();
 
-            // Play sound on opening
+            // Play sound on opening.
             SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
         }
 
@@ -253,10 +259,10 @@ namespace Client.Main.Controls.UI
 
             if (Scene.FocusControl == _chatInput || Scene.FocusControl == _whisperIdInput)
             {
-                Scene.FocusControl = null; // Remove focus
+                Scene.FocusControl = null; // Remove focus.
             }
 
-            // Play sound on closing
+            // Play sound on closing.
             SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
         }
 
@@ -264,10 +270,9 @@ namespace Client.Main.Controls.UI
         {
             if (!Visible) return;
 
-            base.Update(gameTime); // Update children (buttons, text fields)
-
+            base.Update(gameTime); // Update children (buttons, text fields).
             HandleKeyboardInput();
-            UpdateVisualStates(); // Keep visual state consistent
+            UpdateVisualStates(); // Keep visual state consistent.
         }
 
         private void HandleKeyboardInput()
@@ -288,7 +293,7 @@ namespace Client.Main.Controls.UI
                 {
                     ProcessEnterKey();
                 }
-                return; // Skip further processing after Enter
+                return; // Skip further processing after Enter.
             }
 
             // --- Handle Escape key to hide the chat box ---
@@ -298,7 +303,7 @@ namespace Client.Main.Controls.UI
                 return;
             }
 
-            // Proceed with other inputs only if input fields have focus
+            // Proceed with other inputs only if input fields have focus.
             bool chatFocus = Scene.FocusControl == _chatInput;
             bool whisperFocus = Scene.FocusControl == _whisperIdInput && _whisperIdInput.Visible;
 
@@ -344,39 +349,40 @@ namespace Client.Main.Controls.UI
             // --- Cycle chat size ---
             else if (keyboard.IsKeyDown(Keys.F4) && prevKeyboard.IsKeyUp(Keys.F4))
             {
-                if (_chatLogWindowRef?.IsFrameVisible ?? false)
+                if (_chatLogWindowRef.IsFrameVisible)
                 {
-                    _chatLogWindowRef?.CycleSize();
+                    _chatLogWindowRef.CycleSize();
                     SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
                 }
             }
             // --- Toggle chat frame ---
             else if (keyboard.IsKeyDown(Keys.F5) && prevKeyboard.IsKeyUp(Keys.F5))
             {
-                _chatLogWindowRef?.ToggleFrame();
+                _chatLogWindowRef.ToggleFrame();
                 SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
             }
         }
-
 
         private void ProcessEnterKey()
         {
             long currentTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             if (currentTime - _lastChatTime < ChatCooldownMs)
             {
+                // Optional: Show a message "Please wait before sending another message."
+                // For now, just prevent sending and potentially re-show the input if hidden.
                 if (!Visible)
                 {
                     Show();
                 }
+                _logger.LogDebug("Chat cooldown active, message blocked.");
                 return;
             }
-
-            _lastChatTime = currentTime;
 
             string messageText = _chatInput.Value.Trim();
             string whisperTarget = _whisperIdInput.Value.Trim();
 
-            if (string.IsNullOrEmpty(messageText))
+            // If both inputs are empty, just hide/show the box.
+            if (string.IsNullOrEmpty(messageText) && (string.IsNullOrEmpty(whisperTarget) || !_isWhisperSendMode))
             {
                 if (!Visible)
                 {
@@ -389,67 +395,92 @@ namespace Client.Main.Controls.UI
                 return;
             }
 
-            string prefix = "";
-            string sender = "You"; // Placeholder for local display
+            // --- Get NetworkManager ---
+            var networkManager = MuGame.Network;
+            if (networkManager == null || !networkManager.IsConnected || networkManager.CurrentState < ClientConnectionState.InGame)
+            {
+                _logger.LogWarning("Cannot send chat message. NetworkManager unavailable or not in game.");
+                _chatLogWindowRef.AddMessage("System", "Cannot send message: Not connected to game.", MessageType.Error);
+                // Optionally hide the input box here too, or leave it open for the user to see the error.
+                return;
+            }
+            // --- End Get NetworkManager ---
 
-            // --- Determine Message Type and Prefix ---
-            MessageType finalType;
-            // TODO: Implement command checking like C++ CheckCommand(szChatText)
-            // If it's a command, process it and return without sending a message
-            // e.g., if (CheckCommand(messageText)) { Hide(); return; }
+            string messageToSend = messageText; // Start with the trimmed message.
+
+            // --- Determine Message Type and Send ---
+            Task sendTask = Task.CompletedTask; // Task to await potential network send.
 
             if (_isWhisperSendMode && !string.IsNullOrEmpty(whisperTarget))
             {
+                if (string.IsNullOrEmpty(messageText))
+                {
+                    _logger.LogWarning("Attempted to send whisper with empty message to {Target}.", whisperTarget);
+                    _chatLogWindowRef.AddMessage("System", "Cannot send empty whisper message.", MessageType.Error);
+                    return; // Don't send empty whispers.
+                }
+
                 finalType = MessageType.Whisper;
-                // Simulate sending whisper
-                _chatLogWindowRef?.AddMessage(sender, $"->[{whisperTarget}]: {messageText}", finalType);
                 AddWhisperIdHistory(whisperTarget);
-                // TODO: Add actual network send call here
-                Console.WriteLine($"[Chat] SEND WHISPER To '{whisperTarget}': {messageText}");
+                // Send whisper via NetworkManager.
+                sendTask = networkManager.SendWhisperMessageAsync(whisperTarget, messageText);
             }
-            else
+            else // Not whisper mode or no target specified.
             {
-                // Check for explicit prefixes
+                if (string.IsNullOrEmpty(messageText))
+                {
+                    // Don't send empty public/group messages.
+                    Hide(); // Just hide the box if message is empty.
+                    return;
+                }
+
+                // Check for explicit prefixes FIRST.
                 if (messageText.StartsWith("~"))
                 {
                     finalType = MessageType.Party;
-                    messageText = messageText.Substring(1).TrimStart();
+                    // Keep prefix for sending.
                 }
                 else if (messageText.StartsWith("@"))
                 {
                     finalType = MessageType.Guild;
-                    messageText = messageText.Substring(1).TrimStart();
+                    // Keep prefix for sending.
                 }
-                else if (messageText.StartsWith("$"))
+                else if (messageText.StartsWith("$")) // Assuming '$' for Gens.
                 {
                     finalType = MessageType.Gens;
-                    messageText = messageText.Substring(1).TrimStart();
+                    // Keep prefix for sending.
                 }
-                else
+                else // No explicit prefix, use button state.
                 {
-                    // Default type based on button state
                     finalType = _currentInputType switch
                     {
                         InputMessageType.Party => MessageType.Party,
                         InputMessageType.Guild => MessageType.Guild,
                         InputMessageType.Gens => MessageType.Gens,
-                        _ => MessageType.Chat, // Default to Chat if button is Normal
+                        _ => MessageType.Chat, // Default to Chat.
                     };
+
+                    // Add prefix based on button state IF NOT normal chat.
+                    if (finalType == MessageType.Party) messageToSend = "~" + messageText;
+                    else if (finalType == MessageType.Guild) messageToSend = "@" + messageText;
+                    else if (finalType == MessageType.Gens) messageToSend = "$" + messageText;
+                    // Normal chat (finalType == MessageType.Chat) sends without prefix.
                 }
-
-
-                // Simulate sending public/group chat
-                _chatLogWindowRef?.AddMessage(sender, messageText, finalType);
-                // TODO: Add actual network send call here (with prefix if needed)
-                Console.WriteLine($"[Chat] SEND {finalType}: {messageText}"); // Log without prefix for clarity
+                // Send public/group chat via NetworkManager (with prefix if needed).
+                sendTask = networkManager.SendPublicChatMessageAsync(messageToSend);
             }
 
-            // Add to chat history (only the message text, not the prefix)
-            AddChatHistory(messageText);
+            // Add to chat history (only the message text, not the prefix).
+            AddChatHistory(messageText); // Add original text without prefix.
 
-            // Clear input and hide
+            // Clear input and hide AFTER ensuring the send task is initiated.
             _chatInput.Value = "";
             Hide();
+
+            // Update cooldown timer AFTER successful send attempt initiation.
+            _lastChatTime = currentTime;
+
+            // Optional: Await the send task if you need confirmation, but usually UI shouldn't block.
         }
 
         private void NavigateHistory(int direction)
@@ -474,25 +505,25 @@ namespace Client.Main.Controls.UI
         private void AddChatHistory(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return;
-            _chatHistory.Remove(text); // Remove duplicates
+            _chatHistory.Remove(text); // Remove duplicates.
             _chatHistory.Add(text);
             if (_chatHistory.Count > MAX_CHAT_HISTORY)
             {
                 _chatHistory.RemoveAt(0);
             }
-            _currentChatHistoryIndex = _chatHistory.Count; // Reset index to bottom
+            _currentChatHistoryIndex = _chatHistory.Count; // Reset index to bottom.
         }
 
         private void AddWhisperIdHistory(string id)
         {
             if (string.IsNullOrWhiteSpace(id)) return;
-            _whisperIdHistory.Remove(id); // Remove duplicates
+            _whisperIdHistory.Remove(id); // Remove duplicates.
             _whisperIdHistory.Add(id);
             if (_whisperIdHistory.Count > MAX_WHISPER_HISTORY)
             {
                 _whisperIdHistory.RemoveAt(0);
             }
-            _currentWhisperHistoryIndex = _whisperIdHistory.Count; // Reset index to bottom
+            _currentWhisperHistoryIndex = _whisperIdHistory.Count; // Reset index to bottom.
         }
 
         private void SetInputType(InputMessageType type)
@@ -520,39 +551,34 @@ namespace Client.Main.Controls.UI
             if (_isWhisperSendMode && Visible)
             {
                 _chatInput.Blur();
-
                 _whisperIdInput.Focus();
                 Scene.FocusControl = _whisperIdInput;
-
                 _whisperIdInput.MoveCursorToEnd();
             }
             else if (!_isWhisperSendMode && Visible)
             {
                 _whisperIdInput.Blur();
-
                 _chatInput.Focus();
                 Scene.FocusControl = _chatInput;
-
                 _chatInput.MoveCursorToEnd();
             }
-
             Console.WriteLine($"[Chat] Whisper Send Mode: {_isWhisperSendMode}");
         }
 
         private void ToggleSystemMessages()
         {
-            // This state is managed by ChatLogWindow now, but we keep the button visual update
-            bool newState = !(_chatLogWindowRef?.IsSysMsgVisible ?? true); // Example toggle logic
-            _chatLogWindowRef?.ShowSystemMessages(newState); // Hypothetical method
+            // This state is managed by ChatLogWindow, but we keep the button visual update.
+            bool newState = !_chatLogWindowRef.IsSysMsgVisible;
+            _chatLogWindowRef.ShowSystemMessages(newState);
             UpdateVisualStates();
             Console.WriteLine($"[Chat] System Messages Visible: {newState}");
         }
 
         private void ToggleChatLogVisibility()
         {
-            // This state is managed by ChatLogWindow
-            bool newState = !(_chatLogWindowRef?.IsChatLogVisible ?? true); // Example toggle logic
-            _chatLogWindowRef?.ShowChatLogMessages(newState); // Hypothetical method
+            // This state is managed by ChatLogWindow.
+            bool newState = !_chatLogWindowRef.IsChatLogVisible;
+            _chatLogWindowRef.ShowChatLogMessages(newState);
             UpdateVisualStates();
             Console.WriteLine($"[Chat] Chat Log Visible: {newState}");
         }
@@ -569,14 +595,14 @@ namespace Client.Main.Controls.UI
             _chatLogToggleButton.Visible = true;
             _frameToggleButton.Visible = true;
 
-            bool showFrameButtons = _chatLogWindowRef?.IsFrameVisible ?? false;
+            bool showFrameButtons = _chatLogWindowRef.IsFrameVisible;
             _sizeButton.Visible = showFrameButtons;
             _transparencyButton.Visible = showFrameButtons;
 
             _whisperIdInput.Visible = _isWhisperSendMode;
         }
 
-        // Helper to get all buttons for visibility toggling
+        // Helper to get all buttons for visibility toggling.
         private IEnumerable<SpriteControl> GetAllButtons()
         {
             foreach (var btn in _typeButtons) yield return btn;
@@ -608,9 +634,9 @@ namespace Client.Main.Controls.UI
                     DrawDisabledOverlay(_typeButtons[i]);
 
             if (!_isWhisperLocked) DrawDisabledOverlay(_whisperToggleButton);
-            if (!(_chatLogWindowRef?.IsSysMsgVisible ?? true)) DrawDisabledOverlay(_systemToggleButton);
-            if (!(_chatLogWindowRef?.IsChatLogVisible ?? true)) DrawDisabledOverlay(_chatLogToggleButton);
-            if (!(_chatLogWindowRef?.IsFrameVisible ?? false)) DrawDisabledOverlay(_frameToggleButton);
+            if (!_chatLogWindowRef.IsSysMsgVisible) DrawDisabledOverlay(_systemToggleButton);
+            if (!_chatLogWindowRef.IsChatLogVisible) DrawDisabledOverlay(_chatLogToggleButton);
+            if (!_chatLogWindowRef.IsFrameVisible) DrawDisabledOverlay(_frameToggleButton);
 
             sb.End();
 

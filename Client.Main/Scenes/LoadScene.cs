@@ -100,7 +100,7 @@ namespace Client.Main.Scenes
         {
             base.AfterLoad();
             // Using Constants.DataPath instead of AppDomain.CurrentDomain.BaseDirectory
-            string extractPath = Client.Main.Constants.DataPath;
+            string extractPath = Constants.DataPath;
             Console.WriteLine($"ExtractPath: {extractPath}");
 
             // Ensure that the folder exists
@@ -154,12 +154,12 @@ namespace Client.Main.Scenes
 
         private async void StartDownloadingDataZip()
         {
-            string localZipPath = Path.Combine(Client.Main.Constants.DataPath, "Data.zip");
-            string extractPath = Client.Main.Constants.DataPath;
+            string localZipPath = Path.Combine(Constants.DataPath, "Data.zip");
+            string extractPath = Constants.DataPath;
             string zipUrl = _dataPathUrl;
 
             // Checking if the folder already contains files (other than Data.zip)
-            bool hasOtherEntries = Directory.EnumerateFileSystemEntries(Client.Main.Constants.DataPath)
+            bool hasOtherEntries = Directory.EnumerateFileSystemEntries(Constants.DataPath)
                                             .Any(entry => !string.Equals(Path.GetFileName(entry), "Data.zip", StringComparison.OrdinalIgnoreCase));
 
             if (hasOtherEntries)

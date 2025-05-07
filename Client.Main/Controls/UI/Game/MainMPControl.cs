@@ -64,10 +64,23 @@ namespace Client.Main.Controls.UI.Game
             base.Draw(gameTime);
         }
 
+        private void CenterLabel()
+        {
+            var rect = DisplayRectangle;
+            _label.X = rect.X + (rect.Width - _label.ControlSize.X) / 2;
+            _label.Y = rect.Y + (rect.Height - _label.ControlSize.Y) / 2;
+        }
+
+        public void SetValues(int current, int max)
+        {
+            _currentMP = current;
+            _maxMP  = max;
+            UpdatePercent();
+        }
+
         public void DrawLabel(GameTime gameTime)
         {
-            _label.X = 885; //TODO Caclucate this
-            _label.Y = 651; //TODO Caclucate this
+            CenterLabel();
             _label.Draw(gameTime);
         }
     }

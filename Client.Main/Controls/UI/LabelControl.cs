@@ -6,9 +6,9 @@ using System;
 
 namespace Client.Main.Controls.UI
 {
-
     public static class MatrixExtensions
     {
+        // Methods
         public static Matrix CreateSkew(float skewX, float skewY)
         {
             // Creates a 2D skew matrix.
@@ -20,15 +20,19 @@ namespace Client.Main.Controls.UI
             );
         }
     }
+
     public class LabelControl : UIControl
     {
+        // Fields
         private string _text;
-        private object[] _textArgs = new object[0];
+        private object[] _textArgs = Array.Empty<object>();
         private string _renderedText;
         private float _fontSize = 12f;
         private float _scaleFactor;
 
-        // Nowe właściwości dla formatowania tekstu
+        // Properties
+
+        // New properties for text formatting
         public bool IsBold { get; set; } = false;
         public bool IsItalic { get; set; } = false;
         public bool HasShadow { get; set; } = true;
@@ -37,8 +41,8 @@ namespace Client.Main.Controls.UI
         public Vector2 ShadowOffset { get; set; } = new Vector2(1, 1);
         public Color ShadowColor { get; set; } = Color.Black;
 
-        // Ustawienia pogrubienia (symulowane)
-        public int BoldWeight { get; set; } = 1; // Ile pikseli offsetu dla symulacji pogrubienia
+        // Bold settings (simulated)
+        public int BoldWeight { get; set; } = 1; // How many pixels offset for bold simulation
 
         public bool UseManualPosition { get; set; } = false;
 
@@ -95,6 +99,7 @@ namespace Client.Main.Controls.UI
         public Color TextColor { get; set; } = Color.WhiteSmoke;
         public HorizontalAlign TextAlign { get; set; } = HorizontalAlign.Left;
 
+        // Methods
         public override void Draw(GameTime gameTime)
         {
             if (!Visible || string.IsNullOrEmpty(_renderedText))
@@ -184,7 +189,6 @@ namespace Client.Main.Controls.UI
                         0f
                     );
                 }
-
                 sprite.End();
             }
 
@@ -241,9 +245,7 @@ namespace Client.Main.Controls.UI
             {
                 Vector2 textSize = GraphicsManager.Instance.Font.MeasureString(_renderedText) * _scaleFactor;
                 float underlineThickness = Math.Max(1, _fontSize / 15);
-
                 float underlineYOffset = textSize.Y * 0.9f;
-
                 Vector2 underlineStart = new Vector2(textPosition.X, textPosition.Y + underlineYOffset);
                 Vector2 underlineEnd = new Vector2(textPosition.X + textSize.X, textPosition.Y + underlineYOffset);
 
@@ -275,7 +277,6 @@ namespace Client.Main.Controls.UI
                     );
                 }
             }
-
             sprite.End();
 
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;

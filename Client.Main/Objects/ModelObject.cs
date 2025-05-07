@@ -2,6 +2,7 @@
 using Client.Data.Texture;
 using Client.Main.Content;
 using Client.Main.Controllers;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -14,8 +15,8 @@ namespace Client.Main.Objects
 {
     public abstract class ModelObject : WorldObject
     {
-        private VertexBuffer[] _boneVertexBuffers;
-        private IndexBuffer[] _boneIndexBuffers;
+        private DynamicVertexBuffer[] _boneVertexBuffers;
+        private DynamicIndexBuffer[] _boneIndexBuffers;
         private Texture2D[] _boneTextures;
         private TextureScript[] _scriptTextures;
         private TextureData[] _dataTextures;
@@ -63,7 +64,9 @@ namespace Client.Main.Objects
             }
         }
         public bool RenderShadow { get => _renderShadow; set { _renderShadow = value; OnRenderShadowChanged(); } }
-        public float AnimationSpeed { get; set; } = 4f;
+        public float AnimationSpeed { get; set; } = 8f;
+        public static ILoggerFactory AppLoggerFactory { get; private set; }
+        private ILogger _logger => AppLoggerFactory?.CreateLogger<ModelObject>();
 
         public ModelObject()
         {
@@ -82,8 +85,8 @@ namespace Client.Main.Objects
             }
 
             int meshCount = Model.Meshes.Length;
-            _boneVertexBuffers = new VertexBuffer[meshCount];
-            _boneIndexBuffers = new IndexBuffer[meshCount];
+            _boneVertexBuffers = new DynamicVertexBuffer[meshCount];
+            _boneIndexBuffers = new DynamicIndexBuffer[meshCount];
             _boneTextures = new Texture2D[meshCount];
             _scriptTextures = new TextureScript[meshCount];
             _dataTextures = new TextureData[meshCount];
@@ -524,37 +527,87 @@ namespace Client.Main.Objects
 
         private void Animation(GameTime gameTime)
         {
-            if (LinkParentAnimation || Model == null || Model.Actions.Length == 0)
+            if (LinkParentAnimation || Model == null || Model.Actions == null || Model.Actions.Length == 0)
                 return;
 
-            var currentActionData = Model.Actions[CurrentAction];
+            int currentActionIndex = CurrentAction;
+            if (currentActionIndex < 0 || currentActionIndex >= Model.Actions.Length)
+            {
+                _logger?.LogError("Animation Error: Invalid CurrentAction index {InvalidAction} for object {ObjectName} (Model: {ModelName}). Action count: {ActionCount}. Defaulting to action 0.",
+                                 currentActionIndex,
+                                 this.ObjectName ?? GetType().Name,
+                                 Model.Name ?? "Unknown",
+                                 Model.Actions.Length);
+
+                currentActionIndex = 0;
+
+                if (currentActionIndex >= Model.Actions.Length)
+                {
+                    _logger?.LogError("Animation Error: Default action 0 is also invalid for object {ObjectName} (Model: {ModelName}). Cannot animate.", this.ObjectName ?? GetType().Name, Model.Name ?? "Unknown");
+                    return;
+                }
+                // CurrentAction = currentActionIndex;
+            }
+
+            var currentActionData = Model.Actions[currentActionIndex];
+
             if (currentActionData.NumAnimationKeys <= 1)
             {
-                if (_priorAction != CurrentAction)
-                    GenerateBoneMatrix(CurrentAction, 0, 0, 0);
+                if (_priorAction != currentActionIndex)
+                    GenerateBoneMatrix(currentActionIndex, 0, 0, 0);
 
-                _priorAction = CurrentAction;
+                _priorAction = currentActionIndex;
                 return;
             }
 
             float frame = (float)(gameTime.TotalGameTime.TotalSeconds * AnimationSpeed);
             int totalFrames = currentActionData.NumAnimationKeys - 1;
-            frame = frame - MathF.Floor(frame / totalFrames) * totalFrames;
+            if (totalFrames <= 0)
+            {
+                _logger?.LogWarning("Animation Warning: totalFrames <= 0 for action {ActionIndex} in {ObjectName}. NumKeys: {NumKeys}", currentActionIndex, this.ObjectName ?? GetType().Name, currentActionData.NumAnimationKeys);
+                GenerateBoneMatrix(currentActionIndex, 0, 0, 0);
+                _priorAction = currentActionIndex;
+                return;
+            }
+
+            frame = frame % totalFrames;
 
             int f0 = (int)frame;
-            int f1 = (f0 + 1) % totalFrames;
-            GenerateBoneMatrix(CurrentAction, f0, f1, frame - f0);
+            int f1 = (f0 + 1) % currentActionData.NumAnimationKeys;
+            f1 = (f0 + 1);
+            if (f1 >= currentActionData.NumAnimationKeys)
+            {
+                f1 = currentActionData.NumAnimationKeys - 1;
+            }
 
-            _priorAction = CurrentAction;
+            GenerateBoneMatrix(currentActionIndex, f0, f1, frame - f0);
+
+            _priorAction = currentActionIndex;
         }
 
         protected void GenerateBoneMatrix(int actionIdx, int frame0, int frame1, float t)
         {
             if (Model?.Bones == null)
+            {
+                _logger?.LogWarning("GenerateBoneMatrix called with null Model or Model.Bones for {ObjectName}", this.ObjectName ?? GetType().Name);
                 return;
+            }
+
 
             Matrix[] transforms = BoneTransform ??= new Matrix[Model.Bones.Length];
             var bones = Model.Bones;
+
+            if (actionIdx < 0 || actionIdx >= Model.Actions.Length)
+            {
+                _logger?.LogError("GenerateBoneMatrix: Invalid actionIdx {ActionIndex} for model {ModelName}. Max actions: {MaxActions}. Defaulting to action 0.", actionIdx, Model.Name ?? "Unknown", Model.Actions.Length);
+                actionIdx = 0;
+                if (actionIdx >= Model.Actions.Length)
+                {
+                    _logger?.LogError("GenerateBoneMatrix: Default action 0 is also invalid for model {ModelName}. Cannot generate bone matrix.", Model.Name ?? "Unknown");
+                    return;
+                }
+            }
+
             var action = Model.Actions[actionIdx];
 
             bool changedAny = false;
@@ -562,10 +615,33 @@ namespace Client.Main.Objects
             for (int i = 0; i < bones.Length; i++)
             {
                 var bone = bones[i];
+
                 if (bone == BMDTextureBone.Dummy || bone.Matrixes == null || actionIdx >= bone.Matrixes.Length)
                     continue;
 
                 var bm = bone.Matrixes[actionIdx];
+
+                int numPosKeys = bm.Position?.Length ?? 0;
+                int numQuatKeys = bm.Quaternion?.Length ?? 0;
+
+                if (numPosKeys == 0 || numQuatKeys == 0)
+                {
+                    _logger?.LogWarning("GenerateBoneMatrix: Bone {BoneIndex} (Name: {BoneName}), Action {ActionIndex} has 0 position ({PosLen}) or quaternion ({QuatLen}) keys. Skipping animation update for this bone.", i, bone.Name ?? "N/A", actionIdx, numPosKeys, numQuatKeys);
+                    continue;
+                }
+
+                if (frame0 < 0 || frame1 < 0 || frame0 >= numPosKeys || frame1 >= numPosKeys || frame0 >= numQuatKeys || frame1 >= numQuatKeys)
+                {
+                    _logger?.LogWarning("GenerateBoneMatrix: Frame index out of bounds for Bone {BoneIndex} (Name: {BoneName}), Action {ActionIndex}. frame0={f0}, frame1={f1}, PosKeys={PosLen}, QuatKeys={QuatLen}. Clamping frames.", i, bone.Name ?? "N/A", actionIdx, frame0, frame1, numPosKeys, numQuatKeys);
+
+                    int maxValidIndex = Math.Min(numPosKeys, numQuatKeys) - 1;
+                    if (maxValidIndex < 0) maxValidIndex = 0;
+
+                    frame0 = Math.Clamp(frame0, 0, maxValidIndex);
+                    frame1 = Math.Clamp(frame1, 0, maxValidIndex);
+
+                    if (frame0 == frame1) t = 0f;
+                }
 
                 Quaternion q = Quaternion.Slerp(bm.Quaternion[frame0], bm.Quaternion[frame1], t);
                 Matrix m = Matrix.CreateFromQuaternion(q);
@@ -647,10 +723,9 @@ namespace Client.Main.Objects
 
                         BMDLoader.Instance.GetModelBuffers(
                             Model, meshIndex, bodyColor, bones,
-                            out var vbuf, out var ibuf);
+                            ref _boneVertexBuffers[meshIndex],
+                            ref _boneIndexBuffers[meshIndex]);
 
-                        _boneVertexBuffers[meshIndex] = vbuf;
-                        _boneIndexBuffers[meshIndex] = ibuf;
 
                         if (_boneTextures[meshIndex] == null)
                         {

@@ -27,7 +27,29 @@ namespace Client.Main.Worlds
 
         public override void AfterLoad()
         {
-            Walker.Location = new Vector2(174, 123);
+            Vector2 defaultSpawn = new Vector2(174, 123);
+
+            Walker.Reset();
+
+            bool shouldUseDefaultSpawn = false;
+            if (MuGame.Network == null ||
+                MuGame.Network.CurrentState == Core.Client.ClientConnectionState.Initial ||
+                MuGame.Network.CurrentState == Core.Client.ClientConnectionState.Disconnected)
+            {
+                shouldUseDefaultSpawn = true;
+            }
+            else if (Walker.Location == Vector2.Zero)
+            {
+                shouldUseDefaultSpawn = true;
+            }
+
+            if (shouldUseDefaultSpawn)
+            {
+                Walker.Location = defaultSpawn;
+            }
+
+            Walker.MoveTargetPosition = Walker.TargetPosition;
+            Walker.Position = Walker.TargetPosition;
 
             // water animation parameters for Noria
             Terrain.WaterSpeed = 0.05f;             // Example: faster water movement
