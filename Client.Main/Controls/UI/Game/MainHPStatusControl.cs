@@ -7,7 +7,7 @@ namespace Client.Main.Controls.UI.Game
         public MainHPStatusControl()
         {
             TexturePath = "Interface/GFx/main_I3.ozd";
-            Scale = 0.75f;
+            Scale = 0.88f;
             Vertical = true;
             Inverse = true;
             Percentage = 0.75f;

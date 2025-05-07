@@ -1,19 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
     <TargetFramework>net9.0-ios</TargetFramework>
+    <RuntimeIdentifier>iossimulator-x64</RuntimeIdentifier>
     <OutputType>Exe</OutputType>
     <SupportedOSPlatformVersion>11.2</SupportedOSPlatformVersion>
     <CodesignKey>iPhone Developer</CodesignKey>
   </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.3" />
     <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.3" />
   </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Client.Main\Client.Main.csproj" />
   </ItemGroup>
+  
   <Target Name="RestoreDotnetTools" BeforeTargets="Restore">
     <Message Text="Restoring dotnet tools" Importance="High" />
     <Exec Command="dotnet tool restore" />
   </Target>
+  
 </Project>

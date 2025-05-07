@@ -217,7 +217,10 @@ namespace Client.Main.Objects
             Status = GameControlStatus.Disposed;
 
             var children = Children.ToArray();
-            Parallel.For(0, children.Length, i => children[i].Dispose());
+            for (int i = 0; i < children.Length; i++)
+            {
+                children[i].Dispose();
+            }
             Children.Clear();
 
             Parent?.Children.Remove(this);

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
 {
+    [NpcInfo(1, "Hound")]
     public class Hound : MonsterObject
     {
         public Hound() 

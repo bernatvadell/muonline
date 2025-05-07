@@ -15,12 +15,21 @@ namespace Client.Main.Controls.UI.Game
         public int CurrentHP
         {
             get => _currentHP;
-            set { _currentHP = value; UpdatePercent(); }
+            set
+            {
+                _currentHP = value;
+                UpdatePercent();
+            }
         }
+
         public int MaxHP
         {
             get => _maxHP;
-            set { _maxHP = value; UpdatePercent(); }
+            set
+            {
+                _maxHP = value;
+                UpdatePercent();
+            }
         }
 
         public MainHPControl()
@@ -30,13 +39,15 @@ namespace Client.Main.Controls.UI.Game
             AutoViewSize = false;
             ViewSize = new Point(86, 86);
             BlendState = BlendState.AlphaBlend;
+
             // Add the progress bar as a child (drawn in the normal order)
             Controls.Add(_progress = new MainHPStatusControl
             {
                 Align = ControlAlign.Bottom,
                 Margin = new Margin { Bottom = 2 }
             });
-            // Create the label but do not add it to Controls so it can be drawn later on top.
+
+            // Create the label but do not add it to Controls so it can be drawn on top later
             _label = new LabelControl
             {
                 Align = ControlAlign.VerticalCenter | ControlAlign.HorizontalCenter,
@@ -64,11 +75,23 @@ namespace Client.Main.Controls.UI.Game
             base.Draw(gameTime);
         }
 
-        // This method is called later from MainControl.Draw to render the label on top.
+        private void CenterLabel()
+        {
+            var rect = DisplayRectangle;
+            _label.X = rect.X + (rect.Width - _label.ControlSize.X) / 2;
+            _label.Y = rect.Y + (rect.Height - _label.ControlSize.Y) / 2;
+        }
+
+        public void SetValues(int current, int max)  // Convenience setter
+        {
+            _currentHP = current;
+            _maxHP = max;
+            UpdatePercent();
+        }
+
         public void DrawLabel(GameTime gameTime)
         {
-            _label.X = 320; //TODO Caclucate this
-            _label.Y = 651; //TODO Caclucate this
+            CenterLabel();
             _label.Draw(gameTime);
         }
     }

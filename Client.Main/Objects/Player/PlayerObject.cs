@@ -1,44 +1,69 @@
-﻿using Client.Main.Content;
+﻿// PlayerObject.cs
+using Client.Main.Content;
 using Client.Main.Controls;
 using Client.Main.Models;
 using Client.Main.Objects.Wings;
+using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
+using MUnique.OpenMU.Network.Packets;
+using System;
+using System.Diagnostics; // For Debug.WriteLine
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Player
 {
     public class PlayerObject : WalkerObject
     {
-        // Indicates whether the player is currently in a resting state.
+        // Fields
+        private CharacterClassNumber _characterClass;
+
+        // Properties
+        // State properties
         public bool IsResting { get; set; } = false;
-        // When set, indicates the target tile of a RestPlace.
         public bool IsSitting { get; set; } = false;
-        // When set, indicates the target tile of a SitPlace.
         public Vector2? RestPlaceTarget { get; set; }
         public Vector2? SitPlaceTarget { get; set; }
 
-        private PlayerMaskHelmObject _helmMask;
-        private PlayerHelmObject _helm;
-        private PlayerArmorObject _armor;
-        private PlayerPantObject _pant;
-        private PlayerGloveObject _glove;
-        private PlayerBootObject _boot;
-        private WingObject _wing;
-        private PlayerClass _playerClass;
+        // Identification and Network Class
+        public string Name { get; set; } = "Character";
+        public new ushort NetworkId { get; set; }  // ID from server packets (masked 0x7FFF)
 
-        public PlayerClass PlayerClass
+        public CharacterClassNumber CharacterClass
         {
-            get => _playerClass;
-            set { _playerClass = value; ApplyPlayerClass(); }   // null-safe
+            get => _characterClass;
+            set
+            {
+                if (_characterClass != value)
+                {
+                    Debug.WriteLine($"PlayerObject {Name}: Setting CharacterClass from {_characterClass} to {value}");
+                    _characterClass = value;
+                    UpdateBodyPartClasses(); // Ensure update happens immediately when property changes
+                }
+                else
+                {
+                    Debug.WriteLine($"PlayerObject {Name}: CharacterClass is already {value}. Skipping UpdateBodyPartClasses.");
+                }
+            }
         }
 
-        // Changed property to use PlayerAction.
+        // References to child equipment objects
+        public PlayerMaskHelmObject HelmMask { get; private set; }
+        public PlayerHelmObject Helm { get; private set; }
+        public PlayerArmorObject Armor { get; private set; }
+        public PlayerPantObject Pants { get; private set; }
+        public PlayerGloveObject Gloves { get; private set; }
+        public PlayerBootObject Boots { get; private set; }
+        public WingObject Wings { get; private set; }
+        // TODO: Add properties for Weapons, Shields etc. if needed
+
+        // PlayerAction property (uses base int CurrentAction)
         public new PlayerAction CurrentAction
         {
             get => (PlayerAction)base.CurrentAction;
             set => base.CurrentAction = (int)value;
         }
 
+        // Constructors
         public PlayerObject()
         {
             BoundingBoxLocal = new BoundingBox(
@@ -47,105 +72,129 @@ namespace Client.Main.Objects.Player
 
             Scale = 0.85f;
             AnimationSpeed = 8f;
-            CurrentAction = PlayerAction.StopMale;
-            _playerClass = Constants.Character;
+            CurrentAction = PlayerAction.StopMale; // Default action
+            _characterClass = CharacterClassNumber.DarkWizard; // Initialize with a default
 
-            Children.Add(_armor = new PlayerArmorObject { LinkParentAnimation = true });
-            Children.Add(_helmMask = new PlayerMaskHelmObject { LinkParentAnimation = true, Hidden = true });
-            Children.Add(_helm = new PlayerHelmObject { LinkParentAnimation = true });
-            Children.Add(_pant = new PlayerPantObject { LinkParentAnimation = true });
-            Children.Add(_glove = new PlayerGloveObject { LinkParentAnimation = true });
-            Children.Add(_boot = new PlayerBootObject { LinkParentAnimation = true });
-            Children.Add(_wing = new Wing403 { LinkParentAnimation = false, Hidden = false });
+            // Initialize children IMMEDIATELY
+            HelmMask = new PlayerMaskHelmObject { LinkParentAnimation = true, Hidden = true };
+            Helm = new PlayerHelmObject { LinkParentAnimation = true };
+            Armor = new PlayerArmorObject { LinkParentAnimation = true };
+            Pants = new PlayerPantObject { LinkParentAnimation = true };
+            Gloves = new PlayerGloveObject { LinkParentAnimation = true };
+            Boots = new PlayerBootObject { LinkParentAnimation = true };
+            Wings = new Wing403 { LinkParentAnimation = false, Hidden = true }; // Example Wing
 
-            ApplyPlayerClass();
+            // Add children AFTER they are created
+            Children.Add(HelmMask);
+            Children.Add(Helm);
+            Children.Add(Armor);
+            Children.Add(Pants);
+            Children.Add(Gloves);
+            Children.Add(Boots);
+            Children.Add(Wings);
+
+            // Ensure initial class is applied to children during construction
+            UpdateBodyPartClasses();
         }
 
+        // Public Methods
         public override async Task Load()
         {
+            // NOTE: _characterClass should already be set BEFORE calling Load()
+            //       (usually by GameScene.Load or constructor)
+            Debug.WriteLine($"PlayerObject {Name}: Load() started. Current _characterClass: {_characterClass}");
+
+            // 1. Load the base player model
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
+            if (Model == null)
+            {
+                Debug.WriteLine($"PlayerObject {Name}: Failed to load base model 'Player/Player.bmd'");
+                Status = GameControlStatus.Error;
+                return; // Cannot proceed without base model
+            }
+            Debug.WriteLine($"PlayerObject {Name}: Base model prepared.");
 
-            await base.Load();
-        }
+            // 2. CRITICAL: Ensure children have the correct class BEFORE their Load is called
+            //    CharacterClass setter should have already called this, but for safety:
+            UpdateBodyPartClasses();
+            Debug.WriteLine($"PlayerObject {Name}: UpdateBodyPartClasses() called within Load().");
 
-        private void ApplyPlayerClass()
-        {
-            if (_armor != null) _armor.PlayerClass = _playerClass;
-            if (_helmMask != null) _helmMask.PlayerClass = _playerClass;
-            if (_helm != null) _helm.PlayerClass = _playerClass;
-            if (_pant != null) _pant.PlayerClass = _playerClass;
-            if (_glove != null) _glove.PlayerClass = _playerClass;
-            if (_boot != null) _boot.PlayerClass = _playerClass;
+            // 3. Load base content, which WILL trigger Load() on children (including equipment)
+            await base.Load(); // base.Load -> base.LoadContent -> children's LoadContent
+            Debug.WriteLine($"PlayerObject {Name}: base.Load() completed.");
+
+            // 4. Verify children status after load
+            foreach (var child in Children)
+            {
+                if (child is ModelObject modelChild && modelChild.Status == GameControlStatus.Error)
+                {
+                    Debug.WriteLine($"PlayerObject {Name}: Child {child.GetType().Name} failed to load (Status: Error). Check model paths and class mapping.");
+                }
+            }
         }
 
         public override void Update(GameTime gameTime)
         {
-            base.Update(gameTime);
+            base.Update(gameTime); // Handles movement, camera for main walker, base object updates
 
-            if (World is not WalkableWorldControl)
+            if (World is not WalkableWorldControl worldControl) // Use pattern matching for cleaner cast
                 return;
 
-            // If a rest target has been set, check if the player is at the rest place.
+            // --- State-based Animation Logic ---
             if (RestPlaceTarget.HasValue)
             {
                 float restDistance = Vector2.Distance(Location, RestPlaceTarget.Value);
-                // If the player is very close to the designated rest tile, force resting animation.
-                if (restDistance < 0.1f)
+                if (restDistance < 0.1f) // Threshold for being 'at' the rest place
                 {
-                    if (World.WorldIndex == 4)
-                    {
-                        CurrentAction = PlayerAction.PlayerFlyingRest;
-                    }
-                    else
-                    {
-                        CurrentAction = PlayerAction.PlayerStandingRest;
-                    }
-                    // Remain in resting state as long as the player stays at the rest place.
-                    return;
+                    // Select appropriate resting animation based on world/context
+                    CurrentAction = (worldControl.WorldIndex == 4) ? PlayerAction.PlayerFlyingRest : PlayerAction.PlayerStandingRest;
+                    return; // Stay in resting state animation
                 }
-                // If the player has started moving away from the rest place beyond a threshold, clear the rest state.
-                else if (restDistance > 1.0f) // threshold,  1 tile
+                else if (restDistance > 1.0f) // Threshold for moving away
                 {
                     RestPlaceTarget = null;
                     IsResting = false;
                 }
             }
 
-            // If a sit target has been set, check if the player is at the sit place.
             if (SitPlaceTarget.HasValue)
             {
                 float sitDistance = Vector2.Distance(Location, SitPlaceTarget.Value);
-                // If the player is very close to the designated sit tile, force sitting animation.
-                if (sitDistance < 0.1f)
+                if (sitDistance < 0.1f) // Threshold for being 'at' the sit place
                 {
-                    CurrentAction = PlayerAction.PlayerSit1;
-                    // Remain in sitting state as long as the player stays at the sit place.
-                    return;
+                    CurrentAction = PlayerAction.PlayerSit1; // Or cycle through sit animations?
+                    return; // Stay in sitting state animation
                 }
-                // If the player has started moving away from the sit place beyond a threshold, clear the sit state.
-                else if (sitDistance > 1.0f) // threshold,  1 tile
+                else if (sitDistance > 1.0f) // Threshold for moving away
                 {
                     SitPlaceTarget = null;
                     IsSitting = false;
                 }
             }
 
-            // Normal update of animations when not in rest state.
-            if (IsMoving)
+            // --- Animation Logic for Select Screen ---
+            if (World is SelectWorld)
             {
-                if (World.WorldIndex == 8)
-                    CurrentAction = PlayerAction.RunSwim;
-                else if (World.WorldIndex == 11)
-                    CurrentAction = PlayerAction.Fly;
-                else
-                    CurrentAction = PlayerAction.WalkMale;
+                CurrentAction = PlayerAction.StopMale;
             }
+            // --- Standard In-Game Animation Logic ---
             else
             {
-                if (World.WorldIndex == 8 || World.WorldIndex == 11)
-                    CurrentAction = PlayerAction.StopFlying;
-                else
-                    CurrentAction = PlayerAction.StopMale;
+                if (IsMoving)
+                {
+                    CurrentAction = worldControl.WorldIndex switch
+                    {
+                        8 => PlayerAction.RunSwim,    // Atlans
+                        11 => PlayerAction.Fly,   // Icarus
+                        _ => PlayerAction.WalkMale // Default walking/running
+                    };
+                }
+                else // Not moving
+                {
+                    CurrentAction = (worldControl.WorldIndex == 8 || worldControl.WorldIndex == 11)
+                        ? PlayerAction.StopFlying // Atlans or Icarus
+                        : PlayerAction.StopMale;  // Default standing
+                }
             }
         }
 
@@ -154,14 +203,97 @@ namespace Client.Main.Objects.Player
             base.Draw(gameTime);
         }
 
-        private void OnChangePlayerClass()
+        public override void OnClick()
         {
-            _armor.PlayerClass = _playerClass;
-            _helmMask.PlayerClass = _playerClass;
-            _helm.PlayerClass = _playerClass;
-            _pant.PlayerClass = _playerClass;
-            _glove.PlayerClass = _playerClass;
-            _boot.PlayerClass = _playerClass;
+            base.OnClick();
+        }
+
+        // Private Methods
+        /// <summary>
+        /// Updates the PlayerClass property of all child equipment objects based on the current network _characterClass.
+        /// This method handles the mapping between network enum and model enum.
+        /// </summary>
+        private void UpdateBodyPartClasses()
+        {
+            PlayerClass mappedClass = MapNetworkClassToModelClass(_characterClass);
+            Debug.WriteLine($"PlayerObject {Name}: UpdateBodyPartClasses mapping network class {_characterClass} to model class {mappedClass} ({(int)mappedClass})");
+
+            HelmMask?.SetPlayerClass(mappedClass);
+            Helm?.SetPlayerClass(mappedClass);
+            Armor?.SetPlayerClass(mappedClass);
+            Pants?.SetPlayerClass(mappedClass);
+            Gloves?.SetPlayerClass(mappedClass);
+            Boots?.SetPlayerClass(mappedClass);
+            Wings?.SetPlayerClass(mappedClass); // Assuming Wings might need it too
+            // TODO: Update other parts (Weapons, Shield)
+        }
+
+        /// <summary>
+        /// Maps the network CharacterClassNumber enum to the local PlayerClass enum used for model loading.
+        /// </summary>
+        private PlayerClass MapNetworkClassToModelClass(CharacterClassNumber networkClass)
+        {
+            return networkClass switch
+            {
+                CharacterClassNumber.DarkWizard => PlayerClass.DarkWizard,
+                CharacterClassNumber.SoulMaster => PlayerClass.SoulMaster,
+                CharacterClassNumber.GrandMaster => PlayerClass.GrandMaster,
+
+                CharacterClassNumber.DarkKnight => PlayerClass.DarkKnight,
+                CharacterClassNumber.BladeKnight => PlayerClass.BladeKnight,
+                CharacterClassNumber.BladeMaster => PlayerClass.BladeMaster,
+
+                CharacterClassNumber.FairyElf => PlayerClass.FairyElf,
+                CharacterClassNumber.MuseElf => PlayerClass.MuseElf,
+                CharacterClassNumber.HighElf => PlayerClass.HighElf,
+
+                CharacterClassNumber.MagicGladiator => PlayerClass.MagicGladiator,
+                CharacterClassNumber.DuelMaster => PlayerClass.DuelMaster,
+
+                CharacterClassNumber.DarkLord => PlayerClass.DarkLord,
+                CharacterClassNumber.LordEmperor => PlayerClass.LordEmperor,
+
+                CharacterClassNumber.Summoner => PlayerClass.Summoner,
+                CharacterClassNumber.BloodySummoner => PlayerClass.BloodySummoner,
+                CharacterClassNumber.DimensionMaster => PlayerClass.DimensionMaster,
+
+                CharacterClassNumber.RageFighter => PlayerClass.RageFighter,
+                CharacterClassNumber.FistMaster => PlayerClass.FistMaster,
+
+                _ => PlayerClass.DarkWizard // Default fallback
+            };
+        }
+    }
+
+    // Extension method to set class on various parts
+    public static class PlayerPartExtensions
+    {
+        public static void SetPlayerClass(this ModelObject part, PlayerClass playerClass)
+        {
+            if (part == null)
+            {
+                Debug.WriteLine($"SetPlayerClass Warning: Attempted to set class on a null part.");
+                return;
+            }
+
+            switch (part)
+            {
+                case PlayerArmorObject armor: armor.PlayerClass = playerClass; break;
+                case PlayerBootObject boot: boot.PlayerClass = playerClass; break;
+                case PlayerGloveObject glove: glove.PlayerClass = playerClass; break;
+                case PlayerHelmObject helm: helm.PlayerClass = playerClass; break;
+                case PlayerMaskHelmObject maskHelm: maskHelm.PlayerClass = playerClass; break;
+                case PlayerPantObject pant: pant.PlayerClass = playerClass; break;
+                case WingObject wing:
+                    // Wings might not have a PlayerClass property directly.
+                    // If they do, uncomment: wing.PlayerClass = playerClass;
+                    // Or handle wing appearance based on playerClass differently.
+                    break;
+                // Add other types like weapons, shields etc. here
+                default:
+                    // Debug.WriteLine($"SetPlayerClass Warning: Unhandled part type {part.GetType().Name} for setting PlayerClass.");
+                    break;
+            }
         }
     }
 }

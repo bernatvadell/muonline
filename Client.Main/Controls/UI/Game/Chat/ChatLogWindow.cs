@@ -86,7 +86,7 @@ namespace Client.Main.Controls.UI
             _showingLines = DEFAULT_SHOWING_LINES;
             _scrollOffset = 0;
             _currentViewType = MessageType.All;
-            _showFrame = true; // Visible by default for UI testing
+            _showFrame = false;
             _backgroundAlpha = DEFAULT_BACK_ALPHA;
             Interactive = true; // Enable mouse interaction
 
