@@ -112,6 +112,14 @@ namespace Client.Main.Networking.PacketHandling
             return length;
         }
 
+        public static int BuildClientReadyAfterMapChangePacket(IBufferWriter<byte> writer)
+        {
+            int length = ClientReadyAfterMapChange.Length;
+            var memory = writer.GetMemory(length).Slice(0, length);
+            _ = new ClientReadyAfterMapChange(memory);
+            return length;
+        }
+
         /// <summary>
         /// Builds a packet for an instant move (teleport) request.
         /// </summary>

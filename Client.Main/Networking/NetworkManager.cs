@@ -354,6 +354,9 @@ namespace Client.Main.Networking
                         hero.MoveTargetPosition = hero.TargetPosition;
                         hero.Position = hero.TargetPosition;
                         _logger.LogDebug("Hero teleported to ({X},{Y}) on map {Map}.", x, y, mapId);
+
+                        _logger.LogInformation("Respawn on same map. Sending ClientReadyAfterMapChange.");
+                        await _characterService.SendClientReadyAfterMapChangeAsync(); // Załóżmy, że masz taką metodę
                     }
                 }
                 catch (Exception ex)

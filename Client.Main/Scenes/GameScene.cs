@@ -32,7 +32,6 @@ namespace Client.Main.Scenes
         private ChatInputBoxControl _chatInput;
         private NotificationManager _notificationManager;
         private readonly (string Name, CharacterClassNumber Class, ushort Level) _characterInfo;
-        private readonly Random _random = new Random(); // Random message type selector
         private KeyboardState _previousKeyboardState;
         private bool _isChangingWorld = false;
         private readonly List<(ServerMessage.MessageType Type, string Message)> _pendingNotifications = new();
@@ -101,7 +100,7 @@ namespace Client.Main.Scenes
         }
 
         /// <summary>
-        /// Overload for ChangeScene&lt;T&gt;(): retrieves character data from the network state.
+        /// Overload for ChangeScene: retrieves character data from the network state.
         /// </summary>
         public GameScene()
             : this(GetCharacterInfoFromState())
@@ -120,7 +119,12 @@ namespace Client.Main.Scenes
             return ("Unknown", CharacterClassNumber.DarkKnight, 1);
         }
 
-        // ─────────────────────── Content Loading ───────────────────────
+        // ───────────────────── Content Loading ─────────────────────
+ 
+        /// <summary>
+        /// Loads the scene: sets up the hero, chooses the correct world, initializes it,
+        /// and imports pending objects (players, NPCs, monsters).
+        /// </summary>
         public override async Task Load()
         {
             await base.Load();
@@ -129,7 +133,7 @@ namespace Client.Main.Scenes
             _hero.CharacterClass = _characterInfo.Class;
             _hero.Name = _characterInfo.Name;
 
-            // Retrieve position and ID from server
+            // Retrieve last known state from server
             var state = MuGame.Network?.GetCharacterState();
             if (state != null)
             {
@@ -138,29 +142,66 @@ namespace Client.Main.Scenes
                 Debug.WriteLine($"GameScene.Load: Spawn position from server -> ({state.PositionX}, {state.PositionY})");
             }
 
-            // Load corresponding world based on server MapId
-            if (state != null && MapWorldRegistry.TryGetValue((byte)state.MapId, out var worldType))
+            // Determine initial world type
+            Type initialWorldType = typeof(LorenciaWorld);
+            if (state != null && MapWorldRegistry.TryGetValue((byte)state.MapId, out var mappedType))
             {
-                await ChangeMap(worldType);
+                initialWorldType = mappedType;
             }
             else
             {
-                Debug.WriteLine($"Unknown MapId: {state?.MapId}. Defaulting to Lorencia.");
-                await ChangeMap(typeof(LorenciaWorld));
+                Debug.WriteLine($"GameScene.Load: Unknown MapId: {state?.MapId}. Defaulting to Lorencia.");
             }
 
-            // Ensure hero model is fully loaded
-            if (_hero.Status is GameControlStatus.NonInitialized or GameControlStatus.Initializing)
+            // Instantiate and initialize the world
+            var worldInstance = (WorldControl)Activator.CreateInstance(initialWorldType);
+            if (worldInstance is WalkableWorldControl walkable)
+                walkable.Walker = _hero;
+            worldInstance.Objects.Add(_hero);
+
+            Controls.Add(worldInstance);
+            await worldInstance.Initialize();
+            World = worldInstance;
+
+            // Import pending remote players and monsters after world is ready
+            if (World.Status == GameControlStatus.Ready)
+            {
+                await ImportPendingRemotePlayers();
+                await ImportPendingNpcsMonsters();
+            }
+            else
+            {
+                Debug.WriteLine($"GameScene.Load: World not ready after Initialize (Status: {World.Status}). Pending objects may not import correctly.");
+            }
+
+            // Ensure hero is loaded
+            if (_hero.Status == GameControlStatus.NonInitialized ||
+                _hero.Status == GameControlStatus.Initializing)
             {
                 await _hero.Load();
             }
+
+            // Remove loading screen and show main UI
+            if (_loadingScreen != null)
+            {
+                Controls.Remove(_loadingScreen);
+                _loadingScreen.Dispose();
+                _loadingScreen = null;
+            }
+            _main.Visible = true;
         }
 
-        // ──────────────────────── Map Change Logic ────────────────────────
+        // ─────────────────── Map Change Logic ───────────────────
+
+        /// <summary>
+        /// Switches the active world to the specified type, showing a loading screen,
+        /// disposing the old world, and importing pending objects.
+        /// </summary>
         public async Task ChangeMap(Type worldType)
         {
             _isChangingWorld = true;
 
+            // Show or create loading screen
             if (_loadingScreen == null)
             {
                 _loadingScreen = new LoadingScreenControl { Visible = true };
@@ -170,10 +211,11 @@ namespace Client.Main.Scenes
             {
                 _loadingScreen.Visible = true;
             }
-
             _loadingScreen.Message = $"Loading {worldType.Name}…";
             _main.Visible = false;
 
+            // Prepare new world instance
+            var previousWorld = World;
             _nextWorld = (WorldControl)Activator.CreateInstance(worldType)
                 ?? throw new InvalidOperationException($"Cannot create world: {worldType}");
 
@@ -181,24 +223,43 @@ namespace Client.Main.Scenes
                 walkable.Walker = _hero;
             _nextWorld.Objects.Add(_hero);
 
-            Debug.WriteLine($"ChangeMap<{worldType.Name}>: Added hero to world objects.");
+            Debug.WriteLine($"GameScene.ChangeMap<{worldType.Name}>: Initializing new world...");
             await _nextWorld.Initialize();
+            Debug.WriteLine($"GameScene.ChangeMap<{worldType.Name}>: New world initialized. Status: {_nextWorld.Status}");
 
-            World?.Dispose();
+            // Dispose of previous world
+            if (previousWorld != null)
+            {
+                Controls.Remove(previousWorld);
+                previousWorld.Dispose();
+                Debug.WriteLine("GameScene.ChangeMap: Disposed previous world.");
+            }
+
+            // Activate new world
             World = _nextWorld;
-
-            await ImportPendingRemotePlayers();
-            await ImportPendingNpcsMonsters();
-
-            _nextWorld = null;
             Controls.Insert(0, World);
+            _nextWorld = null;
 
+            // Import pending objects if ready
+            if (World.Status == GameControlStatus.Ready)
+            {
+                Debug.WriteLine("GameScene.ChangeMap: World is Ready. Importing pending objects...");
+                await ImportPendingRemotePlayers();
+                await ImportPendingNpcsMonsters();
+            }
+            else
+            {
+                Debug.WriteLine($"GameScene.ChangeMap: World not ready after Initialize (Status: {World.Status}). Pending objects may not import correctly.");
+            }
+
+            // Remove loading screen and restore UI
             Controls.Remove(_loadingScreen);
             _loadingScreen = null;
             _main.Visible = true;
             _isChangingWorld = false;
 
-            if (World.Name != null)
+            // Show map name overlay
+            if (!string.IsNullOrEmpty(World.Name))
             {
                 var mapNameControl = new MapNameControl { LabelText = World.Name };
                 Controls.Add(mapNameControl);
@@ -209,12 +270,17 @@ namespace Client.Main.Scenes
                 DebugPanel.BringToFront();
                 Cursor.BringToFront();
             }
+            Debug.WriteLine($"GameScene.ChangeMap<{worldType.Name}>: ChangeMap completed.");
         }
 
+        /// <summary>
+        /// Generic version: switches to a new WalkableWorldControl of type T.
+        /// </summary>
         public async Task ChangeMap<T>() where T : WalkableWorldControl, new()
         {
             _isChangingWorld = true;
 
+            // Show or update loading screen
             if (_loadingScreen == null)
             {
                 _loadingScreen = new LoadingScreenControl { Message = "Loading...", Visible = true };
@@ -225,32 +291,43 @@ namespace Client.Main.Scenes
                 _loadingScreen.Message = "Loading...";
                 _loadingScreen.Visible = true;
             }
-
             _main.Visible = false;
 
-            _nextWorld = new T();
-            if (_nextWorld is WalkableWorldControl walkable)
-                walkable.Walker = _hero;
-            _nextWorld.Objects.Add(_hero);
+            var previousWorld = World;
+            var newWorldInstance = new T();
+            newWorldInstance.Walker = _hero;
+            newWorldInstance.Objects.Add(_hero);
 
-            Debug.WriteLine($"ChangeMap<{typeof(T).Name}>: Added hero (Class: {_hero.CharacterClass}) to world objects.");
-            await _nextWorld.Initialize();
+            Debug.WriteLine($"GameScene.ChangeMap<{typeof(T).Name}>: Initializing new world...");
+            await newWorldInstance.Initialize();
+            Debug.WriteLine($"GameScene.ChangeMap<{typeof(T).Name}>: New world initialized. Status: {newWorldInstance.Status}");
 
-            World?.Dispose();
-            World = _nextWorld;
+            if (previousWorld != null)
+            {
+                Controls.Remove(previousWorld);
+                previousWorld.Dispose();
+            }
 
-            await ImportPendingRemotePlayers();
-            await ImportPendingNpcsMonsters();
-
-            _nextWorld = null;
+            World = newWorldInstance;
             Controls.Insert(0, World);
+
+            if (World.Status == GameControlStatus.Ready)
+            {
+                Debug.WriteLine("GameScene.ChangeMap: World is Ready. Importing pending objects...");
+                await ImportPendingRemotePlayers();
+                await ImportPendingNpcsMonsters();
+            }
+            else
+            {
+                Debug.WriteLine($"GameScene.ChangeMap: World not ready after Initialize (Status: {World.Status}). Pending objects may not import correctly.");
+            }
 
             Controls.Remove(_loadingScreen);
             _loadingScreen = null;
             _main.Visible = true;
             _isChangingWorld = false;
 
-            if (World.Name != null)
+            if (!string.IsNullOrEmpty(World.Name))
             {
                 var mapNameControl = new MapNameControl { LabelText = World.Name };
                 Controls.Add(mapNameControl);
@@ -261,9 +338,11 @@ namespace Client.Main.Scenes
                 DebugPanel.BringToFront();
                 Cursor.BringToFront();
             }
+            Debug.WriteLine($"GameScene.ChangeMap<{typeof(T).Name}>: ChangeMap completed.");
         }
 
         // ──────────────────── Debug & Test Methods ────────────────────
+ 
         /// <summary>
         /// Adds sample messages to the chat log for testing scrolling.
         /// </summary>
@@ -345,6 +424,7 @@ namespace Client.Main.Scenes
         }
 
         // ─────────────────── Notification Handling ───────────────────
+
         /// <summary>
         /// Queues server messages for UI-thread processing.
         /// </summary>

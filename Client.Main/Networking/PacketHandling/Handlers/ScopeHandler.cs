@@ -143,19 +143,23 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         }
 
         private static void SpawnRemotePlayerIntoWorld(
-            WalkableWorldControl world,
-            ushort maskedId,
-            byte x,
-            byte y,
-            string name,
-            CharacterClassNumber cls)
+                   WalkableWorldControl world,
+                   ushort maskedId,
+                   byte x,
+                   byte y,
+                   string name,
+                   CharacterClassNumber cls)
         {
-            // Skip if this is the local player
             if (world.Walker is PlayerObject local && local.NetworkId == maskedId)
                 return;
 
             MuGame.ScheduleOnMainThread(async () =>
             {
+                if (MuGame.Instance.ActiveScene?.World != world || world.Status != GameControlStatus.Ready)
+                {
+                    return;
+                }
+
                 if (world.Objects.OfType<PlayerObject>().Any(p => p.NetworkId == maskedId))
                     return;
 
@@ -166,7 +170,22 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     Name = name,
                     Location = new Vector2(x, y)
                 };
+
                 world.Objects.Add(p);
+
+                if (p.World != null && p.World.Terrain != null)
+                {
+                    p.MoveTargetPosition = p.TargetPosition;
+                    p.Position = p.TargetPosition;
+                }
+                else
+                {
+                    float worldX = p.Location.X * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
+                    float worldY = p.Location.Y * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
+                    p.MoveTargetPosition = new Vector3(worldX, worldY, 0);
+                    p.Position = p.MoveTargetPosition;
+                }
+
                 await p.Load();
             });
         }
@@ -185,13 +204,12 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
-        private async Task ParseAndAddNpcsToScopeWithStaggering(byte[] packetData)
+        private void ParseAndAddNpcsToScopeWithStaggering(byte[] packetData)
         {
             Memory<byte> packet = packetData;
             int npcCount = 0, firstOffset = 0, dataSize = 0;
             Func<Memory<byte>, (ushort id, ushort type, byte x, byte y)> readNpc = null!;
 
-            // Version-dependent header parsing
             switch (_targetVersion)
             {
                 case TargetProtocolVersion.Season6:
@@ -220,41 +238,94 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     return;
             }
 
-            _logger.LogInformation("AddNpcToScope → {Count} objects.", npcCount);
+            _logger.LogInformation("ScopeHandler: AddNpcToScope received {Count} objects.", npcCount);
 
-            int offset = firstOffset;
-            for (int i = 0; i < npcCount; i++, offset += dataSize)
+            int currentPacketOffset = firstOffset;
+            for (int i = 0; i < npcCount; i++)
             {
-                var (rawId, type, x, y) = readNpc(packet.Slice(offset));
+                if (currentPacketOffset + dataSize > packet.Length)
+                {
+                    _logger.LogWarning("ScopeHandler: Packet too short for NPC data at index {Index}.", i);
+                    break;
+                }
+
+                var (rawId, type, x, y) = readNpc(packet.Slice(currentPacketOffset));
+                currentPacketOffset += dataSize;
+
                 ushort maskedId = (ushort)(rawId & 0x7FFF);
                 string name = NpcDatabase.GetNpcName(type);
 
                 _scopeManager.AddOrUpdateNpcInScope(maskedId, rawId, x, y, type, name);
 
-                bool worldReady = MuGame.Instance.ActiveScene?.World is WorldControl w && w.Status == GameControlStatus.Ready;
-                if (worldReady && NpcDatabase.TryGetNpcType(type, out var clsType))
+                MuGame.ScheduleOnMainThread(async () =>
                 {
-                    var worldRef = (WalkableWorldControl)MuGame.Instance.ActiveScene.World!;
-                    MuGame.ScheduleOnMainThread(async () =>
+                    if (MuGame.Instance.ActiveScene?.World is WalkableWorldControl worldRef && worldRef.Status == GameControlStatus.Ready)
                     {
                         if (worldRef.Objects.OfType<WalkerObject>().Any(o => o.NetworkId == maskedId))
-                            return;
-
-                        if (Activator.CreateInstance(clsType) is WalkerObject obj)
                         {
-                            obj.NetworkId = maskedId;
-                            obj.Location = new Vector2(x, y);
-                            worldRef.Objects.Add(obj);
-                            await obj.Load();
+                            return;
                         }
-                    });
-                    await Task.Delay(50);
-                }
-                else
-                {
-                    lock (_pendingNpcsMonsters)
-                        _pendingNpcsMonsters.Add(new NpcScopeObject(maskedId, rawId, x, y, type, name));
-                }
+
+                        if (NpcDatabase.TryGetNpcType(type, out var npcClassType))
+                        {
+                            if (Activator.CreateInstance(npcClassType) is WalkerObject obj)
+                            {
+                                obj.NetworkId = maskedId;
+                                obj.Location = new Vector2(x, y);
+
+                                // NAJPIERW DODAJ DO ŚWIATA, ABY USTAWIĆ worldRef.World
+                                worldRef.Objects.Add(obj); // To ustawi obj.World
+
+                                // TERAZ MOŻNA BEZPIECZNIE USTAWIĆ POZYCJE, bo obj.World jest dostępne
+                                if (obj.World != null && obj.World.Terrain != null) // Dodatkowe zabezpieczenie
+                                {
+                                    obj.MoveTargetPosition = obj.TargetPosition;
+                                    obj.Position = obj.TargetPosition;
+                                }
+                                else
+                                {
+                                    _logger.LogError($"ScopeHandler: obj.World or obj.World.Terrain is null for NPC/Monster {maskedId} ({obj.GetType().Name}) AFTER adding to worldRef.Objects. This should not happen.");
+                                    // Awaryjne ustawienie, jeśli teren nie jest dostępny
+                                    float worldX = obj.Location.X * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
+                                    float worldY = obj.Location.Y * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
+                                    obj.MoveTargetPosition = new Vector3(worldX, worldY, 0); // Z = 0 jako fallback
+                                    obj.Position = obj.MoveTargetPosition;
+                                }
+
+                                try
+                                {
+                                    await obj.Load();
+                                    if (obj.Status != GameControlStatus.Ready)
+                                    {
+                                        _logger.LogWarning($"ScopeHandler: NPC/Monster {maskedId} ({obj.GetType().Name}) loaded but status is {obj.Status}.");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogError(ex, $"ScopeHandler: Error loading NPC/Monster {maskedId} ({obj.GetType().Name}).");
+                                }
+                            }
+                            else
+                            {
+                                _logger.LogWarning($"ScopeHandler: Could not create instance of NPC type {npcClassType} for TypeID {type}.");
+                            }
+                        }
+                        else
+                        {
+                            _logger.LogWarning($"ScopeHandler: NPC type not found in NpcDatabase for TypeID {type}.");
+                        }
+                    }
+                    else
+                    {
+                        lock (_pendingNpcsMonsters)
+                        {
+                            if (!_pendingNpcsMonsters.Any(p => p.Id == maskedId))
+                            {
+                                _pendingNpcsMonsters.Add(new NpcScopeObject(maskedId, rawId, x, y, type, name));
+                            }
+                        }
+                    }
+                });
             }
         }
 

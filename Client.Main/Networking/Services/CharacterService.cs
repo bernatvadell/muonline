@@ -47,6 +47,27 @@ namespace Client.Main.Networking.Services
             }
         }
 
+        public async Task SendClientReadyAfterMapChangeAsync()
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send ClientReadyAfterMapChange.");
+                return;
+            }
+
+            _logger.LogInformation("Sending ClientReadyAfterMapChange packet...");
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                    PacketBuilder.BuildClientReadyAfterMapChangePacket(_connectionManager.Connection.Output));
+                _logger.LogInformation("ClientReadyAfterMapChange packet sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending ClientReadyAfterMapChange packet.");
+            }
+        }
+
         /// <summary>
         /// Selects the specified character on the game server.
         /// </summary>

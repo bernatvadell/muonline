@@ -7,5 +7,6 @@ namespace Client.Data.BMD
         public int NumAnimationKeys { get; set; }
         public bool LockPositions { get; set; }
         public Vector3[] Positions { get; set; } = [];
+        public float PlaySpeed { get; set; } = 0.25f;
     }
 }

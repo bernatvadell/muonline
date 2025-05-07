@@ -14,28 +14,28 @@ namespace Client.Main.Objects
 {
     public abstract class WalkerObject : ModelObject
     {
-        // Fields
-        // Rotation and movement variables
+        // Fields: rotation and movement
         private Vector3 _targetAngle;
         private Direction _direction;
         private Vector2 _location;
         private List<Vector2> _currentPath;
 
-        // Camera control variables
+        // Camera control
         private float _currentCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
         private float _targetCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
         private const float _minCameraDistance = Constants.MIN_CAMERA_DISTANCE;
         private const float _maxCameraDistance = Constants.MAX_CAMERA_DISTANCE;
         private const float _zoomSpeed = Constants.ZOOM_SPEED;
-        private int _previousScrollValue = 0;
+        private int _previousScrollValue;
 
-        // Camera rotation variables
+        // Camera rotation
         private float _cameraYaw = Constants.CAMERA_YAW;
         private float _cameraPitch = Constants.CAMERA_PITCH;
         private const float _rotationSensitivity = Constants.ROTATION_SENSITIVITY;
-        private bool _isRotating = false;
+        private bool _isRotating;
+        private bool _wasRotating;
 
-        // Default camera values
+        // Default camera angles
         private const float _defaultCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
         private static readonly float _defaultCameraPitch = Constants.DEFAULT_CAMERA_PITCH;
         private const float _defaultCameraYaw = Constants.DEFAULT_CAMERA_YAW;
@@ -44,11 +44,9 @@ namespace Client.Main.Objects
         private static readonly float _maxPitch = Constants.MAX_PITCH;
         private static readonly float _minPitch = Constants.MIN_PITCH;
 
-        // Mouse state tracking
-        private bool _wasRotating = false;
-
         private CancellationTokenSource _autoIdleCts;
-        private const float RotationSpeed = 8;
+        private const float RotationSpeed = 8f;
+        private int _previousActionForSound = -1;
 
         // Properties
         public bool IsMainWalker => World is WalkableWorldControl walkableWorld && walkableWorld.Walker == this;
@@ -118,14 +116,11 @@ namespace Client.Main.Objects
         {
             base.Update(gameTime);
 
-            // 1) Camera and zoom control for the local player
             if (IsMainWalker)
                 HandleMouseInput();
 
-            // 2) Update camera position and height interpolation
             UpdatePosition(gameTime);
 
-            // 3) Execute the next step of the path (_currentPath is set in MoveTo)
             if (_currentPath != null && _currentPath.Count > 0 && !IsMoving)
             {
                 var next = _currentPath[0];
@@ -133,91 +128,103 @@ namespace Client.Main.Objects
                 _currentPath.RemoveAt(0);
             }
 
-            if (!IsMoving)
+            if (CurrentAction != _previousActionForSound)
             {
-                if (this is MonsterObject) // Monsters
+                if (this is MonsterObject)
                 {
-                    const byte MonsterWalk = 2; // 2 = "walk"
-                    const byte MonsterIdle = 1; // 1 = "idle"
-
-                    if (CurrentAction == MonsterWalk && Model?.Actions?.Length > MonsterIdle)
-                    {
-                        CurrentAction = MonsterIdle;
-                    }
+                    // Monster-specific sound methods are called in PlayAction
                 }
-                else // Local or remote player
-                {
-                    const byte PlayerWalk = 1; // 1 = "walk" (male/female)
-                    const byte PlayerIdle = 0; // 0 = "stop/idle"
-
-                    if (CurrentAction == PlayerWalk && Model?.Actions?.Length > PlayerIdle)
-                    {
-                        CurrentAction = PlayerIdle;
-                    }
-                }
+                _previousActionForSound = CurrentAction;
             }
         }
 
         /// <summary>
-        /// Plays the specified action.
-        /// For monsters/NPCs, automatically returns to idle
+        /// Plays the specified action. For monsters/NPCs, automatically returns to idle
         /// when the animation finishes and the object is stationary.
         /// </summary>
         public void PlayAction(byte actionIndex)
         {
-            // --- Nothing to do ---
-            if (CurrentAction == actionIndex)
+            bool canRefreshTimer = this is MonsterObject &&
+                                   actionIndex != (int)MonsterActionType.Stop1 &&
+                                   actionIndex != (int)MonsterActionType.Walk &&
+                                   actionIndex != (int)MonsterActionType.Run;
+
+            if (CurrentAction == actionIndex && !canRefreshTimer)
                 return;
 
+            int previousAction = CurrentAction;
             CurrentAction = actionIndex;
+            InvalidateBuffers();
 
-            // --- Local player and remote players without auto-idle ---
-            if (this is not MonsterObject)
-                return;
-
-            // Idle(1) and Walk(2) do not need reset
-            if (actionIndex is 1 or 2)
-                return;
-
-            // --- Animation length from NumAnimationKeys ---
-            var actions = Model?.Actions;
-            if (actions == null || actionIndex >= actions.Length)
-                return;
-
-            var act = actions[actionIndex];
-            int frames = act?.NumAnimationKeys ?? 0;
-            if (frames <= 0)
-                return;
-
-            // FPS – if not in model, assume 10 fps
-            float fps = 10f; // Default FPS
-            if (fps <= 0f) fps = 10f;
-
-            int msTotal = (int)(1000f * frames / fps) + 100; // +small margin
-
-            // --- Cancel previous timer ---
-            _autoIdleCts?.Cancel();
-            _autoIdleCts = new CancellationTokenSource();
-            var token = _autoIdleCts.Token;
-
-            // --- Start one-time "timer" ---
-            _ = Task.Delay(msTotal, token).ContinueWith(_ =>
+            if (this is MonsterObject monster)
             {
-                if (token.IsCancellationRequested) return;
-
-                MuGame.ScheduleOnMainThread(() =>
+                switch ((MonsterActionType)actionIndex)
                 {
-                    // If still stationary and action hasn't changed in the meantime
-                    if (!IsMoving && CurrentAction == actionIndex)
+                    case MonsterActionType.Attack1:
+                    case MonsterActionType.Attack2:
+                    case MonsterActionType.Attack3:
+                    case MonsterActionType.Attack4:
+                        monster.OnPerformAttack(actionIndex - (int)MonsterActionType.Attack1 + 1);
+                        break;
+                    case MonsterActionType.Shock:
+                        monster.OnReceiveDamage();
+                        break;
+                    case MonsterActionType.Die:
+                        monster.OnDeathAnimationStart();
+                        break;
+                }
+
+                const byte MonsterIdle = (byte)MonsterActionType.Stop1;
+                const byte MonsterWalk = (byte)MonsterActionType.Walk;
+                const byte MonsterRun = (byte)MonsterActionType.Run;
+                const byte MonsterDie = (byte)MonsterActionType.Die;
+
+                if (actionIndex == MonsterIdle || actionIndex == MonsterWalk || actionIndex == MonsterRun || actionIndex == MonsterDie ||
+                    (previousAction != MonsterIdle && previousAction != MonsterWalk && previousAction != MonsterRun && previousAction != MonsterDie && previousAction != CurrentAction))
+                {
+                    _autoIdleCts?.Cancel();
+                    _autoIdleCts?.Dispose();
+                    _autoIdleCts = null;
+                }
+
+                if (actionIndex != MonsterIdle && actionIndex != MonsterWalk && actionIndex != MonsterRun && actionIndex != MonsterDie)
+                {
+                    var actions = Model?.Actions;
+                    if (actions == null || actionIndex >= actions.Length)
+                        return;
+
+                    var act = actions[actionIndex];
+                    int frames = act?.NumAnimationKeys ?? 0;
+                    if (frames <= 0)
+                        return;
+
+                    float actionSpecificPlaySpeed = act.PlaySpeed != 0 ? act.PlaySpeed : 0.25f;
+                    float baseAnimationFps = 10.0f;
+                    float effectiveFps = baseAnimationFps * actionSpecificPlaySpeed * AnimationSpeed;
+                    if (effectiveFps <= 0.1f) effectiveFps = 0.1f;
+
+                    int msTotal = (int)(frames / effectiveFps * 1000.0f) + 100;
+
+                    _autoIdleCts = new CancellationTokenSource();
+                    var token = _autoIdleCts.Token;
+
+                    _ = Task.Delay(msTotal, token).ContinueWith(t =>
                     {
-                        const byte MonsterIdle = 1;
-                        if (Model?.Actions?.Length > MonsterIdle)
-                            CurrentAction = MonsterIdle;
-                    }
-                });
-            }, token,
-            TaskContinuationOptions.OnlyOnRanToCompletion,
-            TaskScheduler.Default);
+                        if (t.IsCanceled || token.IsCancellationRequested) return;
+
+                        MuGame.ScheduleOnMainThread(() =>
+                        {
+                            if (!IsMoving && CurrentAction == actionIndex)
+                            {
+                                if (Model?.Actions?.Length > MonsterIdle)
+                                {
+                                    CurrentAction = MonsterIdle;
+                                }
+                            }
+                        });
+                    }, token, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
+                }
+            }
         }
 
         public void MoveTo(Vector2 targetLocation, bool sendToServer = true)
@@ -225,7 +232,6 @@ namespace Client.Main.Objects
             if (World == null)
                 return;
 
-            // Find path only for adjacent tiles
             List<Vector2> path = Pathfinding.FindPath(
                 new Vector2((int)Location.X, (int)Location.Y),
                 targetLocation,
@@ -236,11 +242,8 @@ namespace Client.Main.Objects
 
             _currentPath = path;
 
-            /*  *** ONLY LOCAL PLAYER SENDS PACKETS ***  */
             if (sendToServer && IsMainWalker)
-            {
                 SendWalkPathToServer(path);
-            }
         }
 
         // Private Methods
@@ -297,22 +300,17 @@ namespace Client.Main.Objects
                 Angle = new Vector3(Angle.X, Angle.Y, Angle.Z + stepZ);
 
                 if (Math.Abs(angleDifference.Z) <= maxStep)
-                {
                     Angle = new Vector3(Angle.X, Angle.Y, _targetAngle.Z);
-                }
             }
 
-            // Calculate target height based on terrain and scaling
             float heightScaleFactor = 0.5f;
             float terrainHeightAtMoveTarget = MoveTargetPosition.Z + worldExtraHeight + ExtraHeight;
             float desiredHeightOffset = heightScaleFactor * terrainHeightAtMoveTarget;
             float targetHeight = terrainHeightAtMoveTarget + desiredHeightOffset;
 
-            // Interpolation using Lerp
-            float interpolationFactor = 15f * deltaTime; // Factor
+            float interpolationFactor = 15f * deltaTime;
             float newZ = MathHelper.Lerp(Position.Z, targetHeight, interpolationFactor);
 
-            // Update position with the new height
             Position = new Vector3(MoveTargetPosition.X, MoveTargetPosition.Y, newZ);
         }
 
@@ -322,11 +320,10 @@ namespace Client.Main.Objects
             var net = MuGame.Network;
             if (net == null) return;
 
-            // 1) StartX/StartY: current client position
             byte startX = (byte)Location.X;
             byte startY = (byte)Location.Y;
 
-            // 2) Function returning CLIENT CODE (0-7) according to MU Online documentation
+            //    Function returning CLIENT CODE (0-7) according to MU Online documentation
             //    W=0, SW=1, S=2, SE=3, E=4, NE=5, N=6, NW=7
             static byte GetClientDirectionCode(Vector2 from, Vector2 to)
             {
@@ -347,25 +344,20 @@ namespace Client.Main.Objects
                 };
             }
 
-            // 3) Build list of client directions
             List<byte> clientDirs = new(path.Count);
             Vector2 currentPos = Location;
-
             foreach (var step in path)
             {
                 byte dirCode = GetClientDirectionCode(currentPos, step);
-                if (dirCode > 7) break; // Non-neighbor – end
+                if (dirCode > 7) break;
                 clientDirs.Add(dirCode);
                 currentPos = step;
-                if (clientDirs.Count == 15) break; // Max path length
+                if (clientDirs.Count == 15) break;
             }
+            if (clientDirs.Count == 0) return;
 
-            if (clientDirs.Count == 0) return; // Clicked on the same tile
-
-            // 4) TRANSLATE to server codes using DirectionMap from configuration
-            var directionMap = MuGame.Network?.GetDirectionMap(); // IDictionary<byte, byte>
-            List<byte> serverDirs = new List<byte>(clientDirs.Count);
-
+            var directionMap = MuGame.Network?.GetDirectionMap();
+            List<byte> serverDirs = new(clientDirs.Count);
             if (directionMap != null)
             {
                 foreach (byte clientDir in clientDirs)
@@ -373,15 +365,14 @@ namespace Client.Main.Objects
                     if (directionMap.TryGetValue(clientDir, out byte serverDir))
                         serverDirs.Add(serverDir);
                     else
-                        serverDirs.Add(clientDir); // Fallback if mapping not found (should not happen)
+                        serverDirs.Add(clientDir);
                 }
             }
             else
             {
-                serverDirs.AddRange(clientDirs); // Use client dirs if map is null
+                serverDirs.AddRange(clientDirs);
             }
 
-            // 5) Send to server
             await net.SendWalkRequestAsync(startX, startY, serverDirs.ToArray());
         }
 
@@ -393,7 +384,6 @@ namespace Client.Main.Objects
                 UpdateCameraPosition(MoveTargetPosition);
                 return;
             }
-
             if (!IsMoving)
             {
                 MoveTargetPosition = TargetPosition;
@@ -408,30 +398,21 @@ namespace Client.Main.Objects
             Vector3 moveVector = direction * MoveSpeed * deltaTime;
 
             if (moveVector.Length() >= (TargetPosition - MoveTargetPosition).Length())
-            {
                 UpdateCameraPosition(TargetPosition);
-            }
             else
-            {
                 UpdateCameraPosition(MoveTargetPosition + moveVector);
-            }
         }
 
         private void UpdateCameraPosition(Vector3 position)
         {
             MoveTargetPosition = position;
+            if (!IsMainWalker) return;
 
-            if (!IsMainWalker)
-                return;
-
-            // Calculate camera offset using spherical coordinates
             float x = _currentCameraDistance * (float)Math.Cos(_cameraPitch) * (float)Math.Sin(_cameraYaw);
             float y = _currentCameraDistance * (float)Math.Cos(_cameraPitch) * (float)Math.Cos(_cameraYaw);
             float z = _currentCameraDistance * (float)Math.Sin(_cameraPitch);
-            Vector3 cameraOffset = new Vector3(x, y, z);
-
-            // Calculate camera position
-            Vector3 cameraPosition = position + cameraOffset;
+            var cameraOffset = new Vector3(x, y, z);
+            var cameraPosition = position + cameraOffset;
 
             Camera.Instance.FOV = 35;
             Camera.Instance.Position = cameraPosition;
@@ -441,55 +422,59 @@ namespace Client.Main.Objects
         private void MoveTowards(Vector2 target, GameTime gameTime)
         {
             Location = target;
-            // TODO: Fix this, it's not working properly on some maps when distance <= speed
+
+            if (this is MonsterObject monster)
+            {
+                const int MONSTER_ACTION_WALK = (int)MonsterActionType.Walk;
+                int moveAction = MONSTER_ACTION_WALK;
+                if (Model?.Actions?.Length > (int)MonsterActionType.Run &&
+                    Model.Actions[(int)MonsterActionType.Run]?.NumAnimationKeys > 0)
+                {
+                    // Optionally choose run instead of walk here
+                }
+
+                if (CurrentAction != moveAction)
+                    PlayAction((byte)moveAction);
+            }
         }
 
         private void HandleMouseInput()
         {
-            MouseState mouseState = MuGame.Instance.Mouse;
-
-            // Handle mouse scroll for zooming
+            var mouseState = MuGame.Instance.Mouse;
             int currentScroll = mouseState.ScrollWheelValue;
-            int scrollDifference = currentScroll - _previousScrollValue;
-
-            if (scrollDifference != 0)
+            int scrollDiff = currentScroll - _previousScrollValue;
+            if (scrollDiff != 0)
             {
-                float zoomChange = scrollDifference / 120f * 100f; // 100 units for each scroll notch
-                _targetCameraDistance -= zoomChange;
+                float zoomChange = scrollDiff / 120f * 100f;
                 _targetCameraDistance = MathHelper.Clamp(
-                    _targetCameraDistance,
+                    _targetCameraDistance - zoomChange,
                     _minCameraDistance,
                     _maxCameraDistance);
             }
             _previousScrollValue = currentScroll;
 
-            // Handle middle mouse button for rotation and reset
             if (mouseState.MiddleButton == ButtonState.Pressed)
             {
                 if (!_isRotating)
                 {
                     _isRotating = true;
-                    _wasRotating = false; // Reset flag before starting rotation
+                    _wasRotating = false;
                 }
                 else
                 {
-                    Point currentMousePosition = mouseState.Position;
-                    Vector2 mouseDelta = (currentMousePosition - MuGame.Instance.PrevMouseState.Position).ToVector2();
-
-                    if (mouseDelta.LengthSquared() > 0) // Check for actual movement
+                    var delta = (mouseState.Position - MuGame.Instance.PrevMouseState.Position).ToVector2();
+                    if (delta.LengthSquared() > 0)
                     {
-                        _cameraYaw -= mouseDelta.X * _rotationSensitivity;
-                        _cameraPitch -= mouseDelta.Y * _rotationSensitivity;
-                        _cameraPitch = MathHelper.Clamp(_cameraPitch, _minPitch, _maxPitch); // Clamp vertical
-                        _cameraYaw = MathHelper.WrapAngle(_cameraYaw); // Wrap horizontal
-                        _wasRotating = true; // Flag that rotation occurred
+                        _cameraYaw -= delta.X * _rotationSensitivity;
+                        _cameraPitch = MathHelper.Clamp(_cameraPitch - delta.Y * _rotationSensitivity, _minPitch, _maxPitch);
+                        _cameraYaw = MathHelper.WrapAngle(_cameraYaw);
+                        _wasRotating = true;
                     }
                 }
             }
             else if (mouseState.MiddleButton == ButtonState.Released &&
                      MuGame.Instance.PrevMouseState.MiddleButton == ButtonState.Pressed)
             {
-                // Reset camera only if there was no rotation (i.e., just a click)
                 if (!_wasRotating)
                 {
                     _targetCameraDistance = _defaultCameraDistance;
