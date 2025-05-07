@@ -15,12 +15,21 @@ namespace Client.Main.Controls.UI.Game
         public int CurrentHP
         {
             get => _currentHP;
-            set { _currentHP = value; UpdatePercent(); }
+            set
+            {
+                _currentHP = value;
+                UpdatePercent();
+            }
         }
+
         public int MaxHP
         {
             get => _maxHP;
-            set { _maxHP = value; UpdatePercent(); }
+            set
+            {
+                _maxHP = value;
+                UpdatePercent();
+            }
         }
 
         public MainHPControl()
@@ -30,13 +39,15 @@ namespace Client.Main.Controls.UI.Game
             AutoViewSize = false;
             ViewSize = new Point(86, 86);
             BlendState = BlendState.AlphaBlend;
+
             // Add the progress bar as a child (drawn in the normal order)
             Controls.Add(_progress = new MainHPStatusControl
             {
                 Align = ControlAlign.Bottom,
                 Margin = new Margin { Bottom = 2 }
             });
-            // Create the label but do not add it to Controls so it can be drawn later on top.
+
+            // Create the label but do not add it to Controls so it can be drawn on top later
             _label = new LabelControl
             {
                 Align = ControlAlign.VerticalCenter | ControlAlign.HorizontalCenter,
@@ -71,7 +82,7 @@ namespace Client.Main.Controls.UI.Game
             _label.Y = rect.Y + (rect.Height - _label.ControlSize.Y) / 2;
         }
 
-        public void SetValues(int current, int max)  // wygodny setter
+        public void SetValues(int current, int max)  // Convenience setter
         {
             _currentHP = current;
             _maxHP = max;
@@ -83,6 +94,5 @@ namespace Client.Main.Controls.UI.Game
             CenterLabel();
             _label.Draw(gameTime);
         }
-        
     }
 }
