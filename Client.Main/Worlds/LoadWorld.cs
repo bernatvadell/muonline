@@ -1,9 +1,7 @@
 ﻿using Client.Main.Controls;
-using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using System.Diagnostics;
-using System.Linq;
 
 namespace Client.Main.Worlds
 {

@@ -13,8 +13,6 @@ namespace Client.Main
                 public const int TERRAIN_SIZE_MASK = 255;
                 public const float TERRAIN_SCALE = 100f;
 
-                public const Models.PlayerClass Character = Models.PlayerClass.RuneMage;
-
                 // Game settings
 
 #if DEBUG

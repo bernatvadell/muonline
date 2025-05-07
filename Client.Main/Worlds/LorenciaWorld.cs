@@ -24,10 +24,29 @@ namespace Client.Main.Worlds
 
         public override void AfterLoad()
         {
-            // ‼ NIE ustawiamy Walker.Location na sztywno
-            // jeśli jednak spawn nie został przekazany, ustaw domyślny
-            if (Walker.Location == Vector2.Zero)
-                Walker.Location = new Vector2(138, 124);
+            Vector2 defaultSpawn = new Vector2(138, 124);
+
+            Walker.Reset();
+
+            bool shouldUseDefaultSpawn = false;
+            if (MuGame.Network == null ||
+                MuGame.Network.CurrentState == Core.Client.ClientConnectionState.Initial ||
+                MuGame.Network.CurrentState == Core.Client.ClientConnectionState.Disconnected)
+            {
+                shouldUseDefaultSpawn = true;
+            }
+            else if (Walker.Location == Vector2.Zero)
+            {
+                shouldUseDefaultSpawn = true;
+            }
+
+            if (shouldUseDefaultSpawn)
+            {
+                Walker.Location = defaultSpawn;
+            }
+
+            Walker.MoveTargetPosition = Walker.TargetPosition;
+            Walker.Position = Walker.TargetPosition;
 
             Terrain.WaterSpeed = 0.05f;
             Terrain.DistortionAmplitude = 0.2f;

@@ -8,19 +8,17 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
-    public class World135World : WalkableWorldControl
+    public class World092World : WalkableWorldControl
     {
-        public World135World() : base(worldIndex: 135) // ASHEN AIDA (GRAY AIDA)
+        public World092World() : base(worldIndex: 92) // AKERON (ALKMAR, UBAID & ARKA WAR)
         {
 
         }
 
         public override void AfterLoad()
         {
-            Vector2 defaultSpawn = new Vector2(232, 88);
-
+            Vector2 defaultSpawn = new Vector2(53, 193);
             Walker.Reset();
-
             bool shouldUseDefaultSpawn = false;
             if (MuGame.Network == null ||
                 MuGame.Network.CurrentState == Core.Client.ClientConnectionState.Initial ||
@@ -32,15 +30,13 @@ namespace Client.Main.Worlds
             {
                 shouldUseDefaultSpawn = true;
             }
-
             if (shouldUseDefaultSpawn)
             {
                 Walker.Location = defaultSpawn;
             }
-
             Walker.MoveTargetPosition = Walker.TargetPosition;
             Walker.Position = Walker.TargetPosition;
-
+            
             base.AfterLoad();
         }
     }

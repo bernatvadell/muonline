@@ -10,14 +10,33 @@ namespace Client.Main.Worlds
 {
     public class World040World : WalkableWorldControl
     {
-        public World040World() : base(worldIndex : 40) // REFINE TOWER
+        public World040World() : base(worldIndex: 40) // REFINE TOWER
         {
 
         }
 
         public override void AfterLoad()
         {
-            Walker.Location = new Vector2(76, 151);
+            Vector2 defaultSpawn = new Vector2(76, 151);
+            Walker.Reset();
+            bool shouldUseDefaultSpawn = false;
+            if (MuGame.Network == null ||
+                MuGame.Network.CurrentState == Core.Client.ClientConnectionState.Initial ||
+                MuGame.Network.CurrentState == Core.Client.ClientConnectionState.Disconnected)
+            {
+                shouldUseDefaultSpawn = true;
+            }
+            else if (Walker.Location == Vector2.Zero)
+            {
+                shouldUseDefaultSpawn = true;
+            }
+            if (shouldUseDefaultSpawn)
+            {
+                Walker.Location = defaultSpawn;
+            }
+            Walker.MoveTargetPosition = Walker.TargetPosition;
+            Walker.Position = Walker.TargetPosition;
+            
             base.AfterLoad();
         }
     }

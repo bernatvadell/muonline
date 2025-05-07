@@ -3,11 +3,12 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
 {
+    [NpcInfo(7, "Giant")]
     public class Giant : MonsterObject
     {
         public Giant()
         {
-            Scale = 1.8f; // TODO highlight is to big with scale
+            Scale = 1.8f;
             RenderShadow = true;
         }
 
