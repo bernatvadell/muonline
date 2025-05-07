@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using MUnique.OpenMU.Network.Packets; // For CharacterClassNumber
+using MUnique.OpenMU.Network.Packets;
 
 namespace Client.Main.Core.Utilities
 {

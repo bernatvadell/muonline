@@ -1,4 +1,4 @@
-namespace Client.Main.Client
+namespace Client.Main.Core.Client
 {
     /// <summary>
     /// Enumeration representing different protocol versions for client compatibility.

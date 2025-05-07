@@ -1,310 +1,350 @@
 using Microsoft.Extensions.Logging;
 using MUnique.OpenMU.Network.Packets;
 using MUnique.OpenMU.Network.Packets.ServerToClient;
-using Client.Main.Client; // For CharacterState, NetworkManager, TargetProtocolVersion
-using Client.Main.Core.Utilities; // For PacketHandlerAttribute, CharacterClassDatabase
-using Client.Main.Networking.Services;
+using Client.Main.Core.Utilities;
+using Client.Main.Networking.Services;     // For CharacterService
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
-using System.Collections.Generic; // For List
-using System.Linq; // For Any()
+using Client.Main.Core.Client;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
+    /// <summary>
+    /// Handles miscellaneous game packets such as login, character listing, weather, quests, and messenger initialization.
+    /// </summary>
     public class MiscGamePacketHandler : IGamePacketHandler
     {
+        // ──────────────────────────── Fields ────────────────────────────
         private readonly ILogger<MiscGamePacketHandler> _logger;
         private readonly NetworkManager _networkManager;
         private readonly CharacterService _characterService;
-        private readonly TargetProtocolVersion _targetVersion;
         private readonly CharacterState _characterState;
+        private readonly TargetProtocolVersion _targetVersion;
 
-        public MiscGamePacketHandler(ILoggerFactory loggerFactory, NetworkManager networkManager, CharacterService characterService, CharacterState characterState, TargetProtocolVersion targetVersion)
+        // ───────────────────────── Constructors ─────────────────────────
+        public MiscGamePacketHandler(
+            ILoggerFactory loggerFactory,
+            NetworkManager networkManager,
+            CharacterService characterService,
+            CharacterState characterState,
+            TargetProtocolVersion targetVersion)
         {
             _logger = loggerFactory.CreateLogger<MiscGamePacketHandler>();
             _networkManager = networkManager;
             _characterService = characterService;
-            _targetVersion = targetVersion;
             _characterState = characterState;
+            _targetVersion = targetVersion;
         }
 
-        [PacketHandler(0xF1, 0x00)]                              // GameServerEntered
+        // ─────────────────────── Packet Handlers ────────────────────────
+
+        [PacketHandler(0xF1, 0x00)]  // GameServerEntered
         public Task HandleGameServerEnteredAsync(Memory<byte> packet)
         {
             try
             {
                 var entered = new GameServerEntered(packet);
-
-                // ───────── 1) zapisz ID znane już serwerowi ─────────
-                _characterState.Id = entered.PlayerId;            // <-- NEW
-
-                _logger.LogInformation("👋 Witamy na GS. PlayerId = {Pid:X4}", entered.PlayerId);
-
-                // (opcjonalnie) ustaw wstępne koordynaty, jeżeli struktura je zwraca
-                // _characterState.UpdatePosition(entered.StartX, entered.StartY);
-
-                _networkManager.ProcessGameServerEntered();       // twoja dalsza logika
+                _characterState.Id = entered.PlayerId;
+                _logger.LogInformation("👋 Entered Game Server. PlayerId = {Pid:X4}", entered.PlayerId);
+                _networkManager.ProcessGameServerEntered();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing GameServerEntered (F1 00).");
+                _logger.LogError(ex, "Error processing GameServerEntered packet.");
             }
             return Task.CompletedTask;
         }
 
-        [PacketHandler(0xF1, 0x01)] // LoginResponse
+        [PacketHandler(0xF1, 0x01)]  // LoginResponse
         public Task HandleLoginResponseAsync(Memory<byte> packet)
         {
             try
             {
                 var response = new LoginResponse(packet);
-                _logger.LogInformation("🔑 Received LoginResponse: Result={Result} ({ResultByte:X2})", response.Success, (byte)response.Success);
-
-                // **** ZMIANA: Wywołaj metodę w NetworkManager zamiast bezpośrednio serwisu ****
+                _logger.LogInformation("🔑 LoginResponse: Success={Success} (0x{Code:X2})", response.Success, (byte)response.Success);
                 _networkManager.ProcessLoginResponse(response.Success);
-                // **** KONIEC ZMIANY ****
-
-                // Usunięto logikę stąd:
-                // if (response.Success == LoginResponse.LoginResult.Okay) { ... } else { ... }
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing LoginResponse."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing LoginResponse packet.");
+            }
             return Task.CompletedTask;
         }
 
-        [PacketHandler(0xF3, 0x00)] // CharacterList
+        [PacketHandler(0xF3, 0x00)]  // CharacterList
         public Task HandleCharacterListAsync(Memory<byte> packet)
         {
             try
             {
-                var characters = new List<(string Name, CharacterClassNumber Class, ushort Level)>();
-                int characterDataSize = 0;
-                int firstCharacterOffset = 0;
-                byte characterCount = 0;
+                var list = new List<(string Name, CharacterClassNumber Class, ushort Level)>();
+                int dataSize = 0;
+                int offset = 0;
+                byte count = 0;
 
-                // Define minimum header sizes BEFORE count field
-                const int MinHeaderSizeS6 = 7;
-                const int MinHeaderSizeLegacy = 5;
+                // Determine header format by protocol version
+                const int MinHeaderS6 = 7;
+                const int MinHeaderLegacy = 5;
 
-                // --- Logika określania rozmiaru i offsetu (bez zmian) ---
                 switch (_targetVersion)
                 {
                     case TargetProtocolVersion.Season6:
-                        if (packet.Length < MinHeaderSizeS6 + 1) { _logger.LogWarning("CharacterList (S6) packet too short for header."); return Task.CompletedTask; }
-                        var charListS6 = new CharacterListRef(packet.Span);
-                        characterCount = charListS6.CharacterCount;
-                        characterDataSize = CharacterList.CharacterData.Length;
-                        firstCharacterOffset = 8;
-                        if (packet.Length < CharacterListRef.GetRequiredSize(characterCount)) { _logger.LogWarning("CharacterList (S6) packet too short for {Count} characters.", characterCount); characterCount = 0; }
-                        _logger.LogInformation("📜 Received character list (S6 Format): {Count} characters.", characterCount);
+                        if (packet.Length < MinHeaderS6 + 1)
+                        {
+                            _logger.LogWarning("CharacterList (S6) packet too short for header.");
+                            return Task.CompletedTask;
+                        }
+                        var refS6 = new CharacterListRef(packet.Span);
+                        count = refS6.CharacterCount;
+                        dataSize = CharacterList.CharacterData.Length;
+                        offset = 8;
+                        if (packet.Length < CharacterListRef.GetRequiredSize(count))
+                        {
+                            _logger.LogWarning("CharacterList (S6) too short for {Count} characters.", count);
+                            count = 0;
+                        }
+                        _logger.LogInformation("📜 Character list (S6): {Count} entries.", count);
                         break;
+
                     case TargetProtocolVersion.Version097:
-                        if (packet.Length < MinHeaderSizeLegacy + 1) { _logger.LogWarning("CharacterList (0.97) packet too short for header."); return Task.CompletedTask; }
-                        var charList097 = new CharacterList095Ref(packet.Span);
-                        characterCount = charList097.CharacterCount;
-                        characterDataSize = CharacterList095.CharacterData.Length;
-                        firstCharacterOffset = 5;
-                        if (packet.Length < CharacterList095Ref.GetRequiredSize(characterCount)) { _logger.LogWarning("CharacterList (0.97) packet too short for {Count} characters.", characterCount); characterCount = 0; }
-                        _logger.LogInformation("📜 Received character list (0.97/0.95 Format): {Count} characters.", characterCount);
+                        if (packet.Length < MinHeaderLegacy + 1)
+                        {
+                            _logger.LogWarning("CharacterList (0.97) packet too short for header.");
+                            return Task.CompletedTask;
+                        }
+                        var ref97 = new CharacterList095Ref(packet.Span);
+                        count = ref97.CharacterCount;
+                        dataSize = CharacterList095.CharacterData.Length;
+                        offset = 5;
+                        if (packet.Length < CharacterList095Ref.GetRequiredSize(count))
+                        {
+                            _logger.LogWarning("CharacterList (0.97) too short for {Count} characters.", count);
+                            count = 0;
+                        }
+                        _logger.LogInformation("📜 Character list (0.97): {Count} entries.", count);
                         break;
+
                     case TargetProtocolVersion.Version075:
-                        if (packet.Length < MinHeaderSizeLegacy + 1) { _logger.LogWarning("CharacterList (0.75) packet too short for header."); return Task.CompletedTask; }
-                        var charList075 = new CharacterList075Ref(packet.Span);
-                        characterCount = charList075.CharacterCount;
-                        characterDataSize = CharacterList075.CharacterData.Length;
-                        firstCharacterOffset = 5;
-                        if (packet.Length < CharacterList075Ref.GetRequiredSize(characterCount)) { _logger.LogWarning("CharacterList (0.75) packet too short for {Count} characters.", characterCount); characterCount = 0; }
-                        _logger.LogInformation("📜 Received character list (0.75 Format): {Count} characters.", characterCount);
+                        if (packet.Length < MinHeaderLegacy + 1)
+                        {
+                            _logger.LogWarning("CharacterList (0.75) packet too short for header.");
+                            return Task.CompletedTask;
+                        }
+                        var ref75 = new CharacterList075Ref(packet.Span);
+                        count = ref75.CharacterCount;
+                        dataSize = CharacterList075.CharacterData.Length;
+                        offset = 5;
+                        if (packet.Length < CharacterList075Ref.GetRequiredSize(count))
+                        {
+                            _logger.LogWarning("CharacterList (0.75) too short for {Count} characters.", count);
+                            count = 0;
+                        }
+                        _logger.LogInformation("📜 Character list (0.75): {Count} entries.", count);
                         break;
+
                     default:
-                        _logger.LogWarning("❓ Unsupported protocol version ({Version}) for CharacterList.", _targetVersion);
+                        _logger.LogWarning("Unsupported protocol version ({Version}) for CharacterList.", _targetVersion);
                         return Task.CompletedTask;
                 }
 
-                // --- Iteracja i parsowanie ---
-                for (int i = 0; i < characterCount; i++)
+                // Parse each character entry
+                for (int i = 0; i < count; i++)
                 {
-                    int offset = firstCharacterOffset + (i * characterDataSize);
-                    if (offset + characterDataSize > packet.Length)
+                    int pos = offset + i * dataSize;
+                    if (pos + dataSize > packet.Length)
                     {
-                        _logger.LogWarning("CharacterList packet too short while calculating slice for character at index {Index}.", i);
+                        _logger.LogWarning("CharacterList too short slicing character {Index}.", i);
                         break;
                     }
-                    var characterDataMem = packet.Slice(offset, characterDataSize);
+
+                    var span = packet.Slice(pos, dataSize).Span;
                     string name = "Error";
                     ushort level = 0;
-                    CharacterClassNumber parsedClass = CharacterClassNumber.DarkWizard; // Default
-                    ReadOnlySpan<byte> appearanceData = ReadOnlySpan<byte>.Empty;
+                    CharacterClassNumber cls = CharacterClassNumber.DarkWizard;
+                    ReadOnlySpan<byte> appearance = ReadOnlySpan<byte>.Empty;
 
                     try
                     {
-                        // Odczytaj dane specyficzne dla wersji
+                        // Extract fields by version
                         switch (_targetVersion)
                         {
                             case TargetProtocolVersion.Season6:
-                                var dataS6 = new CharacterList.CharacterData(characterDataMem);
-                                name = dataS6.Name;
-                                level = dataS6.Level;
-                                appearanceData = dataS6.Appearance;
+                                var d6 = new CharacterList.CharacterData(packet.Slice(pos, dataSize));
+                                name = d6.Name;
+                                level = d6.Level;
+                                appearance = d6.Appearance;
                                 break;
                             case TargetProtocolVersion.Version097:
-                                var data097 = new CharacterList095.CharacterData(characterDataMem);
-                                name = data097.Name;
-                                level = data097.Level;
-                                appearanceData = data097.Appearance;
+                                var d97 = new CharacterList095.CharacterData(packet.Slice(pos, dataSize));
+                                name = d97.Name;
+                                level = d97.Level;
+                                appearance = d97.Appearance;
                                 break;
                             case TargetProtocolVersion.Version075:
-                                var data075 = new CharacterList075.CharacterData(characterDataMem);
-                                name = data075.Name;
-                                level = data075.Level;
-                                appearanceData = data075.Appearance;
+                                var d75 = new CharacterList075.CharacterData(packet.Slice(pos, dataSize));
+                                name = d75.Name;
+                                level = d75.Level;
+                                appearance = d75.Appearance;
                                 break;
                         }
 
-                        // *** NOWA LOGIKA PARSOWANIA KLASY ***
-                        if (appearanceData.Length > 0)
+                        // Map class from appearance bits
+                        if (appearance.Length > 0)
                         {
-                            // Załóżmy, że pierwszy bajt (index 0) danych Appearance zawiera informacje o klasie.
-                            // Górne 5 bitów (bits 3-7) często reprezentuje klasę bazową.
-                            byte appearanceByte = appearanceData[0];
-                            int classValue = (appearanceByte >> 3) & 0b11111; // Przesuń o 3, maska 5 bitów
-
-                            _logger.LogDebug("  -> Appearance Byte[0] for {Name}: {ByteValue:X2}, Extracted Raw Class Value: {RawValue}", name, appearanceByte, classValue);
-
-                            parsedClass = MapClassValueToEnum(classValue); // Użyj funkcji mapującej
+                            byte apByte = appearance[0];
+                            int rawClassVal = (apByte >> 3) & 0b1_1111;
+                            _logger.LogDebug(
+                                "Appearance byte for {Name}: 0x{Byte:X2}, raw class {RawValue}",
+                                name, apByte, rawClassVal);
+                            cls = MapClassValueToEnum(rawClassVal);
                         }
                         else
                         {
-                            _logger.LogWarning("Appearance data is empty for character {Name}. Defaulting to DW.", name);
+                            _logger.LogWarning("Empty appearance data for {Name}. Defaulting to DarkWizard.", name);
                         }
-                        // *** KONIEC NOWEJ LOGIKI PARSOWANIA KLASY ***
 
-
-                        characters.Add((name, parsedClass, level));
-                        _logger.LogDebug("  -> Added Character: {Name} (Final Parsed Class: {ParsedClass}), Lv: {Level}", name, parsedClass, level);
+                        list.Add((name, cls, level));
+                        _logger.LogDebug(
+                            "Added character: {Name}, Class={Class}, Level={Level}",
+                            name, cls, level);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error parsing character data at index {Index} for version {Version}", i, _targetVersion);
+                        _logger.LogError(ex, "Error parsing character at index {Index}.", i);
                     }
-                } // End of loop
+                }
 
-                _networkManager.ProcessCharacterList(characters); // Przekaż listę do NetworkManager
-                _logger.LogInformation("<<< HandleCharacterListAsync: NetworkManager.ProcessCharacterList called with {Count} characters.", characters.Count);
+                _networkManager.ProcessCharacterList(list);
+                _logger.LogInformation(
+                    "Finished CharacterList: passed {Count} entries to NetworkManager.",
+                    list.Count);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "💥 Error processing CharacterList packet (F3, 00).");
+                _logger.LogError(ex, "Error processing CharacterList packet.");
             }
             return Task.CompletedTask;
         }
 
-        // *** ZMIENIONA NAZWA I POTENCJALNIE LOGIKA MAPOWANIA ***
-        /// <summary>
-        /// Maps the extracted class value (based on bit analysis) to the CharacterClassNumber enum.
-        /// **VERIFY THIS MAPPING AGAINST YOUR SERVER/CLIENT VERSION.**
-        /// </summary>
-        private CharacterClassNumber MapClassValueToEnum(int classValue)
-        {
-            // Ta funkcja mapuje wartość liczbową (0-31 potencjalnie) na enum.
-            // Musisz dostosować `case` do wartości liczbowych odpowiadających klasom w TWOJEJ wersji gry.
-            // Poniżej jest przykład bazujący na typowych wartościach dla 5 bitów.
-            return classValue switch
-            {
-                0 => CharacterClassNumber.DarkWizard,      // 00000
-                1 => CharacterClassNumber.DarkWizard,      // 00001 (często 2nd stage DW) -> SM
-                2 => CharacterClassNumber.SoulMaster,      // 00010
-                3 => CharacterClassNumber.GrandMaster,     // 00011
-
-                4 => CharacterClassNumber.DarkKnight,      // 00100
-                5 => CharacterClassNumber.DarkKnight,      // 00101 (często 2nd stage DK) -> BK
-                6 => CharacterClassNumber.BladeKnight,     // 00110
-                7 => CharacterClassNumber.BladeMaster,     // 00111
-
-                8 => CharacterClassNumber.FairyElf,        // 01000
-                9 => CharacterClassNumber.FairyElf,        // 01001 (często 2nd stage Elf) -> ME
-                10 => CharacterClassNumber.MuseElf,        // 01010
-                11 => CharacterClassNumber.HighElf,        // 01011
-
-                12 => CharacterClassNumber.MagicGladiator, // 01100
-                13 => CharacterClassNumber.DuelMaster,     // 01101
-
-                16 => CharacterClassNumber.DarkLord,       // 10000
-                17 => CharacterClassNumber.LordEmperor,    // 10001
-
-                20 => CharacterClassNumber.Summoner,       // 10100
-                21 => CharacterClassNumber.Summoner,       // 10101 (często 2nd stage Sum) -> BS
-                22 => CharacterClassNumber.BloodySummoner, // 10110
-                23 => CharacterClassNumber.DimensionMaster,// 10111
-
-                24 => CharacterClassNumber.RageFighter,    // 11000
-                25 => CharacterClassNumber.FistMaster,     // 11001
-
-                // Dodaj inne klasy jeśli istnieją w CharacterClassNumber i znasz ich wartości bitowe
-
-                _ => CharacterClassNumber.DarkWizard      // Domyślna wartość, jeśli nie pasuje
-            };
-        }
-
-        [PacketHandler(0x0F, PacketRouter.NoSubCode)] // WeatherStatusUpdate
+        [PacketHandler(0x0F, PacketRouter.NoSubCode)]  // WeatherStatusUpdate
         public Task HandleWeatherStatusUpdateAsync(Memory<byte> packet)
         {
             try
             {
                 var weather = new WeatherStatusUpdate(packet);
-                _logger.LogInformation("☀️ Weather: {Weather}, Variation: {Variation}", weather.Weather, weather.Variation);
+                _logger.LogInformation(
+                    "Weather update: {Weather}, variation {Variation}",
+                    weather.Weather, weather.Variation);
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing WeatherStatusUpdate (0F)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing WeatherStatusUpdate packet.");
+            }
             return Task.CompletedTask;
         }
 
-        [PacketHandler(0x0B, PacketRouter.NoSubCode)] // MapEventState
+        [PacketHandler(0x0B, PacketRouter.NoSubCode)]  // MapEventState
         public Task HandleMapEventStateAsync(Memory<byte> packet)
         {
             try
             {
-                var eventState = new MapEventState(packet);
-                _logger.LogInformation("🎉 Map Event State: Event={Event}, Enabled={Enabled}", eventState.Event, eventState.Enable);
+                var state = new MapEventState(packet);
+                _logger.LogInformation(
+                    "Map event: {Event}, enabled={Enabled}",
+                    state.Event, state.Enable);
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing MapEventState (0B)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing MapEventState packet.");
+            }
             return Task.CompletedTask;
         }
 
-        [PacketHandler(0xC0, PacketRouter.NoSubCode)] // MessengerInitialization
+        [PacketHandler(0xC0, PacketRouter.NoSubCode)]  // MessengerInitialization
         public Task HandleMessengerInitializationAsync(Memory<byte> packet)
         {
             try
             {
                 var init = new MessengerInitialization(packet);
-                _logger.LogInformation("✉️ Received MessengerInitialization: Letters={Letters}/{MaxLetters}, Friends={Friends}", init.LetterCount, init.MaximumLetterCount, init.FriendCount);
+                _logger.LogInformation(
+                    "Messenger initialized: {Letters}/{MaxLetters} letters, {Friends} friends",
+                    init.LetterCount, init.MaximumLetterCount, init.FriendCount);
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing MessengerInitialization (C0)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing MessengerInitialization packet.");
+            }
             return Task.CompletedTask;
         }
 
-        [PacketHandler(0xA0, PacketRouter.NoSubCode)] // LegacyQuestStateList
+        [PacketHandler(0xA0, PacketRouter.NoSubCode)]  // LegacyQuestStateList
         public Task HandleLegacyQuestStateListAsync(Memory<byte> packet)
         {
             try
             {
-                var questList = new LegacyQuestStateList(packet);
-                _logger.LogInformation("📜 Received LegacyQuestStateList: {Count} quests.", questList.QuestCount);
+                var qList = new LegacyQuestStateList(packet);
+                _logger.LogInformation(
+                    "Legacy quest list received: {Count} entries",
+                    qList.QuestCount);
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing LegacyQuestStateList (A0)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing LegacyQuestStateList packet.");
+            }
             return Task.CompletedTask;
         }
 
-        [PacketHandler(0xF6, 0x1A)] // QuestStateList
+        [PacketHandler(0xF6, 0x1A)]             // QuestStateList
         public Task HandleQuestStateListAsync(Memory<byte> packet)
         {
             try
             {
-                var stateList = new QuestStateList(packet);
-                _logger.LogInformation("❓ Received QuestStateList: {Count} active/completed quests.", stateList.QuestCount);
+                var qState = new QuestStateList(packet);
+                _logger.LogInformation(
+                    "Quest state list: {Count} entries",
+                    qState.QuestCount);
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing QuestStateList (F6, 1A)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing QuestStateList packet.");
+            }
             return Task.CompletedTask;
         }
 
-        // Add other miscellaneous handlers here (e.g., Guild related, Event related if not complex enough for own handler)
+        // ────────────────────────── Helpers ────────────────────────────
+
+        /// <summary>
+        /// Maps a raw 5-bit class value to the CharacterClassNumber enum.
+        /// Update mappings to match your server's definitions.
+        /// </summary>
+        private CharacterClassNumber MapClassValueToEnum(int value)
+        {
+            return value switch
+            {
+                0 => CharacterClassNumber.DarkWizard,
+                1 => CharacterClassNumber.SoulMaster,
+                2 => CharacterClassNumber.SoulMaster,
+                3 => CharacterClassNumber.GrandMaster,
+                4 => CharacterClassNumber.DarkKnight,
+                5 => CharacterClassNumber.BladeKnight,
+                6 => CharacterClassNumber.BladeKnight,
+                7 => CharacterClassNumber.BladeMaster,
+                8 => CharacterClassNumber.FairyElf,
+                9 => CharacterClassNumber.MuseElf,
+                10 => CharacterClassNumber.MuseElf,
+                11 => CharacterClassNumber.HighElf,
+                12 => CharacterClassNumber.MagicGladiator,
+                13 => CharacterClassNumber.DuelMaster,
+                16 => CharacterClassNumber.DarkLord,
+                17 => CharacterClassNumber.LordEmperor,
+                20 => CharacterClassNumber.Summoner,
+                21 => CharacterClassNumber.BloodySummoner,
+                22 => CharacterClassNumber.BloodySummoner,
+                23 => CharacterClassNumber.DimensionMaster,
+                24 => CharacterClassNumber.RageFighter,
+                25 => CharacterClassNumber.FistMaster,
+                _ => CharacterClassNumber.DarkWizard
+            };
+        }
     }
 }

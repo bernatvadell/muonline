@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Client.Main.Client; // For TargetProtocolVersion
+using Client.Main.Core.Client;
 
 namespace Client.Main.Configuration
 {

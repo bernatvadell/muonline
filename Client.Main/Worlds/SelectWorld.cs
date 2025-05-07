@@ -148,7 +148,7 @@ namespace Client.Main.Worlds
         public Dictionary<PlayerObject, LabelControl> GetCharacterLabels() => _characterLabels;
 
 
-        private void PlayerObject_Click(object? sender, EventArgs e)
+        private void PlayerObject_Click(object sender, EventArgs e)
         {
             if (sender is PlayerObject clickedPlayer && Scene is SelectCharacterScene selectScene)
             {

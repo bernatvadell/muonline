@@ -7,79 +7,53 @@ using Microsoft.Xna.Framework.Input.Touch;
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-
-// **** ADDED USINGS ****
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Client.Main.Configuration; // Namespace for MuOnlineSettings
+using Client.Main.Configuration;
 using Client.Main.Networking;
-using System.Collections.Concurrent;    // Namespace for NetworkManager (will be created next)
-// **** END ADDED USINGS ****
+using System.Collections.Concurrent;
+using Client.Main.Core.Client;
 
 namespace Client.Main
 {
     public class MuGame : Game
     {
-        // Singleton instance of the game
+        // Static Fields
+        private static readonly ConcurrentQueue<Action> _mainThreadActions = new ConcurrentQueue<Action>();
+
+        // Static Properties
         public static MuGame Instance { get; private set; }
-
-        // Global random instance
         public static Random Random { get; } = new Random();
+        public static IConfiguration AppConfiguration { get; private set; }
+        public static ILoggerFactory AppLoggerFactory { get; private set; }
+        public static MuOnlineSettings AppSettings { get; private set; }
+        public static NetworkManager Network { get; private set; }
 
+        // Instance Fields
         private readonly GraphicsDeviceManager _graphics;
+        private ILogger _logger;
+        private bool _networkDisposed = false;
+        private float _scaleFactor;
 
-        // Public properties and objects used globally
+        // Public Instance Properties
         public BaseScene ActiveScene { get; private set; }
-
         public int Width => _graphics.PreferredBackBufferWidth;
         public int Height => _graphics.PreferredBackBufferHeight;
-
-        private bool _networkDisposed = false;
-
-        // Mouse and keyboard states
         public MouseState PrevMouseState { get; private set; }
         public MouseState Mouse { get; private set; }
         public KeyboardState PrevKeyboard { get; private set; }
         public KeyboardState Keyboard { get; private set; }
         public TouchCollection PrevTouchState { get; private set; }
         public TouchCollection Touch { get; private set; }
-
-        // **** ADDED PROPERTIES ****
-        public static IConfiguration AppConfiguration { get; private set; }
-        public static ILoggerFactory AppLoggerFactory { get; private set; }
-        public static MuOnlineSettings AppSettings { get; private set; }
-        public static NetworkManager Network { get; private set; } // The network manager instance
-        // **** END ADDED PROPERTIES ****
-
-        // **** ADDED QUEUE AND SCHEDULER ****
-        private static readonly ConcurrentQueue<Action> _mainThreadActions = new ConcurrentQueue<Action>();
-
-        /// <summary>
-        /// Schedules an action to be executed on the main game thread during the next Update cycle.
-        /// </summary>
-        /// <param name="action">The action to execute.</param>
-        public static void ScheduleOnMainThread(Action action)
-        {
-            if (action != null)
-            {
-                _mainThreadActions.Enqueue(action);
-            }
-        }
-        // **** END ADDED QUEUE AND SCHEDULER ****
-
         public Ray MouseRay { get; private set; }
-
         public GameTime GameTime { get; private set; }
-
-        // DepthStencilState to disable depth mask
         public DepthStencilState DisableDepthMask { get; } = new DepthStencilState
         {
             DepthBufferEnable = true,
             DepthBufferWriteEnable = false
         };
 
-        private float _scaleFactor;
-
+        // Constructors
         public MuGame()
         {
             Instance = this;
@@ -108,8 +82,19 @@ namespace Client.Main
             Content.RootDirectory = "Content";
         }
 
-        // **** ADDED VALIDATION METHOD ****
-        private static bool ValidateSettings(MuOnlineSettings? settings, ILogger logger)
+        /// <summary>
+        /// Schedules an action to be executed on the main game thread during the next Update cycle.
+        /// </summary>
+        /// <param name="action">The action to execute.</param>
+        public static void ScheduleOnMainThread(Action action)
+        {
+            if (action != null)
+            {
+                _mainThreadActions.Enqueue(action);
+            }
+        }
+
+        private static bool ValidateSettings(MuOnlineSettings settings, ILogger logger)
         {
             // Reuse the validation logic from MuOnlineConsole's App.axaml.cs
             // (Ensure necessary using for TargetProtocolVersion is present)
@@ -117,29 +102,37 @@ namespace Client.Main
             bool isValid = true;
             if (string.IsNullOrWhiteSpace(settings.ConnectServerHost) || settings.ConnectServerPort == 0) { logger.LogError("❌ Connect Server host/port invalid."); isValid = false; }
             if (string.IsNullOrWhiteSpace(settings.Username) || string.IsNullOrWhiteSpace(settings.Password)) { logger.LogError("❌ Username/password invalid."); isValid = false; }
-            if (string.IsNullOrWhiteSpace(settings.ProtocolVersion) || !Enum.TryParse<Client.TargetProtocolVersion>(settings.ProtocolVersion, true, out _)) // Case-insensitive parse
-            { logger.LogError("❌ ProtocolVersion '{V}' invalid. Valid: {Vs}", settings.ProtocolVersion, string.Join(", ", Enum.GetNames<Client.TargetProtocolVersion>())); isValid = false; }
+            if (string.IsNullOrWhiteSpace(settings.ProtocolVersion) || !Enum.TryParse<TargetProtocolVersion>(settings.ProtocolVersion, true, out _)) // Case-insensitive parse
+            { logger.LogError("❌ ProtocolVersion '{V}' invalid. Valid: {Vs}", settings.ProtocolVersion, string.Join(", ", Enum.GetNames<TargetProtocolVersion>())); isValid = false; }
             if (string.IsNullOrWhiteSpace(settings.ClientVersion)) { logger.LogWarning("⚠️ ClientVersion not set."); }
             if (string.IsNullOrWhiteSpace(settings.ClientSerial)) { logger.LogWarning("⚠️ ClientSerial not set."); }
             return isValid;
         }
-        // **** END ADDED VALIDATION METHOD ****
 
-        // Istniejąca metoda generyczna
+        public static void DisposeInstance()
+        {
+            if (Instance != null)
+            {
+                Instance.Dispose();
+                Instance = null;
+            }
+        }
+
+        // Public Instance Methods
         public void ChangeScene<T>() where T : BaseScene, new()
         {
             if (typeof(T) == typeof(GameScene))
             {
-                // Ten kod nie powinien być już nigdy wywołany dla GameScene
-                // Możesz rzucić wyjątek lub zalogować ostrzeżenie
+                // This code should never be called for GameScene anymore
+                // You can throw an exception or log a warning
                 throw new InvalidOperationException("GameScene requires parameters. Use ChangeScene(BaseScene newScene) instead.");
             }
             _logger.LogInformation(">>> ChangeScene<{SceneType}>() called (generic)", typeof(T).Name);
-            BaseScene newScene = new T(); // Tworzenie instancji za pomocą konstruktora bez parametrów
-            ChangeSceneInternal(newScene); // Wywołanie metody pomocniczej
+            BaseScene newScene = new T(); // Creating an instance using the parameterless constructor
+            ChangeSceneInternal(newScene); // Calling the helper method
         }
 
-        // NOWA metoda akceptująca instancję sceny
+        // NEW method accepting a scene instance
         public void ChangeScene(BaseScene newScene)
         {
             if (newScene == null)
@@ -148,56 +141,10 @@ namespace Client.Main
                 throw new ArgumentNullException(nameof(newScene));
             }
             _logger.LogInformation(">>> ChangeScene(BaseScene newScene) called with scene type: {SceneType}", newScene.GetType().Name);
-            ChangeSceneInternal(newScene); // Wywołanie metody pomocniczej
+            ChangeSceneInternal(newScene); // Calling the helper method
         }
 
-        // Prywatna metoda pomocnicza do zmiany sceny
-        private async void ChangeSceneInternal(BaseScene newScene)
-        {
-            _logger.LogInformation("--- ChangeSceneInternal: Starting scene change to {SceneType}...", newScene.GetType().Name);
-
-            // Opcjonalnie: Pokaż ekran ładowania przed usunięciem starej sceny
-            // ShowLoadingScreen();
-
-            // Usuń starą scenę
-            if (ActiveScene != null)
-            {
-                _logger.LogDebug("--- ChangeSceneInternal: Disposing previous scene ({SceneType})...", ActiveScene.GetType().Name);
-                ActiveScene.Dispose();
-                _logger.LogDebug("--- ChangeSceneInternal: Previous scene disposed.");
-            }
-            ActiveScene = null; // Zapewnij, że nie ma odniesienia podczas ładowania nowej
-
-            // Ustaw nową scenę
-            ActiveScene = newScene;
-            _logger.LogDebug("--- ChangeSceneInternal: ActiveScene set to {SceneType}.", ActiveScene.GetType().Name);
-
-
-            // Zainicjalizuj/Załaduj nową scenę (zakładając, że Initialize/Load jest asynchroniczne)
-            try
-            {
-                _logger.LogDebug("--- ChangeSceneInternal: Calling Initialize() for {SceneType}...", ActiveScene.GetType().Name);
-                // Upewnij się, że metoda Initialize istnieje i jest odpowiednia,
-                // lub użyj await ActiveScene.Load(), jeśli tak działa Twój system.
-                await ActiveScene.Initialize();
-                _logger.LogDebug("--- ChangeSceneInternal: Initialize() completed for {SceneType}.", ActiveScene.GetType().Name);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "!!! ChangeSceneInternal: Exception during Initialize() for {SceneType}.", ActiveScene.GetType().Name);
-                // Obsłuż błąd - może powrót do LoginScene?
-                // ActiveScene = new LoginScene(); // Awaryjny powrót
-                // await ActiveScene.Initialize();
-                return; // Zakończ zmianę sceny po błędzie
-            }
-
-
-            // Opcjonalnie: Ukryj ekran ładowania po załadowaniu nowej sceny
-            // HideLoadingScreen();
-
-            _logger.LogInformation("<<< ChangeSceneInternal: Scene change to {SceneType} complete.", ActiveScene.GetType().Name);
-        }
-
+        // Protected Instance Methods
         protected override void Initialize()
         {
             // --- Configuration Setup ---
@@ -220,7 +167,8 @@ namespace Client.Main
                 });
             });
 
-            var bootLogger = AppLoggerFactory.CreateLogger("MuGame"); // Logger for startup
+            _logger = AppLoggerFactory.CreateLogger<MuGame>();
+            var bootLogger = AppLoggerFactory.CreateLogger("MuGame.Boot"); // Logger for startup
 
             // --- Load Settings ---
             AppSettings = AppConfiguration.GetSection("MuOnlineSettings").Get<MuOnlineSettings>();
@@ -235,17 +183,17 @@ namespace Client.Main
             // --- Initialize Network Manager ---
             // Needs CharacterState and ScopeManager - create basic instances for now
             // You'll likely manage these more centrally later
-            var characterState = new Client.CharacterState(AppLoggerFactory);
-            var scopeManager = new Client.ScopeManager(AppLoggerFactory, characterState);
+            var characterState = new CharacterState(AppLoggerFactory);
+            var scopeManager = new ScopeManager(AppLoggerFactory, characterState);
             Network = new NetworkManager(AppLoggerFactory, AppSettings, characterState, scopeManager);
             bootLogger.LogInformation("✅ Network Manager initialized.");
 
-
             IsMouseVisible = false; // Keep this if you want a custom cursor
             base.Initialize();
-            float baseAspectRatio = 16f / 9f; // Relación de aspecto base (ejemplo: 16:9)
-            float currentAspectRatio = (float)_graphics.PreferredBackBufferWidth / _graphics.PreferredBackBufferHeight;
 
+            // Base aspect ratio (e.g., 16:9)
+            float baseAspectRatio = 16f / 9f;
+            float currentAspectRatio = (float)_graphics.PreferredBackBufferWidth / _graphics.PreferredBackBufferHeight;
             _scaleFactor = currentAspectRatio / baseAspectRatio;
 
             Console.WriteLine($"Scale Factor: {_scaleFactor}");
@@ -254,90 +202,69 @@ namespace Client.Main
         protected override void UnloadContent()
         {
             base.UnloadContent();
-
             GraphicsManager.Instance.Dispose();
-            DisposeNetworkSafely();   // ← jedyne miejsce wołania w UnloadContent
-            AppLoggerFactory?.Dispose();
+            DisposeNetworkSafely();   // ← only place called in UnloadContent
+            AppLoggerFactory?.Dispose(); // AppLoggerFactory can be null if Initialize failed early
         }
 
         protected override void Update(GameTime gameTime)
         {
             // --- Process Main Thread Actions ---
-            // **** DODAJ LOGOWANIE ****
             int actionCount = 0;
-            var queueLogger = AppLoggerFactory?.CreateLogger("MuGame.MainThreadQueue"); // Logger dla kolejki
-                                                                                        // **** KONIEC DODAWANIA LOGOWANIA ****
+            var queueLogger = AppLoggerFactory?.CreateLogger("MuGame.MainThreadQueue"); // Logger for the queue
 
-            while (_mainThreadActions.TryDequeue(out Action? action))
+            while (_mainThreadActions.TryDequeue(out Action action))
             {
-                // **** DODAJ LOGOWANIE ****
                 actionCount++;
                 queueLogger?.LogTrace("Dequeued action #{Count}. Attempting execution...", actionCount);
-                // **** KONIEC DODAWANIA LOGOWANIA ****
                 try
                 {
-                    action?.Invoke();
-                    // **** DODAJ LOGOWANIE ****
+                    action.Invoke();
                     queueLogger?.LogTrace("Action #{Count} executed successfully.", actionCount);
-                    // **** KONIEC DODAWANIA LOGOWANIA ****
                 }
                 catch (Exception ex)
                 {
                     queueLogger?.LogError(ex, "Error executing action #{Count} scheduled on main thread.", actionCount);
                 }
             }
-            // **** DODAJ LOGOWANIE ****
+            // **** ADD LOGGING ****
             // if (actionCount > 0) queueLogger?.LogDebug("Processed {Count} actions from queue this frame.", actionCount);
-            // **** KONIEC DODAWANIA LOGOWANIA ****
+            // **** END ADD LOGGING ****
             // --- End Process Main Thread Actions ---
 
-
-            // --- Existing Update Logic ---
-            try // Dodaj zewnętrzny try
+            try // Add outer try
             {
                 GameTime = gameTime;
                 UpdateInputInfo(gameTime);
                 CheckShaderToggles();
 
-                try // Dodaj wewnętrzny try dla ActiveScene.Update
+                try // Add inner try for ActiveScene.Update
                 {
                     ActiveScene?.Update(gameTime);
                 }
                 catch (Exception sceneEx)
                 {
                     _logger?.LogCritical(sceneEx, "Unhandled exception in ActiveScene.Update ({SceneType})!", ActiveScene?.GetType().Name ?? "null");
-                    // Rozważ zatrzymanie gry lub powrót do bezpiecznej sceny
+                    // Consider stopping the game or returning to a safe scene
                     // Exit();
                 }
 
-                try // Dodaj wewnętrzny try dla base.Update
+                try // Add inner try for base.Update
                 {
                     base.Update(gameTime);
                 }
                 catch (Exception baseEx)
                 {
                     _logger?.LogCritical(baseEx, "Unhandled exception in base.Update!");
-                    // Rozważ zatrzymanie gry
+                    // Consider stopping the game
                     // Exit();
                 }
             }
-            catch (Exception e) // Złap inne nieoczekiwane błędy w Update
+            catch (Exception e) // Catch other unexpected errors in Update
             {
                 Debug.WriteLine(e);
                 _logger?.LogCritical(e, "Unhandled exception in MuGame.Update loop (outside scene/base update)!");
                 // Exit();
-            }
-            // --- End Existing Update Logic ---
-        }
-
-        private void CheckShaderToggles()
-        {
-            if (Keyboard.IsKeyDown(Keys.LeftShift))
-            {
-                if (PrevKeyboard.IsKeyDown(Keys.F1) && Keyboard.IsKeyUp(Keys.F1))
-                    GraphicsManager.Instance.IsAlphaRGBEnabled = !GraphicsManager.Instance.IsAlphaRGBEnabled;
-                else if (PrevKeyboard.IsKeyDown(Keys.F2) && Keyboard.IsKeyUp(Keys.F2))
-                    GraphicsManager.Instance.IsFXAAEnabled = !GraphicsManager.Instance.IsFXAAEnabled;
             }
         }
 
@@ -355,11 +282,10 @@ namespace Client.Main
             }
             else
             {
-                AppLoggerFactory?.CreateLogger<MuGame>()?.LogCritical("Network Manager is null during LoadContent. Cannot connect.");
+                _logger?.LogCritical("Network Manager is null during LoadContent. Cannot connect.");
                 // Potentially exit or handle error
             }
             // --- END NETWORK CONNECTION ---
-
 
             // Load the initial scene (e.g., LoginScene) AFTER network connection starts
             ChangeSceneAsync(Constants.ENTRY_SCENE).ContinueWith(t =>
@@ -367,7 +293,93 @@ namespace Client.Main
                 if (t.Exception != null)
                     Debug.WriteLine("Error changing scene: " + t.Exception);
             });
+        }
 
+        protected override void Draw(GameTime gameTime)
+        {
+            try
+            {
+                FPSCounter.Instance.CalcFPS(gameTime);
+                DrawSceneToMainRenderTarget(gameTime);
+                ApplyPostProcessingEffects();
+                base.Draw(gameTime);
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine(e);
+            }
+            finally
+            {
+                // Ensure that no render target is active to avoid the Present error
+                GraphicsDevice.SetRenderTarget(null);
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                DisposeNetworkSafely();   // ← won't be called a second time
+                AppLoggerFactory?.Dispose();
+            }
+            base.Dispose(disposing);
+            Instance = null;
+        }
+
+        // Private Instance Methods
+        // Private helper method for changing scenes
+        private async void ChangeSceneInternal(BaseScene newScene)
+        {
+            _logger.LogInformation("--- ChangeSceneInternal: Starting scene change to {SceneType}...", newScene.GetType().Name);
+
+            // Optional: Show loading screen before disposing the old scene
+            // ShowLoadingScreen();
+
+            // Dispose the old scene
+            if (ActiveScene != null)
+            {
+                _logger.LogDebug("--- ChangeSceneInternal: Disposing previous scene ({SceneType})...", ActiveScene.GetType().Name);
+                ActiveScene.Dispose();
+                _logger.LogDebug("--- ChangeSceneInternal: Previous scene disposed.");
+            }
+            ActiveScene = null; // Ensure there's no reference while loading the new one
+
+            // Set the new scene
+            ActiveScene = newScene;
+            _logger.LogDebug("--- ChangeSceneInternal: ActiveScene set to {SceneType}.", ActiveScene.GetType().Name);
+
+            // Initialize/Load the new scene (assuming Initialize/Load is asynchronous)
+            try
+            {
+                _logger.LogDebug("--- ChangeSceneInternal: Calling Initialize() for {SceneType}...", ActiveScene.GetType().Name);
+                // Ensure the Initialize method exists and is appropriate,
+                // or use await ActiveScene.Load() if that's how your system works.
+                await ActiveScene.Initialize();
+                _logger.LogDebug("--- ChangeSceneInternal: Initialize() completed for {SceneType}.", ActiveScene.GetType().Name);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "!!! ChangeSceneInternal: Exception during Initialize() for {SceneType}.", ActiveScene.GetType().Name);
+                // Handle error - maybe return to LoginScene?
+                // ActiveScene = new LoginScene(); // Emergency return
+                // await ActiveScene.Initialize();
+                return; // End scene change after error
+            }
+
+            // Optional: Hide loading screen after the new scene is loaded
+            // HideLoadingScreen();
+            _logger.LogInformation("<<< ChangeSceneInternal: Scene change to {SceneType} complete.", ActiveScene.GetType().Name);
+        }
+
+        private void CheckShaderToggles()
+        {
+            if (Keyboard.IsKeyDown(Keys.LeftShift))
+            {
+                if (PrevKeyboard.IsKeyDown(Keys.F1) && Keyboard.IsKeyUp(Keys.F1))
+                    GraphicsManager.Instance.IsAlphaRGBEnabled = !GraphicsManager.Instance.IsAlphaRGBEnabled;
+                else if (PrevKeyboard.IsKeyDown(Keys.F2) && Keyboard.IsKeyUp(Keys.F2))
+                    GraphicsManager.Instance.IsFXAAEnabled = !GraphicsManager.Instance.IsFXAAEnabled;
+            }
         }
 
         private async Task ChangeSceneAsync(Type sceneType)
@@ -376,8 +388,6 @@ namespace Client.Main
             ActiveScene = (BaseScene)Activator.CreateInstance(sceneType);
             await ActiveScene.Initialize();
         }
-
-        private ILogger? _logger => AppLoggerFactory?.CreateLogger<MuGame>();
 
         private void UpdateInputInfo(GameTime gameTime)
         {
@@ -424,28 +434,6 @@ namespace Client.Main
             Vector3 direction = farPoint - nearPoint;
             direction.Normalize();
             MouseRay = new Ray(nearPoint, direction);
-        }
-
-        protected override void Draw(GameTime gameTime)
-        {
-            try
-            {
-                FPSCounter.Instance.CalcFPS(gameTime);
-
-                DrawSceneToMainRenderTarget(gameTime);
-                ApplyPostProcessingEffects();
-
-                base.Draw(gameTime);
-            }
-            catch (Exception e)
-            {
-                Debug.WriteLine(e);
-            }
-            finally
-            {
-                // Ensure that no render target is active to avoid the Present error
-                GraphicsDevice.SetRenderTarget(null);
-            }
         }
 
         private void DrawSceneToMainRenderTarget(GameTime gameTime)
@@ -514,15 +502,6 @@ namespace Client.Main
             GraphicsManager.Instance.Sprite.End();
         }
 
-        public static void DisposeInstance()
-        {
-            if (Instance != null)
-            {
-                Instance.Dispose();
-                Instance = null;
-            }
-        }
-
         /// <summary>
         /// Synchronously disposes <see cref="Network"/> exactly once,
         /// swallowing <see cref="ObjectDisposedException"/> which occurs,
@@ -537,31 +516,17 @@ namespace Client.Main
 
             try
             {
-                // DisposeAsync → Task → synchroniczne GetResult() – bez dead-locka
+                // DisposeAsync → Task → synchronous GetResult() – no deadlock
                 Network.DisposeAsync().AsTask().GetAwaiter().GetResult();
             }
             catch (ObjectDisposedException)
             {
-                // Ignorujemy – NetworkManager już posprzątany wcześniej
+                // Ignore – NetworkManager already cleaned up earlier
             }
             catch (Exception ex)
             {
-                AppLoggerFactory?
-                    .CreateLogger<MuGame>()
-                    .LogError(ex, "Unexpected error while disposing NetworkManager.");
+                _logger?.LogError(ex, "Unexpected error while disposing NetworkManager.");
             }
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                DisposeNetworkSafely();   // ← nie wywoła się drugi raz
-                AppLoggerFactory?.Dispose();
-            }
-
-            base.Dispose(disposing);
-            Instance = null;
         }
     }
 }

@@ -66,7 +66,7 @@ namespace Client.Main.Objects
         public bool RenderShadow { get => _renderShadow; set { _renderShadow = value; OnRenderShadowChanged(); } }
         public float AnimationSpeed { get; set; } = 8f;
         public static ILoggerFactory AppLoggerFactory { get; private set; }
-        private ILogger? _logger => AppLoggerFactory?.CreateLogger<ModelObject>();
+        private ILogger _logger => AppLoggerFactory?.CreateLogger<ModelObject>();
 
         public ModelObject()
         {

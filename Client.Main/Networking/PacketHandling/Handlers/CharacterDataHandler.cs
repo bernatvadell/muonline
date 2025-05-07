@@ -1,25 +1,30 @@
 using Microsoft.Extensions.Logging;
 using MUnique.OpenMU.Network.Packets;
 using MUnique.OpenMU.Network.Packets.ServerToClient;
-using Client.Main.Client; // For CharacterState, SimpleLoginClient, TargetProtocolVersion
 using Client.Main.Core.Utilities;
-using static MUnique.OpenMU.Network.Packets.ServerToClient.SkillListUpdate;
 using System;
-using System.Threading.Tasks; // For PacketHandlerAttribute
+using System.Threading.Tasks;
+using Client.Main.Core.Client;             // For PacketHandlerAttribute
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
     /// <summary>
-    /// Handles packets related to character stats, level, and status updates.
+    /// Handles packets related to character stats, level, status, and skills.
     /// </summary>
     public class CharacterDataHandler : IGamePacketHandler
     {
+        // ──────────────────────────── Fields ────────────────────────────
         private readonly ILogger<CharacterDataHandler> _logger;
         private readonly CharacterState _characterState;
-        private readonly NetworkManager _networkManager; // Needed for UpdateConsoleTitle
+        private readonly NetworkManager _networkManager;
         private readonly TargetProtocolVersion _targetVersion;
 
-        public CharacterDataHandler(ILoggerFactory loggerFactory, CharacterState characterState, NetworkManager networkManager, TargetProtocolVersion targetVersion)
+        // ───────────────────────── Constructors ─────────────────────────
+        public CharacterDataHandler(
+            ILoggerFactory loggerFactory,
+            CharacterState characterState,
+            NetworkManager networkManager,
+            TargetProtocolVersion targetVersion)
         {
             _logger = loggerFactory.CreateLogger<CharacterDataHandler>();
             _characterState = characterState;
@@ -27,109 +32,171 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             _targetVersion = targetVersion;
         }
 
+        // ───────────────────────── Packet Handlers ─────────────────────────
+
         [PacketHandler(0xF3, 0x03)] // CharacterInformation
         public Task HandleCharacterInformationAsync(Memory<byte> packet)
         {
             try
             {
-                string version = "Unknown";
-                ushort mapId = 0; byte x = 0, y = 0;
-                ulong currentExp = 0, nextExp = 1; ushort level = 1, levelUpPoints = 0;
-                uint initialHp = 0, maxHp = 1, initialSd = 0, maxSd = 0;
-                uint initialMana = 0, maxMana = 1, initialAg = 0, maxAg = 0;
+                ushort mapId = 0;
+                byte x = 0, y = 0;
+                ulong currentExp = 0, nextExp = 1;
+                ushort level = 1, levelUpPoints = 0;
+                uint initialHp = 0, maxHp = 1;
+                uint initialSd = 0, maxSd = 0;
+                uint initialMana = 0, maxMana = 1;
+                uint initialAbility = 0, maxAbility = 0;
                 ushort str = 0, agi = 0, vit = 0, ene = 0, cmd = 0;
                 byte inventoryExpansion = 0;
                 CharacterStatus status = CharacterStatus.Normal;
                 CharacterHeroState heroState = CharacterHeroState.Normal;
                 uint money = 0;
 
-                // --- Parse packet based on protocol version ---
+                // Parse according to protocol version
                 switch (_targetVersion)
                 {
                     case TargetProtocolVersion.Season6:
                         if (packet.Length >= CharacterInformationExtended.Length)
                         {
                             var info = new CharacterInformationExtended(packet);
-                            version = "S6 Extended";
-                            // **** REMOVED characterName = info.Name; ****
                             mapId = info.MapId; x = info.X; y = info.Y;
-                            currentExp = info.CurrentExperience; nextExp = info.ExperienceForNextLevel; levelUpPoints = info.LevelUpPoints;
-                            str = info.Strength; agi = info.Agility; vit = info.Vitality; ene = info.Energy; cmd = info.Leadership;
-                            initialHp = info.CurrentHealth; maxHp = info.MaximumHealth; initialSd = info.CurrentShield; maxSd = info.MaximumShield;
-                            initialMana = info.CurrentMana; maxMana = info.MaximumMana; initialAg = info.CurrentAbility; maxAg = info.MaximumAbility;
-                            money = info.Money; heroState = info.HeroState; status = info.Status; inventoryExpansion = info.InventoryExtensions;
+                            currentExp = info.CurrentExperience;
+                            nextExp = info.ExperienceForNextLevel;
+                            levelUpPoints = info.LevelUpPoints;
+                            str = info.Strength; agi = info.Agility;
+                            vit = info.Vitality; ene = info.Energy;
+                            cmd = info.Leadership;
+                            initialHp = info.CurrentHealth;
+                            maxHp = info.MaximumHealth;
+                            initialSd = info.CurrentShield;
+                            maxSd = info.MaximumShield;
+                            initialMana = info.CurrentMana;
+                            maxMana = info.MaximumMana;
+                            initialAbility = info.CurrentAbility;
+                            maxAbility = info.MaximumAbility;
+                            money = info.Money;
+                            heroState = info.HeroState;
+                            status = info.Status;
+                            inventoryExpansion = info.InventoryExtensions;
                         }
                         else if (packet.Length >= CharacterInformation.Length)
                         {
                             var info = new CharacterInformation(packet);
-                            version = "S6 Standard";
                             mapId = info.MapId; x = info.X; y = info.Y;
-                            currentExp = info.CurrentExperience; nextExp = info.ExperienceForNextLevel; levelUpPoints = info.LevelUpPoints;
-                            str = info.Strength; agi = info.Agility; vit = info.Vitality; ene = info.Energy; cmd = info.Leadership;
-                            initialHp = info.CurrentHealth; maxHp = info.MaximumHealth; initialSd = info.CurrentShield; maxSd = info.MaximumShield;
-                            initialMana = info.CurrentMana; maxMana = info.MaximumMana; initialAg = info.CurrentAbility; maxAg = info.MaximumAbility;
-                            money = info.Money; heroState = info.HeroState; status = info.Status; inventoryExpansion = info.InventoryExtensions;
+                            currentExp = info.CurrentExperience;
+                            nextExp = info.ExperienceForNextLevel;
+                            levelUpPoints = info.LevelUpPoints;
+                            str = info.Strength; agi = info.Agility;
+                            vit = info.Vitality; ene = info.Energy;
+                            cmd = info.Leadership;
+                            initialHp = info.CurrentHealth;
+                            maxHp = info.MaximumHealth;
+                            initialSd = info.CurrentShield;
+                            maxSd = info.MaximumShield;
+                            initialMana = info.CurrentMana;
+                            maxMana = info.MaximumMana;
+                            initialAbility = info.CurrentAbility;
+                            maxAbility = info.MaximumAbility;
+                            money = info.Money;
+                            heroState = info.HeroState;
+                            status = info.Status;
+                            inventoryExpansion = info.InventoryExtensions;
                         }
-                        else goto default;
+                        else goto DefaultCase;
                         break;
+
                     case TargetProtocolVersion.Version097:
                         if (packet.Length >= CharacterInformation097.Length)
                         {
                             var info = new CharacterInformation097(packet);
-                            version = "0.97";
                             mapId = info.MapId; x = info.X; y = info.Y;
-                            currentExp = info.CurrentExperience; nextExp = info.ExperienceForNextLevel; levelUpPoints = info.LevelUpPoints;
-                            str = info.Strength; agi = info.Agility; vit = info.Vitality; ene = info.Energy; cmd = info.Leadership;
-                            initialHp = info.CurrentHealth; maxHp = info.MaximumHealth; initialSd = 0; maxSd = 0;
-                            initialMana = info.CurrentMana; maxMana = info.MaximumMana; initialAg = info.CurrentAbility; maxAg = info.MaximumAbility;
-                            money = info.Money; heroState = info.HeroState; status = info.Status; inventoryExpansion = 0;
+                            currentExp = info.CurrentExperience;
+                            nextExp = info.ExperienceForNextLevel;
+                            levelUpPoints = info.LevelUpPoints;
+                            str = info.Strength; agi = info.Agility;
+                            vit = info.Vitality; ene = info.Energy;
+                            cmd = info.Leadership;
+                            initialHp = info.CurrentHealth;
+                            maxHp = info.MaximumHealth;
+                            // Shield not present in 0.97
+                            initialMana = info.CurrentMana;
+                            maxMana = info.MaximumMana;
+                            initialAbility = info.CurrentAbility;
+                            maxAbility = info.MaximumAbility;
+                            money = info.Money;
+                            heroState = info.HeroState;
+                            status = info.Status;
+                            inventoryExpansion = 0;
                         }
-                        else goto default;
+                        else goto DefaultCase;
                         break;
+
                     case TargetProtocolVersion.Version075:
                         if (packet.Length >= CharacterInformation075.Length)
                         {
                             var info = new CharacterInformation075(packet);
-                            version = "0.75";
                             mapId = info.MapId; x = info.X; y = info.Y;
-                            currentExp = info.CurrentExperience; nextExp = info.ExperienceForNextLevel; levelUpPoints = info.LevelUpPoints;
-                            str = info.Strength; agi = info.Agility; vit = info.Vitality; ene = info.Energy; cmd = 0;
-                            initialHp = info.CurrentHealth; maxHp = info.MaximumHealth; initialSd = 0; maxSd = 0;
-                            initialMana = info.CurrentMana; maxMana = info.MaximumMana; initialAg = 0; maxAg = 0;
-                            money = info.Money; heroState = info.HeroState; status = info.Status; inventoryExpansion = 0;
+                            currentExp = info.CurrentExperience;
+                            nextExp = info.ExperienceForNextLevel;
+                            levelUpPoints = info.LevelUpPoints;
+                            str = info.Strength; agi = info.Agility;
+                            vit = info.Vitality; ene = info.Energy;
+                            cmd = 0; // Leadership not in 0.75
+                            initialHp = info.CurrentHealth;
+                            maxHp = info.MaximumHealth;
+                            initialMana = info.CurrentMana;
+                            maxMana = info.MaximumMana;
+                            initialAbility = 0;
+                            maxAbility = 0;
+                            money = info.Money;
+                            heroState = info.HeroState;
+                            status = info.Status;
+                            inventoryExpansion = 0;
                         }
-                        else goto default;
+                        else goto DefaultCase;
                         break;
+
                     default:
-                        _logger.LogWarning("⚠️ Unexpected length ({Length}) or unsupported version ({Version}) for CharacterInformation.", packet.Length, _targetVersion);
+                    DefaultCase:
+                        _logger.LogWarning(
+                            "⚠️ Unexpected length ({Length}) or unsupported version ({Version}) for CharacterInformation.",
+                            packet.Length, _targetVersion);
                         return Task.CompletedTask;
                 }
 
-                _logger.LogInformation("✅ Successfully entered the game world (received CharacterInformation).");
+                _logger.LogInformation("✅ Entered game world (CharacterInformation).");
 
-                // --- Update CharacterState ---
-                // Log the name that *should* already be in the state
-                _logger.LogInformation("Character name from state: {Name}", _characterState.Name ?? "NULL/NOT SET");
+                // Update CharacterState
+                _logger.LogInformation("Character name: {Name}", _characterState.Name ?? "NOT SET");
 
                 _characterState.UpdatePosition(x, y);
                 _characterState.UpdateMap(mapId);
                 _characterState.UpdateLevelAndExperience(level, currentExp, nextExp, levelUpPoints);
                 _characterState.UpdateStats(str, agi, vit, ene, cmd);
                 _characterState.UpdateMaximumHealthShield(maxHp, maxSd);
-                _characterState.UpdateMaximumManaAbility(maxMana, maxAg);
+                _characterState.UpdateMaximumManaAbility(maxMana, maxAbility);
                 _characterState.UpdateCurrentHealthShield(initialHp, initialSd);
-                _characterState.UpdateCurrentManaAbility(initialMana, initialAg);
+                _characterState.UpdateCurrentManaAbility(initialMana, initialAbility);
                 _characterState.UpdateInventoryZen(money);
                 _characterState.UpdateStatus(status, heroState);
                 _characterState.InventoryExpansionState = inventoryExpansion;
 
-                _logger.LogInformation("🗺️ Entered map: {MapName} ({MapId}) at ({X},{Y}).",
-                                        MapDatabase.GetMapName(_characterState.MapId), _characterState.MapId, _characterState.PositionX, _characterState.PositionY);
+                _logger.LogInformation(
+                    "🗺️ Map: {MapName} ({MapId}) at ({X},{Y}).",
+                    MapDatabase.GetMapName(_characterState.MapId),
+                    _characterState.MapId,
+                    _characterState.PositionX,
+                    _characterState.PositionY);
 
-                // Notify NetworkManager that character info is loaded
+                // Notify NetworkManager that character info is ready
                 _networkManager.ProcessCharacterInformation();
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing CharacterInformation packet."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error parsing CharacterInformation packet.");
+            }
+
             return Task.CompletedTask;
         }
 
@@ -138,97 +205,105 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         {
             try
             {
-                byte x = 0, y = 0, mapIdByte = 0, direction = 0;
-                ushort currentHealth = 0, currentMana = 0, currentAbility = 0;
+                // Defaults
+                byte x = 0, y = 0, mapNumber = 0, direction = 0;
+                ushort currentHp = 0, currentMana = 0, currentAbility = 0;
                 uint experience = 0, money = 0;
-                ushort mapId = 0; // Use ushort for consistency, even if older versions use byte
+                ushort mapId = 0;
 
-                // --- Parse packet based on protocol version ---
-                switch (_targetVersion)
+                // Parse based on version
+                if ((_targetVersion == TargetProtocolVersion.Season6 || _targetVersion == TargetProtocolVersion.Version097)
+                    && packet.Length >= RespawnAfterDeath095.Length)
                 {
-                    case TargetProtocolVersion.Season6: // Assume S6 uses the 0.95 structure or similar if no specific S6 respawn packet exists
-                    case TargetProtocolVersion.Version097:
-                        if (packet.Length >= RespawnAfterDeath095.Length)
-                        {
-                            var respawn = new RespawnAfterDeath095(packet);
-                            x = respawn.PositionX; y = respawn.PositionY; mapIdByte = respawn.MapNumber; direction = respawn.Direction;
-                            currentHealth = respawn.CurrentHealth; currentMana = respawn.CurrentMana; currentAbility = respawn.CurrentAbility;
-                            experience = respawn.Experience; money = respawn.Money;
-                            mapId = mapIdByte; // Assign byte to ushort
-                            _logger.LogInformation("🔄 Received Respawn (0.95+): Pos=({X},{Y}), Map={Map}, HP={HP}, MP={MP}, AG={AG}", x, y, mapId, currentHealth, currentMana, currentAbility);
-                        }
-                        else goto default;
-                        break;
-                    case TargetProtocolVersion.Version075:
-                        if (packet.Length >= RespawnAfterDeath075.Length)
-                        {
-                            var respawn = new RespawnAfterDeath075(packet);
-                            x = respawn.PositionX; y = respawn.PositionY; mapIdByte = respawn.MapNumber; direction = respawn.Direction;
-                            currentHealth = respawn.CurrentHealth; currentMana = respawn.CurrentMana; currentAbility = 0; // 0.75 doesn't have AG
-                            experience = respawn.Experience; money = respawn.Money;
-                            mapId = mapIdByte; // Assign byte to ushort
-                            _logger.LogInformation("🔄 Received Respawn (0.75): Pos=({X},{Y}), Map={Map}, HP={HP}, MP={MP}", x, y, mapId, currentHealth, currentMana);
-                        }
-                        else goto default;
-                        break;
-                    default:
-                        _logger.LogWarning("⚠️ Unexpected length ({Length}) or unsupported version ({Version}) for RespawnAfterDeath.", packet.Length, _targetVersion);
-                        return Task.CompletedTask;
+                    var respawn = new RespawnAfterDeath095(packet);
+                    x = respawn.PositionX;
+                    y = respawn.PositionY;
+                    mapNumber = respawn.MapNumber;
+                    direction = respawn.Direction;
+                    currentHp = respawn.CurrentHealth;
+                    currentMana = respawn.CurrentMana;
+                    currentAbility = respawn.CurrentAbility;
+                    experience = respawn.Experience;
+                    money = respawn.Money;
+                    _logger.LogInformation(
+                        "🔄 Respawn (0.95+): Pos=({X},{Y}), Map={Map}, HP={HP}, MP={MP}, AG={AG}",
+                        x, y, mapNumber, currentHp, currentMana, currentAbility);
+                }
+                else if (_targetVersion == TargetProtocolVersion.Version075
+                         && packet.Length >= RespawnAfterDeath075.Length)
+                {
+                    var respawn = new RespawnAfterDeath075(packet);
+                    x = respawn.PositionX;
+                    y = respawn.PositionY;
+                    mapNumber = respawn.MapNumber;
+                    direction = respawn.Direction;
+                    currentHp = respawn.CurrentHealth;
+                    currentMana = respawn.CurrentMana;
+                    experience = respawn.Experience;
+                    money = respawn.Money;
+                    _logger.LogInformation(
+                        "🔄 Respawn (0.75): Pos=({X},{Y}), Map={Map}, HP={HP}, MP={MP}",
+                        x, y, mapNumber, currentHp, currentMana);
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "⚠️ Unexpected length ({Length}) or unsupported version ({Version}) for RespawnAfterDeath.",
+                        packet.Length, _targetVersion);
+                    return Task.CompletedTask;
                 }
 
-                mapId = (ushort)(mapId + 1);
+                // Adjust map ID (server uses zero-based)
+                mapId = (ushort)(mapNumber + 1);
 
-                // --- Update CharacterState ---
+                // Update state
                 _characterState.UpdatePosition(x, y);
-                _characterState.UpdateMap(mapId); // Update map just in case
-                _characterState.UpdateCurrentHealthShield(currentHealth, _characterState.MaximumShield); // Reset HP, keep max shield
-                _characterState.UpdateCurrentManaAbility(currentMana, currentAbility); // Reset MP/AG
-                                                                                       // Experience and Money might be reduced by death penalty on server, update them too
+                _characterState.UpdateMap(mapId);
+                _characterState.UpdateCurrentHealthShield(currentHp, _characterState.MaximumShield);
+                _characterState.UpdateCurrentManaAbility(currentMana, currentAbility);
                 _characterState.Experience = experience;
                 _characterState.UpdateInventoryZen(money);
 
-                // --- Trigger Visual Update on Main Thread ---
-                // Use the NetworkManager to schedule the visual update
+                // Trigger UI update
                 _networkManager.ProcessCharacterRespawn(mapId, x, y, direction);
-
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing RespawnAfterDeath packet (F3, 04)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error parsing RespawnAfterDeath packet.");
+            }
+
             return Task.CompletedTask;
         }
 
-        [PacketHandler(0x1C, 0x0F)]      // MapChanged (respawn/teleport)
+        [PacketHandler(0x1C, 0x0F)] // MapChanged (teleport/respawn)
         public Task HandleMapChangedAsync(Memory<byte> packet)
         {
             byte x = 0, y = 0, direction = 0;
-            ushort mapId = 0;
+            ushort mapNumber = 0;
 
-            switch (_targetVersion)
+            // Parse packet versions
+            if (_targetVersion == TargetProtocolVersion.Version075)
             {
-                case TargetProtocolVersion.Version075:
-                    var m75 = new MapChanged075(packet);
-                    x = m75.PositionX;
-                    y = m75.PositionY;
-                    mapId = m75.MapNumber;
-                    direction = m75.Rotation;
-                    break;
-
-                case TargetProtocolVersion.Version097:
-                case TargetProtocolVersion.Season6:
-                default:                           // 0.97+ ma rozszerzoną wersję
-                    var m = new MapChanged(packet);
-                    x = m.PositionX;
-                    y = m.PositionY;
-                    mapId = (ushort)m.MapNumber;
-                    direction = m.Rotation;
-                    break;
+                var m75 = new MapChanged075(packet);
+                x = m75.PositionX;
+                y = m75.PositionY;
+                mapNumber = m75.MapNumber;
+                direction = m75.Rotation;
+            }
+            else
+            {
+                var m = new MapChanged(packet);
+                x = m.PositionX;
+                y = m.PositionY;
+                mapNumber = (ushort)m.MapNumber;
+                direction = m.Rotation;
             }
 
-            mapId = (ushort)(mapId + 1);
+            // Adjust and log
+            ushort mapId = (ushort)(mapNumber + 1);
+            _logger.LogInformation("🔄 MapChanged: Map={Map}, Pos=({X},{Y}), Dir={Dir}", mapId, x, y, direction);
 
-            _logger.LogInformation("🔄 MapChanged/Respawn: map={Map}, pos=({X},{Y}), dir={Dir}",
-                                   mapId, x, y, direction);
-
-            // zaktualizuj stan i daj znać menedżerowi
+            // Update state & notify
             _characterState.UpdatePosition(x, y);
             _characterState.UpdateMap(mapId);
             _networkManager.ProcessCharacterRespawn(mapId, x, y, direction);
@@ -239,48 +314,64 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         [PacketHandler(0xF3, 0x05)] // CharacterLevelUpdate
         public Task HandleCharacterLevelUpdateAsync(Memory<byte> packet)
         {
-            ushort oldLevel = _characterState.Level; // Store old level before update
+            ushort oldLevel = _characterState.Level;
             try
             {
-                uint maxHp = 0, maxSd = 0, maxMana = 0, maxAg = 0;
-                ushort newLevel = _characterState.Level; ushort levelUpPoints = _characterState.LevelUpPoints;
+                uint maxHp = 0, maxSd = 0, maxMana = 0, maxAbility = 0;
+                ushort newLevel = _characterState.Level, newPoints = _characterState.LevelUpPoints;
 
-                if (packet.Length >= CharacterLevelUpdateExtended.Length && _targetVersion >= TargetProtocolVersion.Season6)
+                if (packet.Length >= CharacterLevelUpdateExtended.Length
+                    && _targetVersion >= TargetProtocolVersion.Season6)
                 {
-                    var update = new CharacterLevelUpdateExtended(packet);
-                    newLevel = update.Level; levelUpPoints = update.LevelUpPoints;
-                    maxHp = update.MaximumHealth; maxSd = update.MaximumShield; maxMana = update.MaximumMana; maxAg = update.MaximumAbility;
-                    _logger.LogInformation("⬆️ Received CharacterLevelUpdate (Extended): Lvl={Lvl}, Pts={Pts}", newLevel, levelUpPoints);
+                    var upd = new CharacterLevelUpdateExtended(packet);
+                    newLevel = upd.Level;
+                    newPoints = upd.LevelUpPoints;
+                    maxHp = upd.MaximumHealth;
+                    maxSd = upd.MaximumShield;
+                    maxMana = upd.MaximumMana;
+                    maxAbility = upd.MaximumAbility;
+                    _logger.LogInformation("⬆️ LevelUpdate (Extended): Lvl={Lvl}, Pts={Pts}", newLevel, newPoints);
                 }
                 else if (packet.Length >= CharacterLevelUpdate.Length)
                 {
-                    var update = new CharacterLevelUpdate(packet);
-                    newLevel = update.Level; levelUpPoints = update.LevelUpPoints;
-                    maxHp = update.MaximumHealth; maxSd = update.MaximumShield; maxMana = update.MaximumMana; maxAg = update.MaximumAbility;
-                    _logger.LogInformation("⬆️ Received CharacterLevelUpdate (Standard): Lvl={Lvl}, Pts={Pts}", newLevel, levelUpPoints);
+                    var upd = new CharacterLevelUpdate(packet);
+                    newLevel = upd.Level;
+                    newPoints = upd.LevelUpPoints;
+                    maxHp = upd.MaximumHealth;
+                    maxSd = upd.MaximumShield;
+                    maxMana = upd.MaximumMana;
+                    maxAbility = upd.MaximumAbility;
+                    _logger.LogInformation("⬆️ LevelUpdate (Standard): Lvl={Lvl}, Pts={Pts}", newLevel, newPoints);
                 }
-                else { _logger.LogWarning("⚠️ Unexpected length ({Length}) for CharacterLevelUpdate packet (F3, 05).", packet.Length); return Task.CompletedTask; }
+                else
+                {
+                    _logger.LogWarning(
+                        "⚠️ Unexpected length ({Length}) for CharacterLevelUpdate packet.",
+                        packet.Length);
+                    return Task.CompletedTask;
+                }
 
-                _characterState.UpdateLevelAndExperience(newLevel, _characterState.Experience, _characterState.ExperienceForNextLevel, levelUpPoints);
+                // Apply updates
+                _characterState.UpdateLevelAndExperience(newLevel, _characterState.Experience, _characterState.ExperienceForNextLevel, newPoints);
                 _characterState.UpdateMaximumHealthShield(maxHp, maxSd);
-                _characterState.UpdateMaximumManaAbility(maxMana, maxAg);
+                _characterState.UpdateMaximumManaAbility(maxMana, maxAbility);
 
-                // Log level up specifically if level increased
+                // Announce level-up
                 if (newLevel > oldLevel)
                 {
-                    _logger.LogInformation("🎉 LEVEL UP! Reached level {Level}. You have {Points} points to distribute.", newLevel, levelUpPoints);
+                    _logger.LogInformation("🎉 LEVEL UP! You are now level {Level} with {Points} points.", newLevel, newPoints);
                     Console.WriteLine($"*** LEVEL UP! You are now level {newLevel}! ***");
                 }
-                else // Log even if level didn't change but points/max stats did (e.g., quest reward)
+                else
                 {
-                    _logger.LogInformation("📊 Character stats/points updated: Lvl={Lvl}, Pts={Pts}", newLevel, levelUpPoints);
+                    _logger.LogInformation("📊 Level/points updated: Lvl={Lvl}, Pts={Pts}", newLevel, newPoints);
                 }
-
-                // _networkManager.UpdateConsoleTitle();
-                // _networkManager.UpdateStatsDisplay(); // Powiadom ViewModel
-
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing CharacterLevelUpdate (F3, 05)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error parsing CharacterLevelUpdate packet.");
+            }
+
             return Task.CompletedTask;
         }
 
@@ -289,26 +380,44 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         {
             try
             {
-                uint currentHp = 0, currentSd = 0, currentMana = 0, currentAbility = 0; bool updatedManaAbility = false;
-                if (packet.Length >= CurrentStatsExtended.Length && _targetVersion >= TargetProtocolVersion.Season6)
+                uint currentHp = 0, currentSd = 0, currentMana = 0, currentAbility = 0;
+                bool updatedManaAbility = false;
+
+                if (packet.Length >= CurrentStatsExtended.Length
+                    && _targetVersion >= TargetProtocolVersion.Season6)
                 {
                     var stats = new CurrentStatsExtended(packet);
-                    currentHp = stats.Health; currentSd = stats.Shield; currentMana = stats.Mana; currentAbility = stats.Ability;
-                    updatedManaAbility = true; _logger.LogDebug("❤️🛡️💧✨ Parsing CurrentStats (Extended)");
+                    currentHp = stats.Health;
+                    currentSd = stats.Shield;
+                    currentMana = stats.Mana;
+                    currentAbility = stats.Ability;
+                    updatedManaAbility = true;
+                    _logger.LogDebug("Parsing CurrentStats (Extended).");
                 }
                 else if (packet.Length >= CurrentHealthAndShield.Length)
                 {
                     var stats = new CurrentHealthAndShield(packet);
-                    currentHp = stats.Health; currentSd = stats.Shield; _logger.LogDebug("❤️🛡️ Parsing CurrentHealthAndShield (Standard)");
+                    currentHp = stats.Health;
+                    currentSd = stats.Shield;
+                    _logger.LogDebug("Parsing CurrentHealthAndShield (Standard).");
                 }
-                else { _logger.LogWarning("⚠️ Unexpected length ({Length}) for CurrentHealthShield packet (26, FF).", packet.Length); return Task.CompletedTask; }
+                else
+                {
+                    _logger.LogWarning(
+                        "⚠️ Unexpected length ({Length}) for CurrentHealthShield packet.",
+                        packet.Length);
+                    return Task.CompletedTask;
+                }
 
                 _characterState.UpdateCurrentHealthShield(currentHp, currentSd);
-                if (updatedManaAbility) _characterState.UpdateCurrentManaAbility(currentMana, currentAbility);
-                // _networkManager.UpdateConsoleTitle();
-                // _networkManager.UpdateStatsDisplay(); // Użyj dedykowanej metody
+                if (updatedManaAbility)
+                    _characterState.UpdateCurrentManaAbility(currentMana, currentAbility);
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing CurrentHealthShield (26, FF)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error parsing CurrentHealthShield packet.");
+            }
+
             return Task.CompletedTask;
         }
 
@@ -317,27 +426,44 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         {
             try
             {
-                uint maxHp = 0, maxSd = 0, maxMana = 0, maxAbility = 0; bool updatedManaAbility = false;
-                if (packet.Length >= MaximumStatsExtended.Length && _targetVersion >= TargetProtocolVersion.Season6)
+                uint maxHp = 0, maxSd = 0, maxMana = 0, maxAbility = 0;
+                bool updatedManaAbility = false;
+
+                if (packet.Length >= MaximumStatsExtended.Length
+                    && _targetVersion >= TargetProtocolVersion.Season6)
                 {
                     var stats = new MaximumStatsExtended(packet);
-                    maxHp = stats.Health; maxSd = stats.Shield; maxMana = stats.Mana; maxAbility = stats.Ability;
-                    updatedManaAbility = true; _logger.LogDebug("❤️🛡️💧✨ Parsing MaximumStats (Extended)");
+                    maxHp = stats.Health;
+                    maxSd = stats.Shield;
+                    maxMana = stats.Mana;
+                    maxAbility = stats.Ability;
+                    updatedManaAbility = true;
+                    _logger.LogDebug("Parsing MaximumStats (Extended).");
                 }
                 else if (packet.Length >= MaximumHealthAndShield.Length)
                 {
                     var stats = new MaximumHealthAndShield(packet);
-                    maxHp = stats.Health; maxSd = stats.Shield; _logger.LogDebug("❤️🛡️ Parsing MaximumHealthAndShield (Standard)");
+                    maxHp = stats.Health;
+                    maxSd = stats.Shield;
+                    _logger.LogDebug("Parsing MaximumHealthAndShield (Standard).");
                 }
-                else { _logger.LogWarning("⚠️ Unexpected length ({Length}) for MaximumHealthShield packet (26, FE).", packet.Length); return Task.CompletedTask; }
+                else
+                {
+                    _logger.LogWarning(
+                        "⚠️ Unexpected length ({Length}) for MaximumHealthShield packet.",
+                        packet.Length);
+                    return Task.CompletedTask;
+                }
 
                 _characterState.UpdateMaximumHealthShield(maxHp, maxSd);
-                if (updatedManaAbility) _characterState.UpdateMaximumManaAbility(maxMana, maxAbility);
-                // _networkManager.UpdateConsoleTitle();
-                // _networkManager.UpdateStatsDisplay(); // Powiadom ViewModel
-
+                if (updatedManaAbility)
+                    _characterState.UpdateMaximumManaAbility(maxMana, maxAbility);
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing MaximumHealthShield (26, FE)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error parsing MaximumHealthShield packet.");
+            }
+
             return Task.CompletedTask;
         }
 
@@ -346,26 +472,44 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         {
             try
             {
-                uint currentHp = 0, currentSd = 0, currentMana = 0, currentAbility = 0; bool updatedHealthShield = false;
-                if (packet.Length >= CurrentStatsExtended.Length && _targetVersion >= TargetProtocolVersion.Season6)
+                uint currentHp = 0, currentSd = 0, currentMana = 0, currentAbility = 0;
+                bool updatedHealthShield = false;
+
+                if (packet.Length >= CurrentStatsExtended.Length
+                    && _targetVersion >= TargetProtocolVersion.Season6)
                 {
                     var stats = new CurrentStatsExtended(packet);
-                    currentHp = stats.Health; currentSd = stats.Shield; currentMana = stats.Mana; currentAbility = stats.Ability;
-                    updatedHealthShield = true; _logger.LogDebug("❤️🛡️💧✨ Parsing CurrentStats (Extended)");
+                    currentHp = stats.Health;
+                    currentSd = stats.Shield;
+                    currentMana = stats.Mana;
+                    currentAbility = stats.Ability;
+                    updatedHealthShield = true;
+                    _logger.LogDebug("Parsing CurrentStats (Extended).");
                 }
                 else if (packet.Length >= CurrentManaAndAbility.Length)
                 {
                     var stats = new CurrentManaAndAbility(packet);
-                    currentMana = stats.Mana; currentAbility = stats.Ability; _logger.LogDebug("💧✨ Parsing CurrentManaAndAbility (Standard)");
+                    currentMana = stats.Mana;
+                    currentAbility = stats.Ability;
+                    _logger.LogDebug("Parsing CurrentManaAndAbility (Standard).");
                 }
-                else { _logger.LogWarning("⚠️ Unexpected length ({Length}) for CurrentManaAndAbility packet (27, FF).", packet.Length); return Task.CompletedTask; }
+                else
+                {
+                    _logger.LogWarning(
+                        "⚠️ Unexpected length ({Length}) for CurrentManaAbility packet.",
+                        packet.Length);
+                    return Task.CompletedTask;
+                }
 
                 _characterState.UpdateCurrentManaAbility(currentMana, currentAbility);
-                if (updatedHealthShield) _characterState.UpdateCurrentHealthShield(currentHp, currentSd);
-                // _networkManager.UpdateConsoleTitle();
-                // _networkManager.UpdateStatsDisplay();
+                if (updatedHealthShield)
+                    _characterState.UpdateCurrentHealthShield(currentHp, currentSd);
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing CurrentManaAndAbility (27, FF)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error parsing CurrentManaAbility packet.");
+            }
+
             return Task.CompletedTask;
         }
 
@@ -374,26 +518,44 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         {
             try
             {
-                uint maxHp = 0, maxSd = 0, maxMana = 0, maxAbility = 0; bool updatedHealthShield = false;
-                if (packet.Length >= MaximumStatsExtended.Length && _targetVersion >= TargetProtocolVersion.Season6)
+                uint maxHp = 0, maxSd = 0, maxMana = 0, maxAbility = 0;
+                bool updatedHealthShield = false;
+
+                if (packet.Length >= MaximumStatsExtended.Length
+                    && _targetVersion >= TargetProtocolVersion.Season6)
                 {
                     var stats = new MaximumStatsExtended(packet);
-                    maxHp = stats.Health; maxSd = stats.Shield; maxMana = stats.Mana; maxAbility = stats.Ability;
-                    updatedHealthShield = true; _logger.LogDebug("❤️🛡️💧✨ Parsing MaximumStats (Extended)");
+                    maxHp = stats.Health;
+                    maxSd = stats.Shield;
+                    maxMana = stats.Mana;
+                    maxAbility = stats.Ability;
+                    updatedHealthShield = true;
+                    _logger.LogDebug("Parsing MaximumStats (Extended).");
                 }
                 else if (packet.Length >= MaximumManaAndAbility.Length)
                 {
                     var stats = new MaximumManaAndAbility(packet);
-                    maxMana = stats.Mana; maxAbility = stats.Ability; _logger.LogDebug("💧✨ Parsing MaximumManaAndAbility (Standard)");
+                    maxMana = stats.Mana;
+                    maxAbility = stats.Ability;
+                    _logger.LogDebug("Parsing MaximumManaAndAbility (Standard).");
                 }
-                else { _logger.LogWarning("⚠️ Unexpected length ({Length}) for MaximumManaAndAbility packet (27, FE).", packet.Length); return Task.CompletedTask; }
+                else
+                {
+                    _logger.LogWarning(
+                        "⚠️ Unexpected length ({Length}) for MaximumManaAbility packet.",
+                        packet.Length);
+                    return Task.CompletedTask;
+                }
 
                 _characterState.UpdateMaximumManaAbility(maxMana, maxAbility);
-                if (updatedHealthShield) _characterState.UpdateMaximumHealthShield(maxHp, maxSd);
-                // _networkManager.UpdateConsoleTitle();
-                // _networkManager.UpdateStatsDisplay();
+                if (updatedHealthShield)
+                    _characterState.UpdateMaximumHealthShield(maxHp, maxSd);
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing MaximumManaAndAbility (27, FE)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error parsing MaximumManaAbility packet.");
+            }
+
             return Task.CompletedTask;
         }
 
@@ -403,25 +565,39 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             try
             {
                 uint addedExperience = 0;
-                if (_targetVersion >= TargetProtocolVersion.Season6 && packet.Length >= ExperienceGainedExtended.Length)
+
+                if (_targetVersion >= TargetProtocolVersion.Season6
+                    && packet.Length >= ExperienceGainedExtended.Length)
                 {
                     var exp = new ExperienceGainedExtended(packet);
                     addedExperience = exp.AddedExperience;
-                    _logger.LogInformation("✨ Gained Experience (Extended): {Exp} for killing {KilledId:X4}", addedExperience, exp.KilledObjectId);
+                    _logger.LogInformation(
+                        "✨ ExperienceGained (Extended): {Exp} for killing {KilledId:X4}",
+                        addedExperience, exp.KilledObjectId);
                 }
                 else if (packet.Length >= ExperienceGained.Length)
                 {
                     var exp = new ExperienceGained(packet);
                     addedExperience = exp.AddedExperience;
-                    _logger.LogInformation("✨ Gained Experience (Standard): {Exp} for killing {KilledId:X4}", addedExperience, exp.KilledObjectId);
+                    _logger.LogInformation(
+                        "✨ ExperienceGained (Standard): {Exp} for killing {KilledId:X4}",
+                        addedExperience, exp.KilledObjectId);
                 }
-                else { _logger.LogWarning("⚠️ Unexpected length ({Length}) for ExperienceGained packet (16).", packet.Length); return Task.CompletedTask; }
+                else
+                {
+                    _logger.LogWarning(
+                        "⚠️ Unexpected length ({Length}) for ExperienceGained packet.",
+                        packet.Length);
+                    return Task.CompletedTask;
+                }
 
                 _characterState.AddExperience(addedExperience);
-                // _networkManager.UpdateConsoleTitle();
-                // _networkManager.UpdateStatsDisplay();
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing ExperienceGained (16)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error parsing ExperienceGained packet.");
+            }
+
             return Task.CompletedTask;
         }
 
@@ -430,16 +606,16 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         {
             try
             {
-                var stateChange = new HeroStateChanged(packet);
-                ushort playerIdRaw = stateChange.PlayerId; ushort playerIdMasked = (ushort)(playerIdRaw & 0x7FFF);
+                var change = new HeroStateChanged(packet);
+                ushort raw = change.PlayerId;
+                ushort maskedId = (ushort)(raw & 0x7FFF);
 
-                if (playerIdMasked == _characterState.Id)
+                if (maskedId == _characterState.Id)
                 {
-                    CharacterHeroState oldState = _characterState.HeroState; // Get old state before update
-                    _characterState.UpdateStatus(_characterState.Status, stateChange.NewState); // Update state
+                    var oldState = _characterState.HeroState;
+                    _characterState.UpdateStatus(_characterState.Status, change.NewState);
 
-                    // Describe the change more meaningfully
-                    string stateDesc = stateChange.NewState switch
+                    string desc = change.NewState switch
                     {
                         CharacterHeroState.Hero => "a Hero",
                         CharacterHeroState.PlayerKiller1stStage => "a Player Killer (Stage 1)",
@@ -447,123 +623,147 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         CharacterHeroState.PlayerKillWarning => "warned for Player Killing",
                         _ => "Normal"
                     };
-                    _logger.LogInformation("⚖️ Your status changed to: {StateDescription}", stateDesc);
-
-                    // _networkManager.UpdateConsoleTitle();
-                    // _networkManager.UpdateStatsDisplay();
+                    _logger.LogInformation("⚖️ Your status changed to: {Desc}", desc);
                 }
                 else
                 {
-                    _logger.LogInformation("⚖️ Hero State of {PlayerId:X4} (Raw: {RawId:X4}) changed to {NewState}.", playerIdMasked, playerIdRaw, stateChange.NewState);
-                    // TODO: Update hero state in ScopeManager if needed
+                    _logger.LogInformation(
+                        "⚖️ HeroState of {Id:X4} changed to {NewState}.",
+                        maskedId, change.NewState);
                 }
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing HeroStateChanged (F3, 08)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error parsing HeroStateChanged packet.");
+            }
+
             return Task.CompletedTask;
         }
 
         [PacketHandler(0xF3, 0x06)] // CharacterStatIncreaseResponse
         public Task HandleCharacterStatIncreaseResponseAsync(Memory<byte> packet)
         {
-            ushort oldPoints = _characterState.LevelUpPoints; // Get points before potential change
+            ushort oldPoints = _characterState.LevelUpPoints;
             try
             {
-                uint maxHp = 0, maxSd = 0, maxMana = 0, maxAg = 0;
-                CharacterStatAttribute attribute = default; bool success = false;
-                ushort addedAmount = 1; // Default for standard response
+                uint maxHp = 0, maxSd = 0, maxMana = 0, maxAbility = 0;
+                bool success = false;
+                CharacterStatAttribute attr = default;
+                ushort addedAmount = 1;
 
-                if (packet.Length >= CharacterStatIncreaseResponseExtended.Length && _targetVersion >= TargetProtocolVersion.Season6)
+                if (_targetVersion >= TargetProtocolVersion.Season6
+                    && packet.Length >= CharacterStatIncreaseResponseExtended.Length)
                 {
-                    var response = new CharacterStatIncreaseResponseExtended(packet);
-                    success = true; attribute = response.Attribute; addedAmount = response.AddedAmount;
-                    maxHp = response.UpdatedMaximumHealth; maxSd = response.UpdatedMaximumShield;
-                    maxMana = response.UpdatedMaximumMana; maxAg = response.UpdatedMaximumAbility;
-                    _logger.LogInformation("➕ Received StatIncreaseResponse (Extended): Attribute={Attr}", attribute);
+                    var resp = new CharacterStatIncreaseResponseExtended(packet);
+                    success = true;
+                    attr = resp.Attribute;
+                    addedAmount = resp.AddedAmount;
+                    maxHp = resp.UpdatedMaximumHealth;
+                    maxSd = resp.UpdatedMaximumShield;
+                    maxMana = resp.UpdatedMaximumMana;
+                    maxAbility = resp.UpdatedMaximumAbility;
+                    _logger.LogInformation("➕ StatIncreaseResponse (Extended): Attr={Attr}", attr);
                 }
                 else if (packet.Length >= CharacterStatIncreaseResponse.Length)
                 {
-                    var response = new CharacterStatIncreaseResponse(packet);
-                    success = response.Success; attribute = response.Attribute;
-                    switch (attribute) { case CharacterStatAttribute.Vitality: maxHp = response.UpdatedDependentMaximumStat; break; case CharacterStatAttribute.Energy: maxMana = response.UpdatedDependentMaximumStat; break; }
-                    maxSd = response.UpdatedMaximumShield; maxAg = response.UpdatedMaximumAbility;
-                    _logger.LogInformation("➕ Received StatIncreaseResponse (Standard): Attribute={Attr}, Success={Success}", attribute, success);
+                    var resp = new CharacterStatIncreaseResponse(packet);
+                    success = resp.Success;
+                    attr = resp.Attribute;
+                    switch (attr)
+                    {
+                        case CharacterStatAttribute.Vitality:
+                            maxHp = resp.UpdatedDependentMaximumStat;
+                            break;
+                        case CharacterStatAttribute.Energy:
+                            maxMana = resp.UpdatedDependentMaximumStat;
+                            break;
+                    }
+                    maxSd = resp.UpdatedMaximumShield;
+                    maxAbility = resp.UpdatedMaximumAbility;
+                    _logger.LogInformation("➕ StatIncreaseResponse (Standard): Attr={Attr}, Success={Succ}", attr, success);
                 }
-                else { _logger.LogWarning("⚠️ Unexpected length ({Length}) for CharacterStatIncreaseResponse packet (F3, 06).", packet.Length); return Task.CompletedTask; }
+                else
+                {
+                    _logger.LogWarning(
+                        "⚠️ Unexpected length ({Length}) for CharacterStatIncreaseResponse packet.",
+                        packet.Length);
+                    return Task.CompletedTask;
+                }
 
                 if (success)
                 {
                     if (maxHp > 0) _characterState.UpdateMaximumHealthShield(maxHp, maxSd);
-                    if (maxMana > 0) _characterState.UpdateMaximumManaAbility(maxMana, maxAg);
-                    _characterState.IncrementStat(attribute, addedAmount); // Update the base stat
+                    if (maxMana > 0) _characterState.UpdateMaximumManaAbility(maxMana, maxAbility);
+                    _characterState.IncrementStat(attr, addedAmount);
 
-                    // Assuming LevelUpPoints were reduced by 'addedAmount' on the server
-                    // We don't get the new point count directly in standard packets, so deduce it.
                     ushort newPoints = (ushort)Math.Max(0, oldPoints - addedAmount);
-                    _characterState.LevelUpPoints = newPoints; // Update local state
-
-                    _logger.LogInformation("➕ Stat point successfully added to {Attribute}. Points left: {Points}", attribute, newPoints);
-                    // _networkManager.UpdateConsoleTitle();
-                    // _networkManager.UpdateStatsDisplay(); // Powiadom ViewModel
+                    _characterState.LevelUpPoints = newPoints;
+                    _logger.LogInformation(
+                        "➕ Stat point added to {Attr}. Points left: {Pts}", attr, newPoints);
                 }
-                else { _logger.LogWarning("⚠️ Stat point update failed for {Attribute}.", attribute); }
+                else
+                {
+                    _logger.LogWarning("⚠️ Failed to increase stat {Attr}.", attr);
+                }
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing CharacterStatIncreaseResponse (F3, 06)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error parsing CharacterStatIncreaseResponse packet.");
+            }
+
             return Task.CompletedTask;
         }
 
-        [PacketHandler(0xF3, 0x11)] // SkillListUpdate / SkillAdded / SkillRemoved
+        [PacketHandler(0xF3, 0x11)] // SkillListUpdate / Add / Remove
         public Task HandleSkillListUpdateAsync(Memory<byte> packet)
         {
             try
             {
-                byte countOrFlag = packet.Span[4];
-                switch (countOrFlag)
-                {
-                    case 0xFE: // Skill Added
-                        ParseSkillAdded(packet);
-                        break;
-                    case 0xFF: // Skill Removed
-                        ParseSkillRemoved(packet);
-                        break;
-                    default: // Full Skill List
-                        ParseFullSkillList(packet, countOrFlag);
-                        break;
-                }
+                byte flag = packet.Span[4];
+                if (flag == 0xFE)
+                    ParseSkillAdded(packet);
+                else if (flag == 0xFF)
+                    ParseSkillRemoved(packet);
+                else
+                    ParseFullSkillList(packet, flag);
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing SkillListUpdate/Add/Remove (F3, 11)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error parsing SkillListUpdate/Add/Remove packet.");
+            }
             return Task.CompletedTask;
         }
 
         private void ParseSkillAdded(Memory<byte> packet)
         {
             ushort skillId = 0;
-            byte skillLevel = 0;
+            byte level = 0;
 
             switch (_targetVersion)
             {
                 case TargetProtocolVersion.Season6:
-                    var addedS6 = new SkillAdded(packet);
-                    skillId = addedS6.SkillNumber; skillLevel = addedS6.SkillLevel;
-                    _logger.LogInformation("✨ Added Skill (S6): ID={Num}, Lvl={Lvl}", skillId, skillLevel);
+                    var s6 = new SkillAdded(packet);
+                    skillId = s6.SkillNumber;
+                    level = s6.SkillLevel;
+                    _logger.LogInformation("✨ Added Skill (S6): ID={Id}, Lvl={Lvl}", skillId, level);
                     break;
                 case TargetProtocolVersion.Version097:
-                    var added095 = new SkillAdded095(packet);
-                    // Need to decode SkillNumberAndLevel (assuming simple format: High byte = ID, Low byte = Level)
-                    skillId = (ushort)(added095.SkillNumberAndLevel >> 8);
-                    skillLevel = (byte)(added095.SkillNumberAndLevel & 0xFF);
-                    _logger.LogInformation("✨ Added Skill (0.97): ID={Num}, Lvl={Lvl}", skillId, skillLevel);
+                    var s97 = new SkillAdded095(packet);
+                    skillId = (ushort)(s97.SkillNumberAndLevel >> 8);
+                    level = (byte)(s97.SkillNumberAndLevel & 0xFF);
+                    _logger.LogInformation("✨ Added Skill (0.97): ID={Id}, Lvl={Lvl}", skillId, level);
                     break;
                 case TargetProtocolVersion.Version075:
-                    var added075 = new SkillAdded075(packet);
-                    skillId = (ushort)(added075.SkillNumberAndLevel >> 8);
-                    skillLevel = (byte)(added075.SkillNumberAndLevel & 0xFF);
-                    _logger.LogInformation("✨ Added Skill (0.75): ID={Num}, Lvl={Lvl}", skillId, skillLevel);
+                    var s75 = new SkillAdded075(packet);
+                    skillId = (ushort)(s75.SkillNumberAndLevel >> 8);
+                    level = (byte)(s75.SkillNumberAndLevel & 0xFF);
+                    _logger.LogInformation("✨ Added Skill (0.75): ID={Id}, Lvl={Lvl}", skillId, level);
                     break;
             }
+
             if (skillId > 0)
             {
-                _characterState.AddOrUpdateSkill(new SkillEntryState { SkillId = skillId, SkillLevel = skillLevel });
-                // _networkManager.UpdateSkillsDisplay(); // Odśwież widok Skills
+                _characterState.AddOrUpdateSkill(new SkillEntryState { SkillId = skillId, SkillLevel = level });
             }
         }
 
@@ -573,109 +773,122 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             switch (_targetVersion)
             {
                 case TargetProtocolVersion.Season6:
-                    var removedS6 = new SkillRemoved(packet);
-                    skillId = removedS6.SkillNumber;
-                    _logger.LogInformation("🗑️ Removed Skill (S6): ID={Num}", skillId);
+                    skillId = new SkillRemoved(packet).SkillNumber;
+                    _logger.LogInformation("🗑️ Removed Skill (S6): ID={Id}", skillId);
                     break;
                 case TargetProtocolVersion.Version097:
-                    var removed095 = new SkillRemoved095(packet);
-                    skillId = (ushort)(removed095.SkillNumberAndLevel >> 8);
-                    _logger.LogInformation("🗑️ Removed Skill (0.97): ID={Num}", skillId);
+                    var r97 = new SkillRemoved095(packet);
+                    skillId = (ushort)(r97.SkillNumberAndLevel >> 8);
+                    _logger.LogInformation("🗑️ Removed Skill (0.97): ID={Id}", skillId);
                     break;
                 case TargetProtocolVersion.Version075:
-                    var removed075 = new SkillRemoved075(packet);
-                    skillId = (ushort)(removed075.SkillNumberAndLevel >> 8);
-                    _logger.LogInformation("🗑️ Removed Skill (0.75): ID={Num}", skillId);
+                    var r75 = new SkillRemoved075(packet);
+                    skillId = (ushort)(r75.SkillNumberAndLevel >> 8);
+                    _logger.LogInformation("🗑️ Removed Skill (0.75): ID={Id}", skillId);
                     break;
             }
+
             if (skillId > 0)
             {
                 _characterState.RemoveSkill(skillId);
-                // _networkManager.UpdateSkillsDisplay(); // Odśwież widok Skills
             }
         }
 
         private void ParseFullSkillList(Memory<byte> packet, byte count)
         {
-            _logger.LogInformation("✨ Received SkillListUpdate ({Version}): {Count} skills.", _targetVersion, count);
+            _logger.LogInformation("✨ SkillListUpdate ({Version}): {Count} skills.", _targetVersion, count);
             _characterState.ClearSkillList();
-            int offset = 0;
-            int entrySize = 0;
 
             switch (_targetVersion)
             {
                 case TargetProtocolVersion.Season6:
-                    offset = 6; entrySize = SkillEntry.Length;
                     var listS6 = new SkillListUpdate(packet);
                     for (int i = 0; i < count; i++)
                     {
-                        var entry = listS6[i];
-                        _characterState.AddOrUpdateSkill(new SkillEntryState { SkillId = entry.SkillNumber, SkillLevel = entry.SkillLevel });
-                        _logger.LogDebug("  -> Skill {Index}: ID={Num}, Lvl={Lvl}", entry.SkillIndex, entry.SkillNumber, entry.SkillLevel);
+                        var e = listS6[i];
+                        _characterState.AddOrUpdateSkill(new SkillEntryState { SkillId = e.SkillNumber, SkillLevel = e.SkillLevel });
+                        _logger.LogDebug("  -> Skill {Idx}: ID={Id}, Lvl={Lvl}", e.SkillIndex, e.SkillNumber, e.SkillLevel);
                     }
                     break;
+
                 case TargetProtocolVersion.Version097:
                 case TargetProtocolVersion.Version075:
-                    offset = 5; entrySize = MUnique.OpenMU.Network.Packets.ServerToClient.SkillListUpdate075.SkillEntry.Length; // Use the correct struct length
-                    var listLegacy = new SkillListUpdate075(packet);
+                    var listOld = new SkillListUpdate075(packet);
                     for (int i = 0; i < count; i++)
                     {
-                        var entry = listLegacy[i];
-                        ushort skillId = (ushort)(entry.SkillNumberAndLevel >> 8);
-                        byte skillLevel = (byte)(entry.SkillNumberAndLevel & 0xFF);
-                        _characterState.AddOrUpdateSkill(new SkillEntryState { SkillId = skillId, SkillLevel = skillLevel });
-                        _logger.LogDebug("  -> Skill {Index}: ID={Num}, Lvl={Lvl}", entry.SkillIndex, skillId, skillLevel);
+                        var e = listOld[i];
+                        ushort sid = (ushort)(e.SkillNumberAndLevel >> 8);
+                        byte lvl = (byte)(e.SkillNumberAndLevel & 0xFF);
+                        _characterState.AddOrUpdateSkill(new SkillEntryState { SkillId = sid, SkillLevel = lvl });
+                        _logger.LogDebug("  -> Skill {Idx}: ID={Id}, Lvl={Lvl}", e.SkillIndex, sid, lvl);
                     }
                     break;
             }
-            // _networkManager.UpdateSkillsDisplay(); // Odśwież widok Skills
-
         }
 
         [PacketHandler(0xF3, 0x50)] // MasterStatsUpdate
         public Task HandleMasterStatsUpdateAsync(Memory<byte> packet)
         {
-            ushort oldMasterLevel = _characterState.MasterLevel; // Store old level before update
+            ushort oldMasterLevel = _characterState.MasterLevel;
             try
             {
-                uint maxHp = 0, maxSd = 0, maxMana = 0, maxAg = 0;
-                ushort masterLevel = 0; ulong masterExp = 0, nextMasterExp = 1; ushort masterPoints = 0;
+                uint maxHp = 0, maxSd = 0, maxMana = 0, maxAbility = 0;
+                ushort mlvl = 0; ulong mexp = 0, nextMexp = 1; ushort mpts = 0;
 
-                if (packet.Length >= MasterStatsUpdateExtended.Length && _targetVersion >= TargetProtocolVersion.Season6)
+                if (packet.Length >= MasterStatsUpdateExtended.Length
+                    && _targetVersion >= TargetProtocolVersion.Season6)
                 {
-                    var update = new MasterStatsUpdateExtended(packet);
-                    masterLevel = update.MasterLevel; masterExp = update.MasterExperience; nextMasterExp = update.MasterExperienceOfNextLevel; masterPoints = update.MasterLevelUpPoints;
-                    maxHp = update.MaximumHealth; maxSd = update.MaximumShield; maxMana = update.MaximumMana; maxAg = update.MaximumAbility;
-                    _logger.LogInformation("Ⓜ️ Received MasterStatsUpdate (Extended): MasterLvl={Lvl}, MasterPts={Pts}", masterLevel, masterPoints);
+                    var upd = new MasterStatsUpdateExtended(packet);
+                    mlvl = upd.MasterLevel;
+                    mexp = upd.MasterExperience;
+                    nextMexp = upd.MasterExperienceOfNextLevel;
+                    mpts = upd.MasterLevelUpPoints;
+                    maxHp = upd.MaximumHealth;
+                    maxSd = upd.MaximumShield;
+                    maxMana = upd.MaximumMana;
+                    maxAbility = upd.MaximumAbility;
+                    _logger.LogInformation("Ⓜ️ MasterStatsUpdate (Extended): MLvl={Lvl}, MPts={Pts}", mlvl, mpts);
                 }
                 else if (packet.Length >= MasterStatsUpdate.Length)
                 {
-                    var update = new MasterStatsUpdate(packet);
-                    masterLevel = update.MasterLevel; masterExp = update.MasterExperience; nextMasterExp = update.MasterExperienceOfNextLevel; masterPoints = update.MasterLevelUpPoints;
-                    maxHp = update.MaximumHealth; maxSd = update.MaximumShield; maxMana = update.MaximumMana; maxAg = update.MaximumAbility;
-                    _logger.LogInformation("Ⓜ️ Received MasterStatsUpdate (Standard): MasterLvl={Lvl}, MasterPts={Pts}", masterLevel, masterPoints);
+                    var upd = new MasterStatsUpdate(packet);
+                    mlvl = upd.MasterLevel;
+                    mexp = upd.MasterExperience;
+                    nextMexp = upd.MasterExperienceOfNextLevel;
+                    mpts = upd.MasterLevelUpPoints;
+                    maxHp = upd.MaximumHealth;
+                    maxSd = upd.MaximumShield;
+                    maxMana = upd.MaximumMana;
+                    maxAbility = upd.MaximumAbility;
+                    _logger.LogInformation("Ⓜ️ MasterStatsUpdate (Standard): MLvl={Lvl}, MPts={Pts}", mlvl, mpts);
                 }
-                else { _logger.LogWarning("⚠️ Unexpected length ({Length}) for MasterStatsUpdate packet (F3, 50).", packet.Length); return Task.CompletedTask; }
+                else
+                {
+                    _logger.LogWarning(
+                        "⚠️ Unexpected length ({Length}) for MasterStatsUpdate packet.",
+                        packet.Length);
+                    return Task.CompletedTask;
+                }
 
-                _characterState.UpdateMasterLevelAndExperience(masterLevel, masterExp, nextMasterExp, masterPoints); // Update state
+                _characterState.UpdateMasterLevelAndExperience(mlvl, mexp, nextMexp, mpts);
                 _characterState.UpdateMaximumHealthShield(maxHp, maxSd);
-                _characterState.UpdateMaximumManaAbility(maxMana, maxAg);
+                _characterState.UpdateMaximumManaAbility(maxMana, maxAbility);
 
-                // Log master level up specifically if level increased
-                if (masterLevel > oldMasterLevel)
+                if (mlvl > oldMasterLevel)
                 {
-                    _logger.LogInformation("Ⓜ️ MASTER LEVEL UP! Reached master level {MasterLevel}. You have {Points} master points.", masterLevel, masterPoints);
-                    Console.WriteLine($"*** MASTER LEVEL UP! You are now master level {masterLevel}! ***");
+                    _logger.LogInformation("Ⓜ️ MASTER LEVEL UP! Level {Lvl}, Points {Pts}", mlvl, mpts);
+                    Console.WriteLine($"*** MASTER LEVEL UP! You are now master level {mlvl}! ***");
                 }
-                else // Log if only experience/points changed
+                else
                 {
-                    _logger.LogInformation("Ⓜ️ Master stats updated: MLvl={Lvl}, MPts={Pts}", masterLevel, masterPoints);
+                    _logger.LogInformation("Ⓜ️ Master stats updated: MLvl={Lvl}, MPts={Pts}", mlvl, mpts);
                 }
-
-                // _networkManager.UpdateConsoleTitle();
-                // _networkManager.UpdateStatsDisplay();
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing MasterStatsUpdate (F3, 50)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error parsing MasterStatsUpdate packet.");
+            }
+
             return Task.CompletedTask;
         }
 
@@ -684,28 +897,37 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         {
             try
             {
-                if (packet.Length < MasterSkillLevelUpdate.Length) { _logger.LogWarning("⚠️ Unexpected length ({Length}) for MasterSkillLevelUpdate packet (F3, 52).", packet.Length); return Task.CompletedTask; }
-
-                var update = new MasterSkillLevelUpdate(packet);
-                _logger.LogInformation("Ⓜ️ Received MasterSkillLevelUpdate: Success={Success}, Skill={SkillId}, Lvl={Lvl}, Val={Val}, NextVal={NextVal}, PtsLeft={Pts}",
-                    update.Success, update.MasterSkillNumber, update.Level, update.DisplayValue, update.DisplayValueOfNextLevel, update.MasterLevelUpPoints);
-
-                if (update.Success)
+                if (packet.Length < MasterSkillLevelUpdate.Length)
                 {
-                    _characterState.MasterLevelUpPoints = update.MasterLevelUpPoints; // Update remaining points
+                    _logger.LogWarning(
+                        "⚠️ Unexpected length ({Length}) for MasterSkillLevelUpdate packet.",
+                        packet.Length);
+                    return Task.CompletedTask;
+                }
+
+                var upd = new MasterSkillLevelUpdate(packet);
+                _logger.LogInformation(
+                    "Ⓜ️ MasterSkillLevelUpdate: Success={Succ}, Skill={Skill}, Lvl={Lvl}, Val={Val}, Next={Next}, Pts={Pts}",
+                    upd.Success, upd.MasterSkillNumber, upd.Level,
+                    upd.DisplayValue, upd.DisplayValueOfNextLevel, upd.MasterLevelUpPoints);
+
+                if (upd.Success)
+                {
+                    _characterState.MasterLevelUpPoints = upd.MasterLevelUpPoints;
                     _characterState.AddOrUpdateSkill(new SkillEntryState
                     {
-                        SkillId = update.MasterSkillNumber,
-                        SkillLevel = update.Level,
-                        DisplayValue = update.DisplayValue,
-                        NextDisplayValue = update.DisplayValueOfNextLevel
+                        SkillId = upd.MasterSkillNumber,
+                        SkillLevel = upd.Level,
+                        DisplayValue = upd.DisplayValue,
+                        NextDisplayValue = upd.DisplayValueOfNextLevel
                     });
-                    // _networkManager.UpdateConsoleTitle(); // Update title as points changed
-                    // _networkManager.UpdateSkillsDisplay(); // Odśwież widok Skills
-                    // _networkManager.UpdateCharacterStateDisplay(); // Zaktualizuj też punkty master w tytule itp.
                 }
             }
-            catch (Exception ex) { _logger.LogError(ex, "💥 Error parsing MasterSkillLevelUpdate (F3, 52)."); }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error parsing MasterSkillLevelUpdate packet.");
+            }
+
             return Task.CompletedTask;
         }
     }

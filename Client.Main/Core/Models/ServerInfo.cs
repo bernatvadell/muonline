@@ -22,13 +22,13 @@ namespace Client.Main.Core.Models
         /// Gets or sets the optional name of the game server.
         /// The server name might not always be provided by the protocol, so it can be null.
         /// </summary>
-        public string? ServerName { get; set; } // Optional: Name might not be provided by protocol
+        public string ServerName { get; set; } // Optional: Name might not be provided by protocol
 
         /// <summary>
         /// Gets or sets the optional IP address of the game server.
         /// This is typically populated after requesting connection information for a specific server.
         /// </summary>
-        public string? IpAddress { get; set; } // Optional: Store IP if needed after requesting connection info
+        public string IpAddress { get; set; } // Optional: Store IP if needed after requesting connection info
 
         /// <summary>
         /// Gets or sets the port number of the game server.

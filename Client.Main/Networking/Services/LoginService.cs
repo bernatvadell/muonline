@@ -2,31 +2,32 @@ using Microsoft.Extensions.Logging;
 using MUnique.OpenMU.Network;
 using Client.Main.Networking.PacketHandling;
 using System.Threading.Tasks;
-using System; // For PacketBuilder
+using System;
 
 namespace Client.Main.Networking.Services
 {
     /// <summary>
-    ///  Service class responsible for handling login-related operations and sending login packets to the game server.
-    ///  This service encapsulates the logic for preparing and sending login requests, including encryption and version/serial information.
+    /// Handles login requests: encrypts credentials and sends the login packet
+    /// including client version and serial information.
     /// </summary>
     public class LoginService
     {
-        private readonly ConnectionManager _connectionManager; // Manages the network connection
-        private readonly ILogger<LoginService> _logger; // Logger for this service
-        private readonly byte[] _clientVersion; // Byte array representing the client version
-        private readonly byte[] _clientSerial; // Byte array representing the client serial
-        private readonly byte[] _xor3Keys; // XOR3 encryption keys for password encryption
+        // ───────────────────────── Fields ─────────────────────────
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="LoginService"/> class.
-        /// </summary>
-        /// <param name="connectionManager">The connection manager instance to use for sending packets.</param>
-        /// <param name="logger">The logger instance for logging service operations and errors.</param>
-        /// <param name="clientVersion">Byte array representing the client version.</param>
-        /// <param name="clientSerial">Byte array representing the client serial.</param>
-        /// <param name="xor3Keys">XOR3 encryption keys for password encryption.</param>
-        public LoginService(ConnectionManager connectionManager, ILogger<LoginService> logger, byte[] clientVersion, byte[] clientSerial, byte[] xor3Keys)
+        private readonly ConnectionManager _connectionManager;
+        private readonly ILogger<LoginService> _logger;
+        private readonly byte[] _clientVersion;
+        private readonly byte[] _clientSerial;
+        private readonly byte[] _xor3Keys;
+
+        // ─────────────────────── Constructor ───────────────────────
+
+        public LoginService(
+            ConnectionManager connectionManager,
+            ILogger<LoginService> logger,
+            byte[] clientVersion,
+            byte[] clientSerial,
+            byte[] xor3Keys)
         {
             _connectionManager = connectionManager;
             _logger = logger;
@@ -35,34 +36,38 @@ namespace Client.Main.Networking.Services
             _xor3Keys = xor3Keys;
         }
 
+        // ──────────────────────── Public API ───────────────────────
+
         /// <summary>
-        /// Sends a login request to the game server with the provided username and password.
-        /// Encrypts the username and password before sending using XOR3 encryption.
-        /// Includes client version and serial information in the login packet.
+        /// Sends a login request using the specified username and password.
+        /// Credentials are encrypted with XOR3 before sending.
         /// </summary>
-        /// <param name="username">The username for login.</param>
-        /// <param name="password">The password for login.</param>
-        /// <returns>A Task representing the asynchronous operation.</returns>
-        public async Task SendLoginRequestAsync(string username, string password) // Ta metoda już przyjmuje argumenty
+        /// <param name="username">The account username.</param>
+        /// <param name="password">The account password.</param>
+        public async Task SendLoginRequestAsync(string username, string password)
         {
             if (!_connectionManager.IsConnected)
             {
-                _logger.LogError("🔒 No connection – cannot send login packet.");
+                _logger.LogError("No connection – cannot send login packet.");
                 return;
             }
 
-            _logger.LogInformation("🔑 Sending login packet for user '{Username}'...", username); // Loguj przekazany username
+            _logger.LogInformation("Sending login packet for user '{Username}'...", username);
             try
             {
-                // Użyj przekazanych username i password
                 await _connectionManager.Connection.SendAsync(() =>
-                    PacketBuilder.BuildLoginPacket(_connectionManager.Connection.Output, username, password, _clientVersion, _clientSerial, _xor3Keys)
-                );
-                _logger.LogInformation("✔️ Login packet sent.");
+                    PacketBuilder.BuildLoginPacket(
+                        _connectionManager.Connection.Output,
+                        username,
+                        password,
+                        _clientVersion,
+                        _clientSerial,
+                        _xor3Keys));
+                _logger.LogInformation("Login packet sent.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "💥 Error while sending login packet.");
+                _logger.LogError(ex, "Error while sending login packet.");
             }
         }
     }

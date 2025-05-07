@@ -1,7 +1,7 @@
 using System.Text;
-using MUnique.OpenMU.Network.Packets; // For CharacterHeroState if needed later
+using MUnique.OpenMU.Network.Packets; // For CharacterClassNumber
 using Client.Main.Core.Utilities;
-using System; // For ItemDatabase
+using System; // For ItemDatabase, DateTime, ReadOnlyMemory, ReadOnlySpan, Convert
 
 namespace Client.Main.Core.Models
 {
@@ -23,6 +23,8 @@ namespace Client.Main.Core.Models
     /// </summary>
     public abstract class ScopeObject
     {
+        // Properties
+
         /// <summary>
         /// Gets the masked identifier of the scope object. This ID is used as a key in the scope management.
         /// </summary>
@@ -53,6 +55,8 @@ namespace Client.Main.Core.Models
         /// </summary>
         public DateTime LastUpdate { get; set; } = DateTime.UtcNow;
 
+        // Constructors
+
         /// <summary>
         /// Initializes a new instance of the <see cref="ScopeObject"/> class.
         /// </summary>
@@ -68,6 +72,8 @@ namespace Client.Main.Core.Models
             PositionY = y;
         }
 
+        // Methods
+
         /// <inheritdoc />
         public override string ToString()
         {
@@ -81,11 +87,13 @@ namespace Client.Main.Core.Models
     /// </summary>
     public class PlayerScopeObject : ScopeObject
     {
+        // Properties
         public string Name { get; set; }
-        public CharacterClassNumber Class { get; set; }   //  ← NOWA WŁAŚCIWOŚĆ
+        public CharacterClassNumber Class { get; set; } // Player's character class.
 
         public override ScopeObjectType ObjectType => ScopeObjectType.Player;
 
+        // Constructors
         public PlayerScopeObject(ushort maskedId, ushort rawId,
                                  byte x, byte y, string name,
                                  CharacterClassNumber cls = CharacterClassNumber.DarkWizard)
@@ -95,6 +103,7 @@ namespace Client.Main.Core.Models
             Class = cls;
         }
 
+        // Methods
         public override string ToString()
             => $"ID: {Id:X4} ({RawId:X4})  Player: {Name}  Class: {Class}  @[{PositionX},{PositionY}]";
     }
@@ -105,10 +114,12 @@ namespace Client.Main.Core.Models
     /// </summary>
     public class NpcScopeObject : ScopeObject // Also used for Monsters, as they share similar properties
     {
+        // Properties
+
         /// <summary>
         /// Gets or sets the name of the NPC, can be null or empty if the NPC has no specific name.
         /// </summary>
-        public string? Name { get; set; }
+        public string Name { get; set; }
 
         /// <summary>
         /// Gets or sets the type number of the NPC, identifying its specific kind.
@@ -117,6 +128,8 @@ namespace Client.Main.Core.Models
 
         /// <inheritdoc />
         public override ScopeObjectType ObjectType => ScopeObjectType.Npc; // Could differentiate based on TypeNumber range if needed (e.g., for monsters vs NPCs)
+
+        // Constructors
 
         /// <summary>
         /// Initializes a new instance of the <see cref="NpcScopeObject"/> class.
@@ -127,12 +140,14 @@ namespace Client.Main.Core.Models
         /// <param name="y">The Y-coordinate of the NPC's position.</param>
         /// <param name="typeNumber">The type number of the NPC.</param>
         /// <param name="name">The optional name of the NPC.</param>
-        public NpcScopeObject(ushort maskedId, ushort rawId, byte x, byte y, ushort typeNumber, string? name = null)
+        public NpcScopeObject(ushort maskedId, ushort rawId, byte x, byte y, ushort typeNumber, string name = null)
             : base(maskedId, rawId, x, y)
         {
             TypeNumber = typeNumber;
             Name = name;
         }
+
+        // Methods
 
         /// <inheritdoc />
         public override string ToString()
@@ -149,6 +164,8 @@ namespace Client.Main.Core.Models
     /// </summary>
     public class ItemScopeObject : ScopeObject
     {
+        // Properties
+
         /// <summary>
         /// Gets the description of the item, usually its name and basic attributes.
         /// </summary>
@@ -161,6 +178,8 @@ namespace Client.Main.Core.Models
 
         /// <inheritdoc />
         public override ScopeObjectType ObjectType => ScopeObjectType.Item;
+
+        // Constructors
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ItemScopeObject"/> class.
@@ -177,6 +196,8 @@ namespace Client.Main.Core.Models
             ItemDescription = ItemDatabase.GetItemName(ItemData.Span) ?? $"Unknown (Data: {Convert.ToHexString(ItemData.Span)})"; // Get item name from database or show raw data if name is not found
         }
 
+        // Methods
+
         /// <inheritdoc />
         public override string ToString()
         {
@@ -190,6 +211,8 @@ namespace Client.Main.Core.Models
     /// </summary>
     public class MoneyScopeObject : ScopeObject
     {
+        // Properties
+
         /// <summary>
         /// Gets or sets the amount of money (Zen) this object represents.
         /// </summary>
@@ -197,6 +220,8 @@ namespace Client.Main.Core.Models
 
         /// <inheritdoc />
         public override ScopeObjectType ObjectType => ScopeObjectType.Money;
+
+        // Constructors
 
         /// <summary>
         /// Initializes a new instance of the <see cref="MoneyScopeObject"/> class.
@@ -211,6 +236,8 @@ namespace Client.Main.Core.Models
         {
             Amount = amount;
         }
+
+        // Methods
 
         /// <inheritdoc />
         public override string ToString()

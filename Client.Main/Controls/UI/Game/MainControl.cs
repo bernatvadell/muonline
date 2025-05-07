@@ -1,4 +1,4 @@
-﻿using Client.Main.Client;           // CharacterState
+﻿using Client.Main.Core.Client;
 using Microsoft.Xna.Framework;
 using System.Linq;
 

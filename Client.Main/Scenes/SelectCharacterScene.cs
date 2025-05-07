@@ -1,8 +1,5 @@
-﻿// SelectCharacterScene.cs
-
-using Client.Main.Client;
-using Client.Main.Controls;
-using Client.Main.Controls.UI;
+﻿using Client.Main.Controls.UI;
+using Client.Main.Core.Client;
 using Client.Main.Models;
 using Client.Main.Networking;
 using Client.Main.Objects.Player;
@@ -19,20 +16,17 @@ namespace Client.Main.Scenes
 {
     public class SelectCharacterScene : BaseScene
     {
-        // *** CHANGE FIELD TYPE ***
+        // Fields
         private readonly List<(string Name, CharacterClassNumber Class, ushort Level)> _characters;
-        private SelectWorld? _selectWorld;
-        private LabelControl? _infoLabel;
+        private SelectWorld _selectWorld;
+        private LabelControl _infoLabel;
         private NetworkManager _networkManager;
         private ILogger<SelectCharacterScene> _logger;
-
-        // *** ADD FIELD TO STORE SELECTED CHARACTER INFO ***
         private (string Name, CharacterClassNumber Class, ushort Level)? _selectedCharacterInfo = null;
 
-        // *** CHANGE CONSTRUCTOR PARAMETER TYPE ***
+        // Constructors
         public SelectCharacterScene(List<(string Name, CharacterClassNumber Class, ushort Level)> characters)
         {
-            // *** UPDATE INITIALIZATION ***
             _characters = characters ?? new List<(string Name, CharacterClassNumber Class, ushort Level)>();
             _networkManager = MuGame.Network;
             _logger = MuGame.AppLoggerFactory.CreateLogger<SelectCharacterScene>();
@@ -45,11 +39,12 @@ namespace Client.Main.Scenes
                 FontSize = 16,
                 TextColor = Color.LightGray
             };
-            Controls.Add(_infoLabel); // Add info label
+            Controls.Add(_infoLabel);
 
             SubscribeToNetworkEvents();
         }
 
+        // Public Methods
         public override async Task Load()
         {
             _logger.LogInformation(">>> SelectCharacterScene Load starting...");
@@ -66,15 +61,17 @@ namespace Client.Main.Scenes
                 if (_selectWorld != null && _characters.Any())
                 {
                     _logger.LogInformation("--- SelectCharacterScene Load: Calling _selectWorld.CreateCharacterObjects()...");
-                    // *** PASS THE UPDATED LIST ***
                     await _selectWorld.CreateCharacterObjects(_characters);
                     if (_infoLabel != null) _infoLabel.Text = "Select your character";
                     _logger.LogInformation("--- SelectCharacterScene Load: CreateCharacterObjects finished.");
                 }
                 else
                 {
-                    if (_infoLabel != null) _infoLabel.Text = _characters.Any() ? "Error creating character objects." : "No characters found on this account.";
-                    _logger.LogWarning("--- SelectCharacterScene Load: No characters to create or SelectWorld is null.");
+                    string message = _characters.Any()
+                        ? "Error creating character objects."
+                        : "No characters found on this account.";
+                    if (_infoLabel != null) _infoLabel.Text = message;
+                    _logger.LogWarning("--- SelectCharacterScene Load: {Message}", message);
                 }
             }
             catch (Exception ex)
@@ -82,18 +79,55 @@ namespace Client.Main.Scenes
                 _logger.LogError(ex, "!!! SelectCharacterScene Load: Error during world initialization or character creation.");
                 if (_infoLabel != null) _infoLabel.Text = "Error loading character selection.";
             }
-            // Labels are now added and brought to front in SelectWorld.CreateCharacterObjects
-            // Bring the main scene cursor/info label to front again just in case
+
             Cursor?.BringToFront();
             _infoLabel?.BringToFront();
             _logger.LogInformation("<<< SelectCharacterScene Load finished.");
         }
 
+        public void CharacterSelected(string characterName)
+        {
+            _selectedCharacterInfo = _characters.FirstOrDefault(c => c.Name == characterName);
+
+            if (!_selectedCharacterInfo.HasValue)
+            {
+                _logger.LogError("Character '{CharacterName}' selected, but not found in the character list.", characterName);
+                MessageWindow.Show($"Error selecting character '{characterName}'.");
+                return;
+            }
+
+            ClientConnectionState currentState = _networkManager.CurrentState;
+            bool canSelect = currentState == ClientConnectionState.ConnectedToGameServer ||
+                             currentState == ClientConnectionState.SelectingCharacter;
+
+            if (!canSelect)
+            {
+                _logger.LogWarning("Character selection attempted but NetworkManager state is not ConnectedToGameServer. State: {State}", currentState);
+                MessageWindow.Show($"Cannot select character. Invalid network state: {currentState}");
+                _selectedCharacterInfo = null; // Clear selection on error
+                return;
+            }
+
+            _logger.LogInformation("Character '{CharacterName}' (Class: {Class}) selected in scene. Sending request...",
+                                   _selectedCharacterInfo.Value.Name, _selectedCharacterInfo.Value.Class);
+
+            DisableInteractionDuringSelection(characterName);
+            _ = _networkManager.SendSelectCharacterRequestAsync(characterName);
+        }
+
+        public override void Dispose()
+        {
+            _logger.LogDebug("Disposing SelectCharacterScene.");
+            UnsubscribeFromNetworkEvents();
+            base.Dispose();
+        }
+
+        // Private Methods
         private void SubscribeToNetworkEvents()
         {
             if (_networkManager != null)
             {
-                _networkManager.EnteredGame += HandleEnteredGame; // Keep this one
+                _networkManager.EnteredGame += HandleEnteredGame;
                 _networkManager.ErrorOccurred += HandleNetworkError;
                 _networkManager.ConnectionStateChanged += HandleConnectionStateChange;
                 _logger.LogDebug("SelectCharacterScene subscribed to NetworkManager events.");
@@ -104,30 +138,26 @@ namespace Client.Main.Scenes
         {
             if (_networkManager != null)
             {
-                _networkManager.EnteredGame -= HandleEnteredGame; // Keep this one
+                _networkManager.EnteredGame -= HandleEnteredGame;
                 _networkManager.ErrorOccurred -= HandleNetworkError;
                 _networkManager.ConnectionStateChanged -= HandleConnectionStateChange;
                 _logger.LogDebug("SelectCharacterScene unsubscribed from NetworkManager events.");
             }
         }
 
-        // *** MODIFIED TO USE _selectedCharacterInfo ***
-        private void HandleEnteredGame(object? sender, EventArgs e)
+        private void HandleEnteredGame(object sender, EventArgs e)
         {
             _logger.LogInformation(">>> SelectCharacterScene.HandleEnteredGame: Event received.");
 
-            // *** CHECK IF A CHARACTER WAS ACTUALLY SELECTED ***
             if (!_selectedCharacterInfo.HasValue)
             {
                 _logger.LogError("!!! SelectCharacterScene.HandleEnteredGame: EnteredGame event received, but _selectedCharacterInfo is null. Cannot change to GameScene.");
-                // Optionally show an error to the user or return to login
-                // MessageWindow.Show("Error entering game. Please try again.");
-                // MuGame.ScheduleOnMainThread(() => MuGame.Instance.ChangeScene<LoginScene>());
                 return;
             }
 
-            var characterInfo = _selectedCharacterInfo.Value; // Get the stored info
-            _logger.LogInformation("--- SelectCharacterScene.HandleEnteredGame: Scheduling scene change to GameScene for character: {Name} ({Class})", characterInfo.Name, characterInfo.Class);
+            var characterInfo = _selectedCharacterInfo.Value;
+            _logger.LogInformation("--- SelectCharacterScene.HandleEnteredGame: Scheduling scene change to GameScene for character: {Name} ({Class})",
+                characterInfo.Name, characterInfo.Class);
 
             MuGame.ScheduleOnMainThread(() =>
             {
@@ -136,16 +166,12 @@ namespace Client.Main.Scenes
                 {
                     try
                     {
-                        // *** CREATE GAMESCENE WITH CHARACTER INFO ***
                         MuGame.Instance.ChangeScene(new GameScene(characterInfo));
                         _logger.LogInformation("<<< SelectCharacterScene.HandleEnteredGame (UI Thread): ChangeScene to GameScene call completed.");
                     }
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "!!! SelectCharacterScene.HandleEnteredGame (UI Thread): Exception during ChangeScene to GameScene.");
-                        // Handle error, maybe return to login
-                        // MessageWindow.Show("Error loading game world.");
-                        // MuGame.ScheduleOnMainThread(() => MuGame.Instance.ChangeScene<LoginScene>());
                     }
                 }
                 else
@@ -155,8 +181,7 @@ namespace Client.Main.Scenes
             });
         }
 
-
-        private void HandleNetworkError(object? sender, string errorMessage)
+        private void HandleNetworkError(object sender, string errorMessage)
         {
             MuGame.ScheduleOnMainThread(() =>
             {
@@ -164,12 +189,12 @@ namespace Client.Main.Scenes
                 MessageWindow.Show($"Network Error: {errorMessage}");
                 if (MuGame.Instance.ActiveScene == this)
                 {
-                    MuGame.ScheduleOnMainThread(() => MuGame.Instance.ChangeScene<LoginScene>());
+                    MuGame.Instance.ChangeScene<LoginScene>();
                 }
             });
         }
 
-        private void HandleConnectionStateChange(object? sender, ClientConnectionState newState)
+        private void HandleConnectionStateChange(object sender, ClientConnectionState newState)
         {
             MuGame.ScheduleOnMainThread(() =>
             {
@@ -180,38 +205,14 @@ namespace Client.Main.Scenes
                     MessageWindow.Show("Connection lost.");
                     if (MuGame.Instance.ActiveScene == this)
                     {
-                        MuGame.ScheduleOnMainThread(() => MuGame.Instance.ChangeScene<LoginScene>());
+                        MuGame.Instance.ChangeScene<LoginScene>();
                     }
                 }
-                // Add handling for other states if necessary, e.g., going back to login if GS connection drops unexpectedly
             });
         }
 
-        public void CharacterSelected(string characterName)
+        private void DisableInteractionDuringSelection(string characterName)
         {
-            // ** Find the selected character's full info **
-            _selectedCharacterInfo = _characters.FirstOrDefault(c => c.Name == characterName);
-
-            if (!_selectedCharacterInfo.HasValue)
-            {
-                _logger.LogError("Character '{CharacterName}' selected, but not found in the character list.", characterName);
-                MessageWindow.Show($"Error selecting character '{characterName}'.");
-                return;
-            }
-
-            // ** Check Network State **
-            if (_networkManager.CurrentState != ClientConnectionState.ConnectedToGameServer && _networkManager.CurrentState != ClientConnectionState.SelectingCharacter) // Allow resend if already selecting
-            {
-                _logger.LogWarning("Character selection attempted but NetworkManager state is not ConnectedToGameServer. State: {State}", _networkManager.CurrentState);
-                MessageWindow.Show($"Cannot select character. Invalid network state: {_networkManager.CurrentState}");
-                _selectedCharacterInfo = null; // Clear selection on error
-                return;
-            }
-
-            _logger.LogInformation("Character '{CharacterName}' (Class: {Class}) selected in scene. Sending request...",
-                                   _selectedCharacterInfo.Value.Name, _selectedCharacterInfo.Value.Class);
-
-            // Disable further interaction
             if (_selectWorld != null)
             {
                 _selectWorld.Interactive = false;
@@ -220,24 +221,16 @@ namespace Client.Main.Scenes
                     charObj.Interactive = false;
                 }
                 // Also hide/disable labels on selection
-                foreach (var label in _characterLabels.Values) { label.Visible = false; }
+                var characterLabels = _selectWorld.GetCharacterLabels();
+                foreach (var label in characterLabels.Values)
+                {
+                    label.Visible = false;
+                }
             }
-
-            if (_infoLabel != null) { _infoLabel.Text = $"Selecting {characterName}..."; }
-
-            // Send the request
-            _ = _networkManager.SendSelectCharacterRequestAsync(characterName);
-        }
-
-
-        // *** Add reference to the labels dictionary (needed in CharacterSelected) ***
-        private Dictionary<PlayerObject, LabelControl> _characterLabels => _selectWorld?.GetCharacterLabels() ?? new Dictionary<PlayerObject, LabelControl>();
-
-        public override void Dispose()
-        {
-            _logger.LogDebug("Disposing SelectCharacterScene.");
-            UnsubscribeFromNetworkEvents(); // Unsubscribe on dispose
-            base.Dispose();
+            if (_infoLabel != null)
+            {
+                _infoLabel.Text = $"Selecting {characterName}...";
+            }
         }
     }
 }

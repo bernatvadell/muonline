@@ -9,7 +9,7 @@ using MUnique.OpenMU.Network.Packets;
 using MUnique.OpenMU.Network.Packets.ServerToClient;
 using Client.Main.Core.Utilities;
 
-namespace Client.Main.Client
+namespace Client.Main.Core.Client
 {
     /// <summary>
     /// Represents the state of a learned skill, including its ID, level, and display values.
@@ -130,8 +130,8 @@ namespace Client.Main.Client
         public uint MaxMp => MaximumMana;
 
         // ───────── ZDARZENIA ──────
-        public event Action<uint, uint>? HealthChanged; // (current, max)
-        public event Action<uint, uint>? ManaChanged;
+        public event Action<uint, uint> HealthChanged; // (current, max)
+        public event Action<uint, uint> ManaChanged;
 
         private void RaiseHealth() => HealthChanged?.Invoke(CurrentHealth, MaximumHealth);
         private void RaiseMana() => ManaChanged?.Invoke(CurrentMana, MaximumMana);
@@ -325,7 +325,7 @@ namespace Client.Main.Client
         /// </summary>
         public void UpdateItemDurability(byte slot, byte durability)
         {
-            if (_inventoryItems.TryGetValue(slot, out byte[]? itemData))
+            if (_inventoryItems.TryGetValue(slot, out byte[] itemData))
             {
                 const int durabilityIndex = 2;
                 if (itemData.Length > durabilityIndex)

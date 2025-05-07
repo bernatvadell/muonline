@@ -8,27 +8,59 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Controls
 {
+    /// <summary>
+    /// Extends WorldControl to support click‐to‐move gameplay.
+    /// </summary>
     public abstract class WalkableWorldControl : WorldControl
     {
-        private CursorObject _cursor;
-        public float _cursorNextMoveTime;
+        // --- Fields ---
 
+        private CursorObject _cursor;
+        private float _cursorNextMoveTime;
+
+        // --- Properties ---
+
+        /// <summary>
+        /// The player's walker object.
+        /// </summary>
         public WalkerObject Walker { get; set; }
+
+        /// <summary>
+        /// The X coordinate of the tile currently under the mouse.
+        /// </summary>
         public byte MouseTileX { get; set; } = 0;
+
+        /// <summary>
+        /// The Y coordinate of the tile currently under the mouse.
+        /// </summary>
         public byte MouseTileY { get; set; } = 0;
+
+        /// <summary>
+        /// Height offset applied when placing the cursor above terrain.
+        /// </summary>
         public float ExtraHeight { get; set; }
 
-        public WalkableWorldControl(short worldIndex) : base(worldIndex)
+        // --- Constructors ---
+
+        /// <summary>
+        /// Initializes a walkable world with default walker.
+        /// </summary>
+        public WalkableWorldControl(short worldIndex)
+            : base(worldIndex)
         {
             Interactive = true;
         }
 
+        /// <summary>
+        /// Initializes a walkable world with a specified walker.
+        /// </summary>
         public WalkableWorldControl(short worldIndex, WalkerObject walker)
-        : this(worldIndex)
+            : this(worldIndex)
         {
-            Walker = walker;     // dzięki temu w blokach inicjalizacyjnych już nie jest null
+            Walker = walker;
         }
 
+        // --- Lifecycle Methods ---
 
         public override async Task Load()
         {
@@ -38,27 +70,29 @@ namespace Client.Main.Controls
 
         public override void Update(GameTime time)
         {
-            if (Status != GameControlStatus.Ready || !Visible) return;
-
+            if (Status != GameControlStatus.Ready || !Visible)
+                return;
 
             CalculateMouseTilePos();
 
-            if (Scene.MouseHoverControl == this && MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && _cursorNextMoveTime <= 0)
+            // Handle click‐to‐move with a simple cooldown
+            if (Scene.MouseHoverControl == this &&
+                MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
+                _cursorNextMoveTime <= 0f)
             {
-                _cursorNextMoveTime = 250;
-                var newPosition = new Vector2(MouseTileX, MouseTileY);
+                _cursorNextMoveTime = 250f;
+                var newTile = new Vector2(MouseTileX, MouseTileY);
 
-                if (!IsWalkable(newPosition))
+                if (!IsWalkable(newTile))
                     return;
 
-                var x = newPosition.X * Constants.TERRAIN_SCALE;
-                var y = newPosition.Y * Constants.TERRAIN_SCALE;
-                var terrainHeight = Terrain.RequestTerrainHeight(x, y);
-                var pos = new Vector3(x, y, terrainHeight + ExtraHeight);
-                _cursor.Position = pos - new Vector3(-50f, -40f, 0);
-                Walker.MoveTo(newPosition);
+                float worldX = newTile.X * Constants.TERRAIN_SCALE;
+                float worldY = newTile.Y * Constants.TERRAIN_SCALE;
+                float height = Terrain.RequestTerrainHeight(worldX, worldY) + ExtraHeight;
+                _cursor.Position = new Vector3(worldX, worldY, height) + new Vector3(50f, 40f, 0);
+                Walker.MoveTo(newTile);
             }
-            else if (_cursorNextMoveTime > 0)
+            else if (_cursorNextMoveTime > 0f)
             {
                 _cursorNextMoveTime -= (float)time.ElapsedGameTime.TotalMilliseconds;
             }
@@ -66,61 +100,61 @@ namespace Client.Main.Controls
             base.Update(time);
         }
 
+        // --- Helper Methods ---
+
+        /// <summary>
+        /// Calculates which terrain tile is under the mouse cursor by raycasting.
+        /// </summary>
         private void CalculateMouseTilePos()
         {
-            Vector2 mousePos = Mouse.GetState().Position.ToVector2();
+            var mousePos = Mouse.GetState().Position.ToVector2();
             var viewport = GraphicsManager.Instance.GraphicsDevice.Viewport;
 
-            Vector3 nearPoint = viewport.Unproject(new Vector3(mousePos, 0f), Camera.Instance.Projection, Camera.Instance.View, Matrix.Identity);
-            Vector3 farPoint = viewport.Unproject(new Vector3(mousePos, 1f), Camera.Instance.Projection, Camera.Instance.View, Matrix.Identity);
+            var near = viewport.Unproject(new Vector3(mousePos, 0f),
+                                          Camera.Instance.Projection,
+                                          Camera.Instance.View,
+                                          Matrix.Identity);
+            var far = viewport.Unproject(new Vector3(mousePos, 1f),
+                                          Camera.Instance.Projection,
+                                          Camera.Instance.View,
+                                          Matrix.Identity);
 
-            Vector3 rayDirection = farPoint - nearPoint;
-            rayDirection.Normalize();
+            var ray = new Ray(near, Vector3.Normalize(far - near));
+            const float maxDistance = 10000f;
+            float step = Constants.TERRAIN_SCALE / 10f;
+            float traveled = 0f;
 
-            Ray mouseRay = new Ray(nearPoint, rayDirection);
-
-            float maxDistance = 10000f;
-            float stepSize = Constants.TERRAIN_SCALE / 10f;
-            float currentDistance = 0f;
-
-            Vector3 lastPosition = mouseRay.Position;
-            float lastHeightDifference = lastPosition.Z - Terrain.RequestTerrainHeight(lastPosition.X, lastPosition.Y) + ExtraHeight;
-
+            var lastPos = ray.Position;
+            var lastDiff = lastPos.Z - Terrain.RequestTerrainHeight(lastPos.X, lastPos.Y) + ExtraHeight;
             bool hit = false;
-            Vector3 hitPosition = Vector3.Zero;
+            Vector3 hitPos = Vector3.Zero;
 
-            while (currentDistance < maxDistance)
+            while (traveled < maxDistance)
             {
-                currentDistance += stepSize;
-                Vector3 position = mouseRay.Position + mouseRay.Direction * currentDistance;
-                float terrainHeight = Terrain.RequestTerrainHeight(position.X, position.Y) + ExtraHeight;
-                float heightDifference = position.Z - terrainHeight;
+                traveled += step;
+                var pos = ray.Position + ray.Direction * traveled;
+                float terrainZ = Terrain.RequestTerrainHeight(pos.X, pos.Y) + ExtraHeight;
+                float diff = pos.Z - terrainZ;
 
-                if (lastHeightDifference > 0 && heightDifference <= 0)
+                if (lastDiff > 0f && diff <= 0f)
                 {
+                    float t = lastDiff / (lastDiff - diff);
+                    hitPos = Vector3.Lerp(lastPos, pos, t);
                     hit = true;
-                    float t = lastHeightDifference / (lastHeightDifference - heightDifference);
-                    hitPosition = Vector3.Lerp(lastPosition, position, t);
                     break;
                 }
 
-                lastPosition = position;
-                lastHeightDifference = heightDifference;
+                lastPos = pos;
+                lastDiff = diff;
             }
 
             if (hit)
             {
-                float terrainX = hitPosition.X;
-                float terrainY = hitPosition.Y;
+                int gx = (int)(hitPos.X / Constants.TERRAIN_SCALE);
+                int gy = (int)(hitPos.Y / Constants.TERRAIN_SCALE);
 
-                int gridX = (int)(terrainX / Constants.TERRAIN_SCALE);
-                int gridY = (int)(terrainY / Constants.TERRAIN_SCALE);
-
-                gridX = Math.Clamp(gridX, 0, Constants.TERRAIN_SIZE - 1);
-                gridY = Math.Clamp(gridY, 0, Constants.TERRAIN_SIZE - 1);
-
-                MouseTileX = (byte)gridX;
-                MouseTileY = (byte)gridY;
+                MouseTileX = (byte)Math.Clamp(gx, 0, Constants.TERRAIN_SIZE - 1);
+                MouseTileY = (byte)Math.Clamp(gy, 0, Constants.TERRAIN_SIZE - 1);
             }
             else
             {

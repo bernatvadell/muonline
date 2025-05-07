@@ -71,7 +71,7 @@ namespace Client.Main.Controls.UI.Game
             _label.Y = rect.Y + (rect.Height - _label.ControlSize.Y) / 2;
         }
 
-        public void SetValues(int current, int max)  // wygodny setter
+        public void SetValues(int current, int max)
         {
             _currentMP = current;
             _maxMP  = max;

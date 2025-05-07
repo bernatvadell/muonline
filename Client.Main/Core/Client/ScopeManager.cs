@@ -7,7 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq; // For ItemDatabase
 
-namespace Client.Main.Client
+namespace Client.Main.Core.Client
 {
     /// <summary>
     /// Manages objects that are currently within the player's scope of view or interaction range.
@@ -63,7 +63,7 @@ namespace Client.Main.Client
         /// <param name="y">The Y-coordinate of the NPC's position.</param>
         /// <param name="typeNumber">The type number of the NPC.</param>
         /// <param name="name">The optional name of the NPC.</param>
-        public void AddOrUpdateNpcInScope(ushort maskedId, ushort rawId, byte x, byte y, ushort typeNumber, string? name = null)
+        public void AddOrUpdateNpcInScope(ushort maskedId, ushort rawId, byte x, byte y, ushort typeNumber, string name = null)
         {
             var npc = new NpcScopeObject(maskedId, rawId, x, y, typeNumber, name);
             _objectsInScope.AddOrUpdate(maskedId, npc, (_, existing) =>
@@ -152,7 +152,7 @@ namespace Client.Main.Client
         /// <returns><c>true</c> if the object's position was updated; otherwise, <c>false</c> if the object was not found in scope.</returns>
         public bool TryUpdateScopeObjectPosition(ushort maskedId, byte x, byte y)
         {
-            if (_objectsInScope.TryGetValue(maskedId, out ScopeObject? scopeObject))
+            if (_objectsInScope.TryGetValue(maskedId, out ScopeObject scopeObject))
             {
                 scopeObject.PositionX = x;
                 scopeObject.PositionY = y;
@@ -241,11 +241,11 @@ namespace Client.Main.Client
         /// <param name="rawId">The raw ID of the object.</param>
         /// <param name="name">When this method returns, contains the name of the object, or <c>null</c> if the object is not found or has no name.</param>
         /// <returns><c>true</c> if the object's name was successfully retrieved; otherwise, <c>false</c>.</returns>
-        public bool TryGetScopeObjectName(ushort rawId, [System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out string? name)
+        public bool TryGetScopeObjectName(ushort rawId, [System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out string name)
         {
             ushort maskedId = (ushort)(rawId & 0x7FFF); // Always mask the raw ID before lookup
 
-            if (_objectsInScope.TryGetValue(maskedId, out ScopeObject? scopeObject))
+            if (_objectsInScope.TryGetValue(maskedId, out ScopeObject scopeObject))
             {
                 switch (scopeObject.ObjectType)
                 {
@@ -288,7 +288,7 @@ namespace Client.Main.Client
         public ushort? FindNearestPickupItemRawId()
         {
             double minDistanceSq = double.MaxValue;
-            ScopeObject? nearestObject = null;
+            ScopeObject nearestObject = null;
 
             // Consider both ItemScopeObject and MoneyScopeObject as pickupable items
             var groundItems = GetScopeItems(ScopeObjectType.Item).Concat(GetScopeItems(ScopeObjectType.Money));

@@ -381,7 +381,10 @@ namespace Client.Main.Scenes
             {
                 if (NotificationColors.TryGetValue(pending.Type, out Color notificationColor))
                 {
-                    _notificationManager.AddNotification(pending.Message, notificationColor);
+                    if (pending.Type != ServerMessage.MessageType.BlueNormal)
+                    {
+                        _notificationManager.AddNotification(pending.Message, notificationColor);
+                    }
                 }
                 else
                 {

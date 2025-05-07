@@ -14,6 +14,10 @@ namespace Client.Main.Objects.Player
 {
     public class PlayerObject : WalkerObject
     {
+        // Fields
+        private CharacterClassNumber _characterClass;
+
+        // Properties
         // State properties
         public bool IsResting { get; set; } = false;
         public bool IsSitting { get; set; } = false;
@@ -22,9 +26,8 @@ namespace Client.Main.Objects.Player
 
         // Identification and Network Class
         public string Name { get; set; } = "Character";
-        public ushort NetworkId { get; set; }  // ID z pakietów serwera (masked 0x7FFF)
+        public new ushort NetworkId { get; set; }  // ID from server packets (masked 0x7FFF)
 
-        private CharacterClassNumber _characterClass;
         public CharacterClassNumber CharacterClass
         {
             get => _characterClass;
@@ -34,10 +37,8 @@ namespace Client.Main.Objects.Player
                 {
                     Debug.WriteLine($"PlayerObject {Name}: Setting CharacterClass from {_characterClass} to {value}");
                     _characterClass = value;
-                    // *** CALL DIRECTLY ***
                     UpdateBodyPartClasses(); // Ensure update happens immediately when property changes
                 }
-                // *** ADDED ELSE BLOCK FOR LOGGING ***
                 else
                 {
                     Debug.WriteLine($"PlayerObject {Name}: CharacterClass is already {value}. Skipping UpdateBodyPartClasses.");
@@ -62,6 +63,7 @@ namespace Client.Main.Objects.Player
             set => base.CurrentAction = (int)value;
         }
 
+        // Constructors
         public PlayerObject()
         {
             BoundingBoxLocal = new BoundingBox(
@@ -70,7 +72,6 @@ namespace Client.Main.Objects.Player
 
             Scale = 0.85f;
             AnimationSpeed = 8f;
-            // *** START WITH A MORE GENERIC DEFAULT or ensure it's set correctly BEFORE Load ***
             CurrentAction = PlayerAction.StopMale; // Default action
             _characterClass = CharacterClassNumber.DarkWizard; // Initialize with a default
 
@@ -93,14 +94,14 @@ namespace Client.Main.Objects.Player
             Children.Add(Wings);
 
             // Ensure initial class is applied to children during construction
-            // This helps if Load isn't called immediately or if class is set late.
             UpdateBodyPartClasses();
         }
 
+        // Public Methods
         public override async Task Load()
         {
-            // *** UWAGA: Klasa _characterClass powinna być już ustawiona PRZED wywołaniem Load() ***
-            //          (zazwyczaj przez GameScene.Load lub konstruktor)
+            // NOTE: _characterClass should already be set BEFORE calling Load()
+            //       (usually by GameScene.Load or constructor)
             Debug.WriteLine($"PlayerObject {Name}: Load() started. Current _characterClass: {_characterClass}");
 
             // 1. Load the base player model
@@ -113,8 +114,8 @@ namespace Client.Main.Objects.Player
             }
             Debug.WriteLine($"PlayerObject {Name}: Base model prepared.");
 
-            // 2. *** CRITICAL: Ensure children have the correct class BEFORE their Load is called ***
-            //    Setter CharacterClass już powinien był to wywołać, ale dla pewności:
+            // 2. CRITICAL: Ensure children have the correct class BEFORE their Load is called
+            //    CharacterClass setter should have already called this, but for safety:
             UpdateBodyPartClasses();
             Debug.WriteLine($"PlayerObject {Name}: UpdateBodyPartClasses() called within Load().");
 
@@ -132,73 +133,11 @@ namespace Client.Main.Objects.Player
             }
         }
 
-        /// <summary>
-        /// Updates the PlayerClass property of all child equipment objects based on the current network _characterClass.
-        /// This method handles the mapping between network enum and model enum.
-        /// </summary>
-        private void UpdateBodyPartClasses()
-        {
-            // Map the CharacterClassNumber (network) to the PlayerClass (models)
-            PlayerClass mappedClass = MapNetworkClassToModelClass(_characterClass);
-            Debug.WriteLine($"PlayerObject {Name}: UpdateBodyPartClasses mapping network class {_characterClass} to model class {mappedClass} ({(int)mappedClass})");
-
-            // Update children with the CORRECTLY MAPPED PlayerClass
-            // Use null-conditional operator ?. for safety
-            // *** Ensure children are not null before setting the class ***
-            HelmMask?.SetPlayerClass(mappedClass);
-            Helm?.SetPlayerClass(mappedClass);
-            Armor?.SetPlayerClass(mappedClass);
-            Pants?.SetPlayerClass(mappedClass);
-            Gloves?.SetPlayerClass(mappedClass);
-            Boots?.SetPlayerClass(mappedClass);
-            Wings?.SetPlayerClass(mappedClass); // Assuming Wings might need it too
-                                                // TODO: Update other parts (Weapons, Shield)
-        }
-
-        /// <summary>
-        /// Maps the network CharacterClassNumber enum to the local PlayerClass enum used for model loading.
-        /// </summary>
-        private PlayerClass MapNetworkClassToModelClass(CharacterClassNumber networkClass)
-        {
-            // Ensure this mapping is correct for your game version and PlayerClass enum definitions
-            return networkClass switch
-            {
-                CharacterClassNumber.DarkWizard => PlayerClass.DarkWizard,         // 0 -> 1
-                CharacterClassNumber.SoulMaster => PlayerClass.SoulMaster,         // 1 -> 201 (or DarkWizard if models are shared)
-                CharacterClassNumber.GrandMaster => PlayerClass.GrandMaster,       // 2 -> 301 (or DarkWizard)
-
-                CharacterClassNumber.DarkKnight => PlayerClass.DarkKnight,         // 4 -> 2
-                CharacterClassNumber.BladeKnight => PlayerClass.BladeKnight,       // 5 -> 202
-                CharacterClassNumber.BladeMaster => PlayerClass.BladeMaster,       // 6 -> 302
-
-                CharacterClassNumber.FairyElf => PlayerClass.FairyElf,             // 8 -> 3
-                CharacterClassNumber.MuseElf => PlayerClass.MuseElf,               // 9 -> 203
-                CharacterClassNumber.HighElf => PlayerClass.HighElf,               // 10 -> 303
-
-                CharacterClassNumber.MagicGladiator => PlayerClass.MagicGladiator, // 12 -> 4
-                CharacterClassNumber.DuelMaster => PlayerClass.DuelMaster,         // 13 -> 304
-
-                CharacterClassNumber.DarkLord => PlayerClass.DarkLord,             // 16 -> 5
-                CharacterClassNumber.LordEmperor => PlayerClass.LordEmperor,       // 17 -> 305
-
-                CharacterClassNumber.Summoner => PlayerClass.Summoner,             // 20 -> 6
-                CharacterClassNumber.BloodySummoner => PlayerClass.BloodySummoner, // 21 -> 206
-                CharacterClassNumber.DimensionMaster => PlayerClass.DimensionMaster,// 22 -> 306
-
-                CharacterClassNumber.RageFighter => PlayerClass.RageFighter,       // 24 -> 7
-                CharacterClassNumber.FistMaster => PlayerClass.FistMaster,         // 25 -> 307
-
-                // Add others if necessary
-                _ => PlayerClass.DarkWizard // Default fallback
-            };
-        }
-
-        // --- Keep Update, Draw, OnClick ---
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime); // Handles movement, camera for main walker, base object updates
 
-            if (World is not WalkableWorldControl)
+            if (World is not WalkableWorldControl worldControl) // Use pattern matching for cleaner cast
                 return;
 
             // --- State-based Animation Logic ---
@@ -208,7 +147,7 @@ namespace Client.Main.Objects.Player
                 if (restDistance < 0.1f) // Threshold for being 'at' the rest place
                 {
                     // Select appropriate resting animation based on world/context
-                    CurrentAction = (World.WorldIndex == 4) ? PlayerAction.PlayerFlyingRest : PlayerAction.PlayerStandingRest;
+                    CurrentAction = (worldControl.WorldIndex == 4) ? PlayerAction.PlayerFlyingRest : PlayerAction.PlayerStandingRest;
                     return; // Stay in resting state animation
                 }
                 else if (restDistance > 1.0f) // Threshold for moving away
@@ -233,34 +172,28 @@ namespace Client.Main.Objects.Player
                 }
             }
 
-            // *** ANIMATION LOGIC FOR SELECT SCREEN ***
-            // If the parent is SelectWorld, force an idle animation
+            // --- Animation Logic for Select Screen ---
             if (World is SelectWorld)
             {
-                // You might want different idle animations based on class later
                 CurrentAction = PlayerAction.StopMale;
-                // No return here, allow base.Update to handle animation frames
             }
-            // *** END OF SELECT SCREEN LOGIC ***
-            else // Standard in-game animation logic
+            // --- Standard In-Game Animation Logic ---
+            else
             {
                 if (IsMoving)
                 {
-                    // Select walking/running/flying/swimming animation based on world context
-                    if (World.WorldIndex == 8) // Atlans
-                        CurrentAction = PlayerAction.RunSwim;
-                    else if (World.WorldIndex == 11) // Icarus
-                        CurrentAction = PlayerAction.Fly;
-                    else // Default walking/running animation
-                        CurrentAction = PlayerAction.WalkMale; // Or Run? Check your actions enum/logic
+                    CurrentAction = worldControl.WorldIndex switch
+                    {
+                        8 => PlayerAction.RunSwim,    // Atlans
+                        11 => PlayerAction.Fly,   // Icarus
+                        _ => PlayerAction.WalkMale // Default walking/running
+                    };
                 }
                 else // Not moving
                 {
-                    // Select idle/stop animation based on world context
-                    if (World.WorldIndex == 8 || World.WorldIndex == 11) // Atlans or Icarus
-                        CurrentAction = PlayerAction.StopFlying;
-                    else // Default standing animation
-                        CurrentAction = PlayerAction.StopMale; // Or StopSword, StopFemale etc. based on class/equipment?
+                    CurrentAction = (worldControl.WorldIndex == 8 || worldControl.WorldIndex == 11)
+                        ? PlayerAction.StopFlying // Atlans or Icarus
+                        : PlayerAction.StopMale;  // Default standing
                 }
             }
         }
@@ -274,12 +207,67 @@ namespace Client.Main.Objects.Player
         {
             base.OnClick();
         }
+
+        // Private Methods
+        /// <summary>
+        /// Updates the PlayerClass property of all child equipment objects based on the current network _characterClass.
+        /// This method handles the mapping between network enum and model enum.
+        /// </summary>
+        private void UpdateBodyPartClasses()
+        {
+            PlayerClass mappedClass = MapNetworkClassToModelClass(_characterClass);
+            Debug.WriteLine($"PlayerObject {Name}: UpdateBodyPartClasses mapping network class {_characterClass} to model class {mappedClass} ({(int)mappedClass})");
+
+            HelmMask?.SetPlayerClass(mappedClass);
+            Helm?.SetPlayerClass(mappedClass);
+            Armor?.SetPlayerClass(mappedClass);
+            Pants?.SetPlayerClass(mappedClass);
+            Gloves?.SetPlayerClass(mappedClass);
+            Boots?.SetPlayerClass(mappedClass);
+            Wings?.SetPlayerClass(mappedClass); // Assuming Wings might need it too
+            // TODO: Update other parts (Weapons, Shield)
+        }
+
+        /// <summary>
+        /// Maps the network CharacterClassNumber enum to the local PlayerClass enum used for model loading.
+        /// </summary>
+        private PlayerClass MapNetworkClassToModelClass(CharacterClassNumber networkClass)
+        {
+            return networkClass switch
+            {
+                CharacterClassNumber.DarkWizard => PlayerClass.DarkWizard,
+                CharacterClassNumber.SoulMaster => PlayerClass.SoulMaster,
+                CharacterClassNumber.GrandMaster => PlayerClass.GrandMaster,
+
+                CharacterClassNumber.DarkKnight => PlayerClass.DarkKnight,
+                CharacterClassNumber.BladeKnight => PlayerClass.BladeKnight,
+                CharacterClassNumber.BladeMaster => PlayerClass.BladeMaster,
+
+                CharacterClassNumber.FairyElf => PlayerClass.FairyElf,
+                CharacterClassNumber.MuseElf => PlayerClass.MuseElf,
+                CharacterClassNumber.HighElf => PlayerClass.HighElf,
+
+                CharacterClassNumber.MagicGladiator => PlayerClass.MagicGladiator,
+                CharacterClassNumber.DuelMaster => PlayerClass.DuelMaster,
+
+                CharacterClassNumber.DarkLord => PlayerClass.DarkLord,
+                CharacterClassNumber.LordEmperor => PlayerClass.LordEmperor,
+
+                CharacterClassNumber.Summoner => PlayerClass.Summoner,
+                CharacterClassNumber.BloodySummoner => PlayerClass.BloodySummoner,
+                CharacterClassNumber.DimensionMaster => PlayerClass.DimensionMaster,
+
+                CharacterClassNumber.RageFighter => PlayerClass.RageFighter,
+                CharacterClassNumber.FistMaster => PlayerClass.FistMaster,
+
+                _ => PlayerClass.DarkWizard // Default fallback
+            };
+        }
     }
 
     // Extension method to set class on various parts
     public static class PlayerPartExtensions
     {
-        // *** Dodano sprawdzanie null i logowanie ***
         public static void SetPlayerClass(this ModelObject part, PlayerClass playerClass)
         {
             if (part == null)
@@ -287,10 +275,6 @@ namespace Client.Main.Objects.Player
                 Debug.WriteLine($"SetPlayerClass Warning: Attempted to set class on a null part.");
                 return;
             }
-
-            // Log the attempt before the switch
-            // Debug.WriteLine($"SetPlayerClass: Attempting to set class {playerClass} on part {part.GetType().Name} ({part.Name ?? "NoName"})");
-
 
             switch (part)
             {
@@ -300,12 +284,10 @@ namespace Client.Main.Objects.Player
                 case PlayerHelmObject helm: helm.PlayerClass = playerClass; break;
                 case PlayerMaskHelmObject maskHelm: maskHelm.PlayerClass = playerClass; break;
                 case PlayerPantObject pant: pant.PlayerClass = playerClass; break;
-                // Add WingObject case if it has a PlayerClass property
                 case WingObject wing:
-                    // Example: Assuming WingObject has a PlayerClass property or method
-                    // wing.PlayerClass = playerClass;
-                    // Since WingObject doesn't have PlayerClass property, log or ignore
-                    // Debug.WriteLine($"SetPlayerClass: WingObject ({part.Name}) does not have a PlayerClass property to set.");
+                    // Wings might not have a PlayerClass property directly.
+                    // If they do, uncomment: wing.PlayerClass = playerClass;
+                    // Or handle wing appearance based on playerClass differently.
                     break;
                 // Add other types like weapons, shields etc. here
                 default:

@@ -129,7 +129,7 @@ namespace Client.Main.Objects.Effects
 
                 spriteBatch.End();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // Logowanie błędu rysowania, jeśli wystąpi
                 // _logger?.LogError(ex, "Error drawing DamageTextObject"); // Potrzebowałbyś ILogger w tej klasie

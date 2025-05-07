@@ -60,8 +60,11 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     serverMsg.Type, original, cleaned);
 
                 // Queue for UI-thread processing in GameScene
-                scene.ShowNotificationMessage(serverMsg.Type, cleaned);
-
+                if (serverMsg.Type != ServerMessage.MessageType.BlueNormal)
+                {
+                    scene.ShowNotificationMessage(serverMsg.Type, cleaned);
+                }
+                
                 // Also print to console with prefix based on message type
                 string prefix = serverMsg.Type switch
                 {
@@ -93,7 +96,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
             try
             {
-                var chatMsg = new MUnique.OpenMU.Network.Packets.ServerToClient.ChatMessage(packet);
+                var chatMsg = new ChatMessage(packet);
                 _logger.LogInformation(
                     "Received ChatMessage (0x00): From={Sender}, Type={Type}, Message='{Message}'",
                     chatMsg.Sender, chatMsg.Type, chatMsg.Message);
@@ -144,8 +147,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                 string prefix = type switch
                 {
-                    MUnique.OpenMU.Network.Packets.ServerToClient.ChatMessage.ChatMessageType.Whisper => $"Whisper [{sender}]: ",
-                    MUnique.OpenMU.Network.Packets.ServerToClient.ChatMessage.ChatMessageType.Normal => $"[{sender}]: ",
+                    ChatMessage.ChatMessageType.Whisper => $"Whisper [{sender}]: ",
+                    ChatMessage.ChatMessageType.Normal => $"[{sender}]: ",
                     _ => $"[{sender} ({type})]: "
                 };
                 Console.WriteLine($"{prefix}{rawText}");

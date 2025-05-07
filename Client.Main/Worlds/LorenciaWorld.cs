@@ -176,7 +176,7 @@ namespace Client.Main.Worlds
         {
             await base.Load();
 
-            Objects.Add(new Spider() { Location = new Vector2(181, 127), Direction = Models.Direction.South });
+            // Objects.Add(new Spider() { Location = new Vector2(181, 127), Direction = Models.Direction.South });
             // Objects.Add(new BudgeDragon() { Location = new Vector2(182, 127), Direction = Models.Direction.South });
             // Objects.Add(new BullFighter() { Location = new Vector2(183, 127), Direction = Models.Direction.South });
             // Objects.Add(new DarkKnight() { Location = new Vector2(184, 127), Direction = Models.Direction.South });

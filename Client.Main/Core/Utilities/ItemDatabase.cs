@@ -47,11 +47,6 @@ namespace Client.Main.Core.Utilities
                 }
             }
 
-            // --- PASTE THE FULL ITEM DATA INITIALIZATION CODE HERE ---
-            // --- FROM THE ORIGINAL PROVIDED FILE ---
-            // Example: AddItem(6, 0, "Small Shield"); ... etc ...
-
-
             // --- Armors.cs ---
             // Shields (Group 6)
             AddItem(6, 0, "Small Shield");
@@ -776,7 +771,7 @@ namespace Client.Main.Core.Utilities
         /// <param name="group">The item group.</param>
         /// <param name="id">The item ID (number) within the group.</param>
         /// <returns>The item name, or null if not found.</returns>
-        public static string? GetItemName(byte group, short id)
+        public static string GetItemName(byte group, short id)
         {
             if (Items.TryGetValue(group, out var groupDict))
             {
@@ -795,7 +790,7 @@ namespace Client.Main.Core.Utilities
         /// </summary>
         /// <param name="itemData">The item data.</param>
         /// <returns>The item name, or null if not found or data is invalid.</returns>
-        public static string? GetItemName(ReadOnlySpan<byte> itemData)
+        public static string GetItemName(ReadOnlySpan<byte> itemData)
         {
             // Basic validation: Need at least ID (byte 0) and Group (byte 5)
             if (itemData.Length < 6)
