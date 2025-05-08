@@ -6,12 +6,12 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
 {
-    [NpcInfo(44, "Golden Dragon")]
-    public class GoldenDragon : RedDragon // Inherits from RedDragon
+    [NpcInfo(51, "Great Bahamut")]
+    public class GreatBahamut : Bahamut // Inherits from Bahamut
     {
-        public GoldenDragon()
+        public GreatBahamut()
         {
-            Scale = 0.9f; // Set according to C++ Setting_Monster
+            Scale = 1.0f; // Set according to C++ Setting_Monster (same as Bahamut?)
         }
         // Load() and sounds inherited
     }
