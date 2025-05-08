@@ -549,13 +549,9 @@ namespace Client.Main.Networking
 
         private ValueTask HandleDisconnectAsync()
         {
-            _logger.LogWarning("Connection lost.");
+            var previousState = _currentState;
+            _logger.LogWarning("Connection lost. Previous state: {PreviousState}", previousState);
             UpdateState(ClientConnectionState.Disconnected);
-            MuGame.ScheduleOnMainThread(() =>
-            {
-                ServerListReceived?.Invoke(this, new List<ServerInfo>());
-                CharacterListReceived?.Invoke(this, new List<(string Name, CharacterClassNumber Class, ushort Level)>());
-            });
 
             return new ValueTask(_packetRouter.OnDisconnected());
         }
