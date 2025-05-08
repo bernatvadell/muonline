@@ -32,7 +32,7 @@ namespace Client.Main.Objects
         private int _priorAction = 0;
         private bool _invalidatedBuffers = true;
         private float _blendMeshLight = 1f;
-        // private float _previousFrame = 0;
+        private double _animTime = 0.0;
         private bool _contentLoaded = false;
         public float ShadowOpacity { get; set; } = 1f;
         public Color Color { get; set; } = Color.White;
@@ -527,61 +527,45 @@ namespace Client.Main.Objects
 
         private void Animation(GameTime gameTime)
         {
-            if (LinkParentAnimation || Model == null || Model.Actions == null || Model.Actions.Length == 0)
-                return;
+            if (LinkParentAnimation) return;
+            if (Model?.Actions == null || Model.Actions.Length == 0) return;
 
             int currentActionIndex = CurrentAction;
+
             if (currentActionIndex < 0 || currentActionIndex >= Model.Actions.Length)
             {
-                _logger?.LogError("Animation Error: Invalid CurrentAction index {InvalidAction} for object {ObjectName} (Model: {ModelName}). Action count: {ActionCount}. Defaulting to action 0.",
-                                 currentActionIndex,
-                                 this.ObjectName ?? GetType().Name,
-                                 Model.Name ?? "Unknown",
-                                 Model.Actions.Length);
-
+                _logger?.LogError("Animation Error: invalid CurrentAction {Index} for {Obj}", currentActionIndex, ObjectName);
                 currentActionIndex = 0;
-
-                if (currentActionIndex >= Model.Actions.Length)
-                {
-                    _logger?.LogError("Animation Error: Default action 0 is also invalid for object {ObjectName} (Model: {ModelName}). Cannot animate.", this.ObjectName ?? GetType().Name, Model.Name ?? "Unknown");
-                    return;
-                }
-                // CurrentAction = currentActionIndex;
+                if (currentActionIndex >= Model.Actions.Length) return;
             }
 
-            var currentActionData = Model.Actions[currentActionIndex];
+            var action = Model.Actions[currentActionIndex];
+            int totalFrames = Math.Max(action.NumAnimationKeys, 1);
 
-            if (currentActionData.NumAnimationKeys <= 1)
+            if (totalFrames == 1)
             {
                 if (_priorAction != currentActionIndex)
                     GenerateBoneMatrix(currentActionIndex, 0, 0, 0);
-
                 _priorAction = currentActionIndex;
                 return;
             }
 
-            float frame = (float)(gameTime.TotalGameTime.TotalSeconds * AnimationSpeed);
-            int totalFrames = currentActionData.NumAnimationKeys - 1;
-            if (totalFrames <= 0)
-            {
-                _logger?.LogWarning("Animation Warning: totalFrames <= 0 for action {ActionIndex} in {ObjectName}. NumKeys: {NumKeys}", currentActionIndex, this.ObjectName ?? GetType().Name, currentActionData.NumAnimationKeys);
-                GenerateBoneMatrix(currentActionIndex, 0, 0, 0);
-                _priorAction = currentActionIndex;
-                return;
-            }
+            if (_priorAction != currentActionIndex)
+                _animTime = 0.0;
 
-            frame = frame % totalFrames;
+            float delta = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            float objFps = AnimationSpeed;
+            float playMul = action.PlaySpeed == 0 ? 1.0f : action.PlaySpeed;
+            float effectiveFps = Math.Max(0.01f, objFps * playMul);
 
-            int f0 = (int)frame;
-            int f1 = (f0 + 1) % currentActionData.NumAnimationKeys;
-            f1 = (f0 + 1);
-            if (f1 >= currentActionData.NumAnimationKeys)
-            {
-                f1 = currentActionData.NumAnimationKeys - 1;
-            }
+            _animTime += delta * effectiveFps;
+            double framePos = _animTime % totalFrames;
 
-            GenerateBoneMatrix(currentActionIndex, f0, f1, frame - f0);
+            int f0 = (int)framePos;
+            int f1 = (f0 + 1) % totalFrames;
+            float t = (float)(framePos - f0);
 
+            GenerateBoneMatrix(currentActionIndex, f0, f1, t);
             _priorAction = currentActionIndex;
         }
 

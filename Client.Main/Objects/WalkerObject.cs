@@ -144,86 +144,58 @@ namespace Client.Main.Objects
         /// </summary>
         public void PlayAction(ushort actionIndex)
         {
-            bool canRefreshTimer = this is MonsterObject &&
-                                   actionIndex != (int)MonsterActionType.Stop1 &&
-                                   actionIndex != (int)MonsterActionType.Walk &&
-                                   actionIndex != (int)MonsterActionType.Run;
-
-            if (CurrentAction == actionIndex && !canRefreshTimer)
+            if (Model?.Actions == null || actionIndex >= Model.Actions.Length)
                 return;
 
-            int previousAction = CurrentAction;
+            var act = Model.Actions[actionIndex];
+
+            bool isOneShot = this is MonsterObject m
+                             && actionIndex != (ushort)MonsterActionType.Stop1
+                             && actionIndex != (ushort)MonsterActionType.Stop2
+                             && actionIndex != (ushort)MonsterActionType.Walk
+                             && actionIndex != (ushort)MonsterActionType.Run
+                             && actionIndex != (ushort)MonsterActionType.Die;
+
+            if (!isOneShot && CurrentAction == actionIndex)
+                return;
+
             CurrentAction = actionIndex;
             InvalidateBuffers();
 
-            if (this is MonsterObject monster)
+            _autoIdleCts?.Cancel();
+            _autoIdleCts?.Dispose();
+            _autoIdleCts = null;
+
+            if (isOneShot && act.NumAnimationKeys > 1)
             {
-                switch ((MonsterActionType)actionIndex)
+                float objFps = AnimationSpeed;
+                float playMul = act.PlaySpeed == 0 ? 1.0f : act.PlaySpeed;
+                float effectiveFps = Math.Max(0.1f, objFps * playMul);
+
+                int frames = act.NumAnimationKeys;
+                int delayMs = (int)((frames / effectiveFps) * 1000f) + 100;
+                delayMs = Math.Clamp(delayMs, 50, 60_000);
+
+                _autoIdleCts = new CancellationTokenSource();
+                var token = _autoIdleCts.Token;
+
+                Task.Delay(delayMs, token).ContinueWith(t =>
                 {
-                    case MonsterActionType.Attack1:
-                    case MonsterActionType.Attack2:
-                    case MonsterActionType.Attack3:
-                    case MonsterActionType.Attack4:
-                        monster.OnPerformAttack(actionIndex - (int)MonsterActionType.Attack1 + 1);
-                        break;
-                    case MonsterActionType.Shock:
-                        monster.OnReceiveDamage();
-                        break;
-                    case MonsterActionType.Die:
-                        monster.OnDeathAnimationStart();
-                        break;
-                }
+                    if (t.IsCanceled || token.IsCancellationRequested) return;
 
-                const byte MonsterIdle = (byte)MonsterActionType.Stop1;
-                const byte MonsterWalk = (byte)MonsterActionType.Walk;
-                const byte MonsterRun = (byte)MonsterActionType.Run;
-                const byte MonsterDie = (byte)MonsterActionType.Die;
-
-                if (actionIndex == MonsterIdle || actionIndex == MonsterWalk || actionIndex == MonsterRun || actionIndex == MonsterDie ||
-                    (previousAction != MonsterIdle && previousAction != MonsterWalk && previousAction != MonsterRun && previousAction != MonsterDie && previousAction != CurrentAction))
-                {
-                    _autoIdleCts?.Cancel();
-                    _autoIdleCts?.Dispose();
-                    _autoIdleCts = null;
-                }
-
-                if (actionIndex != MonsterIdle && actionIndex != MonsterWalk && actionIndex != MonsterRun && actionIndex != MonsterDie)
-                {
-                    var actions = Model?.Actions;
-                    if (actions == null || actionIndex >= actions.Length)
-                        return;
-
-                    var act = actions[actionIndex];
-                    int frames = act?.NumAnimationKeys ?? 0;
-                    if (frames <= 0)
-                        return;
-
-                    float actionSpecificPlaySpeed = act.PlaySpeed != 0 ? act.PlaySpeed : 0.25f;
-                    float baseAnimationFps = 10.0f;
-                    float effectiveFps = baseAnimationFps * actionSpecificPlaySpeed * AnimationSpeed;
-                    if (effectiveFps <= 0.1f) effectiveFps = 0.1f;
-
-                    int msTotal = (int)(frames / effectiveFps * 1000.0f) + 100;
-
-                    _autoIdleCts = new CancellationTokenSource();
-                    var token = _autoIdleCts.Token;
-
-                    _ = Task.Delay(msTotal, token).ContinueWith(t =>
+                    MuGame.ScheduleOnMainThread(() =>
                     {
-                        if (t.IsCanceled || token.IsCancellationRequested) return;
-
-                        MuGame.ScheduleOnMainThread(() =>
+                        if (!IsMoving && CurrentAction == actionIndex)
                         {
-                            if (!IsMoving && CurrentAction == actionIndex)
-                            {
-                                if (Model?.Actions?.Length > MonsterIdle)
-                                {
-                                    CurrentAction = MonsterIdle;
-                                }
-                            }
-                        });
-                    }, token, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
-                }
+                            byte idle = this is MonsterObject
+                                        ? (byte)MonsterActionType.Stop1
+                                        : (byte)PlayerAction.StopMale; //TODO:female
+
+                            if (Model?.Actions != null && idle < Model.Actions.Length)
+                                CurrentAction = idle;
+                        }
+                    });
+                }, token, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
             }
         }
 
