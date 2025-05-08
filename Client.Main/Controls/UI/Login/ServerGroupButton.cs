@@ -32,6 +32,12 @@ namespace Client.Main.Controls.UI.Login
         {
             base.Update(gameTime);
 
+            if (Scene == null)
+            {
+                TileY = 0;
+                return;
+            }
+
             if (Selected)
                 TileY = 3;
             else if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && Scene.MouseControl == this)

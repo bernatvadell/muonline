@@ -142,7 +142,7 @@ namespace Client.Main.Objects
         /// Plays the specified action. For monsters/NPCs, automatically returns to idle
         /// when the animation finishes and the object is stationary.
         /// </summary>
-        public void PlayAction(byte actionIndex)
+        public void PlayAction(ushort actionIndex)
         {
             bool canRefreshTimer = this is MonsterObject &&
                                    actionIndex != (int)MonsterActionType.Stop1 &&

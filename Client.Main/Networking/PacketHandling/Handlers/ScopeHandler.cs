@@ -15,6 +15,7 @@ using Client.Main.Objects.Monsters;
 using Client.Main.Objects;
 using Client.Main.Objects.Effects;
 using Client.Main.Core.Client;
+using Client.Main.Scenes;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
@@ -394,9 +395,23 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 // Update local player's health/shield
                 if (maskedId == _characterState.Id)
                 {
+                    uint currentHpBeforeHit = _characterState.CurrentHealth;
                     uint newHp = (uint)Math.Max(0, (int)_characterState.CurrentHealth - (int)healthDmg);
                     uint newSd = (uint)Math.Max(0, (int)_characterState.CurrentShield - (int)shieldDmg);
                     _characterState.UpdateCurrentHealthShield(newHp, newSd);
+
+                    if (newHp == 0 && currentHpBeforeHit > 0)
+                    {
+                        _logger.LogWarning("💀 Local player (ID: {Id:X4}) died!", maskedId);
+                        MuGame.ScheduleOnMainThread(() =>
+                        {
+                            if (MuGame.Instance.ActiveScene is GameScene gs && gs.Hero != null)
+                            {
+                                gs.Hero.PlayAction((ushort)PlayerAction.PlayerDie1); //TODO: no action visible
+                                _logger.LogDebug("Triggered PlayerDie1 animation for local player.");
+                            }
+                        });
+                    }
                 }
                 else
                 {
@@ -404,8 +419,10 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     MuGame.ScheduleOnMainThread(() =>
                     {
                         if (MuGame.Instance.ActiveScene?.World is WorldControl world
-                            && world.TryGetWalkerById(maskedId, out var walker))
+                          && world.TryGetWalkerById(maskedId, out var walker) && walker is MonsterObject monster)
                         {
+                            monster.OnReceiveDamage();
+                            monster.PlayAction((byte)MonsterActionType.Shock);
                             _logger.LogDebug("Triggering hit animation for {Type} {Id:X4}", walker.GetType().Name, maskedId);
                         }
                     });

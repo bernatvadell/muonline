@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using MUnique.OpenMU.Network.Packets; // Needed for CharacterClassNumber
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Client.Main.Scenes
@@ -22,6 +23,7 @@ namespace Client.Main.Scenes
         private ServerGroupSelector _eventGroup;
         private ServerList _serverList;
         private LabelControl _statusLabel;
+        private ClientConnectionState _previousStateHandled = ClientConnectionState.Initial;
 
         private NetworkManager _networkManager;
         private ILogger<LoginScene> _logger;
@@ -165,12 +167,13 @@ namespace Client.Main.Scenes
         {
             MuGame.ScheduleOnMainThread(() =>
             {
-                _logger.LogDebug(">>> HandleConnectionStateChange (UI Thread): Received state {NewState}", newState);
+                _logger.LogDebug(">>> HandleConnectionStateChange (UI Thread): Received state {NewState} (Previous handled: {PrevState})", newState, _previousStateHandled);
                 UpdateStatusLabel(newState);
 
                 bool showServerSelectionUi = false;
                 bool showLoginDialog = false;
                 bool hideAll = false;
+                bool showErrorAndExit = false;
 
                 switch (newState)
                 {
@@ -184,7 +187,7 @@ namespace Client.Main.Scenes
                     case ClientConnectionState.RequestingConnectionInfo:
                     case ClientConnectionState.ReceivedConnectionInfo:
                     case ClientConnectionState.ConnectingToGameServer:
-                        hideAll = true; // Restore original logic: Hide UI during these transitions
+                        hideAll = true;
                         _logger.LogDebug("HandleConnectionStateChange: Setting hideAll = true");
                         break;
                     case ClientConnectionState.ConnectedToGameServer:
@@ -198,19 +201,46 @@ namespace Client.Main.Scenes
                         break;
                     case ClientConnectionState.SelectingCharacter:
                     case ClientConnectionState.InGame:
-                        hideAll = true; // Restore original logic: Hide UI post-login or during character selection
+                        hideAll = true;
                         _logger.LogDebug("HandleConnectionStateChange: Setting hideAll = true (Post-Login/SelectingCharacter)");
                         break;
                     case ClientConnectionState.Disconnected:
                     case ClientConnectionState.Initial:
                         ResetServerSelectionUI();
                         hideAll = true;
-                        _logger.LogDebug("HandleConnectionStateChange: Setting hideAll = true (Disconnected/Initial)");
+                        if (_previousStateHandled >= ClientConnectionState.ConnectingToConnectServer && _previousStateHandled < ClientConnectionState.InGame)
+                        {
+                            showErrorAndExit = true;
+                        }
+                        _logger.LogDebug("HandleConnectionStateChange: Setting hideAll = true (Disconnected/Initial). ShowError: {ShowError}", showErrorAndExit);
                         break;
                 }
 
                 UpdateUIVisibility(showServerSelectionUi, showLoginDialog, hideAll);
-                _logger.LogDebug("<<< HandleConnectionStateChange (UI Thread): Finished applying visibility.");
+
+                if (showErrorAndExit)
+                {
+                    if (!Controls.OfType<MessageWindow>().Any(mw => mw.Text.Contains("Connection lost")))
+                    {
+                        MessageWindow msg = MessageWindow.Show("Connection lost to the server.");
+                        if (msg != null)
+                        {
+                            msg.Closed += (s, e) =>
+                            {
+                                _logger.LogInformation("Closing game after connection lost message.");
+                                MuGame.ScheduleOnMainThread(() => MuGame.Instance.Exit());
+                            };
+                        }
+                        else
+                        {
+                            _logger.LogError("Failed to show MessageWindow for connection lost. Exiting game directly.");
+                            MuGame.ScheduleOnMainThread(() => MuGame.Instance.Exit());
+                        }
+                    }
+                }
+
+                _previousStateHandled = newState;
+                _logger.LogDebug("<<< HandleConnectionStateChange (UI Thread): Finished applying visibility. State handled: {NewState}", newState);
             });
         }
 
@@ -283,8 +313,15 @@ namespace Client.Main.Scenes
         {
             MuGame.ScheduleOnMainThread(() =>
             {
-                _logger.LogInformation(">>> HandleCharacterListReceived (UI Thread) for {Count} characters.",
-                    characters?.Count ?? 0);
+                if (_networkManager.CurrentState < ClientConnectionState.ConnectedToGameServer)
+                {
+                    _logger.LogWarning("HandleCharacterListReceived (UI Thread): Received character list but current state is {State}. Ignoring.", _networkManager.CurrentState);
+                    return;
+                }
+
+                _logger.LogInformation(">>> HandleCharacterListReceived (UI Thread) for {Count} characters. Current State: {State}",
+                    characters?.Count ?? 0, _networkManager.CurrentState);
+
                 if (MuGame.Instance.ActiveScene != this)
                 {
                     _logger.LogWarning("HandleCharacterListReceived (UI Thread): Scene changed. Aborting.");
