@@ -64,7 +64,7 @@ namespace Client.Main.Objects
             }
         }
         public bool RenderShadow { get => _renderShadow; set { _renderShadow = value; OnRenderShadowChanged(); } }
-        public float AnimationSpeed { get; set; } = 8f;
+        public float AnimationSpeed { get; set; } = 4f;
         public static ILoggerFactory AppLoggerFactory { get; private set; }
         private ILogger _logger => AppLoggerFactory?.CreateLogger<ModelObject>();
 
@@ -136,17 +136,20 @@ namespace Client.Main.Objects
 
         public override void Draw(GameTime gameTime)
         {
-            if (World == null)
-                return;
-
             if (!Visible || _boneIndexBuffers == null) return;
+
+            var gd = GraphicsDevice;
+            var prevCull = gd.RasterizerState;                      // zapisz
+            gd.RasterizerState = RasterizerState.CullClockwise ;
 
             GraphicsManager.Instance.AlphaTestEffect3D.View = Camera.Instance.View;
             GraphicsManager.Instance.AlphaTestEffect3D.Projection = Camera.Instance.Projection;
             GraphicsManager.Instance.AlphaTestEffect3D.World = WorldPosition;
 
-            DrawModel(false);
+            DrawModel(false);   // solid pass
             base.Draw(gameTime);
+
+            gd.RasterizerState = prevCull;
         }
 
         public virtual void DrawModel(bool isAfterDraw)
@@ -239,18 +242,34 @@ namespace Client.Main.Objects
 
                 int primitiveCount = indexBuffer.IndexCount / 3;
 
-                GraphicsManager.Instance.AlphaTestEffect3D.Texture = texture;
+                // GraphicsManager.Instance.AlphaTestEffect3D.Texture = texture;
+                // 
+                // GraphicsManager.Instance.AlphaTestEffect3D.Alpha = TotalAlpha;
+
+                var gd = GraphicsDevice;
+                var prevCull = gd.RasterizerState;
+                var prevBlend = gd.BlendState;
+
+                bool isTwoSided = _meshIsRGBA[mesh] || IsBlendMesh(mesh);
+                gd.RasterizerState = isTwoSided
+                    ? RasterizerState.CullNone
+                    : RasterizerState.CullClockwise;
+
                 GraphicsDevice.BlendState = IsBlendMesh(mesh) ? BlendMeshState : BlendState;
+                GraphicsManager.Instance.AlphaTestEffect3D.Texture = texture;
                 GraphicsManager.Instance.AlphaTestEffect3D.Alpha = TotalAlpha;
 
-                foreach (EffectPass pass in GraphicsManager.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
+                foreach (var pass in GraphicsManager.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
                 {
                     pass.Apply();
-
-                    GraphicsDevice.SetVertexBuffer(vertexBuffer);
-                    GraphicsDevice.Indices = indexBuffer;
-                    GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+                    gd.SetVertexBuffer(vertexBuffer);
+                    gd.Indices = indexBuffer;
+                    gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
                 }
+
+                // ❹ przywrócenie stanów
+                gd.BlendState = prevBlend;
+                gd.RasterizerState = prevCull;
             }
             catch (Exception ex)
             {
@@ -458,13 +477,19 @@ namespace Client.Main.Objects
         {
             if (!Visible) return;
 
+            var gd = GraphicsDevice;
+            var prevCull = gd.RasterizerState;
+            // ZMIANA: Użyj CullCounterClockwise
+            gd.RasterizerState = RasterizerState.CullCounterClockwise;
+
             GraphicsManager.Instance.AlphaTestEffect3D.View = Camera.Instance.View;
             GraphicsManager.Instance.AlphaTestEffect3D.Projection = Camera.Instance.Projection;
             GraphicsManager.Instance.AlphaTestEffect3D.World = WorldPosition;
 
-            DrawModel(true);
-
+            DrawModel(true);    // RGBA / blend mesh
             base.DrawAfter(gameTime);
+
+            gd.RasterizerState = prevCull;
         }
 
         public override void Dispose()

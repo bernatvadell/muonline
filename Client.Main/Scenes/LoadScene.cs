@@ -8,6 +8,7 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Client.Main.Controllers;
 using Client.Main.Controls.UI;
+using Client.Main.Helpers;
 using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -264,13 +265,13 @@ namespace Client.Main.Scenes
 
         private VertexPositionColor[] CreateRectangleVertices(Vector2 pos, Vector2 size, Color color)
         {
-            return new VertexPositionColor[]
-            {
+            return
+            [
                 new VertexPositionColor(new Vector3(pos.X, pos.Y, 0), color),
                 new VertexPositionColor(new Vector3(pos.X + size.X, pos.Y, 0), color),
                 new VertexPositionColor(new Vector3(pos.X, pos.Y + size.Y, 0), color),
                 new VertexPositionColor(new Vector3(pos.X + size.X, pos.Y + size.Y, 0), color)
-            };
+            ];
         }
 
         #endregion
@@ -289,14 +290,17 @@ namespace Client.Main.Scenes
 
         private void DrawSceneBackground()
         {
-            if (_backgroundTexture != null)
+            if (_backgroundTexture == null)
+                return;
+
+            var spriteBatch = GraphicsManager.Instance.Sprite;
+
+            using (new SpriteBatchScope(spriteBatch))
             {
-                var spriteBatch = GraphicsManager.Instance.Sprite;
-                spriteBatch.Begin();
-                spriteBatch.Draw(_backgroundTexture,
+                spriteBatch.Draw(
+                    _backgroundTexture,
                     new Rectangle(0, 0, MuGame.Instance.Width, MuGame.Instance.Height),
                     Color.White);
-                spriteBatch.End();
             }
         }
 

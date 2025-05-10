@@ -114,36 +114,26 @@ namespace Client.Main.Controls.UI.Game
                     {
                         AutoViewSize = false,
                         TexturePath = DefaultTexturePath,
-                        BlendState = BlendState.AlphaBlend,
+                        // ⬇  OZD ≠ premultiply → NonPremultiplied
+                        BlendState = BlendState.NonPremultiplied,
                         Name = info.Name
                     };
 
                     // Sets the texture rectangle if data is available
-                    var texRect = TextureRectDatas.FirstOrDefault(tr => tr.Name == info.Name);
-                    if (texRect != null)
-                    {
-                        textureCtrl.TextureRectangle = new Rectangle(texRect.X, texRect.Y, texRect.Width, texRect.Height);
-                    }
-                    else
-                    {
-                        textureCtrl.TextureRectangle = new Rectangle(0, 0, info.Width, info.Height);
-                    }
+                    var texRect = TextureRectDatas.FirstOrDefault(t => t.Name == info.Name);
+                    textureCtrl.TextureRectangle = texRect != null
+                        ? new Rectangle(texRect.X, texRect.Y, texRect.Width, texRect.Height)
+                        : new Rectangle(0, 0, info.Width, info.Height);
+
                     ctrl = textureCtrl;
                 }
 
                 // If the control inherits from ExtendedUIControl, its RenderOrder is set based on the Z field.
-                if (ctrl is ExtendedUIControl extCtrl)
-                {
-                    extCtrl.RenderOrder = info.Z;
-                }
+                if (ctrl is ExtendedUIControl ex) ex.RenderOrder = info.Z;
 
                 // Setting alpha if a value is assigned in AlphaOverrides
-                if (AlphaOverrides.TryGetValue(info.Name, out float alpha))
-                {
-                    // Assuming the control has an Alpha property – usually TextureControl
-                    if (ctrl is TextureControl texCtrl)
-                        texCtrl.Alpha = alpha;
-                }
+                if (AlphaOverrides.TryGetValue(info.Name, out var a) && ctrl is TextureControl tc)
+                    tc.Alpha = a;
 
                 // Stores layout data in Tag (optional)
                 ctrl.Tag = info;

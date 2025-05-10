@@ -10,16 +10,26 @@ namespace Client.Main.Objects.Player
         public PlayerClass PlayerClass
         {
             get => _playerClass;
-            set { if (_playerClass != value) { _playerClass = value; OnChangePlayerClass(); } }
+            set { _playerClass = value; } // Only set the field, no async logic here
         }
 
+        // New async setter for correct model loading
+        public async Task SetPlayerClassAsync(PlayerClass playerClass)
+        {
+            if (_playerClass != playerClass)
+            {
+                _playerClass = playerClass;
+                await OnChangePlayerClass();
+            }
+        }
 
         public PlayerMaskHelmObject()
         {
             RenderShadow = true; // Or false if it shouldn't cast shadows
         }
 
-        private async void OnChangePlayerClass()
+        // Now returns Task, not void
+        private async Task OnChangePlayerClass()
         {
             // Determine path based on class, potentially male/female if needed
             // Assuming a single file per class for now

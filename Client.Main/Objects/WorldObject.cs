@@ -1,5 +1,6 @@
 ﻿using Client.Main.Controllers;
 using Client.Main.Controls;
+using Client.Main.Helpers;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -28,7 +29,6 @@ namespace Client.Main.Objects
         public int RenderOrder { get; set; }
         public DepthStencilState DepthState { get; set; } = DepthStencilState.Default;
 
-        private SpriteBatch _spriteBatch;
         private SpriteFont _font;
         private Texture2D _whiteTexture;
 
@@ -73,7 +73,6 @@ namespace Client.Main.Objects
             Children = new ChildrenCollection<WorldObject>(this);
             Children.ControlAdded += Children_ControlAdded;
 
-            _spriteBatch = new SpriteBatch(GraphicsDevice);
             _font = GraphicsManager.Instance.Font;
         }
 
@@ -227,7 +226,6 @@ namespace Client.Main.Objects
             Parent = null;
 
             _whiteTexture?.Dispose();
-            _spriteBatch?.Dispose();
         }
 
         protected virtual void OnPositionChanged() => RecalculateWorldPosition();
@@ -314,81 +312,88 @@ namespace Client.Main.Objects
 
         private void DrawBoundingBox2D()
         {
-            if (Constants.DRAW_BOUNDING_BOXES && IsMouseHover && _spriteBatch != null && _font != null)
-            {
-                Vector3 textPosition = new Vector3(
-                    (BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) / 2,
-                    BoundingBoxWorld.Max.Y + 0.5f,
-                    (BoundingBoxWorld.Min.Z + BoundingBoxWorld.Max.Z) / 2
-                );
+            if (!(Constants.DRAW_BOUNDING_BOXES && IsMouseHover && _font != null))
+                return;
 
-                Vector3 screenPos = GraphicsDevice.Viewport.Project(
-                    textPosition,
+            // Build the info string and compute positions as before...
+            var sbInfo = new System.Text.StringBuilder();
+            sbInfo.AppendLine(GetType().Name);
+            sbInfo.Append("Type ID: ").AppendLine(Type.ToString());
+            sbInfo.Append("Alpha: ").AppendLine(TotalAlpha.ToString());
+            sbInfo.Append("X: ").Append(Position.X).Append(" Y: ").Append(Position.Y)
+                  .Append(" Z: ").AppendLine(Position.Z.ToString());
+            sbInfo.Append("Depth: ").AppendLine(Depth.ToString());
+            sbInfo.Append("Render order: ").AppendLine(RenderOrder.ToString());
+            sbInfo.Append("DepthStencilState: ").Append(DepthState.Name);
+            string objectInfo = sbInfo.ToString();
+
+            float scaleFactor = DebugFontSize / Constants.BASE_FONT_SIZE;
+            Vector2 textSize = _font.MeasureString(objectInfo) * scaleFactor;
+            Vector2 baseTextPos = new Vector2(
+                (int)(GraphicsDevice.Viewport.Project(
+                    new Vector3(
+                        (BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) / 2,
+                        BoundingBoxWorld.Max.Y + 0.5f,
+                        (BoundingBoxWorld.Min.Z + BoundingBoxWorld.Max.Z) / 2),
                     Camera.Instance.Projection,
                     Camera.Instance.View,
                     Matrix.Identity
-                );
+                ).X - textSize.X / 2),
+                (int)GraphicsDevice.Viewport.Project(
+                    new Vector3(
+                        (BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) / 2,
+                        BoundingBoxWorld.Max.Y + 0.5f,
+                        (BoundingBoxWorld.Min.Z + BoundingBoxWorld.Max.Z) / 2),
+                    Camera.Instance.Projection,
+                    Camera.Instance.View,
+                    Matrix.Identity
+                ).Y
+            );
 
-                // Use StringBuilder to build the informational text efficiently
-                var sb = new System.Text.StringBuilder();
-                sb.AppendLine(GetType().Name);
-                sb.Append("Type ID: ").AppendLine(Type.ToString());
-                sb.Append("Alpha: ").AppendLine(TotalAlpha.ToString());
-                sb.Append("X: ").Append(Position.X).Append(" Y: ").Append(Position.Y)
-                  .Append(" Z: ").AppendLine(Position.Z.ToString());
-                sb.Append("Depth: ").AppendLine(Depth.ToString());
-                sb.Append("Render order: ").AppendLine(RenderOrder.ToString());
-                sb.Append("DepthStencilState: ").Append(DepthState.Name);
-                string objectInfo = sb.ToString();
+            // Save previous states
+            var prevBlend = GraphicsDevice.BlendState;
+            var prevDepth = GraphicsDevice.DepthStencilState;
+            var prevRaster = GraphicsDevice.RasterizerState;
 
-                float baseFontSize = Constants.BASE_FONT_SIZE;
-                float scaleFactor = DebugFontSize / baseFontSize;
-                Vector2 textSize = _font.MeasureString(objectInfo) * scaleFactor;
-                Vector2 baseTextPos = new Vector2((int)(screenPos.X - textSize.X / 2), (int)screenPos.Y);
+            var sb = GraphicsManager.Instance.Sprite;
+            using (new SpriteBatchScope(
+                sb,
+                SpriteSortMode.Deferred,
+                BlendState.AlphaBlend,
+                SamplerState.PointClamp,
+                DepthStencilState.None,
+                RasterizerState.CullNone,
+                effect: null,
+                transform: Matrix.Identity))
+            {
+                // Background
+                var bgColor = new Color(0, 0, 0, 180);
+                var bgRect = new Rectangle(
+                    (int)baseTextPos.X - 5,
+                    (int)baseTextPos.Y - 5,
+                    (int)textSize.X + 10,
+                    (int)textSize.Y + 10);
+                DrawTextBackground(sb, bgRect, bgColor);
 
-                // Save current graphic states
-                var previousBlendState = GraphicsDevice.BlendState;
-                var previousDepthState = GraphicsDevice.DepthStencilState;
-                var previousRasterizerState = GraphicsDevice.RasterizerState;
-
-                try
-                {
-                    _spriteBatch.Begin(
-                        SpriteSortMode.Deferred,
-                        BlendState.AlphaBlend,
-                        SamplerState.PointClamp,
-                        DepthStencilState.None,
-                        RasterizerState.CullNone,
-                        null,
-                        Matrix.Identity
-                    );
-
-                    // Draw text background
-                    var backgroundColor = new Color(0, 0, 0, 180);
-                    var backgroundRect = new Rectangle(
-                        (int)baseTextPos.X - 5,
-                        (int)baseTextPos.Y - 5,
-                        (int)textSize.X + 10,
-                        (int)textSize.Y + 10
-                    );
-
-                    DrawTextBackground(_spriteBatch, backgroundRect, backgroundColor);
-
-                    // Draw the informational text
-                    _spriteBatch.DrawString(_font, objectInfo, baseTextPos, Color.Yellow, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 0);
-                    _spriteBatch.End();
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine(ex);
-                }
-
-                // Restore previous graphic states
-                GraphicsDevice.BlendState = previousBlendState;
-                GraphicsDevice.DepthStencilState = previousDepthState;
-                GraphicsDevice.RasterizerState = previousRasterizerState;
+                // Text
+                sb.DrawString(
+                    _font,
+                    objectInfo,
+                    baseTextPos,
+                    Color.Yellow,
+                    0f,
+                    Vector2.Zero,
+                    scaleFactor,
+                    SpriteEffects.None,
+                    0f);
             }
+
+            // Restore previous GPU states
+            GraphicsDevice.BlendState = prevBlend;
+            GraphicsDevice.DepthStencilState = prevDepth;
+            GraphicsDevice.RasterizerState = prevRaster;
         }
+
 
         private void DrawTextBackground(SpriteBatch spriteBatch, Rectangle rect, Color color)
         {

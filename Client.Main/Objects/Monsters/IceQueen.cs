@@ -1,7 +1,6 @@
 ﻿using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Controls;
-using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
 
@@ -13,6 +12,7 @@ namespace Client.Main.Objects.Monsters
         public IceQueen()
         {
             RenderShadow = true;
+            BlendMesh = 2;
             Scale = 1.1f; // Set according to C++ Setting_Monster
         }
 

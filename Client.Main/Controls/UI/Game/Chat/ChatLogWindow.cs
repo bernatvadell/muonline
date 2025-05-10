@@ -391,7 +391,8 @@ namespace Client.Main.Controls.UI
 
         public override void Draw(GameTime gameTime)
         {
-            if (Status != GameControlStatus.Ready || !Visible || _font == null) return;
+            if (Status != GameControlStatus.Ready || !Visible || _font == null)
+                return;
 
             var spriteBatch = GraphicsManager.Instance.Sprite;
             var currentMsgList = _messages[_currentViewType];
@@ -401,61 +402,60 @@ namespace Client.Main.Controls.UI
             float startX = DisplayRectangle.X + WND_LEFT_RIGHT_EDGE;
             float clientWidth = CalculateClientWidth();
 
-            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.NonPremultiplied);
-
             // 1. Draw background (only when frame is visible)
             if (_showFrame)
             {
-                Color bgColor = new Color(0, 0, 0) * _backgroundAlpha;
-                spriteBatch.Draw(GraphicsManager.Instance.Pixel, DisplayRectangle, bgColor);
+                Color bg = new Color(0, 0, 0) * _backgroundAlpha;
+                spriteBatch.Draw(GraphicsManager.Instance.Pixel, DisplayRectangle, bg);
             }
 
             // 2. Draw messages
             if (totalLinesInView > 0 && _lineHeight > 0)
             {
-                int firstVisibleLineGlobalIndex = Math.Max(0, totalLinesInView - _showingLines - _scrollOffset);
-                int lastVisibleLineGlobalIndex = Math.Min(totalLinesInView - 1, firstVisibleLineGlobalIndex + _showingLines - 1);
-
-                int actualMessagesToDraw = Math.Max(0, lastVisibleLineGlobalIndex - firstVisibleLineGlobalIndex + 1);
-                float currentY = startY;
+                int first = Math.Max(0, totalLinesInView - _showingLines - _scrollOffset);
+                int last = Math.Min(totalLinesInView - 1, first + _showingLines - 1);
+                float y = startY;
 
                 // Align to bottom if fewer messages than space
-                if (actualMessagesToDraw < _showingLines)
-                {
-                    currentY += (_showingLines - actualMessagesToDraw) * _lineHeight;
-                }
+                int drawCount = last - first + 1;
+                if (drawCount < _showingLines)
+                    y += (_showingLines - drawCount) * _lineHeight;
 
-                for (int i = firstVisibleLineGlobalIndex; i <= lastVisibleLineGlobalIndex; i++)
+                for (int i = first; i <= last; i++)
                 {
-                    ChatMessage msg = currentMsgList[i];
-                    Color textColor = GetMessageColor(msg.Type);
-                    Color bgColor = GetMessageBackgroundColor(msg.Type, _showFrame);
-                    SpriteFont currentFont = (msg.Type == MessageType.GM) ? _fontBold : _font;
-                    Vector2 textPos = new Vector2(startX, currentY);
+                    var msg = currentMsgList[i];
+                    var font = msg.Type == MessageType.GM ? _fontBold : _font;
+                    var text = msg.DisplayText;
+                    var textPos = new Vector2(startX, y);
+                    var txtCol = GetMessageColor(msg.Type);
+                    var bgCol = GetMessageBackgroundColor(msg.Type, _showFrame);
 
                     // Draw message background if any
-                    if (bgColor.A > 0)
+                    if (bgCol.A > 0)
                     {
                         // MeasureString can be slow, consider caching or estimating
-                        float textWidth = currentFont.MeasureString(msg.DisplayText).X * _fontScale;
+                        float textWidth = font.MeasureString(text).X * _fontScale;
                         float bgWidth = Math.Min(clientWidth, textWidth);
-                        Rectangle bgRect = new Rectangle((int)textPos.X, (int)textPos.Y, (int)bgWidth, (int)_lineHeight);
-                        spriteBatch.Draw(GraphicsManager.Instance.Pixel, bgRect, bgColor);
+                        spriteBatch.Draw(GraphicsManager.Instance.Pixel,
+                                new Rectangle((int)textPos.X, (int)textPos.Y, (int)bgWidth, (int)_lineHeight),
+                                bgCol);
                     }
 
                     // Hover effect (only when frame is visible)
                     if (_showFrame && i == _hoveredMessageGlobalIndex)
                     {
                         // Always draw hover highlight (for testing)
-                        Rectangle lineRect = new Rectangle((int)startX, (int)currentY, (int)clientWidth, (int)_lineHeight);
-                        spriteBatch.Draw(GraphicsManager.Instance.Pixel, lineRect, new Color(30, 30, 30, 180));
-                        textColor = new Color(255, 128, 255); // Hover text color
+                        var hoverRect = new Rectangle(
+                            (int)startX, (int)y,
+                            (int)clientWidth, (int)_lineHeight);
+                        spriteBatch.Draw(GraphicsManager.Instance.Pixel, hoverRect, new Color(30, 30, 30, 180));
+                        txtCol = new Color(255, 128, 255); // Hover text color
                     }
 
                     // Draw text
-                    spriteBatch.DrawString(currentFont, msg.DisplayText, textPos, textColor, 0f, Vector2.Zero, _fontScale, SpriteEffects.None, 0f);
+                    spriteBatch.DrawString(font, text, textPos, txtCol, 0f, Vector2.Zero, _fontScale, SpriteEffects.None, 0f);
 
-                    currentY += _lineHeight;
+                    y += _lineHeight;
                 }
             }
 
@@ -465,8 +465,6 @@ namespace Client.Main.Controls.UI
                 DrawScrollbar(spriteBatch);
                 DrawResizeHandle(spriteBatch);
             }
-
-            spriteBatch.End();
         }
 
         // --- Private Helper Methods ---

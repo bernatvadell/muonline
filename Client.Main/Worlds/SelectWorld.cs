@@ -17,6 +17,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace Client.Main.Worlds
 {
@@ -225,6 +226,18 @@ namespace Client.Main.Worlds
             {
                 Camera.Instance.ViewFar -= 10;
             }
+        }
+
+        public override void Draw(GameTime gameTime)
+        {
+            // Ensure correct render states for DirectX (and OpenGL for consistency)
+            var gd = GraphicsManager.Instance.GraphicsDevice;
+            gd.BlendState = BlendState.AlphaBlend;
+            gd.DepthStencilState = DepthStencilState.Default;
+            gd.SamplerStates[0] = SamplerState.LinearClamp;
+            // This prevents state leakage and texture corruption, especially on DirectX
+
+            base.Draw(gameTime);
         }
 
         // Keep existing DrawAfter if needed, otherwise remove if labels are handled by base Draw

@@ -10,7 +10,17 @@ namespace Client.Main.Objects.Player
         public PlayerClass PlayerClass
         {
             get => _playerClass;
-            set { if (_playerClass != value) { _playerClass = value; OnChangePlayerClass(); } }
+            set { _playerClass = value; } // Only set the field, no async logic here
+        }
+
+        // New async setter for correct model loading
+        public async Task SetPlayerClassAsync(PlayerClass playerClass)
+        {
+            if (_playerClass != playerClass)
+            {
+                _playerClass = playerClass;
+                await OnChangePlayerClass();
+            }
         }
 
         public PlayerHelmObject()
@@ -19,7 +29,8 @@ namespace Client.Main.Objects.Player
             // Initial class might be set later by PlayerObject
         }
 
-        private async void OnChangePlayerClass()
+        // Now returns Task, not void
+        private async Task OnChangePlayerClass()
         {
             // Uses the PlayerClass enum value (e.g., 1 for DW) and formats it to two digits (01)
             Model = await BMDLoader.Instance.Prepare($"Player/HelmClass{(int)PlayerClass:D2}.bmd");

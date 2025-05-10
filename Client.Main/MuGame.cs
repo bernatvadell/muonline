@@ -80,6 +80,10 @@ namespace Client.Main
             _graphics.GraphicsProfile = GraphicsProfile.HiDef;
             _graphics.ApplyChanges();
             Content.RootDirectory = "Content";
+
+            // Register handler for game exit (X button, Alt+F4, etc.)
+            // This ensures proper cleanup and process termination.
+            this.Exiting += OnGameExiting;
         }
 
         /// <summary>
@@ -441,7 +445,8 @@ namespace Client.Main
             GraphicsDevice.SetRenderTarget(GraphicsManager.Instance.MainRenderTarget);
             GraphicsDevice.Clear(Color.Black);
 
-            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+            // Ensure correct culling for 3D models
+            GraphicsDevice.RasterizerState = RasterizerState.CullCounterClockwise;
             GraphicsDevice.DepthStencilState = DepthStencilState.Default;
             GraphicsDevice.BlendState = BlendState.AlphaBlend;
 
@@ -516,8 +521,9 @@ namespace Client.Main
 
             try
             {
-                // DisposeAsync → Task → synchronous GetResult() – no deadlock
-                Network.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                // Fire-and-forget async dispose to avoid deadlock on shutdown.
+                // Blocking here (e.g., .GetAwaiter().GetResult()) can cause a hang if async code needs the main thread.
+                _ = Network.DisposeAsync();
             }
             catch (ObjectDisposedException)
             {
@@ -527,6 +533,17 @@ namespace Client.Main
             {
                 _logger?.LogError(ex, "Unexpected error while disposing NetworkManager.");
             }
+        }
+
+        /// <summary>
+        /// Handles the Game.Exiting event to ensure proper cleanup and process termination.
+        /// </summary>
+        private void OnGameExiting(object sender, EventArgs e)
+        {
+            // Dispose the game instance and all resources
+            DisposeInstance();
+            // Force process exit to avoid lingering background process
+            Environment.Exit(0);
         }
     }
 }

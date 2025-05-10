@@ -1,5 +1,4 @@
-﻿using Client.Main.Controllers;
-using Client.Main.Models;
+﻿using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -109,11 +108,8 @@ namespace Client.Main.Controls.UI
             if (Status != GameControlStatus.Ready || !Visible)
                 return;
 
-            var spriteBatch = GraphicsManager.Instance.Sprite;
-            spriteBatch.Begin();
             DrawBackground();
             DrawBorder();
-            spriteBatch.End();
 
             _label?.Draw(gameTime);
             _okButton?.Draw(gameTime);

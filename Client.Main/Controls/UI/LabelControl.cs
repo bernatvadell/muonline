@@ -105,183 +105,158 @@ namespace Client.Main.Controls.UI
             if (!Visible || string.IsNullOrEmpty(_renderedText))
                 return;
 
-            SpriteBatch sprite = GraphicsManager.Instance.Sprite;
+            var sb = GraphicsManager.Instance.Sprite;
+            var font = GraphicsManager.Instance.Font;
 
-            Vector2 location = UseManualPosition
-                ? new Vector2(X, Y)
-                : DisplayRectangle.Location.ToVector2();
+            sb.End();
 
-            if (TextAlign == HorizontalAlign.Center)
-                location.X += (ViewSize.X - ControlSize.X) / 2;
-            else if (TextAlign == HorizontalAlign.Right)
-                location.X += ViewSize.X - ControlSize.X;
-
-            location.Y += (ViewSize.Y - ControlSize.Y) / 2;
-
-            // Calculate final text color with Alpha
-            byte finalAlpha = (byte)(255 * Alpha);
-            Color finalTextColor = new Color(TextColor.R, TextColor.G, TextColor.B, finalAlpha);
-
-            float italicSkewFactor = IsItalic ? 0.2f : 0f;
-            Vector2 textPosition = location;
+            Vector2 origin;
+            if (UseManualPosition)
+            {
+                origin = new Vector2(X, Y);
+            }
+            else
+            {
+                origin = DisplayRectangle.Location.ToVector2();
+                if (TextAlign == HorizontalAlign.Center)
+                    origin.X += (ViewSize.X - ControlSize.X) * 0.5f;
+                else if (TextAlign == HorizontalAlign.Right)
+                    origin.X += (ViewSize.X - ControlSize.X);
+                origin.Y += (ViewSize.Y - ControlSize.Y) * 0.5f;
+            }
 
             // Create a transformation matrix for italic text that doesn't affect Y positioning
             Matrix italicTransform = Matrix.Identity;
             if (IsItalic)
             {
-                italicTransform = Matrix.CreateTranslation(-location.X, -location.Y, 0) *
-                                  MatrixExtensions.CreateSkew(-italicSkewFactor, 0) * // Note: skewY is 0
-                                  Matrix.CreateTranslation(location.X, location.Y, 0);
+                const float skew = 0.2f;
+                italicTransform =
+                    Matrix.CreateTranslation(-origin.X, -origin.Y, 0f) *
+                    MatrixExtensions.CreateSkew(-skew, 0f) *
+                    Matrix.CreateTranslation(origin.X, origin.Y, 0f);
             }
 
             // Draw shadow
             if (HasShadow)
             {
-                byte shadowA = (byte)(255 * ShadowOpacity * Alpha);
-                Color shadowColor = new Color(ShadowColor.R, ShadowColor.G, ShadowColor.B, shadowA);
-                Vector2 shadowPosition = textPosition + ShadowOffset;
+                sb.Begin(
+                    SpriteSortMode.Deferred,
+                    BlendState.NonPremultiplied,
+                    null, null, null, null,
+                    italicTransform);
 
-                // Begin with proper transform matrix for shadow
-                sprite.Begin(SpriteSortMode.Deferred, BlendState.NonPremultiplied,
-                             null, null, null, null,
-                             IsItalic ? italicTransform : Matrix.Identity);
+                var shadowA = (byte)(255 * ShadowOpacity * Alpha);
+                var shadowCol = new Color(ShadowColor.R, ShadowColor.G, ShadowColor.B, shadowA);
+                var shadowPos = origin + ShadowOffset;
 
                 if (IsBold)
                 {
-                    // For shadow in bold mode, use less opacity for each layer
-                    byte layerShadowAlpha = (byte)(shadowA / (2 * BoldWeight + 1));
-                    Color layerShadowColor = new Color(ShadowColor.R, ShadowColor.G, ShadowColor.B, layerShadowAlpha);
-
-                    for (int x = -BoldWeight; x <= BoldWeight; x++)
-                    {
-                        for (int y = -BoldWeight; y <= BoldWeight; y++)
+                    byte layerA = (byte)(shadowA / (2 * BoldWeight + 1));
+                    var layerCol = new Color(ShadowColor.R, ShadowColor.G, ShadowColor.B, layerA);
+                    for (int dx = -BoldWeight; dx <= BoldWeight; dx++)
+                        for (int dy = -BoldWeight; dy <= BoldWeight; dy++)
                         {
-                            if (x == 0 && y == 0) continue; // Skip central pixel
-
-                            Vector2 offsetPosition = shadowPosition + new Vector2(x, y) * 0.5f;
-
-                            sprite.DrawString(
-                                GraphicsManager.Instance.Font,
+                            if (dx == 0 && dy == 0) continue;
+                            sb.DrawString(
+                                font,
                                 _renderedText,
-                                offsetPosition,
-                                layerShadowColor,
-                                0f, // no rotation
-                                Vector2.Zero,
+                                shadowPos + new Vector2(dx, dy) * 0.5f,
+                                layerCol,
+                                0f, Vector2.Zero,
                                 _scaleFactor,
                                 SpriteEffects.None,
-                                0f
-                            );
+                                0f);
                         }
-                    }
                 }
                 else
                 {
-                    // Regular shadow
-                    sprite.DrawString(
-                        GraphicsManager.Instance.Font,
+                    sb.DrawString(
+                        font,
                         _renderedText,
-                        shadowPosition,
-                        shadowColor,
-                        0f, // no rotation
-                        Vector2.Zero,
+                        shadowPos,
+                        shadowCol,
+                        0f, Vector2.Zero,
                         _scaleFactor,
                         SpriteEffects.None,
-                        0f
-                    );
+                        0f);
                 }
-                sprite.End();
+
+                sb.End();
             }
 
             // Draw main text
-            sprite.Begin(SpriteSortMode.Deferred, BlendState.NonPremultiplied,
-                         null, null, null, null,
-                         IsItalic ? italicTransform : Matrix.Identity);
+            sb.Begin(
+                SpriteSortMode.Deferred,
+                BlendState.NonPremultiplied,
+                null, null, null, null,
+                italicTransform);
 
             if (IsBold)
             {
-                // Bold text simulation with correct alpha
-                byte layerAlpha = (byte)(finalAlpha / (2 * BoldWeight + 1));
-                Color layerColor = new Color(TextColor.R, TextColor.G, TextColor.B, layerAlpha);
-
-                for (int x = -BoldWeight; x <= BoldWeight; x++)
-                {
-                    for (int y = -BoldWeight; y <= BoldWeight; y++)
+                byte layerA = (byte)(255 * Alpha / (2 * BoldWeight + 1));
+                var layerCol = new Color(TextColor.R, TextColor.G, TextColor.B, layerA);
+                for (int dx = -BoldWeight; dx <= BoldWeight; dx++)
+                    for (int dy = -BoldWeight; dy <= BoldWeight; dy++)
                     {
-                        // Skip central pixel, will be added at the end
-                        if (x == 0 && y == 0) continue;
-
-                        Vector2 offsetPosition = textPosition + new Vector2(x, y) * 0.5f;
-
-                        sprite.DrawString(
-                            GraphicsManager.Instance.Font,
+                        if (dx == 0 && dy == 0) continue;
+                        sb.DrawString(
+                            font,
                             _renderedText,
-                            offsetPosition,
-                            layerColor,
-                            0f, // no rotation
-                            Vector2.Zero,
+                            origin + new Vector2(dx, dy) * 0.5f,
+                            layerCol,
+                            0f, Vector2.Zero,
                             _scaleFactor,
                             SpriteEffects.None,
-                            0f
-                        );
+                            0f);
                     }
-                }
             }
 
-            // Draw main text always at the end (on top)
-            sprite.DrawString(
-                GraphicsManager.Instance.Font,
+            var mainCol = new Color(TextColor.R, TextColor.G, TextColor.B, (byte)(255 * Alpha));
+            sb.DrawString(
+                font,
                 _renderedText,
-                textPosition,
-                IsBold ? new Color(TextColor.R, TextColor.G, TextColor.B, (byte)(finalAlpha / (2 * BoldWeight + 1))) : finalTextColor,
-                0f, // no rotation
-                Vector2.Zero,
+                origin,
+                mainCol,
+                0f, Vector2.Zero,
                 _scaleFactor,
                 SpriteEffects.None,
-                0f
-            );
+                0f);
 
             // Draw underline if enabled
             if (HasUnderline)
             {
-                Vector2 textSize = GraphicsManager.Instance.Font.MeasureString(_renderedText) * _scaleFactor;
-                float underlineThickness = Math.Max(1, _fontSize / 15);
-                float underlineYOffset = textSize.Y * 0.9f;
-                Vector2 underlineStart = new Vector2(textPosition.X, textPosition.Y + underlineYOffset);
-                Vector2 underlineEnd = new Vector2(textPosition.X + textSize.X, textPosition.Y + underlineYOffset);
+                var textSize = font.MeasureString(_renderedText) * _scaleFactor;
+                float thick = Math.Max(1, _fontSize / 15f);
+                Vector2 start = origin + new Vector2(0, textSize.Y * 0.9f);
+                Vector2 end = start + new Vector2(
+                    textSize.X + (IsItalic ? textSize.Y * 0.2f : 0f),
+                    0f);
 
-                // If text is italic, adjust underline position
-                if (IsItalic)
-                {
-                    // Shift underline end for italic
-                    underlineEnd.X += textSize.Y * italicSkewFactor;
-                }
-
-                // Draw underline using the pixel texture
-                Texture2D pixel = GraphicsManager.Instance.GetPixelTexture();
+                var pixel = GraphicsManager.Instance.GetPixelTexture();
                 if (pixel != null)
                 {
-                    Vector2 delta = underlineEnd - underlineStart;
+                    var delta = end - start;
                     float angle = (float)Math.Atan2(delta.Y, delta.X);
-                    float length = delta.Length();
-
-                    sprite.Draw(
+                    float len = delta.Length();
+                    sb.Draw(
                         pixel,
-                        underlineStart,
+                        start,
                         null,
-                        finalTextColor,
+                        mainCol,
                         angle,
                         Vector2.Zero,
-                        new Vector2(length, underlineThickness),
+                        new Vector2(len, thick),
                         SpriteEffects.None,
-                        0
-                    );
+                        0f);
                 }
             }
-            sprite.End();
 
-            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
-            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-            GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
+            sb.End();
+
+            sb.Begin(
+                SpriteSortMode.Deferred,
+                BlendState.AlphaBlend,
+                SamplerState.PointClamp);
 
             base.Draw(gameTime);
         }

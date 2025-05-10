@@ -130,7 +130,6 @@ namespace Client.Main.Controls.UI
             if (!Visible || _alpha <= 0.01f) return;
 
             var spriteBatch = GraphicsManager.Instance.Sprite;
-            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend);
 
             Vector2 drawPos = new Vector2(
                 _center.X - _rawSize.X * FONT_SCALE * 0.5f,
@@ -146,12 +145,6 @@ namespace Client.Main.Controls.UI
                 FONT_SCALE,
                 SpriteEffects.None,
                 0f);
-
-            spriteBatch.End();
-
-            // Restore graphics device states
-            GraphicsDevice.BlendState = BlendState.Opaque;
-            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
         }
     }
 }

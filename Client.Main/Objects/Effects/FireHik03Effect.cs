@@ -13,10 +13,18 @@ namespace Client.Main.Objects.Effects
             LightEnabled = true;
             Light = Vector3.One;
             IsTransparent = true;
-            DepthState = DepthStencilState.Default;
+            DepthState = new DepthStencilState
+            {
+                DepthBufferEnable = true,
+                DepthBufferWriteEnable = false
+            };
         }
 
         public override void Draw(GameTime gameTime)
+        {
+        }
+
+        public override void DrawAfter(GameTime gameTime)
         {
             base.Draw(gameTime);
         }

@@ -1,5 +1,8 @@
-﻿using Client.Main.Core.Client;
+﻿using Client.Main.Controllers;
+using Client.Main.Core.Client;
+using Client.Main.Helpers;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using System.Linq;
 
 namespace Client.Main.Controls.UI.Game
@@ -71,13 +74,25 @@ namespace Client.Main.Controls.UI.Game
 
         public override void Draw(GameTime gameTime)
         {
-            // Draw controls in RenderOrder
-            foreach (var control in Controls.OrderBy(c => (c as ExtendedUIControl)?.RenderOrder ?? 0))
+            var sb = GraphicsManager.Instance.Sprite;
+
+            foreach (var c in Controls.OrderBy(x => (x as ExtendedUIControl)?.RenderOrder ?? 0))
             {
-                control.Draw(gameTime);
+                if (c is TextureControl)
+                {
+                    using (new SpriteBatchScope(
+                           sb,
+                           SpriteSortMode.Deferred,
+                           BlendState.NonPremultiplied,
+                           SamplerState.PointClamp))
+                    {
+                        c.Draw(gameTime);
+                    }
+                }
+                else
+                    c.Draw(gameTime);
             }
 
-            // Draw the labels on top
             _hp.DrawLabel(gameTime);
             _mp.DrawLabel(gameTime);
         }

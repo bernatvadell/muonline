@@ -622,30 +622,30 @@ namespace Client.Main.Controls.UI
 
         public override void Draw(GameTime gameTime)
         {
-            if (!Visible) return;
+            if (!Visible)
+                return;
 
             base.Draw(gameTime);
 
             var sb = GraphicsManager.Instance.Sprite;
-            sb.Begin();
 
             for (int i = 0; i < _typeButtons.Length; i++)
+            {
                 if (i != (int)_currentInputType)
                     DrawDisabledOverlay(_typeButtons[i]);
+            }
 
             if (!_isWhisperLocked) DrawDisabledOverlay(_whisperToggleButton);
             if (!_chatLogWindowRef.IsSysMsgVisible) DrawDisabledOverlay(_systemToggleButton);
             if (!_chatLogWindowRef.IsChatLogVisible) DrawDisabledOverlay(_chatLogToggleButton);
             if (!_chatLogWindowRef.IsFrameVisible) DrawDisabledOverlay(_frameToggleButton);
 
-            sb.End();
-
             if (!_isWhisperSendMode && _whisperIdInput != null)
             {
-                sb = GraphicsManager.Instance.Sprite;
-                sb.Begin();
-                sb.Draw(GraphicsManager.Instance.Pixel, _whisperIdInput.DisplayRectangle, Color.Black * 0.5f);
-                sb.End();
+                sb.Draw(
+                    GraphicsManager.Instance.Pixel,
+                    _whisperIdInput.DisplayRectangle,
+                    Color.Black * 0.5f);
             }
         }
     }

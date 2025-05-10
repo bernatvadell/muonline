@@ -1,4 +1,5 @@
 using Client.Main.Controllers;
+using Client.Main.Helpers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -141,63 +142,65 @@ namespace Client.Main.Objects.Effects
 
         public override void Draw(GameTime gameTime)
         {
-            GraphicsDevice graphicsDevice = GraphicsManager.Instance.GraphicsDevice;
-            SpriteBatch spriteBatch = GraphicsManager.Instance.Sprite;
+            var graphicsDevice = GraphicsManager.Instance.GraphicsDevice;
+            var spriteBatch = GraphicsManager.Instance.Sprite;
 
-            // Save the original graphics states.
-            var originalBlendState = graphicsDevice.BlendState;
-            var originalDepthStencilState = graphicsDevice.DepthStencilState;
-            var originalRasterizerState = graphicsDevice.RasterizerState;
-            var originalSamplerState = graphicsDevice.SamplerStates[0];
+            // Save original graphics states
+            var prevBlend = graphicsDevice.BlendState;
+            var prevDepthStencil = graphicsDevice.DepthStencilState;
+            var prevRasterizer = graphicsDevice.RasterizerState;
+            var prevSampler = graphicsDevice.SamplerStates[0];
 
-            spriteBatch.Begin(
-                 SpriteSortMode.BackToFront,
-                 BlendState.Additive,
-                 SamplerState.LinearClamp,
-                 DepthStencilState.DepthRead,
-                 RasterizerState.CullNone
-            );
-
-            foreach (var particle in particles)
+            // Draw all particles in a nested SpriteBatchScope
+            using (new SpriteBatchScope(
+                spriteBatch,
+                SpriteSortMode.BackToFront,
+                BlendState.Additive,
+                SamplerState.LinearClamp,
+                DepthStencilState.DepthRead,
+                RasterizerState.CullNone))
             {
-                Vector3 screenPos = graphicsDevice.Viewport.Project(
-                    particle.Position,
-                    Camera.Instance.Projection,
-                    Camera.Instance.View,
-                    Matrix.Identity
-                );
-                if (screenPos.Z < 0f || screenPos.Z > 1f)
-                    continue;
+                foreach (var particle in particles)
+                {
+                    // Project to screen
+                    Vector3 screenPos = graphicsDevice.Viewport.Project(
+                        particle.Position,
+                        Camera.Instance.Projection,
+                        Camera.Instance.View,
+                        Matrix.Identity);
+                    if (screenPos.Z < 0f || screenPos.Z > 1f)
+                        continue;
 
-                Color drawColor = particle.Color * particle.Alpha;
+                    // Compute color & scale
+                    var drawColor = particle.Color * particle.Alpha;
+                    float distance = Vector3.Distance(Camera.Instance.Position, particle.Position);
+                    float normDist = MathHelper.Clamp(distance / MaxEffectiveDistance, 0f, 1f);
+                    float factor = (float)Math.Pow(normDist, DistanceScaleExponent);
+                    float depthScale = MathHelper.Lerp(DepthScaleMax, DepthScaleMin, factor);
+                    float scaleGrowth = 1f + ScaleGrowthFactor * (1f - particle.Life / particle.MaxLife);
+                    float effectiveScale = particle.BaseScale * scaleGrowth * depthScale;
 
-                float distance = Vector3.Distance(Camera.Instance.Position, particle.Position);
-                float normalizedDistance = MathHelper.Clamp(distance / MaxEffectiveDistance, 0f, 1f);
-                float factor = (float)Math.Pow(normalizedDistance, DistanceScaleExponent);
-                float depthScale = MathHelper.Lerp(DepthScaleMax, DepthScaleMin, factor);
-
-                float scaleGrowth = 1 + ScaleGrowthFactor * (1 - particle.Life / particle.MaxLife);
-                float effectiveScale = particle.BaseScale * scaleGrowth * depthScale;
-
-                spriteBatch.Draw(
-                    texture,
-                    new Vector2(screenPos.X, screenPos.Y),
-                    null,
-                    drawColor,
-                    particle.Rotation,
-                    new Vector2(texture.Width / 2f, texture.Height / 2f),
-                    effectiveScale,
-                    SpriteEffects.None,
-                    screenPos.Z
-                );
+                    // Draw the sprite
+                    spriteBatch.Draw(
+                        texture,
+                        new Vector2(screenPos.X, screenPos.Y),
+                        null,
+                        drawColor,
+                        particle.Rotation,
+                        new Vector2(texture.Width / 2f, texture.Height / 2f),
+                        effectiveScale,
+                        SpriteEffects.None,
+                        screenPos.Z);
+                }
             }
-            spriteBatch.End();
 
-            // Restore the original graphics states.
-            graphicsDevice.BlendState = originalBlendState;
-            graphicsDevice.DepthStencilState = originalDepthStencilState;
-            graphicsDevice.RasterizerState = originalRasterizerState;
-            graphicsDevice.SamplerStates[0] = originalSamplerState;
+            // Restore original graphics states
+            graphicsDevice.BlendState = prevBlend;
+            graphicsDevice.DepthStencilState = prevDepthStencil;
+            graphicsDevice.RasterizerState = prevRasterizer;
+            graphicsDevice.SamplerStates[0] = prevSampler;
+
+            base.Draw(gameTime);
         }
     }
 }

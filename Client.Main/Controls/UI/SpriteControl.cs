@@ -1,4 +1,7 @@
-﻿using Microsoft.Xna.Framework;
+﻿using Client.Main.Controllers;
+using Client.Main.Helpers;
+using Client.Main.Models;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Threading.Tasks;
 
@@ -55,6 +58,27 @@ namespace Client.Main.Controls.UI
         {
             TextureRectangle = new Rectangle(TileOffset.X + TileX * TileWidth, TileOffset.Y + TileY * TileHeight, TileWidth, TileHeight);
             base.Update(gameTime);
+        }
+
+        public override void Draw(GameTime gameTime)
+        {
+            if (Status != GameControlStatus.Ready || !Visible || Texture == null)
+                return;
+
+            var blend = BlendState ?? BlendState.NonPremultiplied;
+
+            using (new SpriteBatchScope(
+                GraphicsManager.Instance.Sprite,
+                SpriteSortMode.Deferred,
+                blend,
+                SamplerState.PointClamp))
+            {
+                GraphicsManager.Instance.Sprite.Draw(
+                    Texture, DisplayRectangle, SourceRectangle,
+                    Color.White * Alpha);
+            }
+
+            base.Draw(gameTime);
         }
     }
 }
