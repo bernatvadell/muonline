@@ -1,4 +1,5 @@
 using Client.Main.Controllers;
+using Client.Main.Helpers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -90,29 +91,113 @@ namespace Client.Main.Objects.Effects
             if (_bubbleTexture == null)
                 return;
 
-            var spriteBatch = GraphicsManager.Instance.Sprite;
-            spriteBatch.Begin(
-                SpriteSortMode.BackToFront,    // Sprites sorted from back (depth=1) to front (depth=0)
-                BlendState.AlphaBlend,
-                SamplerState.LinearClamp,
-                DepthStencilState.DepthRead,   // Enable depth reading
-                RasterizerState.CullNone
-            );
+            var sb = GraphicsManager.Instance.Sprite;
 
-            // Draw each bubble as a billboard with proper layerDepth
-            foreach (var b in _bubbles)
+            using (new SpriteBatchScope(
+                       sb,
+                       SpriteSortMode.BackToFront,
+                       BlendState.AlphaBlend,
+                       SamplerState.LinearClamp,
+                       DepthStencilState.DepthRead,
+                       RasterizerState.CullNone))
             {
-                DrawBubbleBillboard(b);
+                foreach (var b in _bubbles)
+                    DrawBubbleBillboard(b);
             }
 
-            spriteBatch.End();
-
-            // Optionally reset render states if needed
-            GraphicsDevice.BlendState = BlendState.Opaque;
-            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+            DrawBoundingBox2D();
 
             base.Draw(gameTime);
+        }
+
+        private void DrawBoundingBox2D()
+        {
+            // Use the public Font instead of the private `_font`
+            var font = GraphicsManager.Instance.Font;
+            if (!(Constants.DRAW_BOUNDING_BOXES && IsMouseHover && font != null))
+                return;
+
+            // Build the diagnostic text
+            var sbInfo = new System.Text.StringBuilder();
+            sbInfo.AppendLine(GetType().Name);
+            sbInfo.Append("Type ID: ").AppendLine(Type.ToString());
+            sbInfo.Append("Alpha: ").AppendLine(TotalAlpha.ToString());
+            sbInfo.Append("X: ").Append(Position.X).Append(" Y: ").Append(Position.Y)
+                  .Append(" Z: ").AppendLine(Position.Z.ToString());
+            sbInfo.Append("Depth: ").AppendLine(Depth.ToString());
+            sbInfo.Append("Render order: ").AppendLine(RenderOrder.ToString());
+            sbInfo.Append("DepthStencilState: ").Append(DepthState.Name);
+            string objectInfo = sbInfo.ToString();
+
+            float scaleFactor = DebugFontSize / Constants.BASE_FONT_SIZE;
+            Vector2 textSize = font.MeasureString(objectInfo) * scaleFactor;
+
+            // Project into screen space
+            Vector3 worldTextPos = new Vector3(
+                (BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) / 2,
+                BoundingBoxWorld.Max.Y + 0.5f,
+                (BoundingBoxWorld.Min.Z + BoundingBoxWorld.Max.Z) / 2
+            );
+            Vector3 proj = GraphicsDevice.Viewport.Project(
+                worldTextPos,
+                Camera.Instance.Projection,
+                Camera.Instance.View,
+                Matrix.Identity
+            );
+            Vector2 baseTextPos = new Vector2(proj.X - textSize.X / 2, proj.Y);
+
+            // Save prior GPU states
+            var prevBlend = GraphicsDevice.BlendState;
+            var prevDepth = GraphicsDevice.DepthStencilState;
+            var prevRaster = GraphicsDevice.RasterizerState;
+
+            var sb = GraphicsManager.Instance.Sprite;
+            var pixel = GraphicsManager.Instance.Pixel;  // public 1×1 white texture
+
+            // Draw background+border+text inside a SpriteBatchScope
+            using (new SpriteBatchScope(
+                sb,
+                SpriteSortMode.Deferred,
+                BlendState.AlphaBlend,
+                SamplerState.PointClamp,
+                DepthStencilState.None,
+                RasterizerState.CullNone))
+            {
+                // background
+                var bgRect = new Rectangle(
+                    (int)baseTextPos.X - 5,
+                    (int)baseTextPos.Y - 5,
+                    (int)textSize.X + 10,
+                    (int)textSize.Y + 10
+                );
+                sb.Draw(pixel, bgRect, new Color(0, 0, 0, 180));
+
+                // border
+                var borderRect = new Rectangle(
+                    bgRect.X - 1,
+                    bgRect.Y - 1,
+                    bgRect.Width + 2,
+                    bgRect.Height + 2
+                );
+                sb.Draw(pixel, borderRect, Color.White * 0.3f);
+
+                // text
+                sb.DrawString(
+                    font,
+                    objectInfo,
+                    baseTextPos,
+                    Color.Yellow,
+                    0f,
+                    Vector2.Zero,
+                    scaleFactor,
+                    SpriteEffects.None,
+                    0f);
+            }
+
+            // restore GPU states
+            GraphicsDevice.BlendState = prevBlend;
+            GraphicsDevice.DepthStencilState = prevDepth;
+            GraphicsDevice.RasterizerState = prevRaster;
         }
 
         private void DrawBubbleBillboard(Bubble bubble)

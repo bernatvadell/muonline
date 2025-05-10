@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controllers;
+using Client.Main.Models;
 using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -36,27 +37,24 @@ namespace Client.Main.Controls.UI.Game
 
         public override void Draw(GameTime gameTime)
         {
+            if (Status != GameControlStatus.Ready || !Visible)
+                return;
+
             base.Draw(gameTime);
 
+            var sb = GraphicsManager.Instance.Sprite;
             float scaleFactor = FontSize / Constants.BASE_FONT_SIZE;
-
-            GraphicsManager.Instance.Sprite.Begin();
-            GraphicsManager.Instance.Sprite.DrawString(
+            Vector2 pos = new Vector2(DisplayRectangle.X + 5, DisplayRectangle.Y + 5);
+            sb.DrawString(
                 GraphicsManager.Instance.Font,
                 Name,
-                new Vector2(DisplayRectangle.X + 5, DisplayRectangle.Y + 5),
+                pos,
                 TextColor,
                 0f,
                 Vector2.Zero,
                 scaleFactor,
                 SpriteEffects.None,
-                0
-            );
-            GraphicsManager.Instance.Sprite.End();
-
-            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
-            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-            GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
+                0f);
         }
 
         public override void Update(GameTime gameTime)

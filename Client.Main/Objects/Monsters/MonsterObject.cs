@@ -7,20 +7,19 @@ namespace Client.Main.Objects.Monsters
     public abstract class MonsterObject : WalkerObject
     {
         // --- Fields ---
-        private bool _wasMovingLastFrame;
         private int _lastActionForIdleSound = -1;
 
         // --- Constructors ---
         public MonsterObject()
         {
             Interactive = true;
+            AnimationSpeed = 8f;
         }
 
         // --- Public Methods ---
         public override void Update(GameTime gameTime)
         {
             bool wasMoving = IsMoving;
-            int previousAction = CurrentAction;
 
             base.Update(gameTime);
 

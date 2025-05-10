@@ -1,5 +1,6 @@
 ﻿using Client.Data.Texture;
 using Client.Main.Content;
+using Client.Main.Controllers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -44,42 +45,49 @@ namespace Client.Main.Objects
         {
             base.Draw(gameTime);
 
-            if (!Visible)
+            if (!Visible || SpriteTexture == null)
                 return;
 
+            // Project world position to screen
             Vector3 projected = GraphicsDevice.Viewport.Project(
-                 WorldPosition.Translation,
-                 Camera.Instance.Projection,
-                 Camera.Instance.View,
-                 Matrix.Identity);
+                WorldPosition.Translation,
+                Camera.Instance.Projection,
+                Camera.Instance.View,
+                Matrix.Identity);
 
             float layerDepth = MathHelper.Clamp(projected.Z, 0f, 1f);
 
-            SpriteBatch.Begin(
-                 sortMode: SpriteSortMode.BackToFront,
-                 blendState: BlendState,
-                 samplerState: null,
-                 depthStencilState: DepthStencilState.DepthRead,
-                 rasterizerState: null,
-                 effect: null,
-                 transformMatrix: null);
+            // If SpriteBatch is not begun, open a local SpriteBatchScope
+            if (!Helpers.SpriteBatchScope.BatchIsBegun)
+            {
+                using (new Helpers.SpriteBatchScope(GraphicsManager.Instance.Sprite, SpriteSortMode.Deferred, BlendState, SamplerState.PointClamp, DepthState))
+                {
+                    DrawSprite(projected, layerDepth);
+                }
+            }
+            else
+            {
+                DrawSprite(projected, layerDepth);
+            }
+        }
 
-            SpriteBatch.Draw(
-                 texture: SpriteTexture,
-                 position: new Vector2(projected.X, projected.Y),
-                 sourceRectangle: null,
-                 color: LightEnabled ? new Color(Light) * TotalAlpha : Color.White * TotalAlpha,
-                 rotation: TotalAngle.Z,
-                 origin: new Vector2(SpriteTexture.Width / 2, SpriteTexture.Height / 2),
-                 scale: _scaleMix,
-                 effects: SpriteEffects.None,
-                 layerDepth: layerDepth);
+        protected void DrawSprite(Vector3 projected, float layerDepth)
+        {
+            var sb = GraphicsManager.Instance.Sprite;
+            Color color = (BlendState == BlendState.Additive)
+                ? Color.White * TotalAlpha
+                : (LightEnabled ? new Color(Light) * TotalAlpha : Color.White * TotalAlpha);
 
-            SpriteBatch.End();
-
-            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
-            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-            GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
+            sb.Draw(
+                SpriteTexture,
+                new Vector2(projected.X, projected.Y),
+                null,
+                color,
+                TotalAngle.Z,
+                new Vector2(SpriteTexture.Width / 2f, SpriteTexture.Height / 2f),
+                _scaleMix,
+                SpriteEffects.None,
+                layerDepth);
         }
 
         public override void Update(GameTime gameTime)

@@ -13,6 +13,7 @@ namespace Client.Main.Objects.Monsters
         public IceQueen()
         {
             RenderShadow = true;
+            BlendMesh = 2;
             Scale = 1.1f; // Set according to C++ Setting_Monster
         }
 

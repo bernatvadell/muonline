@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 using Client.Main.Controllers;
+using Client.Main.Helpers;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -92,44 +93,33 @@ namespace Client.Main.Controls.UI.Game
             UpdateLabelPosition();
         }
 
+
         public override void Draw(GameTime gameTime)
         {
-            if (Status != GameControlStatus.Ready || !Visible)
-                return;
-
-            if (Texture == null)
+            if (Status != GameControlStatus.Ready || !Visible || Texture == null)
                 return;
 
             var sb = GraphicsManager.Instance.Sprite;
-            try
-            {
-                sb.Begin(
-                    SpriteSortMode.Deferred,
-                    BlendState.NonPremultiplied,
-                    SamplerState.PointClamp,
-                    DepthStencilState.None,
-                    RasterizerState.CullNone);
 
-                sb.Draw(
-                    Texture,
-                    DisplayRectangle,
-                    TextureRectangle,
-                    Color.White * Alpha);
-            }
-            finally
+            using (new SpriteBatchScope(
+                   sb,
+                   SpriteSortMode.Deferred,
+                   BlendState.NonPremultiplied,
+                   SamplerState.PointClamp))
             {
-                if (sb.GraphicsDevice != null)
-                    sb.End();
+                sb.Draw(Texture,
+                        DisplayRectangle,
+                        TextureRectangle,
+                        Color.White * Alpha);
             }
 
             _label.Draw(gameTime);
         }
 
-
         private void UpdateLabelPosition()
         {
             _label.X = X + (ViewSize.X - _label.ControlSize.X) / 2 + 10;
-            _label.Y = Y + (ViewSize.Y - _label.ControlSize.Y) / 2 + 16;
+            _label.Y = Y + (ViewSize.Y - _label.ControlSize.Y) / 2;
         }
 
         private LayoutInfo LoadLayoutInfo()

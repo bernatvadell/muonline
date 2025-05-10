@@ -51,7 +51,7 @@ namespace Client.Main.Objects.Worlds.Noria
                 return;
 
             Vector3 listenerPosition = ((Controls.WalkableWorldControl)World).Walker.Position;
-            SoundController.Instance.PlayBufferWithAttenuation("Sound/nMix.wav", Position, listenerPosition);
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/nMix.wav", Position, listenerPosition, maxDistance: 1000f, loop: true);
         }
     }
 }

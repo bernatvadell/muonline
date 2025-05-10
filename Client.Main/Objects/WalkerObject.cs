@@ -144,106 +144,151 @@ namespace Client.Main.Objects
         /// </summary>
         public void PlayAction(ushort actionIndex)
         {
-            bool canRefreshTimer = this is MonsterObject &&
-                                   actionIndex != (int)MonsterActionType.Stop1 &&
-                                   actionIndex != (int)MonsterActionType.Walk &&
-                                   actionIndex != (int)MonsterActionType.Run;
-
-            if (CurrentAction == actionIndex && !canRefreshTimer)
+            if (Model?.Actions == null || actionIndex >= Model.Actions.Length)
                 return;
 
-            int previousAction = CurrentAction;
+            var act = Model.Actions[actionIndex];
+
+            bool isOneShot = this is MonsterObject m
+                             && actionIndex != (ushort)MonsterActionType.Stop1
+                             && actionIndex != (ushort)MonsterActionType.Stop2
+                             && actionIndex != (ushort)MonsterActionType.Walk
+                             && actionIndex != (ushort)MonsterActionType.Run
+                             && actionIndex != (ushort)MonsterActionType.Die;
+
+            if (!isOneShot && CurrentAction == actionIndex)
+                return;
+
             CurrentAction = actionIndex;
             InvalidateBuffers();
 
-            if (this is MonsterObject monster)
+            _autoIdleCts?.Cancel();
+            _autoIdleCts?.Dispose();
+            _autoIdleCts = null;
+
+            if (isOneShot && act.NumAnimationKeys > 1)
             {
-                switch ((MonsterActionType)actionIndex)
+                float objFps = AnimationSpeed;
+                float playMul = act.PlaySpeed == 0 ? 1.0f : act.PlaySpeed;
+                float effectiveFps = Math.Max(0.1f, objFps * playMul);
+
+                int frames = act.NumAnimationKeys;
+                int delayMs = (int)((frames / effectiveFps) * 1000f) + 100;
+                delayMs = Math.Clamp(delayMs, 50, 60_000);
+
+                _autoIdleCts = new CancellationTokenSource();
+                var token = _autoIdleCts.Token;
+
+                Task.Delay(delayMs, token).ContinueWith(t =>
                 {
-                    case MonsterActionType.Attack1:
-                    case MonsterActionType.Attack2:
-                    case MonsterActionType.Attack3:
-                    case MonsterActionType.Attack4:
-                        monster.OnPerformAttack(actionIndex - (int)MonsterActionType.Attack1 + 1);
-                        break;
-                    case MonsterActionType.Shock:
-                        monster.OnReceiveDamage();
-                        break;
-                    case MonsterActionType.Die:
-                        monster.OnDeathAnimationStart();
-                        break;
-                }
+                    if (t.IsCanceled || token.IsCancellationRequested) return;
 
-                const byte MonsterIdle = (byte)MonsterActionType.Stop1;
-                const byte MonsterWalk = (byte)MonsterActionType.Walk;
-                const byte MonsterRun = (byte)MonsterActionType.Run;
-                const byte MonsterDie = (byte)MonsterActionType.Die;
-
-                if (actionIndex == MonsterIdle || actionIndex == MonsterWalk || actionIndex == MonsterRun || actionIndex == MonsterDie ||
-                    (previousAction != MonsterIdle && previousAction != MonsterWalk && previousAction != MonsterRun && previousAction != MonsterDie && previousAction != CurrentAction))
-                {
-                    _autoIdleCts?.Cancel();
-                    _autoIdleCts?.Dispose();
-                    _autoIdleCts = null;
-                }
-
-                if (actionIndex != MonsterIdle && actionIndex != MonsterWalk && actionIndex != MonsterRun && actionIndex != MonsterDie)
-                {
-                    var actions = Model?.Actions;
-                    if (actions == null || actionIndex >= actions.Length)
-                        return;
-
-                    var act = actions[actionIndex];
-                    int frames = act?.NumAnimationKeys ?? 0;
-                    if (frames <= 0)
-                        return;
-
-                    float actionSpecificPlaySpeed = act.PlaySpeed != 0 ? act.PlaySpeed : 0.25f;
-                    float baseAnimationFps = 10.0f;
-                    float effectiveFps = baseAnimationFps * actionSpecificPlaySpeed * AnimationSpeed;
-                    if (effectiveFps <= 0.1f) effectiveFps = 0.1f;
-
-                    int msTotal = (int)(frames / effectiveFps * 1000.0f) + 100;
-
-                    _autoIdleCts = new CancellationTokenSource();
-                    var token = _autoIdleCts.Token;
-
-                    _ = Task.Delay(msTotal, token).ContinueWith(t =>
+                    MuGame.ScheduleOnMainThread(() =>
                     {
-                        if (t.IsCanceled || token.IsCancellationRequested) return;
-
-                        MuGame.ScheduleOnMainThread(() =>
+                        if (!IsMoving && CurrentAction == actionIndex)
                         {
-                            if (!IsMoving && CurrentAction == actionIndex)
-                            {
-                                if (Model?.Actions?.Length > MonsterIdle)
-                                {
-                                    CurrentAction = MonsterIdle;
-                                }
-                            }
-                        });
-                    }, token, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
-                }
+                            byte idle = this is MonsterObject
+                                        ? (byte)MonsterActionType.Stop1
+                                        : (byte)PlayerAction.StopMale; //TODO:female
+
+                            if (Model?.Actions != null && idle < Model.Actions.Length)
+                                CurrentAction = idle;
+                        }
+                    });
+                }, token, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
             }
         }
 
         public void MoveTo(Vector2 targetLocation, bool sendToServer = true)
         {
-            if (World == null)
-                return;
+            if (World == null) return;
 
-            List<Vector2> path = Pathfinding.FindPath(
-                new Vector2((int)Location.X, (int)Location.Y),
-                targetLocation,
-                World);
+            Vector2 startPos = new Vector2((int)Location.X, (int)Location.Y);
+            WorldControl currentWorld = World;
+            _ = Task.Run(() =>
+            {
+                List<Vector2> path = Pathfinding.FindPath(startPos, targetLocation, currentWorld);
 
-            if (path == null || path.Count == 0)
-                return;
+                if (MuGame.Instance.ActiveScene?.World != currentWorld || path == null || path.Count == 0)
+                {
+                    return;
+                }
 
-            _currentPath = path;
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    if (MuGame.Instance.ActiveScene?.World == currentWorld && this.Status != GameControlStatus.Disposed)
+                    {
+                        _currentPath = path;
 
-            if (sendToServer && IsMainWalker)
-                SendWalkPathToServer(path);
+                        if (sendToServer && IsMainWalker)
+                        {
+                            Task.Run(() => SendWalkPathToServerAsync(path));
+                        }
+                    }
+                });
+            });
+        }
+
+        private async Task SendWalkPathToServerAsync(List<Vector2> path)
+        {
+            if (path == null || path.Count == 0) return;
+            var net = MuGame.Network;
+            if (net == null) return;
+
+            byte startX = (byte)Location.X;
+            byte startY = (byte)Location.Y;
+
+            //    Function returning CLIENT CODE (0-7) according to MU Online documentation
+            //    W=0, SW=1, S=2, SE=3, E=4, NE=5, N=6, NW=7
+            static byte GetClientDirectionCode(Vector2 from, Vector2 to)
+            {
+                int dx = (int)(to.X - from.X); // Horizontal (X): left / right – works correctly
+                int dy = (int)(to.Y - from.Y); // Vertical (Y): up / down – correction here
+
+                return (dx, dy) switch
+                {
+                    (-1, 0) => 0,  // West
+                    (-1, 1) => 1,  // South-West
+                    (0, 1) => 2,  // South
+                    (1, 1) => 3,  // South-East
+                    (1, 0) => 4,  // East
+                    (1, -1) => 5,  // North-East
+                    (0, -1) => 6,  // North
+                    (-1, -1) => 7,  // North-West
+                    _ => 0xFF      // Invalid direction
+                };
+            }
+
+            List<byte> clientDirs = new(path.Count);
+            Vector2 currentPos = Location;
+            foreach (var step in path)
+            {
+                byte dirCode = GetClientDirectionCode(currentPos, step);
+                if (dirCode > 7) break;
+                clientDirs.Add(dirCode);
+                currentPos = step;
+                if (clientDirs.Count == 15) break;
+            }
+            if (clientDirs.Count == 0) return;
+
+            var directionMap = MuGame.Network?.GetDirectionMap();
+            List<byte> serverDirs = new(clientDirs.Count);
+            if (directionMap != null)
+            {
+                foreach (byte clientDir in clientDirs)
+                {
+                    if (directionMap.TryGetValue(clientDir, out byte serverDir))
+                        serverDirs.Add(serverDir);
+                    else
+                        serverDirs.Add(clientDir);
+                }
+            }
+            else
+            {
+                serverDirs.AddRange(clientDirs);
+            }
+
+            await net.SendWalkRequestAsync(startX, startY, serverDirs.ToArray());
         }
 
         // Private Methods
@@ -314,67 +359,6 @@ namespace Client.Main.Objects
             Position = new Vector3(MoveTargetPosition.X, MoveTargetPosition.Y, newZ);
         }
 
-        private async void SendWalkPathToServer(List<Vector2> path)
-        {
-            if (path == null || path.Count == 0) return;
-            var net = MuGame.Network;
-            if (net == null) return;
-
-            byte startX = (byte)Location.X;
-            byte startY = (byte)Location.Y;
-
-            //    Function returning CLIENT CODE (0-7) according to MU Online documentation
-            //    W=0, SW=1, S=2, SE=3, E=4, NE=5, N=6, NW=7
-            static byte GetClientDirectionCode(Vector2 from, Vector2 to)
-            {
-                int dx = (int)(to.X - from.X); // Horizontal (X): left / right – works correctly
-                int dy = (int)(to.Y - from.Y); // Vertical (Y): up / down – correction here
-
-                return (dx, dy) switch
-                {
-                    (-1, 0) => 0,  // West
-                    (-1, 1) => 1,  // South-West
-                    (0, 1) => 2,  // South
-                    (1, 1) => 3,  // South-East
-                    (1, 0) => 4,  // East
-                    (1, -1) => 5,  // North-East
-                    (0, -1) => 6,  // North
-                    (-1, -1) => 7,  // North-West
-                    _ => 0xFF      // Invalid direction
-                };
-            }
-
-            List<byte> clientDirs = new(path.Count);
-            Vector2 currentPos = Location;
-            foreach (var step in path)
-            {
-                byte dirCode = GetClientDirectionCode(currentPos, step);
-                if (dirCode > 7) break;
-                clientDirs.Add(dirCode);
-                currentPos = step;
-                if (clientDirs.Count == 15) break;
-            }
-            if (clientDirs.Count == 0) return;
-
-            var directionMap = MuGame.Network?.GetDirectionMap();
-            List<byte> serverDirs = new(clientDirs.Count);
-            if (directionMap != null)
-            {
-                foreach (byte clientDir in clientDirs)
-                {
-                    if (directionMap.TryGetValue(clientDir, out byte serverDir))
-                        serverDirs.Add(serverDir);
-                    else
-                        serverDirs.Add(clientDir);
-                }
-            }
-            else
-            {
-                serverDirs.AddRange(clientDirs);
-            }
-
-            await net.SendWalkRequestAsync(startX, startY, serverDirs.ToArray());
-        }
 
         private void UpdateMoveTargetPosition(GameTime time)
         {

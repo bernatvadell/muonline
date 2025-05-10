@@ -109,11 +109,8 @@ namespace Client.Main.Controls.UI
             if (Status != GameControlStatus.Ready || !Visible)
                 return;
 
-            var spriteBatch = GraphicsManager.Instance.Sprite;
-            spriteBatch.Begin();
             DrawBackground();
             DrawBorder();
-            spriteBatch.End();
 
             _label?.Draw(gameTime);
             _okButton?.Draw(gameTime);

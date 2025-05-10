@@ -32,7 +32,7 @@ namespace Client.Main.Objects
         private int _priorAction = 0;
         private bool _invalidatedBuffers = true;
         private float _blendMeshLight = 1f;
-        // private float _previousFrame = 0;
+        private double _animTime = 0.0;
         private bool _contentLoaded = false;
         public float ShadowOpacity { get; set; } = 1f;
         public Color Color { get; set; } = Color.White;
@@ -64,7 +64,7 @@ namespace Client.Main.Objects
             }
         }
         public bool RenderShadow { get => _renderShadow; set { _renderShadow = value; OnRenderShadowChanged(); } }
-        public float AnimationSpeed { get; set; } = 8f;
+        public float AnimationSpeed { get; set; } = 4f;
         public static ILoggerFactory AppLoggerFactory { get; private set; }
         private ILogger _logger => AppLoggerFactory?.CreateLogger<ModelObject>();
 
@@ -136,17 +136,20 @@ namespace Client.Main.Objects
 
         public override void Draw(GameTime gameTime)
         {
-            if (World == null)
-                return;
-
             if (!Visible || _boneIndexBuffers == null) return;
+
+            var gd = GraphicsDevice;
+            var prevCull = gd.RasterizerState;                      // zapisz
+            gd.RasterizerState = RasterizerState.CullClockwise ;
 
             GraphicsManager.Instance.AlphaTestEffect3D.View = Camera.Instance.View;
             GraphicsManager.Instance.AlphaTestEffect3D.Projection = Camera.Instance.Projection;
             GraphicsManager.Instance.AlphaTestEffect3D.World = WorldPosition;
 
-            DrawModel(false);
+            DrawModel(false);   // solid pass
             base.Draw(gameTime);
+
+            gd.RasterizerState = prevCull;
         }
 
         public virtual void DrawModel(bool isAfterDraw)
@@ -239,18 +242,34 @@ namespace Client.Main.Objects
 
                 int primitiveCount = indexBuffer.IndexCount / 3;
 
-                GraphicsManager.Instance.AlphaTestEffect3D.Texture = texture;
+                // GraphicsManager.Instance.AlphaTestEffect3D.Texture = texture;
+                // 
+                // GraphicsManager.Instance.AlphaTestEffect3D.Alpha = TotalAlpha;
+
+                var gd = GraphicsDevice;
+                var prevCull = gd.RasterizerState;
+                var prevBlend = gd.BlendState;
+
+                bool isTwoSided = _meshIsRGBA[mesh] || IsBlendMesh(mesh);
+                gd.RasterizerState = isTwoSided
+                    ? RasterizerState.CullNone
+                    : RasterizerState.CullClockwise;
+
                 GraphicsDevice.BlendState = IsBlendMesh(mesh) ? BlendMeshState : BlendState;
+                GraphicsManager.Instance.AlphaTestEffect3D.Texture = texture;
                 GraphicsManager.Instance.AlphaTestEffect3D.Alpha = TotalAlpha;
 
-                foreach (EffectPass pass in GraphicsManager.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
+                foreach (var pass in GraphicsManager.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
                 {
                     pass.Apply();
-
-                    GraphicsDevice.SetVertexBuffer(vertexBuffer);
-                    GraphicsDevice.Indices = indexBuffer;
-                    GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+                    gd.SetVertexBuffer(vertexBuffer);
+                    gd.Indices = indexBuffer;
+                    gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
                 }
+
+                // ❹ przywrócenie stanów
+                gd.BlendState = prevBlend;
+                gd.RasterizerState = prevCull;
             }
             catch (Exception ex)
             {
@@ -458,13 +477,19 @@ namespace Client.Main.Objects
         {
             if (!Visible) return;
 
+            var gd = GraphicsDevice;
+            var prevCull = gd.RasterizerState;
+            // ZMIANA: Użyj CullCounterClockwise
+            gd.RasterizerState = RasterizerState.CullCounterClockwise;
+
             GraphicsManager.Instance.AlphaTestEffect3D.View = Camera.Instance.View;
             GraphicsManager.Instance.AlphaTestEffect3D.Projection = Camera.Instance.Projection;
             GraphicsManager.Instance.AlphaTestEffect3D.World = WorldPosition;
 
-            DrawModel(true);
-
+            DrawModel(true);    // RGBA / blend mesh
             base.DrawAfter(gameTime);
+
+            gd.RasterizerState = prevCull;
         }
 
         public override void Dispose()
@@ -527,61 +552,45 @@ namespace Client.Main.Objects
 
         private void Animation(GameTime gameTime)
         {
-            if (LinkParentAnimation || Model == null || Model.Actions == null || Model.Actions.Length == 0)
-                return;
+            if (LinkParentAnimation) return;
+            if (Model?.Actions == null || Model.Actions.Length == 0) return;
 
             int currentActionIndex = CurrentAction;
+
             if (currentActionIndex < 0 || currentActionIndex >= Model.Actions.Length)
             {
-                _logger?.LogError("Animation Error: Invalid CurrentAction index {InvalidAction} for object {ObjectName} (Model: {ModelName}). Action count: {ActionCount}. Defaulting to action 0.",
-                                 currentActionIndex,
-                                 this.ObjectName ?? GetType().Name,
-                                 Model.Name ?? "Unknown",
-                                 Model.Actions.Length);
-
+                _logger?.LogError("Animation Error: invalid CurrentAction {Index} for {Obj}", currentActionIndex, ObjectName);
                 currentActionIndex = 0;
-
-                if (currentActionIndex >= Model.Actions.Length)
-                {
-                    _logger?.LogError("Animation Error: Default action 0 is also invalid for object {ObjectName} (Model: {ModelName}). Cannot animate.", this.ObjectName ?? GetType().Name, Model.Name ?? "Unknown");
-                    return;
-                }
-                // CurrentAction = currentActionIndex;
+                if (currentActionIndex >= Model.Actions.Length) return;
             }
 
-            var currentActionData = Model.Actions[currentActionIndex];
+            var action = Model.Actions[currentActionIndex];
+            int totalFrames = Math.Max(action.NumAnimationKeys, 1);
 
-            if (currentActionData.NumAnimationKeys <= 1)
+            if (totalFrames == 1)
             {
                 if (_priorAction != currentActionIndex)
                     GenerateBoneMatrix(currentActionIndex, 0, 0, 0);
-
                 _priorAction = currentActionIndex;
                 return;
             }
 
-            float frame = (float)(gameTime.TotalGameTime.TotalSeconds * AnimationSpeed);
-            int totalFrames = currentActionData.NumAnimationKeys - 1;
-            if (totalFrames <= 0)
-            {
-                _logger?.LogWarning("Animation Warning: totalFrames <= 0 for action {ActionIndex} in {ObjectName}. NumKeys: {NumKeys}", currentActionIndex, this.ObjectName ?? GetType().Name, currentActionData.NumAnimationKeys);
-                GenerateBoneMatrix(currentActionIndex, 0, 0, 0);
-                _priorAction = currentActionIndex;
-                return;
-            }
+            if (_priorAction != currentActionIndex)
+                _animTime = 0.0;
 
-            frame = frame % totalFrames;
+            float delta = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            float objFps = AnimationSpeed;
+            float playMul = action.PlaySpeed == 0 ? 1.0f : action.PlaySpeed;
+            float effectiveFps = Math.Max(0.01f, objFps * playMul);
 
-            int f0 = (int)frame;
-            int f1 = (f0 + 1) % currentActionData.NumAnimationKeys;
-            f1 = (f0 + 1);
-            if (f1 >= currentActionData.NumAnimationKeys)
-            {
-                f1 = currentActionData.NumAnimationKeys - 1;
-            }
+            _animTime += delta * effectiveFps;
+            double framePos = _animTime % totalFrames;
 
-            GenerateBoneMatrix(currentActionIndex, f0, f1, frame - f0);
+            int f0 = (int)framePos;
+            int f1 = (f0 + 1) % totalFrames;
+            float t = (float)(framePos - f0);
 
+            GenerateBoneMatrix(currentActionIndex, f0, f1, t);
             _priorAction = currentActionIndex;
         }
 

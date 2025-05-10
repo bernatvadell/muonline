@@ -13,14 +13,12 @@ namespace Client.Main.Controllers
     {
         public static SoundController Instance { get; private set; } = new SoundController();
 
-        // Cache for loaded SoundEffects (raw audio data)
         private Dictionary<string, SoundEffect> _soundEffectCache = new Dictionary<string, SoundEffect>();
-
-        // For background music which is looped and only one can play at a time
         private SoundEffectInstance _activeBackgroundMusicInstance;
         private string _currentBackgroundMusicPath;
-
         private HashSet<string> _failedPaths = new HashSet<string>();
+
+        private readonly Dictionary<string, SoundEffectInstance> _managedLoopingInstances = new Dictionary<string, SoundEffectInstance>();
 
         public void StopBackgroundMusic()
         {
@@ -81,40 +79,84 @@ namespace Client.Main.Controllers
         }
 
         /// <summary>
-        /// Plays a one-shot sound effect with volume attenuation based on distance.
-        /// Uses SoundEffect.Play() for fire-and-forget behavior.
+        /// Plays a sound effect with volume attenuation based on distance.
+        /// Can be looped if 'loop' parameter is true.
         /// </summary>
-        public void PlayBufferWithAttenuation(string relativePath, Vector3 sourcePosition, Vector3 listenerPosition, float maxDistance = 1000f)
+        public void PlayBufferWithAttenuation(string relativePath, Vector3 sourcePosition, Vector3 listenerPosition, float maxDistance = 1000f, bool loop = false)
         {
-            if (!Constants.SOUND_EFFECTS) return;
+            if (!Constants.SOUND_EFFECTS || string.IsNullOrEmpty(relativePath)) return;
 
-            SoundEffect sfx = LoadSoundEffectData(Path.Combine(Constants.DataPath, relativePath));
-            if (sfx == null || sfx.IsDisposed)
-            {
-                return;
-            }
-
+            string fullPath = Path.Combine(Constants.DataPath, relativePath);
             float distance = Vector3.Distance(sourcePosition, listenerPosition);
             float volume = 1.0f - (distance / maxDistance);
             volume = MathHelper.Clamp(volume, 0f, 1f);
 
-            if (volume > 0.01f)
+            if (loop)
             {
-                try
+                string instanceKey = fullPath.ToLowerInvariant();
+                SoundEffectInstance instance;
+
+                if (!_managedLoopingInstances.TryGetValue(instanceKey, out instance) || instance == null || instance.IsDisposed)
                 {
-                    sfx.Play(volume, 0.0f, 0.0f); // pitch = 0.0f (normal), pan = 0.0f (center)
+                    SoundEffect sfxData = LoadSoundEffectData(fullPath);
+                    if (sfxData == null || sfxData.IsDisposed)
+                    {
+                        Debug.WriteLine($"[ManagedLoop] Failed to load SoundEffect data for: {relativePath}");
+                        return;
+                    }
+                    instance = sfxData.CreateInstance();
+                    instance.IsLooped = true;
+                    _managedLoopingInstances[instanceKey] = instance;
                 }
-                catch (Exception ex)
+
+                instance.Volume = volume;
+
+                if (volume > 0.01f)
                 {
-                    Debug.WriteLine($"[PlayEffectWithAttenuation] Error playing sound '{relativePath}': {ex.Message}");
+                    if (instance.State != SoundState.Playing)
+                    {
+                        try
+                        {
+                            instance.Play();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"[ManagedLoop] Error playing instance of '{relativePath}': {ex.Message}");
+                            instance.Dispose(); // Usuń uszkodzoną instancję
+                            _managedLoopingInstances.Remove(instanceKey);
+                        }
+                    }
+                }
+                else
+                {
+                    if (instance.State == SoundState.Playing)
+                    {
+                        instance.Pause();
+                    }
+                }
+            }
+            else
+            {
+                SoundEffect sfx = LoadSoundEffectData(fullPath); // LoadSoundEffectData używa cache
+                if (sfx == null || sfx.IsDisposed)
+                {
+                    return;
+                }
+
+                if (volume > 0.01f)
+                {
+                    try
+                    {
+                        sfx.Play(volume, 0.0f, 0.0f);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[PlayEffectWithAttenuation] Error playing sound '{relativePath}': {ex.Message}");
+                    }
                 }
             }
         }
 
-        /// <summary>
-        /// Plays a one-shot sound effect at full volume.
-        /// Uses SoundEffect.Play() for fire-and-forget behavior.
-        /// </summary>
         public void PlayBuffer(string relativePath)
         {
             if (!Constants.SOUND_EFFECTS) return;
@@ -132,12 +174,6 @@ namespace Client.Main.Controllers
                 Debug.WriteLine($"[PlayEffect] Error playing sound '{relativePath}': {ex.Message}");
             }
         }
-
-        /*
-        GetOrCreateSoundInstance is no longer needed for effects if using SoundEffect.Play().
-        Leaving it commented in case you want to return to instance-based sound management.
-        If not, this can be removed or modified to return just the SoundEffect.
-        */
 
         private SoundEffect LoadSoundEffectData(string fullPath)
         {
@@ -225,25 +261,29 @@ namespace Client.Main.Controllers
                     }
 
                     List<byte> pcmList = new List<byte>();
-                    float[] floatBuffer = new float[1152 * channels * 2]; // Slightly larger buffer for safety
+                    float[] floatBuffer = new float[1152 * channels * 2];
 
                     int samplesReadFromFrame;
                     while ((samplesReadFromFrame = mpegFile.ReadSamples(floatBuffer, 0, floatBuffer.Length)) > 0)
                     {
                         for (int i = 0; i < samplesReadFromFrame; i++)
                         {
-                            short s = (short)(Math.Clamp(floatBuffer[i], -1.0f, 1.0f) * short.MaxValue);
+                            short s = (short)(MathHelper.Clamp(floatBuffer[i], -1.0f, 1.0f) * short.MaxValue);
                             pcmList.Add((byte)(s & 0xFF));
                             pcmList.Add((byte)((s >> 8) & 0xFF));
                         }
                     }
 
-                    if (pcmList.Count == 0)
+                    if (pcmList.Count == 0 && mpegFile.Length > 0)
+                    {
+                        Debug.WriteLine($"[LoadMp3PcmData] No PCM data generated from MP3 despite non-zero length: {filePath}. Total Samples in file: {mpegFile.Length}");
+                        return null;
+                    }
+                    else if (pcmList.Count == 0)
                     {
                         Debug.WriteLine($"[LoadMp3PcmData] No PCM data generated from MP3: {filePath}");
                         return null;
                     }
-
                     return pcmList.ToArray();
                 }
             }
@@ -258,20 +298,21 @@ namespace Client.Main.Controllers
         {
             StopBackgroundMusic();
 
-            /*
-            _soundInstances is no longer used for effects in this approach.
-            If you still use it for other cases, you can keep the cleanup.
-            Commented out for now since effects use SoundEffect.Play().
-            */
-
             foreach (var sfx in _soundEffectCache.Values)
             {
                 sfx?.Dispose();
             }
             _soundEffectCache.Clear();
 
+            foreach (var instanceEntry in _managedLoopingInstances)
+            {
+                instanceEntry.Value?.Stop(true);
+                instanceEntry.Value?.Dispose();
+            }
+            _managedLoopingInstances.Clear();
+
             _failedPaths.Clear();
-            Debug.WriteLine("SoundController: SoundEffect cache cleared.");
+            Debug.WriteLine("SoundController: SoundEffect cache and managed looping instances cleared.");
         }
 
         public void Dispose()

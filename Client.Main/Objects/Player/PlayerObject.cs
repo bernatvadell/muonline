@@ -37,7 +37,6 @@ namespace Client.Main.Objects.Player
                 {
                     Debug.WriteLine($"PlayerObject {Name}: Setting CharacterClass from {_characterClass} to {value}");
                     _characterClass = value;
-                    UpdateBodyPartClasses(); // Ensure update happens immediately when property changes
                 }
                 else
                 {
@@ -71,7 +70,7 @@ namespace Client.Main.Objects.Player
                 new Vector3(40, 40, 120));
 
             Scale = 0.85f;
-            AnimationSpeed = 8f;
+            AnimationSpeed = 10f;
             CurrentAction = PlayerAction.StopMale; // Default action
             _characterClass = CharacterClassNumber.DarkWizard; // Initialize with a default
 
@@ -92,9 +91,6 @@ namespace Client.Main.Objects.Player
             Children.Add(Gloves);
             Children.Add(Boots);
             Children.Add(Wings);
-
-            // Ensure initial class is applied to children during construction
-            UpdateBodyPartClasses();
         }
 
         // Public Methods
@@ -115,9 +111,8 @@ namespace Client.Main.Objects.Player
             Debug.WriteLine($"PlayerObject {Name}: Base model prepared.");
 
             // 2. CRITICAL: Ensure children have the correct class BEFORE their Load is called
-            //    CharacterClass setter should have already called this, but for safety:
-            UpdateBodyPartClasses();
-            Debug.WriteLine($"PlayerObject {Name}: UpdateBodyPartClasses() called within Load().");
+            await UpdateBodyPartClassesAsync();
+            Debug.WriteLine($"PlayerObject {Name}: UpdateBodyPartClassesAsync() called within Load().");
 
             // 3. Load base content, which WILL trigger Load() on children (including equipment)
             await base.Load(); // base.Load -> base.LoadContent -> children's LoadContent
@@ -126,11 +121,12 @@ namespace Client.Main.Objects.Player
             // 4. Verify children status after load
             foreach (var child in Children)
             {
-                if (child is ModelObject modelChild && modelChild.Status == GameControlStatus.Error)
+                if (child is ModelObject modelChild)
                 {
-                    Debug.WriteLine($"PlayerObject {Name}: Child {child.GetType().Name} failed to load (Status: Error). Check model paths and class mapping.");
+                    Debug.WriteLine($"{modelChild.GetType().Name}: Status={modelChild.Status}, Model={(modelChild.Model != null ? "OK" : "NULL")}");
                 }
             }
+            Debug.WriteLine($"PlayerObject {Name}: Status after load: {Status}");
         }
 
         public override void Update(GameTime gameTime)
@@ -262,6 +258,19 @@ namespace Client.Main.Objects.Player
 
                 _ => PlayerClass.DarkWizard // Default fallback
             };
+        }
+
+        // New async version: ensures all parts are loaded for the correct class before loading content
+        public async Task UpdateBodyPartClassesAsync()
+        {
+            PlayerClass mappedClass = MapNetworkClassToModelClass(_characterClass);
+            if (HelmMask != null) await HelmMask.SetPlayerClassAsync(mappedClass);
+            if (Helm != null) await Helm.SetPlayerClassAsync(mappedClass);
+            if (Armor != null) await Armor.SetPlayerClassAsync(mappedClass);
+            if (Pants != null) await Pants.SetPlayerClassAsync(mappedClass);
+            if (Gloves != null) await Gloves.SetPlayerClassAsync(mappedClass);
+            if (Boots != null) await Boots.SetPlayerClassAsync(mappedClass);
+            // Wings do not support async class setting yet; add if needed in the future
         }
     }
 

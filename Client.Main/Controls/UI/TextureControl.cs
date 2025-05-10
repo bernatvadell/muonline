@@ -36,22 +36,11 @@ namespace Client.Main.Controls.UI
             if (Status != GameControlStatus.Ready || !Visible || Texture == null)
                 return;
 
-            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
-            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-            GraphicsDevice.SamplerStates[0] = SamplerState.PointClamp;
-
-            GraphicsManager.Instance.Sprite.Begin(
-                blendState: BlendState,
-                effect: GraphicsManager.Instance.AlphaTestEffectUI,
-                samplerState: SamplerState.PointClamp,
-                depthStencilState: DepthStencilState.Default
-            );
-            GraphicsManager.Instance.Sprite.Draw(Texture, DisplayRectangle, SourceRectangle, Color.White * Alpha, 0f, Vector2.Zero, SpriteEffects.None, 0f);
-            GraphicsManager.Instance.Sprite.End();
-
-            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
-            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-            GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
+            GraphicsManager.Instance.Sprite.Draw(
+                Texture,
+                DisplayRectangle,
+                SourceRectangle,
+                Color.White * Alpha);
 
             base.Draw(gameTime);
         }

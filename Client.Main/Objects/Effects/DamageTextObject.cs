@@ -3,7 +3,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System.Threading.Tasks;
 using Client.Main.Controllers;  // For GraphicsManager
 using Client.Main.Models;
-using System;
+using Client.Main.Helpers;
 
 namespace Client.Main.Objects.Effects
 {
@@ -84,32 +84,39 @@ namespace Client.Main.Objects.Effects
 
         public override void DrawAfter(GameTime gameTime)
         {
-            if (!Visible) return;
+            if (!Visible)
+                return;
 
             var spriteBatch = GraphicsManager.Instance.Sprite;
             var font = GraphicsManager.Instance.Font;
-            if (spriteBatch == null || font == null) return;
+            if (spriteBatch == null || font == null)
+                return;
 
             float fontSize = 14f;
-            float scale = fontSize / Constants.BASE_FONT_SIZE;
+            float scaleFactor = fontSize / Constants.BASE_FONT_SIZE;
             Vector2 origin = font.MeasureString(Text) * 0.5f;
             Color color = TextColor * Alpha;
 
-            spriteBatch.Begin(
+            using (new SpriteBatchScope(
+                spriteBatch,
                 SpriteSortMode.Deferred,
                 BlendState.AlphaBlend,
                 SamplerState.LinearClamp,
                 DepthStencilState.None,
-                RasterizerState.CullNone);
-
-            spriteBatch.DrawString(font, Text, _screenPosition, color, 0f, origin, scale, SpriteEffects.None, 0f);
-            spriteBatch.End();
-
-            // Reset render states
-            GraphicsDevice.BlendState = BlendState.Opaque;
-            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
-            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
-            GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
+                RasterizerState.CullNone))
+            {
+                spriteBatch.DrawString(
+                    font,
+                    Text,
+                    _screenPosition,
+                    color,
+                    0f,
+                    origin,
+                    scaleFactor,
+                    SpriteEffects.None,
+                    0f);
+            }
         }
+
     }
 }

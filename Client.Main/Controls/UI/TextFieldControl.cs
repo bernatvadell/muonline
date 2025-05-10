@@ -241,18 +241,20 @@ namespace Client.Main.Controls.UI
                 DrawFlatBackground(spriteBatch);
 
             DrawTextAndCursor(spriteBatch);
+
+            base.Draw(gameTime);
         }
 
         private void DrawFlatBackground(SpriteBatch spriteBatch)
         {
-            spriteBatch.Begin();
             DrawBackground();
             DrawBorder();
-            spriteBatch.End();
         }
 
         private void DrawNineSliceBackground(SpriteBatch spriteBatch)
         {
+            var r = DisplayRectangle;
+
             var TL = _nineSlice[0];
             var T = _nineSlice[1];
             var TR = _nineSlice[2];
@@ -263,62 +265,54 @@ namespace Client.Main.Controls.UI
             var B = _nineSlice[7];
             var BR = _nineSlice[8];
 
-            spriteBatch.Begin(SpriteSortMode.Deferred,
-                              BlendState.AlphaBlend,
-                              SamplerState.PointClamp);
+            spriteBatch.Draw(TL, new Rectangle(r.X, r.Y, TL.Width, TL.Height), Color.White);
+            spriteBatch.Draw(TR, new Rectangle(r.Right - TR.Width, r.Y, TR.Width, TR.Height), Color.White);
+            spriteBatch.Draw(BL, new Rectangle(r.X, r.Bottom - BL.Height, BL.Width, BL.Height), Color.White);
+            spriteBatch.Draw(BR, new Rectangle(r.Right - BR.Width, r.Bottom - BR.Height, BR.Width, BR.Height), Color.White);
 
-            spriteBatch.Draw(TL, new Rectangle(DisplayRectangle.X, DisplayRectangle.Y, TL.Width, TL.Height), Color.White);
-            spriteBatch.Draw(TR, new Rectangle(DisplayRectangle.Right - TR.Width, DisplayRectangle.Y, TR.Width, TR.Height), Color.White);
-            spriteBatch.Draw(BL, new Rectangle(DisplayRectangle.X, DisplayRectangle.Bottom - BL.Height, BL.Width, BL.Height), Color.White);
-            spriteBatch.Draw(BR, new Rectangle(DisplayRectangle.Right - BR.Width, DisplayRectangle.Bottom - BR.Height, BR.Width, BR.Height), Color.White);
+            spriteBatch.Draw(T, new Rectangle(r.X + TL.Width, r.Y, r.Width - TL.Width - TR.Width, T.Height), Color.White);
+            spriteBatch.Draw(B, new Rectangle(r.X + BL.Width, r.Bottom - B.Height, r.Width - BL.Width - BR.Width, B.Height), Color.White);
+            spriteBatch.Draw(L, new Rectangle(r.X, r.Y + TL.Height, L.Width, r.Height - TL.Height - BL.Height), Color.White);
+            spriteBatch.Draw(R, new Rectangle(r.Right - R.Width, r.Y + TR.Height, R.Width, r.Height - TR.Height - BR.Height), Color.White);
 
-            spriteBatch.Draw(T, new Rectangle(DisplayRectangle.X + TL.Width, DisplayRectangle.Y, DisplayRectangle.Width - TL.Width - TR.Width, T.Height), Color.White);
-            spriteBatch.Draw(B, new Rectangle(DisplayRectangle.X + BL.Width, DisplayRectangle.Bottom - B.Height, DisplayRectangle.Width - BL.Width - BR.Width, B.Height), Color.White);
-            spriteBatch.Draw(L, new Rectangle(DisplayRectangle.X, DisplayRectangle.Y + TL.Height, L.Width, DisplayRectangle.Height - TL.Height - BL.Height), Color.White);
-            spriteBatch.Draw(R, new Rectangle(DisplayRectangle.Right - R.Width, DisplayRectangle.Y + TR.Height, R.Width, DisplayRectangle.Height - TR.Height - BR.Height), Color.White);
-
-            spriteBatch.Draw(C, new Rectangle(DisplayRectangle.X + L.Width, DisplayRectangle.Y + T.Height, DisplayRectangle.Width - L.Width - R.Width, DisplayRectangle.Height - T.Height - B.Height), Color.White);
-
-            spriteBatch.End();
+            spriteBatch.Draw(C, new Rectangle(r.X + L.Width, r.Y + T.Height, r.Width - L.Width - R.Width, r.Height - T.Height - B.Height), Color.White);
         }
 
         private void DrawTextAndCursor(SpriteBatch spriteBatch)
         {
-            if (GraphicsManager.Instance.Font == null) return;
+            var font = GraphicsManager.Instance.Font;
+            if (font == null) return;
 
-            var originalScissorRect = GraphicsDevice.ScissorRectangle;
-            var textRenderArea = new Rectangle(DisplayRectangle.X + TextMargin, DisplayRectangle.Y, Math.Max(0, DisplayRectangle.Width - TextMargin * 2), DisplayRectangle.Height);
+            var gd = GraphicsManager.Instance.GraphicsDevice;
+            var originalScissorRect = gd.ScissorRectangle;
+            var area = new Rectangle(
+                DisplayRectangle.X + TextMargin,
+                DisplayRectangle.Y,
+                Math.Max(0, DisplayRectangle.Width - TextMargin * 2),
+                DisplayRectangle.Height
+            );
+            gd.ScissorRectangle = Rectangle.Intersect(originalScissorRect, area);
+            gd.RasterizerState = new RasterizerState { ScissorTestEnable = true };
 
-            GraphicsDevice.ScissorRectangle = Rectangle.Intersect(textRenderArea, originalScissorRect);
+            float scale = FontSize / Constants.BASE_FONT_SIZE;
+            string text = MaskValue ? new string('*', _inputText.Length) : _inputText.ToString();
+            Vector2 textPos = new Vector2(DisplayRectangle.X + TextMargin - _scrollOffset,
+                                          DisplayRectangle.Y + (DisplayRectangle.Height - font.MeasureString("A").Y * scale) / 2f);
 
-            spriteBatch.Begin(SpriteSortMode.Deferred,
-                              BlendState.AlphaBlend,
-                              SamplerState.PointClamp,
-                              DepthStencilState.None,
-                              new RasterizerState { ScissorTestEnable = true });
-
-            float scaleFactor = FontSize / Constants.BASE_FONT_SIZE;
-            var textToDisplay = MaskValue ? new string('*', _inputText.Length) : _inputText.ToString();
-            float textHeight = GraphicsManager.Instance.Font.MeasureString("A").Y * scaleFactor;
-            float textOffsetY = (DisplayRectangle.Height - textHeight) / 2f;
-            var textPosition = new Vector2(DisplayRectangle.X + TextMargin - _scrollOffset, DisplayRectangle.Y + textOffsetY);
-
-            spriteBatch.DrawString(GraphicsManager.Instance.Font, textToDisplay, textPosition, TextColor, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 0f);
+            spriteBatch.DrawString(font, text, textPos, TextColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
 
             if (IsFocused && _showCursor)
             {
-                var textWidth = GraphicsManager.Instance.Font.MeasureString(textToDisplay).X * scaleFactor;
-                var cursorPosition = textPosition + new Vector2(textWidth, 0);
-                if (cursorPosition.X >= textRenderArea.Left && cursorPosition.X <= textRenderArea.Right)
+                float w = font.MeasureString(text).X * scale;
+                var cursorPos = textPos + new Vector2(w, 0);
+                if (cursorPos.X >= area.Left && cursorPos.X <= area.Right)
                 {
-                    spriteBatch.DrawString(GraphicsManager.Instance.Font, "|", cursorPosition, TextColor, 0f, Vector2.Zero, scaleFactor, SpriteEffects.None, 0f);
+                    spriteBatch.DrawString(font, "|", cursorPos, TextColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
                 }
             }
 
-            spriteBatch.End();
-
-            GraphicsDevice.ScissorRectangle = originalScissorRect;
-            GraphicsDevice.RasterizerState = RasterizerState.CullNone;
+            gd.ScissorRectangle = originalScissorRect;
+            gd.RasterizerState = RasterizerState.CullNone;
         }
     }
 }

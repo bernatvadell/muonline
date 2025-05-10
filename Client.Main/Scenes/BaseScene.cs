@@ -1,8 +1,11 @@
-﻿using Client.Main.Controls;
+﻿using Client.Main.Controllers;
+using Client.Main.Controls;
 using Client.Main.Controls.UI;
+using Client.Main.Helpers;
 using Client.Main.Models;
 using Client.Main.Objects;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System.Threading.Tasks;
 
@@ -89,9 +92,28 @@ namespace Client.Main.Scenes
 
         public override void Draw(GameTime gameTime)
         {
-            if (World == null) return;
+            if (World == null)
+                return;
 
-            base.Draw(gameTime);
+            World.Draw(gameTime);
+
+            World.DrawAfter(gameTime);
+
+            // UI 2-D
+            using (new SpriteBatchScope(
+                       GraphicsManager.Instance.Sprite,
+                       SpriteSortMode.Deferred,
+                       BlendState.AlphaBlend,
+                       SamplerState.PointClamp,
+                       DepthStencilState.None))
+            {
+                for (int i = 0; i < Controls.Count; i++)
+                {
+                    var ctrl = Controls[i];
+                    if (ctrl != World && ctrl.Visible)
+                        ctrl.Draw(gameTime);
+                }
+            }
         }
     }
 }

@@ -10,7 +10,16 @@ namespace Client.Main.Objects.Player
         public PlayerClass PlayerClass
         {
             get => _playerClass;
-            set { if (_playerClass != value) { _playerClass = value; OnChangePlayerClass(); } }
+            set { _playerClass = value; }
+        }
+
+        public async Task SetPlayerClassAsync(PlayerClass playerClass)
+        {
+            if (_playerClass != playerClass)
+            {
+                _playerClass = playerClass;
+                await OnChangePlayerClass();
+            }
         }
 
         public PlayerArmorObject()
@@ -18,7 +27,7 @@ namespace Client.Main.Objects.Player
             RenderShadow = true;
         }
 
-        private async void OnChangePlayerClass()
+        private async Task OnChangePlayerClass()
         {
             Model = await BMDLoader.Instance.Prepare($"Player/ArmorClass{(int)PlayerClass:D2}.bmd");
             if (Model != null && Status == GameControlStatus.Error)

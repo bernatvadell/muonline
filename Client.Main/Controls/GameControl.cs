@@ -201,30 +201,8 @@ namespace Client.Main.Controls
             if (Status != GameControlStatus.Ready || !Visible)
                 return;
 
-            var sb = GraphicsManager.Instance.Sprite;
-            bool beginCalled = false;
-            try
-            {
-                // Check if SpriteBatch is already in a Begin/End block from a parent
-                // This is a simplified check; a more robust solution might involve a stack or state tracking.
-                // For now, assume if it's not null and not in a Begin state, we can call Begin.
-                // This part is tricky without knowing the exact state management of SpriteBatch elsewhere.
-                // A common pattern is to pass the SpriteBatch down or ensure Begin/End is called at the highest level.
-                // For simplicity, let's assume each control manages its own Begin/End for background/border.
-                // Children will then call their own Begin/End.
-                // This might lead to multiple Begin/End calls, which is not ideal for performance.
-                // A better approach is often to have a single Begin/End at the scene or root UI level.
-                // However, sticking to the original structure for now:
-                sb.Begin();
-                beginCalled = true;
-                DrawBackground();
-                DrawBorder();
-            }
-            finally
-            {
-                if (beginCalled && sb.GraphicsDevice != null) // Only End if Begin was called by this control
-                    sb.End();
-            }
+            DrawBackground();
+            DrawBorder();
 
             GraphicsDevice.SamplerStates[0] = SamplerState.LinearWrap;
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
