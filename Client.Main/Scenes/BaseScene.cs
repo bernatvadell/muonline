@@ -7,6 +7,10 @@ using Client.Main.Objects;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace Client.Main.Scenes
@@ -38,11 +42,78 @@ namespace Client.Main.Scenes
             Task.Run(() => ChangeWorldAsync<T>()).ConfigureAwait(false);
         }
 
-        public async Task ChangeWorldAsync<T>() where T : WorldControl, new()
+        public async Task ChangeWorldAsync<T>(Action<string, float> progressCallback = null) where T : WorldControl, new()
         {
+            progressCallback?.Invoke("Disposing previous world...", 0.0f * (progressCallback == null ? 1.0f : 1.0f)); // Progress for this step
             World?.Dispose();
-            Controls.Add(World = new T());
-            await World.Initialize();
+
+            progressCallback?.Invoke($"Creating World {typeof(T).Name}...", 0.1f * (progressCallback == null ? 1.0f : 1.0f));
+            var newWorld = new T();
+            Controls.Add(newWorld);
+
+            progressCallback?.Invoke($"Initializing World {typeof(T).Name}...", 0.2f * (progressCallback == null ? 1.0f : 1.0f));
+            // If WorldControl needs fine-grained progress, it would need InitializeWithProgressReporting too.
+            // For now, its Initialize() is treated as one block.
+            await newWorld.Initialize();
+
+            World = newWorld;
+            progressCallback?.Invoke($"World {typeof(T).Name} Ready.", 1.0f * (progressCallback == null ? 1.0f : 1.0f));
+        }
+
+        public virtual async Task InitializeWithProgressReporting(Action<string, float> progressCallback)
+        {
+            if (Status != GameControlStatus.NonInitialized)
+                return;
+
+            void Report(string message, float progress) => progressCallback?.Invoke(message, progress);
+
+            try
+            {
+                Status = GameControlStatus.Initializing;
+                Report($"Initializing {GetType().Name}...", 0.05f);
+
+                var controlsToInitialize = Controls.Where(c => c.Status == GameControlStatus.NonInitialized).ToArray();
+                if (controlsToInitialize.Any())
+                {
+                    // This part is usually very fast, so one report is fine.
+                    // If individual controls become heavy, this might need more detail.
+                    Report($"Initializing UI Controls for {GetType().Name}...", 0.10f);
+                    var controlTasks = new List<Task>(controlsToInitialize.Length);
+                    foreach (var control in controlsToInitialize)
+                    {
+                        controlTasks.Add(control.Initialize());
+                    }
+                    await Task.WhenAll(controlTasks);
+                    Report($"UI Controls Initialized for {GetType().Name}.", 0.15f);
+                }
+                else
+                {
+                    Report($"No new UI Controls to initialize for {GetType().Name}.", 0.15f);
+                }
+
+                await LoadSceneContentWithProgress(progressCallback);
+
+                Report($"Finalizing {GetType().Name}...", 0.95f);
+                AfterLoad();
+
+                Status = GameControlStatus.Ready;
+                Report($"{GetType().Name} Ready.", 1.0f);
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine($"Error during InitializeWithProgressReporting for {GetType().Name}: {e.Message}{Environment.NewLine}{e.StackTrace}");
+                Status = GameControlStatus.Error;
+                Report($"Error initializing {GetType().Name}: {e.Message}", 1.0f);
+                throw;
+            }
+        }
+
+        protected virtual async Task LoadSceneContentWithProgress(Action<string, float> progressCallback)
+        {
+            // Base implementation calls the old Load method and reports basic progress
+            progressCallback?.Invoke($"Loading content for {GetType().Name}...", 0.2f); // Generic start
+            await Load(); // Calls existing Load method of the derived scene
+            progressCallback?.Invoke($"Content loaded for {GetType().Name}.", 0.9f); // Generic end
         }
 
         public override void Update(GameTime gameTime)

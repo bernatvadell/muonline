@@ -52,6 +52,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 CharacterStatus status = CharacterStatus.Normal;
                 CharacterHeroState heroState = CharacterHeroState.Normal;
                 uint money = 0;
+                byte direction = 0; // Default direction
 
                 // Parse according to protocol version
                 switch (_targetVersion)
@@ -79,6 +80,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             heroState = info.HeroState;
                             status = info.Status;
                             inventoryExpansion = info.InventoryExtensions;
+                            // Note: CharacterInformationExtended (S6) does not have a direction field. Client might get it from MapChange or default.
                         }
                         else if (packet.Length >= CharacterInformation.Length)
                         {
@@ -102,6 +104,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             heroState = info.HeroState;
                             status = info.Status;
                             inventoryExpansion = info.InventoryExtensions;
+                            // Note: CharacterInformation (S6, non-extended) does not have a direction field.
                         }
                         else goto DefaultCase;
                         break;
@@ -128,6 +131,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             heroState = info.HeroState;
                             status = info.Status;
                             inventoryExpansion = 0;
+                            direction = info.Direction;
                         }
                         else goto DefaultCase;
                         break;
@@ -153,6 +157,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             heroState = info.HeroState;
                             status = info.Status;
                             inventoryExpansion = 0;
+                            // direction = info.Direction;
                         }
                         else goto DefaultCase;
                         break;
@@ -172,6 +177,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                 _characterState.UpdatePosition(x, y);
                 _characterState.UpdateMap(mapId);
+                _characterState.UpdateDirection(direction); // Update direction based on packet data or default
                 _characterState.UpdateLevelAndExperience(level, currentExp, nextExp, levelUpPoints);
                 _characterState.UpdateStats(str, agi, vit, ene, cmd);
                 _characterState.UpdateMaximumHealthShield(maxHp, maxSd);
@@ -254,11 +260,12 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 }
 
                 // Adjust map ID (server uses zero-based)
-                mapId = (ushort)(mapNumber + 1);
+                mapId = (ushort)(mapNumber + 1); // Server map IDs are 0-based, client/world uses 1-based.
 
                 // Update state
                 _characterState.UpdatePosition(x, y);
                 _characterState.UpdateMap(mapId);
+                _characterState.UpdateDirection(direction);
                 _characterState.UpdateCurrentHealthShield(currentHp, _characterState.MaximumShield);
                 _characterState.UpdateCurrentManaAbility(currentMana, currentAbility);
                 _characterState.Experience = experience;
@@ -290,22 +297,23 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 mapNumber = m75.MapNumber;
                 direction = m75.Rotation;
             }
-            else
+            else // Season 6 and 0.97 use the same structure for MapChanged
             {
                 var m = new MapChanged(packet);
                 x = m.PositionX;
                 y = m.PositionY;
-                mapNumber = (ushort)m.MapNumber;
+                mapNumber = (ushort)m.MapNumber; // Ensure it's treated as ushort for mapId logic
                 direction = m.Rotation;
             }
 
             // Adjust and log
-            ushort mapId = (ushort)(mapNumber + 1);
+            ushort mapId = (ushort)(mapNumber); // Server's MapNumber is already the correct WorldIndex for client worlds.
             _logger.LogInformation("🔄 MapChanged: Map={Map}, Pos=({X},{Y}), Dir={Dir}", mapId, x, y, direction);
 
             // Update state & notify
             _characterState.UpdatePosition(x, y);
             _characterState.UpdateMap(mapId);
+            _characterState.UpdateDirection(direction);
             _networkManager.ProcessCharacterRespawn(mapId, x, y, direction);
 
             return Task.CompletedTask;

@@ -74,6 +74,7 @@ namespace Client.Main.Core.Client
         public byte PositionX { get; set; } = 0;
         public byte PositionY { get; set; } = 0;
         public ushort MapId { get; set; } = 0;
+        public byte Direction { get; set; } = 0; // Default direction, e.g., West
 
         // Core Stats (HP, Mana, SD, AG)
         public uint CurrentHealth { get; set; } = 0;
@@ -181,6 +182,15 @@ namespace Client.Main.Core.Client
             PositionX = x;
             PositionY = y;
             _logger.LogDebug("Character position updated to X: {X}, Y: {Y}", x, y);
+        }
+
+        /// <summary>
+        /// Updates the character's direction.
+        /// </summary>
+        public void UpdateDirection(byte direction)
+        {
+            Direction = direction;
+            _logger.LogDebug("Character direction updated to: {Direction}", direction);
         }
 
         /// <summary>

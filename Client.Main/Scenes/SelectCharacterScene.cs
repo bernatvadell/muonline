@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controls.UI;
+using Client.Main.Controls.UI.Game;
 using Client.Main.Core.Client;
 using Client.Main.Models;
 using Client.Main.Networking;
@@ -23,6 +24,8 @@ namespace Client.Main.Scenes
         private NetworkManager _networkManager;
         private ILogger<SelectCharacterScene> _logger;
         private (string Name, CharacterClassNumber Class, ushort Level)? _selectedCharacterInfo = null;
+        private LoadingScreenControl _loadingScreen;
+        private bool _initialLoadComplete = false;
 
         // Constructors
         public SelectCharacterScene(List<(string Name, CharacterClassNumber Class, ushort Level)> characters)
@@ -33,37 +36,77 @@ namespace Client.Main.Scenes
 
             _infoLabel = new LabelControl
             {
-                Text = "Loading character selection...",
+                Text = "Preparing character selection...",
                 Align = ControlAlign.Top | ControlAlign.HorizontalCenter,
                 Margin = new Margin { Top = 20 },
                 FontSize = 16,
-                TextColor = Color.LightGray
+                TextColor = Color.LightGray,
+                Visible = false
             };
             Controls.Add(_infoLabel);
+
+            _loadingScreen = new LoadingScreenControl { Visible = true, Message = "Loading Characters..." };
+            Controls.Add(_loadingScreen);
+            _loadingScreen.BringToFront();
 
             SubscribeToNetworkEvents();
         }
 
-        // Public Methods
-        public override async Task Load()
+        private void UpdateLoadProgress(string message, float progress)
         {
-            _logger.LogInformation(">>> SelectCharacterScene Load starting...");
-            await base.Load();
+            MuGame.ScheduleOnMainThread(() =>
+            {
+                if (_loadingScreen != null && _loadingScreen.Visible)
+                {
+                    _loadingScreen.Message = message;
+                    _loadingScreen.Progress = progress;
+                }
+            });
+        }
+
+        protected override async Task LoadSceneContentWithProgress(Action<string, float> progressCallback)
+        {
+            UpdateLoadProgress("Initializing Character Selection...", 0.0f);
+            _logger.LogInformation(">>> SelectCharacterScene LoadSceneContentWithProgress starting...");
+
             try
             {
+                UpdateLoadProgress("Creating Select World...", 0.05f);
                 _selectWorld = new SelectWorld();
                 Controls.Add(_selectWorld);
-                _logger.LogInformation("--- SelectCharacterScene Load: Calling _selectWorld.Initialize()...");
+
+                UpdateLoadProgress("Initializing Select World (Graphics)...", 0.1f);
                 await _selectWorld.Initialize();
                 World = _selectWorld;
-                _logger.LogInformation("--- SelectCharacterScene Load: SelectWorld initialized and set.");
+                UpdateLoadProgress("Select World Initialized.", 0.35f); // Zwiększony postęp po inicjalizacji świata
+                _logger.LogInformation("--- SelectCharacterScene: SelectWorld initialized and set.");
 
                 if (_selectWorld != null && _characters.Any())
                 {
-                    _logger.LogInformation("--- SelectCharacterScene Load: Calling _selectWorld.CreateCharacterObjects()...");
+                    UpdateLoadProgress("Preparing Character Data...", 0.40f);
                     await _selectWorld.CreateCharacterObjects(_characters);
+
+                    float characterCreationStartProgress = 0.45f;
+                    float characterCreationEndProgress = 0.85f;
+                    float totalCharacterProgressSpan = characterCreationEndProgress - characterCreationStartProgress;
+
+                    if (_characters.Count > 0)
+                    {
+                        float progressPerCharacter = totalCharacterProgressSpan / _characters.Count;
+                        for (int i = 0; i < _characters.Count; i++)
+                        {
+                            UpdateLoadProgress($"Configuring character {i + 1}/{_characters.Count}...", characterCreationStartProgress + (i + 1) * progressPerCharacter);
+                        }
+                    }
+                    else
+                    {
+                        UpdateLoadProgress("No characters to configure.", characterCreationEndProgress);
+                    }
+
+
                     if (_infoLabel != null) _infoLabel.Text = "Select your character";
-                    _logger.LogInformation("--- SelectCharacterScene Load: CreateCharacterObjects finished.");
+                    UpdateLoadProgress("Character Objects Ready.", 0.90f);
+                    _logger.LogInformation("--- SelectCharacterScene: CreateCharacterObjects finished.");
                 }
                 else
                 {
@@ -71,22 +114,68 @@ namespace Client.Main.Scenes
                         ? "Error creating character objects."
                         : "No characters found on this account.";
                     if (_infoLabel != null) _infoLabel.Text = message;
-                    _logger.LogWarning("--- SelectCharacterScene Load: {Message}", message);
+                    _logger.LogWarning("--- SelectCharacterScene: {Message}", message);
+                    UpdateLoadProgress(message, 0.90f);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "!!! SelectCharacterScene Load: Error during world initialization or character creation.");
+                _logger.LogError(ex, "!!! SelectCharacterScene: Error during world initialization or character creation.");
                 if (_infoLabel != null) _infoLabel.Text = "Error loading character selection.";
+                UpdateLoadProgress("Error loading character selection.", 1.0f);
             }
-
-            Cursor?.BringToFront();
-            _infoLabel?.BringToFront();
-            _logger.LogInformation("<<< SelectCharacterScene Load finished.");
+            finally
+            {
+                _initialLoadComplete = true;
+                UpdateLoadProgress("Character Selection Ready.", 1.0f);
+                _logger.LogInformation("<<< SelectCharacterScene LoadSceneContentWithProgress finished.");
+            }
         }
+
+        public override void AfterLoad()
+        {
+            base.AfterLoad();
+            _logger.LogInformation("SelectCharacterScene.AfterLoad() called.");
+            if (_loadingScreen != null)
+            {
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    if (_loadingScreen != null)
+                    {
+                        Controls.Remove(_loadingScreen);
+                        _loadingScreen.Dispose();
+                        _loadingScreen = null;
+                        _infoLabel.Visible = true;
+                        Cursor?.BringToFront();
+                        _infoLabel?.BringToFront();
+                        DebugPanel?.BringToFront();
+                    }
+                });
+            }
+        }
+
+        public override async Task Load()
+        {
+            if (Status == GameControlStatus.Initializing)
+            {
+                await LoadSceneContentWithProgress(UpdateLoadProgress);
+            }
+            else
+            {
+                _logger.LogDebug("SelectCharacterScene.Load() called outside of InitializeWithProgressReporting flow. Re-routing to progressive load.");
+                await LoadSceneContentWithProgress(UpdateLoadProgress);
+            }
+        }
+
 
         public void CharacterSelected(string characterName)
         {
+            if (_loadingScreen != null && _loadingScreen.Visible)
+            {
+                _logger.LogInformation("Character selection attempted while loading screen is visible. Ignoring.");
+                return;
+            }
+
             _selectedCharacterInfo = _characters.FirstOrDefault(c => c.Name == characterName);
 
             if (!_selectedCharacterInfo.HasValue)
@@ -102,9 +191,9 @@ namespace Client.Main.Scenes
 
             if (!canSelect)
             {
-                _logger.LogWarning("Character selection attempted but NetworkManager state is not ConnectedToGameServer. State: {State}", currentState);
+                _logger.LogWarning("Character selection attempted but NetworkManager state is not ConnectedToGameServer or SelectingCharacter. State: {State}", currentState);
                 MessageWindow.Show($"Cannot select character. Invalid network state: {currentState}");
-                _selectedCharacterInfo = null; // Clear selection on error
+                _selectedCharacterInfo = null;
                 return;
             }
 
@@ -119,10 +208,15 @@ namespace Client.Main.Scenes
         {
             _logger.LogDebug("Disposing SelectCharacterScene.");
             UnsubscribeFromNetworkEvents();
+            if (_loadingScreen != null)
+            {
+                Controls.Remove(_loadingScreen);
+                _loadingScreen.Dispose();
+                _loadingScreen = null;
+            }
             base.Dispose();
         }
 
-        // Private Methods
         private void SubscribeToNetworkEvents()
         {
             if (_networkManager != null)
@@ -152,6 +246,16 @@ namespace Client.Main.Scenes
             if (!_selectedCharacterInfo.HasValue)
             {
                 _logger.LogError("!!! SelectCharacterScene.HandleEnteredGame: EnteredGame event received, but _selectedCharacterInfo is null. Cannot change to GameScene.");
+                if (_loadingScreen != null)
+                {
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        Controls.Remove(_loadingScreen);
+                        _loadingScreen.Dispose();
+                        _loadingScreen = null;
+                        EnableInteractionAfterSelection();
+                    });
+                }
                 return;
             }
 
@@ -172,6 +276,7 @@ namespace Client.Main.Scenes
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "!!! SelectCharacterScene.HandleEnteredGame (UI Thread): Exception during ChangeScene to GameScene.");
+                        EnableInteractionAfterSelection();
                     }
                 }
                 else
@@ -187,6 +292,7 @@ namespace Client.Main.Scenes
             {
                 _logger.LogError("SelectCharacterScene received NetworkError: {Error}", errorMessage);
                 MessageWindow.Show($"Network Error: {errorMessage}");
+                EnableInteractionAfterSelection();
                 if (MuGame.Instance.ActiveScene == this)
                 {
                     MuGame.Instance.ChangeScene<LoginScene>();
@@ -220,7 +326,6 @@ namespace Client.Main.Scenes
                 {
                     charObj.Interactive = false;
                 }
-                // Also hide/disable labels on selection
                 var characterLabels = _selectWorld.GetCharacterLabels();
                 foreach (var label in characterLabels.Values)
                 {
@@ -230,7 +335,71 @@ namespace Client.Main.Scenes
             if (_infoLabel != null)
             {
                 _infoLabel.Text = $"Selecting {characterName}...";
+                _infoLabel.Visible = true;
             }
+
+            if (_loadingScreen == null)
+            {
+                _loadingScreen = new LoadingScreenControl { Visible = true };
+                Controls.Add(_loadingScreen);
+            }
+            _loadingScreen.Message = $"Entering game as {characterName}...";
+            _loadingScreen.Progress = 0f;
+            _loadingScreen.Visible = true;
+            _loadingScreen.BringToFront();
+            Cursor?.BringToFront();
+        }
+
+        private void EnableInteractionAfterSelection()
+        {
+            if (_selectWorld != null)
+            {
+                _selectWorld.Interactive = true;
+                foreach (var charObj in _selectWorld.Objects.OfType<PlayerObject>())
+                {
+                    charObj.Interactive = true;
+                }
+                var characterLabels = _selectWorld.GetCharacterLabels();
+                foreach (var label in characterLabels.Values)
+                {
+                    label.Visible = true;
+                }
+            }
+            if (_infoLabel != null)
+            {
+                _infoLabel.Text = "Select your character";
+            }
+            _selectedCharacterInfo = null;
+
+            if (_loadingScreen != null)
+            {
+                Controls.Remove(_loadingScreen);
+                _loadingScreen.Dispose();
+                _loadingScreen = null;
+            }
+        }
+
+        public override void Update(GameTime gameTime)
+        {
+            if (_loadingScreen != null && _loadingScreen.Visible)
+            {
+                _loadingScreen.Update(gameTime);
+                Cursor?.Update(gameTime);
+                DebugPanel?.Update(gameTime);
+                return;
+            }
+            if (!_initialLoadComplete && Status == GameControlStatus.Initializing)
+            {
+                Cursor?.Update(gameTime);
+                DebugPanel?.Update(gameTime);
+                return;
+            }
+            base.Update(gameTime);
+        }
+
+        public override void Draw(GameTime gameTime)
+        {
+            base.Draw(gameTime);
         }
     }
 }

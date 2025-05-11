@@ -23,7 +23,7 @@ namespace Client.Main.Controls
         public virtual WorldControl World => Scene?.World;
 
         public ChildrenCollection<GameControl> Controls { get; private set; }
-        public GameControlStatus Status { get; private set; } = GameControlStatus.NonInitialized;
+        public GameControlStatus Status { get; protected set; } = GameControlStatus.NonInitialized;
         public ControlAlign Align { get; set; }
         public bool AutoViewSize { get; set; } = true;
         public bool Interactive { get; set; }

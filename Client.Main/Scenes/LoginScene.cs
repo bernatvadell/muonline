@@ -7,6 +7,7 @@ using Client.Main.Models;
 using Client.Main.Networking;
 using Client.Main.Worlds;
 using Microsoft.Extensions.Logging;
+using Microsoft.Xna.Framework;
 using MUnique.OpenMU.Network.Packets; // Needed for CharacterClassNumber
 using System;
 using System.Collections.Generic;
@@ -36,51 +37,87 @@ namespace Client.Main.Scenes
                       throw new InvalidOperationException("LoggerFactory not initialized in MuGame");
             _logger.LogInformation("LoginScene constructor called.");
 
-            _statusLabel = new LabelControl { /* ... settings ... */ };
+            _statusLabel = new LabelControl
+            {
+                Text = "Status: Initializing...",
+                X = 10,
+                Y = 10,
+                FontSize = 14,
+                TextColor = Color.Yellow,
+                Visible = true // Status label usually always visible
+            };
             Controls.Add(_statusLabel);
 
             _loginDialog = new LoginDialog()
             {
-                Visible = false,
+                Visible = false, // Will be set by HandleConnectionStateChange
                 Align = ControlAlign.HorizontalCenter | ControlAlign.VerticalCenter
             };
             _loginDialog.LoginAttempt += LoginDialog_LoginAttempt;
             Controls.Add(_loginDialog);
 
+            // Server selection UI elements are initialized later in InitializeServerSelectionUI
             _nonEventGroup = null;
             _eventGroup = null;
             _serverList = null;
         }
 
-        // Public Methods
-        public override async Task Load()
+        // This method is now part of the new progress reporting system
+        protected override async Task LoadSceneContentWithProgress(Action<string, float> progressCallback)
         {
-            _logger.LogInformation("LoginScene Load starting...");
-            _networkManager = MuGame.Network ??
-                              throw new InvalidOperationException("NetworkManager not initialized in MuGame");
+            // Overall LoginScene progress: 0.0 to 1.0
+            // Let's say Network Init is 0% to 20% (0.0 to 0.2 progress)
+            // World Loading is 20% to 70% (0.2 to 0.7 progress)
+            // Sound & UI checks are 70% to 90% (0.7 to 0.9 progress)
+
+            progressCallback?.Invoke("Initializing Network Manager...", 0.05f);
+            _networkManager = MuGame.Network ?? throw new InvalidOperationException("NetworkManager not initialized in MuGame");
             SubscribeToNetworkEvents();
-            await ChangeWorldAsync<NewLoginWorld>();
-            await base.Load();
+            progressCallback?.Invoke("Network Manager Ready.", 0.20f);
+
+            progressCallback?.Invoke("Loading Login World...", 0.21f);
+
+            World?.Dispose();
+            var loginWorld = new NewLoginWorld();
+            Controls.Add(loginWorld);
+            // Assuming NewLoginWorld.Initialize() is relatively fast.
+            // If it were slow, it would need its own progress reporting that this method would scale.
+            await loginWorld.Initialize();
+            World = loginWorld;
+
+            progressCallback?.Invoke("Login World Loaded.", 0.70f);
+
+            progressCallback?.Invoke("Playing Login Theme...", 0.75f);
             SoundController.Instance.PlayBackgroundMusic("Music/login_theme.mp3");
+
             UpdateStatusLabel(_networkManager.CurrentState);
 
+            progressCallback?.Invoke("Checking Connection State...", 0.80f);
             if (_networkManager.CurrentState >= ClientConnectionState.ConnectedToConnectServer)
             {
-                _logger.LogInformation("LoginScene loaded, NetworkManager already connected or connecting. State: {State}",
-                    _networkManager.CurrentState);
-                HandleConnectionStateChange(this, _networkManager.CurrentState); // Process current state immediately
+                _logger.LogInformation("LoginScene loaded, NetworkManager already connected or connecting. State: {State}", _networkManager.CurrentState);
+                HandleConnectionStateChange(this, _networkManager.CurrentState);
                 if (!_uiInitialized && _networkManager.CurrentState >= ClientConnectionState.ReceivedServerList)
                 {
-                    InitializeServerSelectionUI();
+                    InitializeServerSelectionUI(); // This will add controls, they'll be initialized by BaseScene's main loop if not already
                 }
             }
             else if (_networkManager.CurrentState == ClientConnectionState.Initial ||
                      _networkManager.CurrentState == ClientConnectionState.Disconnected)
             {
                 _logger.LogInformation("LoginScene loaded, initiating connection to Connect Server...");
-                _ = _networkManager.ConnectToConnectServerAsync();
+                _ = _networkManager.ConnectToConnectServerAsync(); // Fire and forget
             }
-            _logger.LogInformation("LoginScene Load finished.");
+            progressCallback?.Invoke("Login Scene Setup Complete.", 0.90f);
+        }
+
+        // Public Methods
+        public override Task Load()
+        {
+            // This will be called by base.InitializeWithProgressReporting if LoadSceneContentWithProgress isn't overridden
+            // or if super.Load() is called. For our new structure, direct work is in LoadSceneContentWithProgress.
+            _logger.LogDebug("LoginScene.Load() was called (likely by base). Main work in LoadSceneContentWithProgress.");
+            return Task.CompletedTask;
         }
 
         public override void Dispose()
