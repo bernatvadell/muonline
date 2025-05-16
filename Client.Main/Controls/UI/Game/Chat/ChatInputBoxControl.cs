@@ -202,6 +202,30 @@ namespace Client.Main.Controls.UI
             };
             Controls.Add(_transparencyButton);
 
+            // Subscribe to EnterKeyPressed event
+            _chatInput.EnterKeyPressed += (s, e) =>
+            {
+                if (_suppressNextEnter)
+                {
+                    _suppressNextEnter = false; // consume the suppression flag first
+
+                    // If after consuming suppression, the input field is truly empty (and whisper not active or empty)
+                    // then this Enter press (which was originally to open the chat) should now close it.
+                    if (string.IsNullOrEmpty(_chatInput.Value.Trim()) &&
+                        (!_isWhisperSendMode || string.IsNullOrEmpty(_whisperIdInput.Value.Trim())))
+                    {
+                        Hide();
+                        if (Scene != null) Scene.ConsumeKeyboardEnter(); // explicitly consume
+                    }
+                    // If text was entered after opening and before this Enter, do nothing; suppression worked.
+                }
+                else
+                {
+                    // Normal Enter press, not suppressed. Let ProcessEnterKey decide to send or hide.
+                    ProcessEnterKey();
+                }
+            };
+
             // Load textures for all children.
             await base.Load(); // This initializes children, including loading their textures.
 
@@ -282,7 +306,8 @@ namespace Client.Main.Controls.UI
             var keyboard = MuGame.Instance.Keyboard;
             var prevKeyboard = MuGame.Instance.PrevKeyboard;
 
-            // --- Handle Enter key (with suppression of the first Enter after Show) ---
+            // Handle Enter key FIRST (with suppression of the first Enter after Show) ---
+            // This allows Enter to close an empty chat even if the container has focus.
             if (keyboard.IsKeyDown(Keys.Enter) && prevKeyboard.IsKeyUp(Keys.Enter))
             {
                 if (_suppressNextEnter)
@@ -292,8 +317,11 @@ namespace Client.Main.Controls.UI
                 else
                 {
                     ProcessEnterKey();
+                    // After Enter, usually focus is lost or window closes, so further key processing might not be needed.
+                    // However, if ProcessEnterKey decided not to close, other keys might still be relevant.
+                    // For safety, we can return here if Enter was the action.
+                    return;
                 }
-                return; // Skip further processing after Enter.
             }
 
             // --- Handle Escape key to hide the chat box ---
@@ -303,12 +331,12 @@ namespace Client.Main.Controls.UI
                 return;
             }
 
-            // Proceed with other inputs only if input fields have focus.
+            // proceed with other inputs only if input fields have focus.
             bool chatFocus = Scene.FocusControl == _chatInput;
             bool whisperFocus = Scene.FocusControl == _whisperIdInput && _whisperIdInput.Visible;
 
-            if (!chatFocus && !whisperFocus)
-                return;
+            if (!chatFocus && !whisperFocus) // only proceed if one of the text fields has focus
+                return; // neither text field has focus, don't process Tab, Up, Down, F-keys related to chat functionality
 
             // --- Tab key to switch focus between input fields ---
             if (keyboard.IsKeyDown(Keys.Tab) && prevKeyboard.IsKeyUp(Keys.Tab))
@@ -391,6 +419,7 @@ namespace Client.Main.Controls.UI
                 else
                 {
                     Hide();
+                    if (Scene != null) Scene.ConsumeKeyboardEnter();
                 }
                 return;
             }
@@ -431,6 +460,7 @@ namespace Client.Main.Controls.UI
                 {
                     // Don't send empty public/group messages.
                     Hide(); // Just hide the box if message is empty.
+                    if (Scene != null) Scene.ConsumeKeyboardEnter();
                     return;
                 }
 
@@ -476,6 +506,7 @@ namespace Client.Main.Controls.UI
             // Clear input and hide AFTER ensuring the send task is initiated.
             _chatInput.Value = "";
             Hide();
+            if (Scene != null) Scene.ConsumeKeyboardEnter();
 
             // Update cooldown timer AFTER successful send attempt initiation.
             _lastChatTime = currentTime;
@@ -647,6 +678,17 @@ namespace Client.Main.Controls.UI
                     _whisperIdInput.DisplayRectangle,
                     Color.Black * 0.5f);
             }
+        }
+
+        public override bool OnClick()
+        {
+            // If the main chat input box area is clicked (not a button within it),
+            // and it's visible, set focus to the chat input field.
+            if (Visible && _chatInput != null && _chatInput.Visible)
+            {
+                _chatInput.Focus(); // this will also set Scene.FocusControl
+            }
+            return base.OnClick(); // allow base to fire Click event if any subscribers
         }
     }
 }

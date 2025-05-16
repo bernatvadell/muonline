@@ -50,11 +50,13 @@ namespace Client.Main.Controls.UI.Login
             base.Update(gameTime);
 
             Interactive = Available;
-            _status.TileWidth = 167 * Gauge / 100;
+            _status.TileWidth = 167 * Gauge;
 
             if (!Available)
                 TileY = 2;
-            else if (Scene.MouseControl == this)
+            else if (IsMouseOver && IsMousePressed) // check IsMousePressed from GameControl
+                TileY = 1; // typically, a "pressed" state might be different, but C++ logic was Scene.MouseControl == this
+            else if (IsMouseOver) // hover state
                 TileY = 1;
             else
                 TileY = 0;

@@ -17,6 +17,10 @@ namespace Client.Main.Controls
 
         private CursorObject _cursor;
         private float _cursorNextMoveTime;
+        private int _previousScrollValue;
+        private float _targetCameraDistance;
+        private float _minCameraDistance;
+        private float _maxCameraDistance;
 
         // --- Properties ---
 
@@ -73,10 +77,21 @@ namespace Client.Main.Controls
             if (Status != GameControlStatus.Ready || !Visible)
                 return;
 
+            // some UI overlay has the mouse, skip click-to-move this frame.
+            if (Scene != null && Scene.MouseHoverControl != null && Scene.MouseHoverControl != Scene.World)
+            {
+                // a UI element has focus or mouse over, and it's not the world itself,
+                // then the game world shouldn't process its specific click or scroll.
+                // The IsMouseInputConsumedThisFrame flag further reinforces this for other inputs.
+                base.Update(time);
+                return;
+            }
+
             CalculateMouseTilePos();
 
             // Handle click‐to‐move with a simple cooldown
-            if (Scene.MouseHoverControl == this &&
+            if (!Scene.IsMouseInputConsumedThisFrame && // check if UI already handled the click
+                (Scene.MouseControl == this || Scene.MouseControl == World) && // ensure this world or its base is the target
                 MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
                 _cursorNextMoveTime <= 0f)
             {
@@ -96,6 +111,19 @@ namespace Client.Main.Controls
             {
                 _cursorNextMoveTime -= (float)time.ElapsedGameTime.TotalMilliseconds;
             }
+
+            var mouseState = MuGame.Instance.Mouse;
+            int currentScroll = mouseState.ScrollWheelValue;
+            int scrollDiff = currentScroll - _previousScrollValue;
+            if (scrollDiff != 0 && !Scene.IsMouseInputConsumedThisFrame) // check if UI already handled scroll
+            {
+                float zoomChange = scrollDiff / 100f * 100f;
+                _targetCameraDistance = MathHelper.Clamp(
+                    _targetCameraDistance - zoomChange,
+                    _minCameraDistance,
+                    _maxCameraDistance);
+            }
+            _previousScrollValue = currentScroll;
 
             base.Update(time);
         }

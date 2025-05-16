@@ -50,6 +50,7 @@ namespace Client.Main.Controls.UI
 
         public bool MaskValue { get; set; }
         public event EventHandler ValueChanged;
+        public event EventHandler EnterKeyPressed;
 
         public TextFieldControl()
         {
@@ -79,6 +80,7 @@ namespace Client.Main.Controls.UI
             IsFocused = true;
             _showCursor = true;
             _cursorBlinkTimer = 0;
+            if (Scene != null) Scene.FocusControl = this;
         }
 
         public override void OnBlur()
@@ -124,6 +126,7 @@ namespace Client.Main.Controls.UI
             }
             else if (key == Keys.Enter)
             {
+                EnterKeyPressed?.Invoke(this, EventArgs.Empty);
                 ValueChanged?.Invoke(this, EventArgs.Empty);
             }
             else

@@ -74,6 +74,7 @@ namespace Client.Main.Core.Client
         public byte PositionX { get; set; } = 0;
         public byte PositionY { get; set; } = 0;
         public ushort MapId { get; set; } = 0;
+        public byte Direction { get; set; } = 0; // Default direction, e.g., West
 
         // Core Stats (HP, Mana, SD, AG)
         public uint CurrentHealth { get; set; } = 0;
@@ -136,7 +137,92 @@ namespace Client.Main.Core.Client
         private void RaiseHealth() => HealthChanged?.Invoke(CurrentHealth, MaximumHealth);
         private void RaiseMana() => ManaChanged?.Invoke(CurrentMana, MaximumMana);
 
-        // ───────── PATCH metody aktualizujące ─────────
+        /// <summary>
+        /// Updates core character identification data. More detailed stats (HP, MP, attributes etc.)
+        /// are expected to be updated by specific server packets like CharacterInformation or individual stat updates.
+        /// </summary>
+        public void UpdateCoreCharacterInfo(
+            ushort id,
+            string name,
+            CharacterClassNumber characterClass,
+            ushort level,
+            byte posX, byte posY, ushort mapId)
+        {
+            _logger.LogInformation("Updating CORE CharacterState for: {Name}, Level: {Level}, Class: {Class}", name, level, characterClass);
+
+            if (id != 0 && id != 0xFFFF) this.Id = id;
+            this.Name = name;
+            this.Class = characterClass;
+            this.Level = level;
+            this.PositionX = posX;
+            this.PositionY = posY;
+            this.MapId = mapId;
+            this.IsInGame = true;
+
+            this.LevelUpPoints = 0;
+            this.Experience = 0;
+            this.ExperienceForNextLevel = 1;
+            this.MasterLevel = 0;
+            this.MasterExperience = 0;
+            this.MasterExperienceForNextLevel = 1;
+            this.MasterLevelUpPoints = 0;
+
+            _logger.LogInformation("CORE CharacterState updated for {Name}. HP/MP/Stats/Zen will be updated by subsequent packets.", name);
+        }
+
+        public void UpdateCharacterOnLogin(
+            ushort id,
+            string name,
+            CharacterClassNumber characterClass,
+            ushort level,
+            byte posX, byte posY, ushort mapId,
+            ulong experience, ulong nextLevelExp, ushort levelUpPoints,
+            ushort strength, ushort agility, ushort vitality, ushort energy, ushort leadership,
+            uint currentHealth, uint maxHealth, uint currentMana, uint maxMana,
+            uint currentShield, uint maxShield, uint currentAbility, uint maxAbility,
+            uint zen, CharacterHeroState heroState, CharacterStatus status, byte inventoryExpansion)
+        {
+            _logger.LogInformation("Updating FULL CharacterState for character: {Name}, Level: {Level} (from F3 03 or similar)", name, level);
+
+            this.Id = id;
+            this.Name = name;
+            this.Class = characterClass;
+            this.Level = level;
+            this.PositionX = posX;
+            this.PositionY = posY;
+            this.MapId = mapId;
+            this.Experience = experience;
+            this.ExperienceForNextLevel = Math.Max(1, nextLevelExp);
+            this.LevelUpPoints = levelUpPoints;
+            this.Strength = strength;
+            this.Agility = agility;
+            this.Vitality = vitality;
+            this.Energy = energy;
+            this.Leadership = leadership;
+            this.CurrentHealth = currentHealth;
+            this.MaximumHealth = Math.Max(1, maxHealth);
+            this.CurrentMana = currentMana;
+            this.MaximumMana = Math.Max(1, maxMana);
+            this.CurrentShield = currentShield;
+            this.MaximumShield = maxShield;
+            this.CurrentAbility = currentAbility;
+            this.MaximumAbility = maxAbility;
+            this.InventoryZen = zen;
+            this.HeroState = heroState;
+            this.Status = status;
+            this.InventoryExpansionState = inventoryExpansion;
+            this.IsInGame = true;
+
+            this.MasterLevel = 0;
+            this.MasterExperience = 0;
+            this.MasterExperienceForNextLevel = 1;
+            this.MasterLevelUpPoints = 0;
+
+            RaiseHealth();
+            RaiseMana();
+            _logger.LogInformation("FULL CharacterState updated for {Name}.", name);
+        }
+
         public void UpdateCurrentHealthShield(uint currentHealth, uint currentShield)
         {
             CurrentHealth = currentHealth;
@@ -181,6 +267,15 @@ namespace Client.Main.Core.Client
             PositionX = x;
             PositionY = y;
             _logger.LogDebug("Character position updated to X: {X}, Y: {Y}", x, y);
+        }
+
+        /// <summary>
+        /// Updates the character's direction.
+        /// </summary>
+        public void UpdateDirection(byte direction)
+        {
+            Direction = direction;
+            _logger.LogDebug("Character direction updated to: {Direction}", direction);
         }
 
         /// <summary>

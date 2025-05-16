@@ -341,25 +341,25 @@ namespace Client.Main.Controls.UI
             // --- Mouse Input Handling ---
             if (mouseInInteractableArea || _isDraggingScrollbar || _isDraggingResize)
             {
-                // 1. Mouse wheel (only in main window)
+                // Mouse wheel (only in main window)
                 if (DisplayRectangle.Contains(mouse.Position) && mouse.ScrollWheelValue != prevMouse.ScrollWheelValue)
                 {
-                    int delta = (prevMouse.ScrollWheelValue - mouse.ScrollWheelValue) / 120;
+                    int delta = (prevMouse.ScrollWheelValue - mouse.ScrollWheelValue);
                     // Change here: invert the delta sign
-                    // Old: _scrollOffset += delta;
-                    _scrollOffset -= delta; // Inverted wheel scroll direction
+                    // old: _scrollOffset += delta;
+                    _scrollOffset -= delta; // inverted wheel scroll direction
                     ClampScrollOffset();
                     UpdateScrollbar();
                 }
 
-                // 2. Frame interactions (only when visible)
+                // Frame interactions (only when visible)
                 if (_showFrame)
                 {
                     HandleScrollbarInteraction(mouse, prevMouse);
                     HandleResizeInteraction(mouse, prevMouse);
                 }
 
-                // 3. Hover over message and right-click (when not dragging UI)
+                // Hover over message and right-click (when not dragging UI)
                 if (DisplayRectangle.Contains(mouse.Position) && !_isDraggingScrollbar && !_isDraggingResize)
                 {
                     DetectHoveredMessage(mouse.Position);
@@ -877,6 +877,35 @@ namespace Client.Main.Controls.UI
             if (_resizeHandleArea.IsEmpty || _texResizeHandle == null) return;
             Color handleColor = _isDraggingResize ? new Color(0.7f, 0.7f, 0.7f) : Color.White;
             spriteBatch.Draw(_texResizeHandle, _resizeHandleArea, handleColor);
+        }
+
+        public override bool ProcessMouseScroll(int scrollDelta)
+        {
+            if (!Visible || !IsMouseOver) return false; // not handled if not visible or mouse not over
+
+            // Check if mouse is over the scrollbar area (not a separate _scrollBar control, but the area/logic is internal)
+            if (_showFrame && !_scrollBarArea.IsEmpty && _scrollBarArea.Contains(MuGame.Instance.Mouse.Position))
+            {
+                // If the thumb is hovered, treat as handled (simulate scrollbar logic)
+                if (!_scrollThumbArea.IsEmpty && _scrollThumbArea.Contains(MuGame.Instance.Mouse.Position))
+                {
+                    // Simulate thumb scroll: scroll by one line per wheel event
+                    _scrollOffset -= scrollDelta;
+                    ClampScrollOffset();
+                    UpdateScrollbar();
+                    return true;
+                }
+                // If over the scrollbar but not the thumb, still treat as handled
+                _scrollOffset -= scrollDelta;
+                ClampScrollOffset();
+                UpdateScrollbar();
+                return true;
+            }
+            // Not over scrollbar, process for main content
+            _scrollOffset -= scrollDelta; // inverted from original logic; scrollDelta positive = wheel up = content scroll down = offset decrease
+            ClampScrollOffset();
+            UpdateScrollbar();
+            return true; // scroll handled
         }
     }
 }
