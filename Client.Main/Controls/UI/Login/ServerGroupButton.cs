@@ -40,9 +40,9 @@ namespace Client.Main.Controls.UI.Login
 
             if (Selected)
                 TileY = 3;
-            else if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && Scene.MouseControl == this)
+            else if (IsMouseOver && IsMousePressed) // check IsMousePressed for click visual
                 TileY = 2;
-            else if (Scene.MouseControl == this)
+            else if (IsMouseOver) // hover state
                 TileY = 1;
             else
                 TileY = 0;

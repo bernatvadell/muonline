@@ -29,6 +29,7 @@ namespace Client.Main.Scenes
         private LoadingScreenControl _loadingScreen; // For initial load and map changes
         private MapListControl _mapListControl;
         private ChatLogWindow _chatLog;
+        private MoveCommandWindow _moveCommandWindow;
         private ChatInputBoxControl _chatInput;
         private NotificationManager _notificationManager;
         private readonly (string Name, CharacterClassNumber Class, ushort Level) _characterInfo;
@@ -91,6 +92,10 @@ namespace Client.Main.Scenes
             Controls.Add(_loadingScreen);
             _loadingScreen.BringToFront(); // Ensure it's on top
 
+            _moveCommandWindow = new MoveCommandWindow(MuGame.AppLoggerFactory, MuGame.Network);
+            Controls.Add(_moveCommandWindow);
+            _moveCommandWindow.MapWarpRequested += OnMapWarpRequested;
+
             _chatInput.BringToFront();
             DebugPanel.BringToFront();
             Cursor.BringToFront();
@@ -124,28 +129,54 @@ namespace Client.Main.Scenes
         // This method is now part of the new progress reporting system
         protected override async Task LoadSceneContentWithProgress(Action<string, float> progressCallback)
         {
-            // We'll use the GameScene's own UpdateLoadProgress which updates its _loadingScreen.
-            // The progressCallback from BaseScene can be ignored or used for higher-level reporting if needed.
-
             UpdateLoadProgress("Initializing Game Scene...", 0.0f);
 
-            // 1. Hero Setup (Quick)
-            UpdateLoadProgress("Setting up hero...", 0.1f);
+            // 1. Hero Setup
+            UpdateLoadProgress("Setting up hero info...", 0.05f);
             _hero.CharacterClass = _characterInfo.Class;
             _hero.Name = _characterInfo.Name;
 
             var charState = MuGame.Network?.GetCharacterState();
-            if (charState != null)
+            if (charState == null)
             {
-                _hero.NetworkId = charState.Id;
-                _hero.Location = new Vector2(charState.PositionX, charState.PositionY);
-                Debug.WriteLine($"GameScene.Load: Spawn position from server -> ({charState.PositionX}, {charState.PositionY})");
+                UpdateLoadProgress("Error: CharacterState is null.", 1.0f);
+                Debug.WriteLine("CharacterState is null in GameScene.Load, cannot proceed.");
+                if (_loadingScreen != null) { Controls.Remove(_loadingScreen); _loadingScreen.Dispose(); _loadingScreen = null; }
+                _main.Visible = false;
+                return;
             }
-            UpdateLoadProgress("Hero setup complete.", 0.2f);
+
+            if (charState.Name != _characterInfo.Name || charState.Level != _characterInfo.Level || charState.Class != _characterInfo.Class || !charState.IsInGame)
+            {
+                Debug.WriteLine("GameScene load: CharacterState differs from _characterInfo or not in game. Updating core info for {CharacterName}.", _characterInfo.Name);
+
+                byte initialPosX = charState.PositionX;
+                byte initialPosY = charState.PositionY;
+                ushort initialMapId = charState.MapId;
+
+                if (charState.Name == "???")
+                {
+                    initialPosX = (byte)_hero.Location.X;
+                    initialPosY = (byte)_hero.Location.Y;
+                }
+
+
+                charState.UpdateCoreCharacterInfo(
+                    _hero.NetworkId,
+                    _characterInfo.Name,
+                    _characterInfo.Class,
+                    _characterInfo.Level,
+                    initialPosX, initialPosY, initialMapId
+                );
+            }
+            _hero.NetworkId = charState.Id;
+            _hero.Location = new Vector2(charState.PositionX, charState.PositionY);
+
+            UpdateLoadProgress("Hero info applied.", 0.1f);
 
             // 2. Determine Initial World (Quick)
-            UpdateLoadProgress("Determining initial world...", 0.25f);
-            Type initialWorldType = typeof(LorenciaWorld); // Default
+            UpdateLoadProgress("Determining initial world...", 0.15f);
+            Type initialWorldType = typeof(LorenciaWorld);
             if (charState != null && MapWorldRegistry.TryGetValue((byte)charState.MapId, out var mappedType))
             {
                 initialWorldType = mappedType;
@@ -154,12 +185,11 @@ namespace Client.Main.Scenes
             {
                 Debug.WriteLine($"GameScene.Load: Unknown MapId: {charState?.MapId}. Defaulting to Lorencia.");
             }
-            UpdateLoadProgress($"Initial world: {initialWorldType.Name}.", 0.3f);
+            UpdateLoadProgress($"Initial world: {initialWorldType.Name}.", 0.2f);
 
-            // 3. Instantiate and Initialize World (Potentially long)
-            UpdateLoadProgress($"Loading world: {initialWorldType.Name}...", 0.35f);
+            // 3. Instantiate and Initialize World
+            UpdateLoadProgress($"Loading world: {initialWorldType.Name}...", 0.25f);
 
-            // Dispose previous world if any (important for ChangeMap, less so for initial load but good practice)
             if (World != null)
             {
                 Controls.Remove(World);
@@ -176,18 +206,18 @@ namespace Client.Main.Scenes
             World.Objects.Add(_hero);
 
             await worldInstance.Initialize();
-            UpdateLoadProgress($"World {initialWorldType.Name} initialized.", 0.7f);
+            UpdateLoadProgress($"World {initialWorldType.Name} initialized.", 0.6f);
 
-            // 4. Load Hero Assets (Potentially long)
-            UpdateLoadProgress("Loading hero model and equipment...", 0.75f);
+            // 4. Load Hero Assets
+            UpdateLoadProgress("Loading hero assets...", 0.65f);
             if (_hero.Status == GameControlStatus.NonInitialized || _hero.Status == GameControlStatus.Initializing)
             {
                 await _hero.Load();
             }
-            UpdateLoadProgress("Hero loaded.", 0.85f);
+            UpdateLoadProgress("Hero assets loaded.", 0.80f);
 
-            // 5. Import Pending Objects (Quick, but depends on network state)
-            UpdateLoadProgress("Importing nearby players and monsters...", 0.90f);
+            // 5. Import Pending Objects
+            UpdateLoadProgress("Importing nearby entities...", 0.85f);
             if (World.Status == GameControlStatus.Ready)
             {
                 await ImportPendingRemotePlayers();
@@ -197,9 +227,9 @@ namespace Client.Main.Scenes
             {
                 Debug.WriteLine($"GameScene.Load: World not ready after Initialize (Status: {World.Status}). Pending objects may not import correctly.");
             }
-            UpdateLoadProgress("Objects imported.", 0.95f);
+            UpdateLoadProgress("Entities imported.", 0.95f);
 
-            // Finalize: Hide loading screen, show main UI
+            // Finalize
             if (_loadingScreen != null)
             {
                 Controls.Remove(_loadingScreen);
@@ -207,7 +237,7 @@ namespace Client.Main.Scenes
                 _loadingScreen = null;
             }
             _main.Visible = true;
-            UpdateLoadProgress("Game ready!", 1.0f); // Signals completion
+            UpdateLoadProgress("Game ready!", 1.0f);
         }
 
         public override async Task Load()
@@ -226,6 +256,22 @@ namespace Client.Main.Scenes
                 // Fallback to old behavior or log a warning
                 Debug.WriteLine("GameScene.Load() called outside of InitializeWithProgressReporting flow. Consider refactoring.");
                 await base.Load(); // Which is empty in BaseScene, then calls derived GameScene's old Load logic
+            }
+        }
+
+        private async void OnMapWarpRequested(int mapIndex)
+        {
+            Debug.WriteLine($"Player requested warp to map index: {mapIndex}");
+            _chatLog.AddMessage("System", $"Warping to map index {mapIndex} requested.", MessageType.System);
+
+            try
+            {
+                await MuGame.Network.SendWarpRequestAsync((ushort)mapIndex);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex, $"Error sending warp request for map index {mapIndex}.");
+                _chatLog.AddMessage("System", $"Error warping: {ex.Message}", MessageType.Error);
             }
         }
 
@@ -288,6 +334,8 @@ namespace Client.Main.Scenes
                 Debug.WriteLine($"GameScene.ChangeMap: World not ready after Initialize (Status: {World.Status}). Pending objects may not import correctly.");
             }
             _loadingScreen.Progress = 0.95f;
+
+            await MuGame.Network.SendClientReadyAfterMapChangeAsync();
 
             Controls.Remove(_loadingScreen);
             _loadingScreen.Dispose();
@@ -419,29 +467,35 @@ namespace Client.Main.Scenes
             }
 
             var currentKeyboardState = Keyboard.GetState();
-            bool uiHasFocus = FocusControl != null && FocusControl != World;
 
-            if (!uiHasFocus && !_chatInput.Visible && currentKeyboardState.IsKeyDown(Keys.Enter) && !_previousKeyboardState.IsKeyDown(Keys.Enter))
+            base.Update(gameTime);
+
+            if (FocusControl == _moveCommandWindow && _moveCommandWindow.Visible)
             {
-                _chatInput.Show();
-            }
-            else if (currentKeyboardState.IsKeyDown(Keys.M) && !_previousKeyboardState.IsKeyDown(Keys.M))
-            {
-                bool newVisibility = !_mapListControl.Visible;
-                _mapListControl.Visible = newVisibility;
-                if (newVisibility)
+                foreach (Keys key in System.Enum.GetValues(typeof(Keys)))
                 {
-                    if (!Controls.Contains(_mapListControl))
+                    if (currentKeyboardState.IsKeyDown(key) && _previousKeyboardState.IsKeyUp(key))
                     {
-                        Controls.Add(_mapListControl);
-                        _mapListControl.BringToFront();
-                        DebugPanel.BringToFront();
-                        Cursor.BringToFront();
+                        _moveCommandWindow.ProcessKeyInput(key, false);
                     }
                 }
-                else
+            }
+
+            bool isMoveCommandWindowFocused = FocusControl == _moveCommandWindow && _moveCommandWindow.Visible;
+            bool isChatInputFocused = FocusControl == _chatInput && _chatInput.Visible;
+
+            if (!isMoveCommandWindowFocused && !isChatInputFocused)
+            {
+                if (currentKeyboardState.IsKeyDown(Keys.M) && !_previousKeyboardState.IsKeyDown(Keys.M))
                 {
-                    Controls.Remove(_mapListControl);
+                    if (!NpcShopControl.Instance.Visible)
+                    {
+                        _moveCommandWindow.ToggleVisibility();
+                    }
+                }
+                else if (!IsKeyboardEnterConsumedThisFrame && !_chatInput.Visible && currentKeyboardState.IsKeyDown(Keys.Enter) && !_previousKeyboardState.IsKeyDown(Keys.Enter))
+                {
+                    _chatInput.Show();
                 }
             }
 
@@ -449,8 +503,11 @@ namespace Client.Main.Scenes
             ProcessPendingNotifications();
 
             if (World == null || World.Status != GameControlStatus.Ready)
+            {
+                _previousKeyboardState = currentKeyboardState;
                 return;
-            base.Update(gameTime);
+            }
+
 
             if (currentKeyboardState.IsKeyDown(Keys.F5) && _previousKeyboardState.IsKeyUp(Keys.F5)) _chatLog?.ToggleFrame();
             if (currentKeyboardState.IsKeyDown(Keys.F4) && _previousKeyboardState.IsKeyUp(Keys.F4)) _chatLog?.CycleSize();

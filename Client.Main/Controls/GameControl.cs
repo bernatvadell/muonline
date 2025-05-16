@@ -3,6 +3,7 @@ using Client.Main.Models;
 using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -14,6 +15,7 @@ namespace Client.Main.Controls
     {
         // Fields
         private Point _controlSize, _viewSize;
+        private bool _isCurrentlyPressedByMouse = false;
 
         // Properties
         public GraphicsDevice GraphicsDevice => MuGame.Instance.GraphicsDevice;
@@ -66,6 +68,7 @@ namespace Client.Main.Controls
         public event EventHandler SizeChanged;
         public event EventHandler Focus;
         public event EventHandler Blur;
+        public event EventHandler VisibilityChanged; // Optional event for visibility changes
 
         // Constructors
         protected GameControl()
@@ -74,13 +77,13 @@ namespace Client.Main.Controls
         }
 
         // Public Methods
-        public virtual void OnClick()
+        public virtual bool OnClick()
         {
-            if (MuGame.Instance.ActiveScene != null)
-            {
-                MuGame.Instance.ActiveScene.FocusControl = this;
-            }
+            // Focus this control when clicked, if it's interactive.
+            // Scene.FocusControl is now set in BaseScene's Update.
+            // Here, we just invoke the event.
             Click?.Invoke(this, EventArgs.Empty);
+            return Click != null; // consumes if there's a subscriber
         }
 
         public virtual void OnFocus()
@@ -154,8 +157,56 @@ namespace Client.Main.Controls
                           mouse.Position.X >= rect.X && mouse.Position.X <= rect.X + rect.Width &&
                           mouse.Position.Y >= rect.Y && mouse.Position.Y <= rect.Y + rect.Height;
 
-            if (IsMouseOver && Scene != null)
-                Scene.MouseControl = this;
+            // moved: Scene.MouseControl = this; 
+            // MouseControl is now determined by BaseScene to ensure topmost logic.
+
+            if (Interactive && Visible) // process clicks only if interactive and visible
+            {
+                if (IsMouseOver) // mouse is currently over this control
+                {
+                    if (mouse.LeftButton == ButtonState.Pressed)
+                    {
+                        IsMousePressed = true; // for UI styling, indicate it's being pressed
+                        if (MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released)
+                        {
+                            _isCurrentlyPressedByMouse = true; // this control initiated the press sequence
+                            Scene?.FocusControlIfInteractive(this); // attempt to set focus
+                        }
+                    }
+                    else if (mouse.LeftButton == ButtonState.Released)
+                    {
+                        // mouse is released WHILE OVER this control
+                        if (_isCurrentlyPressedByMouse && MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Pressed)
+                        {
+                            // click occurred (press and release over this control)
+                            if (OnClick()) // call OnClick and check if it was handled
+                            {
+                                if (Scene is BaseScene baseScene && this != baseScene.World)
+                                {
+                                    baseScene.SetMouseInputConsumed();
+                                }
+                            }
+                        }
+                        _isCurrentlyPressedByMouse = false; // reset press initiator
+                        IsMousePressed = false; // reset styling state
+                    }
+                }
+                else // mouse is not over this control
+                {
+                    IsMousePressed = false; // not pressed for styling if mouse isn't over
+                    // if mouse was pressed on this control but then dragged off and released elsewhere,
+                    // reset if mouse is released not over this control.
+                    if (mouse.LeftButton == ButtonState.Released)
+                    {
+                        _isCurrentlyPressedByMouse = false;
+                    }
+                }
+            }
+            else // not interactive or not visible
+            {
+                IsMousePressed = false;
+                _isCurrentlyPressedByMouse = false;
+            }
 
             int maxWidth = 0, maxHeight = 0;
             int count = Controls.Count; // Cache count to avoid repeated property access
@@ -192,8 +243,16 @@ namespace Client.Main.Controls
             if (Visible != isVisible)
             {
                 Visible = isVisible;
-                // OnVisibilityChanged?.Invoke(this, EventArgs.Empty); // Optional event
+                VisibilityChanged?.Invoke(this, EventArgs.Empty); // optional event
             }
+        }
+
+        public virtual bool ProcessMouseScroll(int scrollDelta)
+        {
+            // Base implementation: does not handle scroll, bubbles to children if needed.
+            // Most specific controls (like scrollbars) will override this.
+            // For container controls, they might iterate their children.
+            return false;
         }
 
         public virtual void Draw(GameTime gameTime)
@@ -224,7 +283,7 @@ namespace Client.Main.Controls
 
         public virtual void Dispose()
         {
-            var controlsArray = Controls.ToArray(); // ToArray to avoid modification issues during iteration
+            var controlsArray = Controls.ToArray(); // Array to avoid modification issues during iteration
 
             for (int i = 0; i < controlsArray.Length; i++)
             {

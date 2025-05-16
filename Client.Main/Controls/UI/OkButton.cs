@@ -25,9 +25,9 @@ namespace Client.Main.Controls.UI
         {
             base.Update(gameTime);
 
-            if (Scene.MouseControl == this && IsMousePressed)
+            if (IsMouseOver && IsMousePressed) // check IsMousePressed from GameControl for click visual
                 TileY = 2;
-            else if (Scene.MouseControl == this)
+            else if (IsMouseOver) // hover state
                 TileY = 1;
             else
                 TileY = 0;

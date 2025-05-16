@@ -27,6 +27,8 @@ namespace Client.Main.Scenes
 
         public WorldObject MouseHoverObject { get; set; }
         public bool IsMouseHandledByUI { get; set; }
+        public bool IsMouseInputConsumedThisFrame { get; private set; }
+        public bool IsKeyboardEnterConsumedThisFrame { get; private set; }
 
         public BaseScene()
         {
@@ -123,6 +125,47 @@ namespace Client.Main.Scenes
 
             MouseControl = null;
             MouseHoverObject = null;
+            IsMouseInputConsumedThisFrame = false;
+            IsKeyboardEnterConsumedThisFrame = false;
+
+            // Determine MouseHoverControl and MouseControl for the scene
+            // Iterate UI controls (children of BaseScene) in reverse order (topmost first)
+            GameControl topmostHoverForTooltip = null;
+            GameControl topmostInteractiveForScroll = null;
+
+            // set scene's MouseControl (which is the target for scroll)
+            MouseControl = null; 
+
+            for (int i = Controls.Count - 1; i >= 0; i--)
+            {
+                var uiCtrl = Controls[i];
+                if (uiCtrl.Visible && uiCtrl.IsMouseOver) // IsMouseOver is updated in control's own Update
+                {
+                    if (topmostHoverForTooltip == null)
+                    {
+                        topmostHoverForTooltip = uiCtrl;
+                    }
+                    if (topmostInteractiveForScroll == null && uiCtrl.Interactive)
+                    {
+                        topmostInteractiveForScroll = uiCtrl; 
+                        // for scroll, we take the first topmost interactive one.
+                        // clicks are handled by controls themselves now.
+                    }
+                }
+            }
+            MouseHoverControl = topmostHoverForTooltip; // this is for general hover (tooltips, visual effects)
+            MouseControl = topmostInteractiveForScroll; // this is specifically for scroll dispatch
+
+
+            // no UI control captured the mouse for scroll interaction, check the World itself
+            if (MouseControl == null && World != null && World.Visible && World.Interactive && World.IsMouseOver)
+            {
+                MouseControl = World; // world can handle scroll (camera zoom)
+                if (MouseHoverControl == null)  // no UI element was hovered for tooltips
+                {
+                    MouseHoverControl = World;
+                }
+            }
 
             base.Update(gameTime);
 
@@ -131,34 +174,78 @@ namespace Client.Main.Scenes
 
             if (World == null) return;
 
+            // focus management (driven by GameControl.OnClick via FocusControlIfInteractive)
             if (FocusControl != currentFocusControl)
             {
                 currentFocusControl?.OnBlur();
                 FocusControl?.OnFocus();
             }
 
-            if (MouseControl != null && MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && !MouseControl.IsMousePressed)
+            // scroll handling - using the MouseControl determined above
+            if (MouseControl != null && MouseControl.Interactive) // MouseControl here is the target for scroll
             {
-                MouseControl.IsMousePressed = true;
-            }
-            else if (MouseControl != null && MouseControl == currentMouseControl && MuGame.Instance.Mouse.LeftButton == ButtonState.Released && MouseControl.IsMousePressed)
-            {
-                MouseControl.IsMousePressed = false;
-                MouseControl.OnClick();
-                MouseHoverControl = MouseControl;
-            }
-            else if (currentMouseControl != null && currentMouseControl.IsMousePressed && MouseControl != currentMouseControl)
-            {
-                currentMouseControl.IsMousePressed = false;
+                int scrollWheelChange = MuGame.Instance.Mouse.ScrollWheelValue - MuGame.Instance.PrevMouseState.ScrollWheelValue;
+                if (scrollWheelChange != 0)
+                {
+                    int normalizedScrollDelta = scrollWheelChange; // positive for up, negative for down
+                    if (MouseControl.ProcessMouseScroll(normalizedScrollDelta)) // UI handled it
+                    {
+                        if (MouseControl != World) // world can scroll (zoom) without "consuming" in this sense for other UI
+                        {
+                            IsMouseInputConsumedThisFrame = true;
+                        }
+                    }
+                }
+
+                if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && !MouseControl.IsMousePressed)
+                {
+                    MouseControl.IsMousePressed = true;
+                }
+                else if (MouseControl == currentMouseControl && MuGame.Instance.Mouse.LeftButton == ButtonState.Released && MouseControl.IsMousePressed)
+                {
+                    MouseControl.IsMousePressed = false;
+                    MouseControl.OnClick();
+                    if (MouseControl != World) // a UI element (not the world) handled the click
+                    {
+                        IsMouseInputConsumedThisFrame = true;
+                    }
+                    MouseHoverControl = MouseControl;
+                }
+                else if (currentMouseControl != null && currentMouseControl.IsMousePressed && MouseControl != currentMouseControl)
+                {
+                    currentMouseControl.IsMousePressed = false;
+                }
             }
 
-            if (MouseHoverObject != null && MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Pressed && MuGame.Instance.Mouse.LeftButton == ButtonState.Released)
+            // handle 3D world object clicks if UI didn't consume input
+            if (!IsMouseInputConsumedThisFrame && MouseHoverObject != null &&
+                MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Pressed &&
+                MuGame.Instance.Mouse.LeftButton == ButtonState.Released)
             {
                 MouseHoverObject.OnClick();
             }
 
             DebugPanel.BringToFront();
             Cursor.BringToFront();
+        }
+
+        public void FocusControlIfInteractive(GameControl control)
+        {
+            if (control != null && control.Interactive && FocusControl != control)
+            {
+                FocusControl = control;
+                // Focus/OnBlur will be called in the main update loop check
+            }
+        }
+
+        public void SetMouseInputConsumed()
+        {
+            IsMouseInputConsumedThisFrame = true;
+        }
+
+        public void ConsumeKeyboardEnter()
+        {
+            IsKeyboardEnterConsumedThisFrame = true;
         }
 
         public override void Draw(GameTime gameTime)

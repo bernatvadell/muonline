@@ -60,6 +60,8 @@ namespace Client.Main.Networking
         public ClientConnectionState CurrentState => _currentState;
         public bool IsConnected => _connectionManager.IsConnected;
         public CharacterState GetCharacterState() => _characterState;
+        public Task SendClientReadyAfterMapChangeAsync()
+            => _characterService.SendClientReadyAfterMapChangeAsync();
 
         // Constructors
         public NetworkManager(ILoggerFactory loggerFactory, MuOnlineSettings settings, CharacterState characterState, ScopeManager scopeManager)
@@ -172,6 +174,24 @@ namespace Client.Main.Networking
 
         public Task SendInstantMoveRequestAsync(byte x, byte y)
             => _characterService.SendInstantMoveRequestAsync(x, y);
+
+
+        /// <summary>
+        /// Sends a warp command request to the server.
+        /// </summary>
+        /// <param name="warpInfoIndex">The index of the warp destination.</param>
+        /// <param name="commandKey">Optional command key, if required by the server (default is 0).</param>
+        public async Task SendWarpRequestAsync(ushort warpInfoIndex, uint commandKey = 0)
+        {
+            if (!IsConnected || _currentState < ClientConnectionState.InGame)
+            {
+                _logger.LogWarning("Cannot send warp request, not connected or not in game. State: {State}", _currentState);
+                OnErrorOccurred("Cannot warp: Not in game.");
+                return;
+            }
+
+            await _characterService.SendWarpCommandRequestAsync(warpInfoIndex, commandKey);
+        }
 
         public async Task ConnectToConnectServerAsync()
         {
@@ -305,12 +325,12 @@ namespace Client.Main.Networking
         // Internal Methods
         internal void ProcessCharacterRespawn(ushort mapId, byte x, byte y, byte direction)
         {
-            _logger.LogInformation("🕯  ProcessCharacterRespawn → map {Map}, pos ({X},{Y}), dir {Dir}",
-                                   mapId, x, y, direction);
+            _logger.LogInformation("ProcessCharacterRespawn: MapID={MapId}, X={X}, Y={Y}, Direction={Direction}", mapId, x, y, direction);
 
+            bool previousInGameStatus = _characterState.IsInGame;
             _characterState.UpdateMap(mapId);
             _characterState.UpdatePosition(x, y);
-            _characterState.UpdateDirection(direction); // Update direction in character state
+            _characterState.IsInGame = true;
 
             MuGame.ScheduleOnMainThread(async () =>
             {
@@ -319,65 +339,51 @@ namespace Client.Main.Networking
                     var game = MuGame.Instance;
                     if (game?.ActiveScene is not GameScene gs)
                     {
-                        // Not in game? Reload the scene.
+                        _logger.LogWarning("ProcessCharacterRespawn: ActiveScene is not GameScene. Changing scene.");
                         game.ChangeScene(new GameScene());
                         return;
                     }
 
-                    Type newWorldType = null;
-                    if (!GameScene.MapWorldRegistry.TryGetValue((byte)mapId, out newWorldType))
-                    {
-                        _logger.LogError("ProcessCharacterRespawn: Unknown mapId {MapId} from server. Cannot change map.", mapId);
-                        // Optionally, fall back to a default or disconnect. For now, let's assume it won't proceed.
-                        return;
-                    }
+                    var currentWorld = gs.World as WalkableWorldControl;
+                    bool mapChanged = currentWorld == null || currentWorld.WorldIndex != mapId;
 
-                    if (gs.World == null || gs.World.GetType() != newWorldType)
-                    {
-                        // Map changed - first set hero to spawn, then rebuild.
-                        var hero = gs.Hero;
-                        hero.Reset(); // Clears path and MoveTargetPosition
-                        hero.Location = new Vector2(x, y);
-                        hero.Direction = (Models.Direction)direction;
-                        // MoveTargetPosition and Position will be set by ChangeMap after _hero.Location and _hero.Direction are updated
-                        // from the latest CharacterState, which is now current.
+                    _logger.LogDebug("ProcessCharacterRespawn: CurrentWorldIndex: {CurrentIdx}, NewMapId: {NewMapId}, MapChanged: {MapChangedFlag}",
+                        currentWorld?.WorldIndex, mapId, mapChanged);
 
-                        _logger.LogDebug("Respawn changes map from {OldWorldType} to {NewWorldType}. Hero initial Location ({Hx},{Hy}), Direction {Hd}",
-                                         gs.World?.GetType().Name ?? "null",
-                                         newWorldType.Name,
-                                         hero.Location.X, hero.Location.Y, hero.Direction);
-                        await gs.ChangeMap(newWorldType);
-                    }
-                    // Removed else-if for GameScene.MapWorldRegistry.TryGetValue as it's handled above.
-                    /* else
+                    var hero = gs.Hero;
+                    hero.Reset();
+                    hero.Location = new Vector2(x, y);
+                    hero.Direction = (Client.Main.Models.Direction)direction;
+
+                    if (mapChanged)
+                    {
+                        _logger.LogInformation("ProcessCharacterRespawn: Map has changed. Requesting world change to map {MapId}", mapId);
+                        if (GameScene.MapWorldRegistry.TryGetValue((byte)mapId, out var worldType))
                         {
-                            _logger.LogWarning("Unknown mapId {MapId} on respawn – new GameScene()", mapId);
+                            await gs.ChangeMap(worldType);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("ProcessCharacterRespawn: Unknown mapId {MapId} for world change. Creating new GameScene.", mapId);
                             game.ChangeScene(new GameScene());
                         }
-                        return;
                     }
-                    */
-                    // Same map - local teleport.
                     else
                     {
-                        var hero = gs.Hero;
-                        hero.Reset();
-                        hero.Location = new Vector2(x, y); // Explicitly update current hero's location
-                        hero.Direction = (Models.Direction)direction; // And direction
+                        _logger.LogInformation("ProcessCharacterRespawn: Same map ({MapId}). Updating hero position.", mapId);
                         hero.MoveTargetPosition = hero.TargetPosition;
                         hero.Position = hero.TargetPosition;
-                        _logger.LogDebug("Hero teleported to ({X},{Y}) on map {Map}.", x, y, mapId);
 
-                        _logger.LogInformation("Respawn on same map. Sending ClientReadyAfterMapChange.");
+                        _logger.LogInformation("ProcessCharacterRespawn: Sending ClientReadyAfterMapChange for same map teleport/respawn.");
                         await _characterService.SendClientReadyAfterMapChangeAsync();
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "💥 ProcessCharacterRespawn exception.");
+                    _logger.LogError(ex, "Error in ProcessCharacterRespawn.");
                 }
             });
-        } 
+        }
 
         internal void UpdateState(ClientConnectionState newState)
         {

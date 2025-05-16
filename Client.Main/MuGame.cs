@@ -215,7 +215,7 @@ namespace Client.Main
         {
             // --- Process Main Thread Actions ---
             int actionCount = 0;
-            var queueLogger = AppLoggerFactory?.CreateLogger("MuGame.MainThreadQueue"); // Logger for the queue
+            var queueLogger = AppLoggerFactory?.CreateLogger("MuGame.MainThreadQueue"); // logger for the queue
 
             while (_mainThreadActions.TryDequeue(out Action action))
             {
@@ -234,15 +234,14 @@ namespace Client.Main
             // **** ADD LOGGING ****
             // if (actionCount > 0) queueLogger?.LogDebug("Processed {Count} actions from queue this frame.", actionCount);
             // **** END ADD LOGGING ****
-            // --- End Process Main Thread Actions ---
 
-            try // Add outer try
+            try // outer try
             {
                 GameTime = gameTime;
                 UpdateInputInfo(gameTime);
                 CheckShaderToggles();
 
-                try // Add inner try for ActiveScene.Update
+                try // inner try for ActiveScene.Update
                 {
                     ActiveScene?.Update(gameTime);
                 }
@@ -253,7 +252,7 @@ namespace Client.Main
                     // Exit();
                 }
 
-                try // Add inner try for base.Update
+                try // inner try for base.Update
                 {
                     base.Update(gameTime);
                 }

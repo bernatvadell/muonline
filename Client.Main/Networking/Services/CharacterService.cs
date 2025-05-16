@@ -3,6 +3,7 @@ using MUnique.OpenMU.Network;
 using Client.Main.Networking.PacketHandling;
 using System;
 using System.Threading.Tasks;
+using MUnique.OpenMU.Network.Packets.ClientToServer;
 
 namespace Client.Main.Networking.Services
 {
@@ -44,6 +45,32 @@ namespace Client.Main.Networking.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending character list request.");
+            }
+        }
+
+        public async Task SendWarpCommandRequestAsync(ushort warpInfoIndex, uint commandKey = 0)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send warp command request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending Warp Command Request for index {WarpInfoIndex}...", warpInfoIndex);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new WarpCommandRequest(_connectionManager.Connection.Output.GetMemory(WarpCommandRequest.Length).Slice(0, WarpCommandRequest.Length));
+                    packet.CommandKey = commandKey;
+                    packet.WarpInfoIndex = warpInfoIndex;
+                    return WarpCommandRequest.Length;
+                });
+                _logger.LogInformation("Warp Command Request sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending Warp Command Request.");
             }
         }
 
