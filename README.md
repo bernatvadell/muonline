@@ -2,6 +2,8 @@
 
 This project is a clone of Mu Online built using .NET 9.0 and MonoGame. It aims to support Windows, Android, and iOS platforms.
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bernatvadell/muonline)
+
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:

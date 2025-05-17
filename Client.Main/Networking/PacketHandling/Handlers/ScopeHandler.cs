@@ -435,6 +435,20 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
+        [PacketHandler(0x20, PacketRouter.NoSubCode)] // ItemsDropped / MoneyDropped075
+        public Task HandleItemsDroppedAsync(Memory<byte> packet)
+        {
+            try
+            {
+                ParseAndAddDroppedItemsToScope(packet);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing ItemsDropped (20).");
+            }
+            return Task.CompletedTask;
+        }
+
         private void ParseAndAddDroppedItemsToScope(Memory<byte> packet)
         {
             const int HeaderSize = 4; // size+code
