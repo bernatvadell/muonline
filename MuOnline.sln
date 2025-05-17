@@ -9,11 +9,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Client.Main", "Client.Main\
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Client.Editor", "Client.Editor\Client.Editor.csproj", "{83DBB55F-45E3-4A9C-A393-4A3FB91D8104}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MuWin", "MuWin\MuWin.csproj", "{72EFA7B2-49B2-4671-96ED-A5C6B27A4C69}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MuWin", "MuWin\MuWin.csproj", "{72EFA7B2-49B2-4671-96ED-A5C6B27A4C69}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MuAndroid", "MuAndroid\MuAndroid.csproj", "{E8F05A20-D236-4034-9BB0-F94BBA459C26}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MuAndroid", "MuAndroid\MuAndroid.csproj", "{E8F05A20-D236-4034-9BB0-F94BBA459C26}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MuIos", "MuIos\MuIos.csproj", "{A7BB4AC2-A7F3-4843-A7B7-3D1E1BCDAF30}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MuIos", "MuIos\MuIos.csproj", "{A7BB4AC2-A7F3-4843-A7B7-3D1E1BCDAF30}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -57,6 +57,7 @@ Global
 		{72EFA7B2-49B2-4671-96ED-A5C6B27A4C69}.Release|x64.Build.0 = Release|Any CPU
 		{E8F05A20-D236-4034-9BB0-F94BBA459C26}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{E8F05A20-D236-4034-9BB0-F94BBA459C26}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E8F05A20-D236-4034-9BB0-F94BBA459C26}.Debug|Any CPU.Deploy.0 = Debug|Any CPU
 		{E8F05A20-D236-4034-9BB0-F94BBA459C26}.Debug|x64.ActiveCfg = Debug|Any CPU
 		{E8F05A20-D236-4034-9BB0-F94BBA459C26}.Debug|x64.Build.0 = Debug|Any CPU
 		{E8F05A20-D236-4034-9BB0-F94BBA459C26}.Release|Any CPU.ActiveCfg = Release|Any CPU
