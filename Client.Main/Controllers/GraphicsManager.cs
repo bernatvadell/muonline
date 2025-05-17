@@ -1,4 +1,4 @@
-﻿using Client.Main.Content;
+using Client.Main.Content;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
@@ -102,13 +102,13 @@ namespace Client.Main.Controllers
         {
             PresentationParameters pp = _graphicsDevice.PresentationParameters;
 
-            int targetWidth = pp.BackBufferWidth;
-            int targetHeight = pp.BackBufferHeight;
+            int targetWidth = MuGame.Instance.Width;
+            int targetHeight = MuGame.Instance.Height;
 
-#if ANDROID || IOS
-        targetWidth = (int)(targetWidth * 0.5f); //TODO: adjust the controls 
-        targetHeight = (int)(targetHeight * 0.5f);
-#endif
+            //#if ANDROID || IOS
+            //        targetWidth = (int)(targetWidth * 0.5f); //TODO: adjust the controls 
+            //        targetHeight = (int)(targetHeight * 0.5f);
+            //#endif
 
             MainRenderTarget = new RenderTarget2D(_graphicsDevice, targetWidth, targetHeight, false, pp.BackBufferFormat, DepthFormat.Depth24);
             TempTarget1 = new RenderTarget2D(_graphicsDevice, targetWidth, targetHeight);

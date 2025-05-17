@@ -13,6 +13,10 @@ using Client.Main.Configuration;
 using Client.Main.Networking;
 using System.Collections.Concurrent;
 using Client.Main.Core.Client;
+#if ANDROID
+using Android.App;
+using System.IO;
+#endif
 
 namespace Client.Main
 {
@@ -98,6 +102,29 @@ namespace Client.Main
             }
         }
 
+#if ANDROID
+        private static string EnsureAndroidConfig()
+        {
+            var ctx = Application.Context!;
+            var dst = Path.Combine(ctx.FilesDir!.AbsolutePath, "appsettings.json");
+
+            if (!File.Exists(dst))
+            {
+                try
+                {
+                    using var src = ctx.Assets!.Open("appsettings.json");
+                    using var trg = File.Create(dst);
+                    src.CopyTo(trg);
+                }
+                catch (Exception copyEx)
+                {
+                    Android.Util.Log.Error("MuGame", "Cannot copy appsettings.json: " + copyEx);
+                }
+            }
+            return dst;
+        }
+#endif
+
         private static bool ValidateSettings(MuOnlineSettings settings, ILogger logger)
         {
             // Reuse the validation logic from MuOnlineConsole's App.axaml.cs
@@ -152,10 +179,18 @@ namespace Client.Main
         protected override void Initialize()
         {
             // --- Configuration Setup ---
+#if ANDROID
+            string cfgPath = EnsureAndroidConfig();
+            AppConfiguration = new ConfigurationBuilder()
+                .SetBasePath(Path.GetDirectoryName(cfgPath)!)
+                .AddJsonFile(Path.GetFileName(cfgPath), optional: false, reloadOnChange: false)
+                .Build();
+#else // Windows, Linux, etc.
             AppConfiguration = new ConfigurationBuilder()
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                 .Build();
+#endif
 
             // --- Logging Setup ---
             AppLoggerFactory = LoggerFactory.Create(builder =>
@@ -220,15 +255,15 @@ namespace Client.Main
             while (_mainThreadActions.TryDequeue(out Action action))
             {
                 actionCount++;
-                queueLogger?.LogTrace("Dequeued action #{Count}. Attempting execution...", actionCount);
+                //queueLogger?.LogTrace("Dequeued action #{Count}. Attempting execution...", actionCount);
                 try
                 {
                     action.Invoke();
-                    queueLogger?.LogTrace("Action #{Count} executed successfully.", actionCount);
+                    //queueLogger?.LogTrace("Action #{Count} executed successfully.", actionCount);
                 }
                 catch (Exception ex)
                 {
-                    queueLogger?.LogError(ex, "Error executing action #{Count} scheduled on main thread.", actionCount);
+                    //queueLogger?.LogError(ex, "Error executing action #{Count} scheduled on main thread.", actionCount);
                 }
             }
             // **** ADD LOGGING ****

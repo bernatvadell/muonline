@@ -46,3 +46,8 @@
 /importer:TextureImporter
 /processor:TextureProcessor
 /build:Bubbles.png
+
+#begin WaterSplashParticle.webp
+/importer:TextureImporter
+/processor:TextureProcessor
+/build:WaterSplashParticle.webp

@@ -1,13 +1,17 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
     <TargetFramework>net9.0-android</TargetFramework>
     <SupportedOSPlatformVersion>23</SupportedOSPlatformVersion>
+
     <OutputType>Exe</OutputType>
     <ApplicationId>MuAndroid.MuAndroid</ApplicationId>
     <ApplicationVersion>1</ApplicationVersion>
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+
     <AndroidManifest>AndroidManifest.xml</AndroidManifest>
     <MonoGamePlatform>Android</MonoGamePlatform>
+
     <RunAOTCompilation>false</RunAOTCompilation>
     <EnableLLVM>true</EnableLLVM>
   </PropertyGroup>
@@ -16,20 +20,22 @@
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.3" />
     <PackageReference Include="MonoGame.Framework.Android" Version="3.8.3" />
   </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Client.Main\Client.Main.csproj" />
   </ItemGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <AndroidUseInterpreter>true</AndroidUseInterpreter>
-    
+
     <DebugType>none</DebugType>
     <Optimize>true</Optimize>
+
     <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
     <AndroidUseSharedRuntime>false</AndroidUseSharedRuntime>
-    
-    <AndroidLinkMode>All</AndroidLinkMode>
-    
+
+    <AndroidLinkMode>None</AndroidLinkMode>
+
     <AndroidCreatePackagePerAbi>false</AndroidCreatePackagePerAbi>
     <AndroidApiLevel>35</AndroidApiLevel>
   </PropertyGroup>
@@ -38,4 +44,5 @@
     <Message Text="Restoring dotnet tools" Importance="High" />
     <Exec Command="dotnet tool restore" />
   </Target>
+
 </Project>
