@@ -53,8 +53,8 @@ namespace Client.Main.Networking
         public event EventHandler<string> ErrorOccurred;
         public event EventHandler<List<(string Name, CharacterClassNumber Class, ushort Level)>> CharacterListReceived;
         public event EventHandler LoginSuccess;
-        public event EventHandler LoginFailed;
         public event EventHandler EnteredGame;
+        public event EventHandler<LoginResponse.LoginResult> LoginFailed;
 
         // Properties
         public ClientConnectionState CurrentState => _currentState;
@@ -523,10 +523,14 @@ namespace Client.Main.Networking
             }
             else
             {
-                string reason = result.ToString();
-                _logger.LogError("Login failed: {Reason}", reason);
-                OnErrorOccurred($"Login failed: {reason}");
-                MuGame.ScheduleOnMainThread(() => LoginFailed?.Invoke(this, EventArgs.Empty));
+                string reasonString = result.ToString();
+                _logger.LogError("Login failed: {ReasonString}", reasonString);
+                OnErrorOccurred($"Login failed: {reasonString}");
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    _logger.LogDebug("NetworkManager: Invoking LoginFailed event with reason: {ResultEnum} (Value: {ResultByte})", result, (byte)result);
+                    LoginFailed?.Invoke(this, result);
+                });
                 UpdateState(ClientConnectionState.ConnectedToGameServer); // Allow retry
             }
         }

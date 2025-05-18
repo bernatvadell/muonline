@@ -282,7 +282,7 @@ namespace Client.Main.Controls.UI.Game
                 {
                     _logger.LogInformation($"Warp to map index: {mapInfo.Index} ({mapInfo.DisplayName}) requested by player.");
                     MapWarpRequested?.Invoke(mapInfo.Index);
-                    SetVisible(false);
+                    Visible = false;
                 }
                 else
                 {
@@ -329,7 +329,7 @@ namespace Client.Main.Controls.UI.Game
 
         public void ToggleVisibility()
         {
-            SetVisible(!Visible);
+            Visible = !Visible;
             if (Visible)
             {
                 _logger.LogDebug("MoveCommandWindow toggled ON. Refreshing map data.");
@@ -472,7 +472,7 @@ namespace Client.Main.Controls.UI.Game
 
             if (key == Keys.Escape)
             {
-                SetVisible(false);
+                Visible = false;
                 if (Scene?.FocusControl == this) Scene.FocusControl = null;
             }
             else if (_scrollBar.Visible)
