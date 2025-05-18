@@ -1,13 +1,13 @@
+using System;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Controllers; // Dla GraphicsManager
-using Client.Main.Helpers;    // Dla SpriteBatchScope
 using System.Text;
 using System.Threading.Tasks;           // Dla StringBuilder
 
 namespace Client.Main.Controls.UI.Common
 {
-    public class ButtonControl : UIControl
+    public class ButtonControl : SpriteControl // Inherit from SpriteControl
     {
         private string _text;
         public string Text
@@ -18,7 +18,7 @@ namespace Client.Main.Controls.UI.Common
                 if (_text != value)
                 {
                     _text = value;
-                    _truncatedText = null; // Wymuś ponowne obliczenie przyciętego tekstu
+                    _truncatedText = null;
                 }
             }
         }
@@ -32,17 +32,18 @@ namespace Client.Main.Controls.UI.Common
         public bool Enabled { get; set; } = true;
 
         private SpriteFont _font;
-        private string _truncatedText; // Przechowuje przyciętą wersję tekstu
+        private string _truncatedText;
 
-        // Odstępy tekstu wewnątrz przycisku
         public int TextPaddingX { get; set; } = 2;
         public int TextPaddingY { get; set; } = 1;
-
 
         public override async Task Load()
         {
             _font = GraphicsManager.Instance.Font;
             Interactive = true;
+
+            // SpriteControl's Load will call LoadTexture. 
+            // If TexturePath is null/empty, SpriteControl.Texture will remain null.
             await base.Load();
         }
 
@@ -61,7 +62,7 @@ namespace Client.Main.Controls.UI.Common
                 sb.Append(text[i]);
                 if (_font.MeasureString(sb.ToString() + "...").X * scale > maxWidth)
                 {
-                    sb.Remove(sb.Length - 1, 1); // Usuń ostatni znak, który przekroczył
+                    sb.Remove(sb.Length - 1, 1);
                     break;
                 }
             }
@@ -70,49 +71,68 @@ namespace Client.Main.Controls.UI.Common
 
         public override void Update(GameTime gameTime)
         {
-            base.Update(gameTime);
+            base.Update(gameTime); // This will call SpriteControl.Update
 
-            // Visual state depends on IsMouseOver and IsMousePressed,
-            // which are correctly set by GameControl.Update's internal logic.
-            // No need to check Scene.MouseControl here for hover.
+            // Update TileY only if a texture is present and TileHeight is valid
+            if (this.Texture != null && this.TileHeight > 0)
+            {
+                int baseTileY = 0;
+                if (!this.Enabled)
+                {
+                    baseTileY = (this.Texture.Height / this.TileHeight) > 3 ? 3 : 0;
+                }
+                else if (IsMousePressed) baseTileY = 2;
+                else if (IsMouseOver) baseTileY = 1;
+
+                int maxTileY = (this.Texture.Height / this.TileHeight) - 1;
+                if (maxTileY < 0) maxTileY = 0;
+
+                this.TileY = Math.Min(baseTileY, maxTileY);
+            }
         }
 
         public override void Draw(GameTime gameTime)
         {
             if (!Visible) return;
 
-            Color currentBgColor = BackgroundColor;
-            if (!Enabled)
+            // If Texture is null, it means SpriteControl didn't load a texture (e.g., TexturePath was empty).
+            // In this case, draw the colored background.
+            if (this.Texture == null)
             {
-                currentBgColor = Color.DarkSlateGray * 0.8f * Alpha;
-            }
-            else if (IsMousePressed)
-            {
-                currentBgColor = PressedBackgroundColor * Alpha;
-            }
-            else if (IsMouseOver)
-            {
-                currentBgColor = HoverBackgroundColor * Alpha;
+                Color currentBgColor = base.BackgroundColor; // Use base.BackgroundColor to avoid recursion
+                if (!Enabled)
+                {
+                    currentBgColor = Color.DarkSlateGray * 0.8f * Alpha;
+                }
+                else if (IsMousePressed)
+                {
+                    currentBgColor = PressedBackgroundColor * Alpha;
+                }
+                else if (IsMouseOver)
+                {
+                    currentBgColor = HoverBackgroundColor * Alpha;
+                }
+                else
+                {
+                    currentBgColor *= Alpha;
+                }
+
+                if (currentBgColor.A > 0)
+                {
+                    GraphicsManager.Instance.Sprite.Draw(GraphicsManager.Instance.Pixel, DisplayRectangle, currentBgColor);
+                }
+                // DrawBorder(); // Optional: if texture-less buttons need a border
             }
             else
             {
-                currentBgColor *= Alpha;
+                // If Texture is not null, SpriteControl's base.Draw will handle drawing it.
             }
 
-            if (currentBgColor.A > 0)
-            {
-                GraphicsManager.Instance.Sprite.Draw(GraphicsManager.Instance.Pixel, DisplayRectangle, currentBgColor);
-            }
+            // Call base.Draw() AFTER drawing custom background (if any), 
+            // so it draws the sprite (if texture exists) and then children.
+            base.Draw(gameTime);
 
-            // ---- DODAJ TYMCZASOWE OBRAMOWANIE DO DEBUGOWANIA ----
-            if (Enabled)
-                DrawRectangle(DisplayRectangle, IsMouseOver ? Color.Lime : Color.Red, 1); // Zielone gdy hover, czerwone normalnie
-            else
-                DrawRectangle(DisplayRectangle, Color.DimGray, 1);
-            // ---- KONIEC TYMCZASOWEGO OBRAMOWANIA ----
-
-            // DrawBorder(); // Twoje standardowe obramowanie (jeśli jest)
-
+            // Draw text on top of everything (background or sprite)
             if (_font != null && !string.IsNullOrEmpty(Text))
             {
                 if (_truncatedText == null)
@@ -121,43 +141,28 @@ namespace Client.Main.Controls.UI.Common
                 }
 
                 Color currentTextColor = Enabled ? (IsMouseOver ? HoverTextColor : TextColor) : DisabledTextColor;
-                float scale = FontSize / Constants.BASE_FONT_SIZE;
+                float scale = FontSize / Constants.BASE_FONT_SIZE; // Use defined constant
                 Vector2 textSize = _font.MeasureString(_truncatedText) * scale;
 
+                // Center text within the button's display rectangle
                 Vector2 textPosition = new Vector2(
-                    DisplayPosition.X + TextPaddingX,
+                    DisplayPosition.X + (DisplaySize.X - textSize.X) / 2,
                     DisplayPosition.Y + (DisplaySize.Y - textSize.Y) / 2
                 );
                 GraphicsManager.Instance.Sprite.DrawString(_font, _truncatedText, textPosition, currentTextColor * Alpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }
         }
 
-        // Metoda pomocnicza do rysowania prostokąta (dla debugowania)
-        private void DrawRectangle(Rectangle rect, Color color, int thickness)
-        {
-            var pixel = GraphicsManager.Instance.Pixel;
-            var spriteBatch = GraphicsManager.Instance.Sprite;
-            // Top
-            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, thickness), color);
-            // Bottom
-            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - thickness, rect.Width, thickness), color);
-            // Left
-            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, thickness, rect.Height), color);
-            // Right
-            spriteBatch.Draw(pixel, new Rectangle(rect.Right - thickness, rect.Y, thickness, rect.Height), color);
-        }
-
         public override bool OnClick()
         {
             if (Enabled)
             {
-                base.OnClick(); // fires the Click event
-                return true;    // button always consumes the click if enabled
+                base.OnClick();
+                return true;
             }
             return false;
         }
 
-        // Wywołaj, gdy rozmiar przycisku się zmienia, aby przeliczyć tekst
         protected override void OnScreenSizeChanged()
         {
             base.OnScreenSizeChanged();
@@ -165,4 +170,3 @@ namespace Client.Main.Controls.UI.Common
         }
     }
 }
-// --- END OF FILE UI/Common/ButtonControl.cs ---
