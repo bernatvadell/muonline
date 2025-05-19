@@ -208,43 +208,46 @@ namespace Client.Main.Controls
                 _isCurrentlyPressedByMouse = false;
             }
 
-            int maxWidth = 0, maxHeight = 0;
-            int count = Controls.Count; // Cache count to avoid repeated property access
-            for (int i = 0; i < count; i++)
+            // Iterate over a copy for updating children to prevent collection modification issues
+            var childrenToUpdate = Controls.ToArray();
+            foreach (var control in childrenToUpdate)
             {
-                var control = Controls[i];
-                control.Update(gameTime);
-
-                int controlWidth = control.DisplaySize.X + control.Margin.Left;
-                int controlHeight = control.DisplaySize.Y + control.Margin.Top;
-
-                if (!Align.HasFlag(ControlAlign.Left))
-                    controlWidth += control.X;
-                if (!Align.HasFlag(ControlAlign.Bottom)) // Should be Top for this logic
-                    controlHeight += control.Y;
-
-                if (controlWidth > maxWidth)
-                    maxWidth = controlWidth;
-                if (controlHeight > maxHeight)
-                    maxHeight = controlHeight;
+                // If a control was disposed by a previous sibling's update in the same frame,
+                // it might still be in `childrenToUpdate` but its Status would be Disposed.
+                if (control.Status != GameControlStatus.Disposed)
+                {
+                    control.Update(gameTime);
+                }
             }
 
             if (AutoViewSize)
+            {
+                int maxWidth = 0, maxHeight = 0;
+                // For AutoViewSize, iterate over the current Controls collection (or a fresh snapshot)
+                // as children's Update methods might have added/removed other controls.
+                var currentChildrenForLayout = Controls.ToArray();
+                foreach (var control in currentChildrenForLayout)
+                {
+                    if (control.Status == GameControlStatus.Disposed) continue; // Skip disposed controls for layout
+
+                    int controlWidth = control.DisplaySize.X + control.Margin.Left;
+                    int controlHeight = control.DisplaySize.Y + control.Margin.Top;
+
+                    if (!Align.HasFlag(ControlAlign.Left))
+                        controlWidth += control.X;
+                    if (!Align.HasFlag(ControlAlign.Bottom)) 
+                        controlHeight += control.Y;
+
+                    if (controlWidth > maxWidth)
+                        maxWidth = controlWidth;
+                    if (controlHeight > maxHeight)
+                        maxHeight = controlHeight;
+                }
                 ViewSize = new Point(Math.Max(ControlSize.X, maxWidth), Math.Max(ControlSize.Y, maxHeight));
+            }
 
             if (Align != ControlAlign.None)
                 AlignControl();
-        }
-
-        public virtual void SetVisible(bool isVisible)
-        {
-            // Logic can be added here if needed when visibility changes
-            // e.g., canceling animations, stopping sounds, etc.
-            if (Visible != isVisible)
-            {
-                Visible = isVisible;
-                VisibilityChanged?.Invoke(this, EventArgs.Empty); // optional event
-            }
         }
 
         public virtual bool ProcessMouseScroll(int scrollDelta)

@@ -22,41 +22,67 @@ namespace Client.Main.Controls.UI
 
         protected override async Task LoadTexture()
         {
-            await base.LoadTexture();
-            ViewSize = new Point(TileWidth, TileHeight);
+            await base.LoadTexture(); // This loads Texture from TexturePath in TextureControl
+            // Only set ViewSize from TileWidth/Height if AutoViewSize is true
+            // or if ViewSize wasn't explicitly set to something else (e.g., it's still Point.Zero or matches Tile dimensions).
+            // If Texture is null after base.LoadTexture(), TileWidth/Height might be 0, leading to ViewSize(0,0).
+            if (Texture != null) // Ensure texture is loaded before using TileWidth/Height which might depend on it if not set manually
+            {
+                if (TileWidth > 0 && TileHeight > 0)
+                {
+                    // If ViewSize was explicitly set (e.g., new Point(36,29)) and AutoViewSize is false, respect that.
+                    // Otherwise, if AutoViewSize is true, or ViewSize is still default, use tile dimensions.
+                    if (AutoViewSize || (ViewSize.X == 0 && ViewSize.Y == 0) || (ViewSize.X == TileWidth && ViewSize.Y == TileHeight))
+                    {
+                        ViewSize = new Point(TileWidth, TileHeight);
+                    }
+                }
+                // If AutoViewSize is true and TileWidth/Height are not set, TextureControl's base.LoadTexture would have set ViewSize to Texture.Bounds
+            }
+            else if (AutoViewSize) // No texture, and AutoViewSize is true
+            {
+                ViewSize = Point.Zero;
+            }
         }
+
 
         public void SetTexture(Texture2D texture)
         {
-            Texture = texture; // Assign directly, assuming Texture is protected in base TextureControl
+            Texture = texture;
             if (Texture != null)
             {
-                // Update view size based on tile dimensions if needed,
-                // but OkButton/ServerButton etc., already set this.
-                // If the base TextureControl updates ViewSize on texture change, this might be redundant.
                 if (TileWidth > 0 && TileHeight > 0)
                 {
-                    ViewSize = new Point(TileWidth, TileHeight);
+                    if (AutoViewSize || (ViewSize.X == 0 && ViewSize.Y == 0) || (ViewSize.X == TileWidth && ViewSize.Y == TileHeight))
+                    {
+                        ViewSize = new Point(TileWidth, TileHeight);
+                    }
                 }
                 else if (AutoViewSize)
                 {
                     ViewSize = new Point(Texture.Width, Texture.Height);
                 }
-                // Ensure TextureRectangle is valid if needed
                 if (TextureRectangle == Rectangle.Empty && Texture != null)
                     TextureRectangle = new Rectangle(0, 0, Texture.Width, Texture.Height);
 
             }
             else
             {
-                // Handle texture being null if necessary
                 ViewSize = Point.Zero;
             }
         }
 
         public override void Update(GameTime gameTime)
         {
-            TextureRectangle = new Rectangle(TileOffset.X + TileX * TileWidth, TileOffset.Y + TileY * TileHeight, TileWidth, TileHeight);
+            // Update SourceRectangle for sprite sheet animation only if TileWidth/Height are valid
+            if (TileWidth > 0 && TileHeight > 0)
+            {
+                TextureRectangle = new Rectangle(TileOffset.X + TileX * TileWidth, TileOffset.Y + TileY * TileHeight, TileWidth, TileHeight);
+            }
+            else if (Texture != null && TextureRectangle == Rectangle.Empty) // Ensure TextureRectangle is set if not a spritesheet
+            {
+                TextureRectangle = new Rectangle(0, 0, Texture.Width, Texture.Height);
+            }
             base.Update(gameTime);
         }
 
@@ -74,7 +100,7 @@ namespace Client.Main.Controls.UI
                 SamplerState.PointClamp))
             {
                 GraphicsManager.Instance.Sprite.Draw(
-                    Texture, DisplayRectangle, SourceRectangle,
+                    Texture, DisplayRectangle, SourceRectangle, // SourceRectangle is now updated in Update
                     Color.White * Alpha);
             }
 

@@ -16,41 +16,38 @@ namespace Client.Main.Controls.UI.Game
 {
     public class MoveCommandWindow : UIControl
     {
-        // Stałe dla wyglądu - można je dostosować
-        private const int WINDOW_TARGET_WIDTH = 250; // Docelowa szerokość okna
-        private const int WINDOW_TARGET_HEIGHT = 550; // Docelowa wysokość okna
-        private const int WINDOW_X_OFFSET = 10;    // Odstęp od lewej krawędzi ekranu
-        private const int WINDOW_Y_OFFSET_FROM_TOP = 20; // Odstęp od góry ekranu (lub dynamicznie od chatu)
+        private const int WINDOW_TARGET_WIDTH = 250;
+        private const int WINDOW_TARGET_HEIGHT = 550;
+        private const int WINDOW_X_OFFSET = 10;
+        private const int WINDOW_Y_OFFSET_FROM_TOP = 20;
 
         private const int TITLE_AREA_HEIGHT = 30;
         private const int CLOSE_BUTTON_AREA_HEIGHT = 30;
         private const int ITEM_HEIGHT = 16;
-        private const int SCROLLBAR_WIDTH = 17; // Szerokość tekstury paska przewijania
+        private const int SCROLLBAR_WIDTH = 17;
 
-        private const int PADDING_GENERAL = 5; // Ogólny padding wewnątrz okna
+        private const int PADDING_GENERAL = 5;
         private const int PADDING_TITLE_TOP = 6;
-        private const int PADDING_LIST_TOP_FROM_TITLE = 2; // Mały odstęp między tytułem a listą
-        private const int PADDING_LIST_BOTTOM_TO_CLOSE = 5; // Odstęp od listy do przycisku Close
-        private const int PADDING_SCROLLBAR_RIGHT = 5; // Odstęp scrollbara od prawej krawędzi
-        private const int SCROLLBAR_VISUAL_WIDTH = 7; // Wizualna szerokość tła scrollbara
-        private const int SCROLLBAR_THUMB_WIDTH = 15; // Szerokość suwaka
+        private const int PADDING_LIST_TOP_FROM_TITLE = 2;
+        private const int PADDING_LIST_BOTTOM_TO_CLOSE = 5;
+        private const int PADDING_SCROLLBAR_RIGHT = 5;
+        private const int SCROLLBAR_VISUAL_WIDTH = 7;
+        private const int SCROLLBAR_THUMB_WIDTH = 15;
 
-        // Kolumny - wartości X względem lewej krawędzi obszaru listy
         private const int COL_MAP_NAME_X = 0;
-        private const int COL_LEVEL_X = 105; // Zwiększony odstęp
-        private const int COL_ZEN_X = 145;   // Zwiększony odstęp
+        private const int COL_LEVEL_X = 105;
+        private const int COL_ZEN_X = 145; 
 
 
-        private TextureControl _backgroundTextureControl;
         private LabelControl _titleLabel;
-        private List<LabelControl> _mapNameLabels;     // Zamiast ButtonControl dla wyglądu listy
+        private List<LabelControl> _mapNameLabels;
         private List<LabelControl> _mapLevelLabels;
         private List<LabelControl> _mapZenLabels;
-        private List<Rectangle> _mapClickAreas;      // Obszary klikalne dla każdej mapy
-        private int _hoveredMapIndex = -1;           // Indeks mapy pod kursorem
+        private List<Rectangle> _mapClickAreas;
+        private int _hoveredMapIndex = -1;
 
         private ScrollBarControl _scrollBar;
-        private ButtonControl _closeButton; // Zmienimy go na TextureButtonControl później, jeśli masz taką klasę
+        private ButtonControl _closeButton;
 
         private List<MoveCommandInfo> _availableMapsFullList;
         private List<MoveCommandInfo> _currentlyDisplayableMaps;
@@ -81,16 +78,13 @@ namespace Client.Main.Controls.UI.Game
 
             ControlSize = new Point(WINDOW_TARGET_WIDTH, WINDOW_TARGET_HEIGHT);
             ViewSize = ControlSize;
-            X = WINDOW_X_OFFSET; // Pozostaje po lewej
+            X = WINDOW_X_OFFSET;
             Y = WINDOW_Y_OFFSET_FROM_TOP;
-            // Y = (MuGame.Instance.Height - ControlSize.Y) / 2; // Wyśrodkowanie w pionie
-            BackgroundColor = new Color(15, 15, 25, 220); // Ciemniejsze, bardziej stonowane
+            BackgroundColor = new Color(15, 15, 25, 220);
         }
 
         public override async Task Load()
         {
-            // Tło nie jest już teksturą, używamy BackgroundColor z UIControl
-            // _backgroundTextureControl = new TextureControl ... Controls.Add(_backgroundTextureControl);
 
             _titleLabel = new LabelControl
             {
@@ -98,8 +92,8 @@ namespace Client.Main.Controls.UI.Game
                 Align = ControlAlign.Top | ControlAlign.HorizontalCenter,
                 X = 0,
                 Y = PADDING_TITLE_TOP,
-                FontSize = 13f, // Dostosuj
-                TextColor = new Color(255, 230, 190), // Bardziej złoty/pomarańczowy
+                FontSize = 13f,
+                TextColor = new Color(255, 230, 190),
                 ControlSize = new Point(ControlSize.X - (PADDING_GENERAL * 2), TITLE_AREA_HEIGHT - PADDING_TITLE_TOP)
             };
             Controls.Add(_titleLabel);
@@ -110,21 +104,20 @@ namespace Client.Main.Controls.UI.Game
 
             _scrollBar = new ScrollBarControl
             {
-                // Pozycja X scrollbara: od prawej krawędzi okna, minus jego szerokość i padding
                 X = ControlSize.X - SCROLLBAR_THUMB_WIDTH - PADDING_SCROLLBAR_RIGHT, // Użyj SCROLLBAR_THUMB_WIDTH dla X
                 Y = listAreaY,
                 Height = listAvailableHeight,
-                Width = SCROLLBAR_THUMB_WIDTH, // Ustaw szerokość na szerokość suwaka
+                Width = SCROLLBAR_THUMB_WIDTH,
                 Visible = false,
                 ThumbHeightAdjustmentFactor = 0.2f
             };
             _scrollBar.ValueChanged += (s, e) => OnScrollChanged();
             Controls.Add(_scrollBar);
 
-            _closeButton = new ButtonControl // Bardziej stylowy przycisk
+            _closeButton = new ButtonControl
             {
                 Text = "Close",
-                X = (ControlSize.X - 60) / 2, // Mniejszy przycisk
+                X = (ControlSize.X - 60) / 2,
                 Y = ControlSize.Y - PADDING_BOTTOM - (ITEM_HEIGHT + 2), // Na samym dole
                 ViewSize = new Point(60, ITEM_HEIGHT + 2),
                 ControlSize = new Point(60, ITEM_HEIGHT + 2),
@@ -149,7 +142,7 @@ namespace Client.Main.Controls.UI.Game
             _availableMapsFullList = MoveCommandDataManager.Instance.GetMoveCommandDataList();
             _logger.LogDebug($"Loaded {_availableMapsFullList.Count} maps from data manager.");
             FilterAndSortMaps();
-            RefreshMapListUI(); // Zmieniono nazwę z RefreshMapButtons
+            RefreshMapListUI();
             UpdateScrollbarState();
         }
 
@@ -161,7 +154,6 @@ namespace Client.Main.Controls.UI.Game
                 map.CanMove = CanPlayerMoveTo(map, playerState);
                 return map;
             }).ToList();
-            // Sortowanie jak w oryginalnym kliencie (po indeksie, który jest tam używany do kolejności)
             _currentlyDisplayableMaps = _currentlyDisplayableMaps.OrderBy(m => m.Index).ToList();
         }
 
@@ -187,7 +179,6 @@ namespace Client.Main.Controls.UI.Game
             if (playerState.HeroState == CharacterHeroState.PlayerKiller1stStage || playerState.HeroState == CharacterHeroState.PlayerKiller2ndStage)
                 return false;
 
-            // TODO: Dalsze warunki (Icarus, Gens)
             return true;
         }
 
@@ -208,22 +199,20 @@ namespace Client.Main.Controls.UI.Game
             ClearMapListUI();
 
             int listAreaY = PADDING_TOP_CONTENT;
-            // Szerokość dostępna dla treści mapy (nazwa + poziom + zen)
             int mapContentWidth = ControlSize.X - PADDING_LEFT - PADDING_RIGHT - (_scrollBar.Visible ? SCROLLBAR_THUMB_WIDTH + PADDING_SCROLLBAR_RIGHT : 0);
 
 
             for (int i = 0; i < _maxVisibleItems; i++)
             {
-                int currentMapDataIndex = _currentScrollOffset + i; // Indeks w _currentlyDisplayableMaps
+                int currentMapDataIndex = _currentScrollOffset + i;
                 if (currentMapDataIndex >= _currentlyDisplayableMaps.Count) break;
 
                 var mapInfo = _currentlyDisplayableMaps[currentMapDataIndex];
 
                 int currentY = listAreaY + (i * ITEM_HEIGHT);
-                // Obszar klikalny dla całego wiersza
                 var clickArea = new Rectangle(
-                    DisplayPosition.X + PADDING_LEFT, // Ważne: DisplayPosition.X okna
-                    DisplayPosition.Y + currentY,     // Ważne: DisplayPosition.Y okna
+                    DisplayPosition.X + PADDING_LEFT,
+                    DisplayPosition.Y + currentY,
                     mapContentWidth,
                     ITEM_HEIGHT - 1);
                 _mapClickAreas.Add(clickArea);
@@ -234,7 +223,6 @@ namespace Client.Main.Controls.UI.Game
                 if (mapInfo.IsStrifeMap && !mapInfo.CanMove) nameColor = new Color(120, 60, 60);
 
 
-                // Nazwa Mapy
                 var nameLabel = new LabelControl
                 {
                     X = PADDING_LEFT + COL_MAP_NAME_X,
@@ -258,7 +246,6 @@ namespace Client.Main.Controls.UI.Game
                 };
                 Controls.Add(levelLabel); _mapLevelLabels.Add(levelLabel);
 
-                // Wymagany Zen
                 var zenLabel = new LabelControl
                 {
                     X = PADDING_LEFT + COL_ZEN_X,
@@ -282,12 +269,12 @@ namespace Client.Main.Controls.UI.Game
                 {
                     _logger.LogInformation($"Warp to map index: {mapInfo.Index} ({mapInfo.DisplayName}) requested by player.");
                     MapWarpRequested?.Invoke(mapInfo.Index);
-                    SetVisible(false);
+                    Visible = false;
                 }
                 else
                 {
                     _logger.LogInformation($"Cannot warp to {mapInfo.DisplayName}, requirements not met.");
-                    // Można dodać dźwięk błędu
+                    // error sound?
                 }
             }
         }
@@ -296,12 +283,11 @@ namespace Client.Main.Controls.UI.Game
         private void UpdateScrollbarState()
         {
             bool needsScrollbar = _currentlyDisplayableMaps.Count > _maxVisibleItems;
-            // _logger.LogDebug($"UpdateScrollbarState: NeedsScrollbar: {needsScrollbar}, DisplayableMaps: {_currentlyDisplayableMaps.Count}, MaxVisibleItems: {_maxVisibleItems}");
 
             if (_scrollBar.Visible != needsScrollbar)
             {
                 _scrollBar.Visible = needsScrollbar;
-                RefreshMapListUI(); // Odśwież listę, ponieważ szerokość kontentu mogła się zmienić
+                RefreshMapListUI();
             }
 
             if (needsScrollbar)
@@ -312,10 +298,6 @@ namespace Client.Main.Controls.UI.Game
                 _scrollBar.SetListMetrics(_maxVisibleItems, _currentlyDisplayableMaps.Count); // Przekaż aktualne metryki
                                                                                               // _logger.LogDebug($"Scrollbar updated: Min: {_scrollBar.Min}, Max: {_scrollBar.Max}, Value: {_scrollBar.Value}");
             }
-            // else // Już obsługiwane w UpdateThumbPosition w ScrollBarControl
-            // {
-            //     // _logger.LogDebug("Scrollbar not needed or Max <= Min.");
-            // }
         }
 
         private void OnScrollChanged()
@@ -329,15 +311,13 @@ namespace Client.Main.Controls.UI.Game
 
         public void ToggleVisibility()
         {
-            SetVisible(!Visible);
+            Visible = !Visible;
             if (Visible)
             {
                 _logger.LogDebug("MoveCommandWindow toggled ON. Refreshing map data.");
                 LoadMapData();
                 _currentScrollOffset = 0;
                 if (_scrollBar.Visible) _scrollBar.Value = 0;
-                // RefreshMapListUI(); // Już wywołane w LoadMapData
-                // UpdateScrollbarState(); // Już wywołane w LoadMapData
                 Scene.FocusControl = this;
             }
             else
@@ -346,7 +326,7 @@ namespace Client.Main.Controls.UI.Game
             }
         }
 
-        private CharacterState playerState => _networkManager.GetCharacterState(); // Skrót
+        private CharacterState playerState => _networkManager.GetCharacterState();
 
         public int PADDING_BOTTOM = 30;
         public int PADDING_LEFT = 30;
@@ -356,10 +336,10 @@ namespace Client.Main.Controls.UI.Game
         public override void Update(GameTime gameTime)
         {
             if (!Visible) return;
-            base.Update(gameTime); // To powinno zaktualizować IsMouseOver dla MoveCommandWindow
+            base.Update(gameTime);
 
             var playerState = _networkManager.GetCharacterState();
-            bool listNeedsVisualRefresh = false; // Tylko do odświeżenia kolorów/stanu IsSelected
+            bool listNeedsVisualRefresh = false;
             for (int i = 0; i < _currentlyDisplayableMaps.Count; ++i)
             {
                 var map = _currentlyDisplayableMaps[i];
@@ -378,7 +358,6 @@ namespace Client.Main.Controls.UI.Game
 
             for (int i = 0; i < _mapClickAreas.Count; i++)
             {
-                // Ważne: _mapClickAreas przechowuje już absolutne koordynaty na ekranie
                 if (_mapClickAreas[i].Contains(mouse.Position))
                 {
                     _hoveredMapIndex = _currentScrollOffset + i;
@@ -392,10 +371,8 @@ namespace Client.Main.Controls.UI.Game
                 }
             }
 
-            // Aktualizacja IsSelected i odświeżenie wizualne etykiet
             if (oldHoveredMapIndex != _hoveredMapIndex || listNeedsVisualRefresh)
             {
-                // Odznacz poprzednio zaznaczony
                 if (oldHoveredMapIndex != -1 && oldHoveredMapIndex >= _currentScrollOffset && (oldHoveredMapIndex - _currentScrollOffset) < _mapNameLabels.Count)
                 {
                     int visualIdx = oldHoveredMapIndex - _currentScrollOffset;
@@ -404,12 +381,10 @@ namespace Client.Main.Controls.UI.Game
                         var mapInfo = _currentlyDisplayableMaps[oldHoveredMapIndex];
                         mapInfo.IsSelected = false;
                         _currentlyDisplayableMaps[oldHoveredMapIndex] = mapInfo;
-                        // Aktualizuj tylko tę jedną etykietę
                         _mapNameLabels[visualIdx].TextColor = mapInfo.CanMove ? Color.WhiteSmoke : (mapInfo.IsStrifeMap ? new Color(120, 60, 60) : new Color(100, 100, 100));
 
                     }
                 }
-                // Zaznacz nowy
                 if (_hoveredMapIndex != -1 && _hoveredMapIndex >= _currentScrollOffset && (_hoveredMapIndex - _currentScrollOffset) < _mapNameLabels.Count)
                 {
                     int visualIdx = _hoveredMapIndex - _currentScrollOffset;
@@ -421,10 +396,9 @@ namespace Client.Main.Controls.UI.Game
                         _mapNameLabels[visualIdx].TextColor = mapInfo.CanMove ? Color.Gold : _mapNameLabels[visualIdx].TextColor; // Podświetl na złoto jeśli można
                     }
                 }
-                // Jeśli tylko zmienił się stan CanMove, a nie hover, odśwież wszystkie widoczne
                 else if (listNeedsVisualRefresh)
                 {
-                    RefreshMapListUI(); // To jest mniej wydajne, ale prostsze jeśli tylko CanMove się zmienia
+                    RefreshMapListUI();
                 }
             }
         }
@@ -460,9 +434,6 @@ namespace Client.Main.Controls.UI.Game
         public override void Draw(GameTime gameTime)
         {
             if (!Visible) return;
-            // Rysowanie tła i tytułu jest teraz obsługiwane przez UIControl.Draw -> GameControl.Draw
-            // i następnie przez poszczególne kontrolki w kolekcji Controls.
-            // Upewnij się, że BackgroundColor jest ustawione dla MoveCommandWindow.
             base.Draw(gameTime);
         }
 
@@ -472,7 +443,7 @@ namespace Client.Main.Controls.UI.Game
 
             if (key == Keys.Escape)
             {
-                SetVisible(false);
+                Visible = false;
                 if (Scene?.FocusControl == this) Scene.FocusControl = null;
             }
             else if (_scrollBar.Visible)
@@ -485,4 +456,3 @@ namespace Client.Main.Controls.UI.Game
         }
     }
 }
-// --- END OF FILE MoveCommandWindow.cs ---

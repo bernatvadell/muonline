@@ -17,6 +17,7 @@ using MUnique.OpenMU.Network.Packets.ServerToClient;
 using Client.Main.Objects;
 using Client.Main.Core.Utilities;
 using Client.Main.Networking.PacketHandling.Handlers; // For CharacterClassNumber
+using Client.Main.Controllers;
 
 namespace Client.Main.Scenes
 {
@@ -36,6 +37,7 @@ namespace Client.Main.Scenes
         private KeyboardState _previousKeyboardState;
         private bool _isChangingWorld = false;
         private readonly List<(ServerMessage.MessageType Type, string Message)> _pendingNotifications = new();
+        private CharacterInfoWindowControl _characterInfoWindow;
 
         // ───────────────────────── Properties ─────────────────────────
         public PlayerObject Hero => _hero;
@@ -95,6 +97,9 @@ namespace Client.Main.Scenes
             _moveCommandWindow = new MoveCommandWindow(MuGame.AppLoggerFactory, MuGame.Network);
             Controls.Add(_moveCommandWindow);
             _moveCommandWindow.MapWarpRequested += OnMapWarpRequested;
+
+            _characterInfoWindow = new CharacterInfoWindowControl { X = 20, Y = 50, Visible = false };
+            Controls.Add(_characterInfoWindow);
 
             _chatInput.BringToFront();
             DebugPanel.BringToFront();
@@ -159,7 +164,6 @@ namespace Client.Main.Scenes
                     initialPosX = (byte)_hero.Location.X;
                     initialPosY = (byte)_hero.Location.Y;
                 }
-
 
                 charState.UpdateCoreCharacterInfo(
                     _hero.NetworkId,
@@ -499,6 +503,19 @@ namespace Client.Main.Scenes
                 }
             }
 
+            if (currentKeyboardState.IsKeyDown(Keys.C) && !_previousKeyboardState.IsKeyDown(Keys.C))
+            {
+                if (_characterInfoWindow != null)
+                {
+                    if (_characterInfoWindow.Visible)
+                        _characterInfoWindow.HideWindow();
+                    else
+                        _characterInfoWindow.ShowWindow();
+
+                    SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
+                }
+            }
+
             _notificationManager?.Update(gameTime);
             ProcessPendingNotifications();
 
@@ -543,6 +560,7 @@ namespace Client.Main.Scenes
                 return;
             }
             base.Draw(gameTime);
+            _characterInfoWindow?.BringToFront();
         }
     }
 }

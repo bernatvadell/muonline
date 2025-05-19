@@ -124,15 +124,25 @@ namespace Client.Main.Core.Client
 
         // --- Update Methods ---
 
-        // ───────── ALIASY ─────────
         public uint CurrentHp => CurrentHealth;
         public uint MaxHp => MaximumHealth;
         public uint CurrentMp => CurrentMana;
         public uint MaxMp => MaximumMana;
 
-        // ───────── ZDARZENIA ──────
         public event Action<uint, uint> HealthChanged; // (current, max)
         public event Action<uint, uint> ManaChanged;
+
+        public ushort AddedStrength { get; set; } = 0;
+        public ushort AddedAgility { get; set; } = 0;
+        public ushort AddedVitality { get; set; } = 0;
+        public ushort AddedEnergy { get; set; } = 0;
+        public ushort AddedLeadership { get; set; } = 0;
+
+        public ushort TotalStrength => (ushort)(Strength + AddedStrength);
+        public ushort TotalAgility => (ushort)(Agility + AddedAgility);
+        public ushort TotalVitality => (ushort)(Vitality + AddedVitality);
+        public ushort TotalEnergy => (ushort)(Energy + AddedEnergy);
+        public ushort TotalLeadership => (ushort)(Leadership + AddedLeadership);
 
         private void RaiseHealth() => HealthChanged?.Invoke(CurrentHealth, MaximumHealth);
         private void RaiseMana() => ManaChanged?.Invoke(CurrentMana, MaximumMana);
@@ -159,68 +169,7 @@ namespace Client.Main.Core.Client
             this.MapId = mapId;
             this.IsInGame = true;
 
-            this.LevelUpPoints = 0;
-            this.Experience = 0;
-            this.ExperienceForNextLevel = 1;
-            this.MasterLevel = 0;
-            this.MasterExperience = 0;
-            this.MasterExperienceForNextLevel = 1;
-            this.MasterLevelUpPoints = 0;
-
             _logger.LogInformation("CORE CharacterState updated for {Name}. HP/MP/Stats/Zen will be updated by subsequent packets.", name);
-        }
-
-        public void UpdateCharacterOnLogin(
-            ushort id,
-            string name,
-            CharacterClassNumber characterClass,
-            ushort level,
-            byte posX, byte posY, ushort mapId,
-            ulong experience, ulong nextLevelExp, ushort levelUpPoints,
-            ushort strength, ushort agility, ushort vitality, ushort energy, ushort leadership,
-            uint currentHealth, uint maxHealth, uint currentMana, uint maxMana,
-            uint currentShield, uint maxShield, uint currentAbility, uint maxAbility,
-            uint zen, CharacterHeroState heroState, CharacterStatus status, byte inventoryExpansion)
-        {
-            _logger.LogInformation("Updating FULL CharacterState for character: {Name}, Level: {Level} (from F3 03 or similar)", name, level);
-
-            this.Id = id;
-            this.Name = name;
-            this.Class = characterClass;
-            this.Level = level;
-            this.PositionX = posX;
-            this.PositionY = posY;
-            this.MapId = mapId;
-            this.Experience = experience;
-            this.ExperienceForNextLevel = Math.Max(1, nextLevelExp);
-            this.LevelUpPoints = levelUpPoints;
-            this.Strength = strength;
-            this.Agility = agility;
-            this.Vitality = vitality;
-            this.Energy = energy;
-            this.Leadership = leadership;
-            this.CurrentHealth = currentHealth;
-            this.MaximumHealth = Math.Max(1, maxHealth);
-            this.CurrentMana = currentMana;
-            this.MaximumMana = Math.Max(1, maxMana);
-            this.CurrentShield = currentShield;
-            this.MaximumShield = maxShield;
-            this.CurrentAbility = currentAbility;
-            this.MaximumAbility = maxAbility;
-            this.InventoryZen = zen;
-            this.HeroState = heroState;
-            this.Status = status;
-            this.InventoryExpansionState = inventoryExpansion;
-            this.IsInGame = true;
-
-            this.MasterLevel = 0;
-            this.MasterExperience = 0;
-            this.MasterExperienceForNextLevel = 1;
-            this.MasterLevelUpPoints = 0;
-
-            RaiseHealth();
-            RaiseMana();
-            _logger.LogInformation("FULL CharacterState updated for {Name}.", name);
         }
 
         public void UpdateCurrentHealthShield(uint currentHealth, uint currentShield)

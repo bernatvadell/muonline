@@ -9,6 +9,7 @@ using Client.Main.Worlds;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using MUnique.OpenMU.Network.Packets; // Needed for CharacterClassNumber
+using MUnique.OpenMU.Network.Packets.ServerToClient;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -283,9 +284,9 @@ namespace Client.Main.Scenes
 
         private void UpdateUIVisibility(bool showServerSelectionUi, bool showLoginDialog, bool hideAll)
         {
-            _nonEventGroup?.SetVisible(showServerSelectionUi && !hideAll);
-            _eventGroup?.SetVisible(showServerSelectionUi && !hideAll);
-            _loginDialog?.SetVisible(showLoginDialog && !hideAll);
+            if (_nonEventGroup != null) _nonEventGroup.Visible = showServerSelectionUi && !hideAll;
+            if (_eventGroup != null) _eventGroup.Visible = showServerSelectionUi && !hideAll;
+            if (_loginDialog != null) _loginDialog.Visible = showLoginDialog && !hideAll;
 
             if (_serverList != null)
             {
@@ -402,14 +403,18 @@ namespace Client.Main.Scenes
             });
         }
 
-        private void HandleLoginFailed(object sender, EventArgs e)
+        private void HandleLoginFailed(object sender, LoginResponse.LoginResult reason)
         {
             MuGame.ScheduleOnMainThread(() =>
             {
-                _logger.LogWarning("UI received LoginFailed.");
+                _logger.LogWarning("UI received LoginFailed. Reason: {Reason} (Value: {ReasonByte})", reason, (byte)reason);
                 if (_statusLabel != null) _statusLabel.Text = "Status: Login Failed!";
-                MessageWindow.Show("Login Failed. Check credentials or server status.");
-                // Visibility is handled by HandleConnectionStateChange after state update
+
+                string messageToShow = reason == LoginResponse.LoginResult.AccountAlreadyConnected
+                    ? "Account is already connected."
+                    : "Login Failed. Check credentials or server status.";
+                MessageWindow.Show(messageToShow);
+                // Visibility of login dialog, etc., is handled by HandleConnectionStateChange after state update
             });
         }
 

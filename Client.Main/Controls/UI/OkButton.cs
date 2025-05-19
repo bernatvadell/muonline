@@ -16,6 +16,7 @@ namespace Client.Main.Controls.UI
             Interactive = true;
             TileWidth = 54;
             TileHeight = 30;
+            ViewSize = new Point(TileWidth, TileHeight); // Ensure ViewSize is set from tile dimensions
             TileY = 0;
             BlendState = Blendings.Alpha;
             TexturePath = "Interface/message_ok_b_all.tga";

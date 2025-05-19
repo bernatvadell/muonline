@@ -48,7 +48,10 @@ namespace Client.Main.Controls.UI
             };
             Controls.Add(_label);
 
-            _okButton = new OkButton {};
+            _okButton = new OkButton
+            {
+                // Align = ControlAlign.HorizontalCenter // This would also work if X were not manually set
+            };
             _okButton.Click += (s, e) => Close();
             Controls.Add(_okButton);
 

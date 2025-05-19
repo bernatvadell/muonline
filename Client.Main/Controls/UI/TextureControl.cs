@@ -1,6 +1,6 @@
 ﻿using Client.Main.Content;
 using Client.Main.Controllers;
-using Client.Main.Controls.UI.Game;
+using Client.Main.Controls.UI.Game; // Assuming ExtendedUIControl might be here or in Models
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Controls.UI
 {
-    public class TextureControl : ExtendedUIControl
+    public class TextureControl : ExtendedUIControl // Assuming ExtendedUIControl is your base for UI elements
     {
         public Texture2D Texture { get; protected set; }
         private string _texturePath;
@@ -21,7 +21,11 @@ namespace Client.Main.Controls.UI
 
         public override async Task Initialize()
         {
-            await TextureLoader.Instance.Prepare(TexturePath);
+            // Prepare texture only if path is valid
+            if (!string.IsNullOrEmpty(TexturePath)) // Check added in SpriteControl, but good to have here too for direct TextureControl usage
+            {
+                await TextureLoader.Instance.Prepare(TexturePath);
+            }
             await base.Initialize();
         }
 
@@ -47,21 +51,43 @@ namespace Client.Main.Controls.UI
 
         private void OnChangeTexturePath()
         {
-            Task.Run(() => LoadTexture());
+            if (Status == GameControlStatus.Ready || Status == GameControlStatus.Initializing)
+            {
+                Task.Run(async () => await LoadTexture());
+            }
         }
 
         protected virtual async Task LoadTexture()
         {
+            if (string.IsNullOrEmpty(TexturePath))
+            {
+                Texture = null; // Explicitly ensure Texture is null
+                if (AutoViewSize) ViewSize = Point.Zero; // Reset ViewSize if auto and no texture
+                // Debug.WriteLineIf(TexturePath == null || TexturePath == "", $"TextureControl: TexturePath is null or empty for {this.GetType().Name}. Skipping texture load.");
+                return; // Do not attempt to load if path is invalid
+            }
+
             await TextureLoader.Instance.Prepare(TexturePath);
             Texture = TextureLoader.Instance.GetTexture2D(TexturePath);
 
             if (Texture == null)
+            {
+                if (AutoViewSize) ViewSize = Point.Zero;
+                System.Diagnostics.Debug.WriteLine($"Warning: Failed to load texture for TextureControl: {TexturePath}");
                 return;
+            }
 
-            ControlSize = new Point(Texture.Width, Texture.Height);
+            // If AutoViewSize is true, set ViewSize to texture dimensions.
+            // If TextureRectangle is not set, default to full texture.
+            if (AutoViewSize)
+            {
+                ViewSize = new Point(Texture.Width, Texture.Height);
+            }
 
             if (TextureRectangle == Rectangle.Empty)
+            {
                 TextureRectangle = new Rectangle(0, 0, Texture.Width, Texture.Height);
+            }
         }
     }
 }

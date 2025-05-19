@@ -61,9 +61,21 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         {
             try
             {
-                var response = new LoginResponse(packet);
+                var response = new LoginResponse(packet); // This is MUnique.OpenMU.Network.Packets.ServerToClient.LoginResponse
                 _logger.LogInformation("🔑 LoginResponse: Success={Success} (0x{Code:X2})", response.Success, (byte)response.Success);
-                _networkManager.ProcessLoginResponse(response.Success);
+
+                LoginResponse.LoginResult clientResult;
+                try
+                {
+                    clientResult = (LoginResponse.LoginResult)response.Success;
+                }
+                catch (InvalidCastException) // Or check Enum.IsDefined if you prefer
+                {
+                    _logger.LogWarning("Received unknown LoginResult value from server: {ServerValue}. Defaulting to ConnectionError.", (byte)response.Success);
+                    clientResult = LoginResponse.LoginResult.ConnectionError;
+                }
+
+                _networkManager.ProcessLoginResponse(clientResult);
             }
             catch (Exception ex)
             {
