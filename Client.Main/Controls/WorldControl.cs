@@ -51,7 +51,7 @@ namespace Client.Main.Controls
         private readonly List<WorldObject> _transparentObjects = new();
         private readonly List<WorldObject> _solidInFront = new();
 
-        protected Dictionary<ushort, WalkerObject> WalkerObjectsById { get; } = new();
+        public Dictionary<ushort, WalkerObject> WalkerObjectsById { get; } = new();
 
         // --- Properties ---
 
@@ -76,6 +76,7 @@ namespace Client.Main.Controls
 
             Controls.Add(Terrain = new TerrainControl { WorldIndex = worldIndex });
             Objects.ControlAdded += OnObjectAdded;
+            Objects.ControlRemoved += OnObjectRemoved;
 
             Camera.Instance.CameraMoved += OnCameraMoved;
             UpdateBoundingFrustum();
@@ -170,6 +171,25 @@ namespace Client.Main.Controls
             {
                 if (!WalkerObjectsById.TryAdd(walker.NetworkId, walker))
                     Debug.WriteLine($"Warning: Duplicate WalkerObject ID {walker.NetworkId:X4}");
+            }
+        }
+
+        private void OnObjectRemoved(object sender, ChildrenEventArgs<WorldObject> e)
+        {
+            if (e.Control is WalkerObject walker &&
+                walker.NetworkId != 0 &&
+                walker.NetworkId != 0xFFFF)
+            {
+                if (WalkerObjectsById.TryGetValue(walker.NetworkId, out var storedWalker) && ReferenceEquals(storedWalker, walker))
+                {
+                    WalkerObjectsById.Remove(walker.NetworkId);
+                    // Consider logging this if needed, but it can be noisy during normal cleanup.
+                    // Debug.WriteLine($"WorldControl: WalkerObject {walker.NetworkId:X4} removed from WalkerObjectsById via OnObjectRemoved.");
+                }
+                else
+                {
+                    // This might happen if RemoveObject was called directly and already cleaned WalkerObjectsById, which is fine.
+                }
             }
         }
 

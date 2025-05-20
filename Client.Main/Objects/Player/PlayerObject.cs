@@ -1,8 +1,8 @@
-﻿// PlayerObject.cs
-using Client.Main.Content;
+﻿using Client.Main.Content;
 using Client.Main.Controls;
 using Client.Main.Models;
 using Client.Main.Objects.Wings;
+using Client.Main.Objects.Monsters;
 using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
 using MUnique.OpenMU.Network.Packets;
@@ -202,6 +202,37 @@ namespace Client.Main.Objects.Player
         public override void OnClick()
         {
             base.OnClick();
+        }
+
+        public void Attack(MonsterObject target)
+        {
+            if (target == null || World == null)
+            {
+                return;
+            }
+
+            // Stop current movement
+            if (_currentPath != null)
+            {
+                _currentPath.Clear();
+            }
+            // If WalkerObject has an IsMoving flag that needs to be manually reset:
+            // IsMoving = false; // This might be implicitly handled by clearing path and no new MoveTo call
+
+            // Turn to face the target
+            Vector2 directionToTarget = target.Location - this.Location;
+            if (directionToTarget != Vector2.Zero) // Avoid NaN if at same spot
+            {
+                float angle = MathF.Atan2(directionToTarget.Y, directionToTarget.X);
+                this.Direction = DirectionExtensions.FromAngle(angle);
+            }
+
+            PlayAction((ushort)PlayerAction.AttackFist); // Use a default melee attack
+            // Send attack packet to server
+            if (MuGame.Network != null)
+            {
+                _ = MuGame.Network.SendHitRequestAsync(target.NetworkId, (byte)PlayerAction.AttackFist, (byte)this.Direction);
+            }
         }
 
         // Private Methods

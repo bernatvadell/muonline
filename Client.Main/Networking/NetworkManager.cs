@@ -175,6 +175,8 @@ namespace Client.Main.Networking
         public Task SendInstantMoveRequestAsync(byte x, byte y)
             => _characterService.SendInstantMoveRequestAsync(x, y);
 
+        public Task SendHitRequestAsync(ushort targetId, byte attackAnimation, byte lookingDirection)
+            => _characterService.SendHitRequestAsync(targetId, attackAnimation, lookingDirection);
 
         /// <summary>
         /// Sends a warp command request to the server.

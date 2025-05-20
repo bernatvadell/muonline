@@ -109,15 +109,22 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 // Spawn remote players immediately if the world is ready,
                 // otherwise buffer for later
                 if (MuGame.Instance.ActiveScene?.World is WalkableWorldControl w
-                    && w.Status == GameControlStatus.Ready
-                    && masked != _characterState.Id)
+                    && w.Status == GameControlStatus.Ready)
                 {
-                    SpawnRemotePlayerIntoWorld(w, masked, c.CurrentPositionX, c.CurrentPositionY, c.Name, cls);
+                    if (masked != _characterState.Id) // Don't spawn self as a remote player
+                    {
+                        SpawnRemotePlayerIntoWorld(w, masked, raw, c.CurrentPositionX, c.CurrentPositionY, c.Name, cls);
+                    }
                 }
                 else if (masked != _characterState.Id)
                 {
                     lock (_pendingPlayers)
-                        _pendingPlayers.Add(new PlayerScopeObject(masked, raw, c.CurrentPositionX, c.CurrentPositionY, c.Name, cls));
+                    {
+                        if (!_pendingPlayers.Any(p => p.Id == masked))
+                        {
+                            _pendingPlayers.Add(new PlayerScopeObject(masked, raw, c.CurrentPositionX, c.CurrentPositionY, c.Name, cls));
+                        }
+                    }
                 }
             }
         }
@@ -146,19 +153,24 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         private static void SpawnRemotePlayerIntoWorld(
                    WalkableWorldControl world,
                    ushort maskedId,
+                   ushort rawId,
                    byte x,
                    byte y,
                    string name,
                    CharacterClassNumber cls)
         {
-            if (world.Walker is PlayerObject local && local.NetworkId == maskedId)
-                return;
-
             MuGame.ScheduleOnMainThread(async () =>
             {
                 if (MuGame.Instance.ActiveScene?.World != world || world.Status != GameControlStatus.Ready)
                 {
                     return;
+                }
+
+                if (world.WalkerObjectsById.TryGetValue(maskedId, out WalkerObject existingWalker))
+                {
+                    // GameScene._logger.LogWarning($"SpawnRemotePlayer: Stale PlayerObject {maskedId:X4} found. Removing before adding new.");
+                    world.Objects.Remove(existingWalker);
+                    existingWalker.Dispose();
                 }
 
                 if (world.Objects.OfType<PlayerObject>().Any(p => p.NetworkId == maskedId))
@@ -262,23 +274,31 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     if (MuGame.Instance.ActiveScene?.World is WalkableWorldControl worldRef && worldRef.Status == GameControlStatus.Ready)
                     {
-                        if (worldRef.Objects.OfType<WalkerObject>().Any(o => o.NetworkId == maskedId))
+                        if (worldRef.WalkerObjectsById.TryGetValue(maskedId, out WalkerObject existingWalker))
                         {
-                            return;
+                            // An object with this ID already exists in the dictionary.
+                            // This could be a stale object or a rapid respawn with ID reuse.
+                            _logger.LogWarning($"ScopeHandler: Stale/Duplicate NPC/Monster ID {maskedId:X4} ({existingWalker.GetType().Name}) found in WalkerObjectsById. Removing it before adding new {name} (Type: {type}).");
+
+                            // Remove from visual list (triggers OnObjectRemoved in WorldControl)
+                            worldRef.Objects.Remove(existingWalker);
+                            existingWalker.Dispose(); // Dispose the old instance.
                         }
+                        // else: No existing walker with this ID in the dictionary, proceed to add.
 
                         if (NpcDatabase.TryGetNpcType(type, out var npcClassType))
                         {
+                            // Check again if it was added by another thread in the meantime, though less likely now with prior check
+                            if (worldRef.Objects.OfType<WalkerObject>().Any(o => o.NetworkId == maskedId)) return;
+
                             if (Activator.CreateInstance(npcClassType) is WalkerObject obj)
                             {
                                 obj.NetworkId = maskedId;
                                 obj.Location = new Vector2(x, y);
 
-                                // NAJPIERW DODAJ DO ŚWIATA, ABY USTAWIĆ worldRef.World
-                                worldRef.Objects.Add(obj); // To ustawi obj.World
+                                worldRef.Objects.Add(obj);
 
-                                // TERAZ MOŻNA BEZPIECZNIE USTAWIĆ POZYCJE, bo obj.World jest dostępne
-                                if (obj.World != null && obj.World.Terrain != null) // Dodatkowe zabezpieczenie
+                                if (obj.World?.Terrain != null)
                                 {
                                     obj.MoveTargetPosition = obj.TargetPosition;
                                     obj.Position = obj.TargetPosition;
@@ -385,7 +405,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                     var txt = new DamageTextObject(
                         totalDmg == 0 ? "Miss" : totalDmg.ToString(),
-                        headPos,
+                        maskedId,
                         totalDmg == 0 ? Color.White : Color.Red
                     );
                     world.Objects.Add(txt);

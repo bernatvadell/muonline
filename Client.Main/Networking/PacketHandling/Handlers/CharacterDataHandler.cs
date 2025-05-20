@@ -4,7 +4,9 @@ using MUnique.OpenMU.Network.Packets.ServerToClient;
 using Client.Main.Core.Utilities;
 using System;
 using System.Threading.Tasks;
-using Client.Main.Core.Client;             // For PacketHandlerAttribute
+using Client.Main.Core.Client;
+using System.Linq;
+using Client.Main.Controllers;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
@@ -369,6 +371,15 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     _logger.LogInformation("🎉 LEVEL UP! You are now level {Level} with {Points} points.", newLevel, newPoints);
                     Console.WriteLine($"*** LEVEL UP! You are now level {newLevel}! ***");
+                    SoundController.Instance.PlayBuffer("Sound/pLevelUp.wav");
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
+                        if (gameScene != null)
+                        {
+                            gameScene.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>().FirstOrDefault()?.AddMessage("System", $"You have reached Level {newLevel}! You have {newPoints} stat points remaining.", Client.Main.Models.MessageType.System);
+                        }
+                    });
                 }
                 else
                 {
@@ -600,6 +611,15 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 }
 
                 _characterState.AddExperience(addedExperience);
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
+                    if (gameScene != null)
+                    {
+                        gameScene.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>().FirstOrDefault()?.AddMessage("System", $"Gained {addedExperience} experience.", Client.Main.Models.MessageType.System);
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -886,6 +906,15 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     _logger.LogInformation("Ⓜ️ MASTER LEVEL UP! Level {Lvl}, Points {Pts}", mlvl, mpts);
                     Console.WriteLine($"*** MASTER LEVEL UP! You are now master level {mlvl}! ***");
+                    // TODO: Play master level up sound
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
+                        if (gameScene != null)
+                        {
+                            gameScene.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>().FirstOrDefault()?.AddMessage("System", $"You have reached Master Level {mlvl}! You have {mpts} master points remaining.", Client.Main.Models.MessageType.System);
+                        }
+                    });
                 }
                 else
                 {

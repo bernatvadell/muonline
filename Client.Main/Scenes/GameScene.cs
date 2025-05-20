@@ -525,6 +525,17 @@ namespace Client.Main.Scenes
                 return;
             }
 
+            // Handle attack clicks on monsters
+            else if (!IsMouseInputConsumedThisFrame && MouseHoverObject is Client.Main.Objects.Monsters.MonsterObject targetMonster &&
+                MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
+                MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released) // Fresh press
+            {
+                if (Hero != null)
+                {
+                    Hero.Attack(targetMonster);
+                    SetMouseInputConsumed(); // Consume the click
+                }
+            }
 
             if (currentKeyboardState.IsKeyDown(Keys.F5) && _previousKeyboardState.IsKeyUp(Keys.F5)) _chatLog?.ToggleFrame();
             if (currentKeyboardState.IsKeyDown(Keys.F4) && _previousKeyboardState.IsKeyUp(Keys.F4)) _chatLog?.CycleSize();

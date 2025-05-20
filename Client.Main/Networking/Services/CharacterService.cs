@@ -203,5 +203,32 @@ namespace Client.Main.Networking.Services
                 _logger.LogError(ex, "Error sending walk request.");
             }
         }
+
+        /// <summary>
+        /// Sends a hit request packet to the server.
+        /// </summary>
+        public async Task SendHitRequestAsync(ushort targetId, byte attackAnimation, byte lookingDirection)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send hit request.");
+                return;
+            }
+
+            _logger.LogInformation(
+                "Sending hit request for TargetID: {TargetId}, Anim: {Animation}, Dir: {Direction}...",
+                targetId, attackAnimation, lookingDirection);
+
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                    PacketBuilder.BuildHitRequestPacket(_connectionManager.Connection.Output, targetId, attackAnimation, lookingDirection));
+                _logger.LogInformation("Hit request sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending hit request.");
+            }
+        }
     }
 }

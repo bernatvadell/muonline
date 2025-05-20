@@ -215,6 +215,26 @@ namespace Client.Main.Networking.PacketHandling
             return length;
         }
 
+        /// <summary>
+        /// Builds a hit request packet for a basic attack.
+        /// </summary>
+        public static int BuildHitRequestPacket(
+            IBufferWriter<byte> writer,
+            ushort targetId,
+            byte attackAnimation,
+            byte lookingDirection)
+        {
+            int length = HitRequest.Length;
+            var memory = writer.GetMemory(length).Slice(0, length);
+            var packet = new HitRequest(memory);
+
+            packet.TargetId = targetId;
+            packet.AttackAnimation = attackAnimation;
+            packet.LookingDirection = lookingDirection;
+
+            return length;
+        }
+
         // ───────────────────── Connect Server Packets ──────────────────────
 
         /// <summary>

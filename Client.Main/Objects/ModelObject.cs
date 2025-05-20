@@ -37,6 +37,7 @@ namespace Client.Main.Objects
         public float ShadowOpacity { get; set; } = 1f;
         public Color Color { get; set; } = Color.White;
         protected Matrix[] BoneTransform { get; set; }
+        public Matrix[] GetBoneTransforms() => BoneTransform;
         public int CurrentAction { get; set; }
         public int ParentBoneLink { get; set; } = -1;
         public BMD Model { get; set; }

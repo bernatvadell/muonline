@@ -18,7 +18,7 @@ namespace Client.Main.Objects
         private Vector3 _targetAngle;
         private Direction _direction;
         private Vector2 _location;
-        private List<Vector2> _currentPath;
+        protected List<Vector2> _currentPath;
 
         // Camera control
         private float _currentCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
@@ -218,6 +218,10 @@ namespace Client.Main.Objects
                 {
                     if (MuGame.Instance.ActiveScene?.World == currentWorld && this.Status != GameControlStatus.Disposed)
                     {
+                        // Cancel any ongoing one-shot action (like attack) if we start moving.
+                        _autoIdleCts?.Cancel();
+                        _autoIdleCts = null;
+
                         _currentPath = path;
 
                         if (sendToServer && IsMainWalker)
