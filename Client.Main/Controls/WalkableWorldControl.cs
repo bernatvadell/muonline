@@ -1,6 +1,8 @@
 ﻿using Client.Main.Controllers;
 using Client.Main.Models;
 using Client.Main.Objects;
+using Client.Main.Objects.Monsters;
+using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using System;
@@ -89,12 +91,31 @@ namespace Client.Main.Controls
 
             CalculateMouseTilePos();
 
+            MonsterObject hoveredMonster = Scene.MouseHoverObject as MonsterObject;
+
             // Handle click‐to‐move with a simple cooldown
             if (!Scene.IsMouseInputConsumedThisFrame && // check if UI already handled the click
                 (Scene.MouseControl == this || Scene.MouseControl == World) && // ensure this world or its base is the target
                 MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
                 _cursorNextMoveTime <= 0f)
             {
+                if (Walker is PlayerObject player)
+                {
+                    MonsterObject monster = hoveredMonster ?? FindMonsterAtTile(MouseTileX, MouseTileY);
+                    if (monster != null)
+                    {
+                        float attackRange = player.GetAttackRangeTiles();
+                        if (Vector2.Distance(player.Location, monster.Location) <= attackRange)
+                        {
+                            player.Attack(monster);
+                            if (Scene is Client.Main.Scenes.BaseScene bs)
+                                bs.SetMouseInputConsumed();
+                            _cursorNextMoveTime = 250f;
+                            return;
+                        }
+                    }
+                }
+
                 _cursorNextMoveTime = 250f;
                 var newTile = new Vector2(MouseTileX, MouseTileY);
 
@@ -189,6 +210,23 @@ namespace Client.Main.Controls
                 MouseTileX = 0;
                 MouseTileY = 0;
             }
+        }
+
+        /// <summary>
+        /// Returns the first <see cref="MonsterObject"/> occupying the given tile, or <c>null</c>.
+        /// </summary>
+        private MonsterObject FindMonsterAtTile(byte tileX, byte tileY)
+        {
+            foreach (var obj in Objects)          // Objects list comes from WorldControl
+            {
+                if (obj is MonsterObject m &&
+                    m.Location.X == tileX &&
+                    m.Location.Y == tileY)
+                {
+                    return m;
+                }
+            }
+            return null;
         }
     }
 }

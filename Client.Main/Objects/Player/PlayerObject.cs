@@ -62,6 +62,12 @@ namespace Client.Main.Objects.Player
             set => base.CurrentAction = (int)value;
         }
 
+        /// <summary>
+        /// The attack animation/skill that will be used on the next click-to-attack.
+        /// UI code (skill bar etc.) should update this before invoking <see cref="Attack(MonsterObject)"/>.
+        /// </summary>
+        public PlayerAction SelectedAttackAction { get; set; } = PlayerAction.BlowSkill;
+
         // Constructors
         public PlayerObject()
         {
@@ -143,7 +149,11 @@ namespace Client.Main.Objects.Player
                 if (restDistance < 0.1f) // Threshold for being 'at' the rest place
                 {
                     // Select appropriate resting animation based on world/context
-                    CurrentAction = (worldControl.WorldIndex == 4) ? PlayerAction.PlayerFlyingRest : PlayerAction.PlayerStandingRest;
+                    var restAction = (worldControl.WorldIndex == 4)
+                        ? PlayerAction.PlayerFlyingRest
+                        : PlayerAction.PlayerStandingRest;
+                    if (!IsOneShotPlaying && CurrentAction != restAction)
+                        CurrentAction = restAction;
                     return; // Stay in resting state animation
                 }
                 else if (restDistance > 1.0f) // Threshold for moving away
@@ -158,7 +168,8 @@ namespace Client.Main.Objects.Player
                 float sitDistance = Vector2.Distance(Location, SitPlaceTarget.Value);
                 if (sitDistance < 0.1f) // Threshold for being 'at' the sit place
                 {
-                    CurrentAction = PlayerAction.PlayerSit1; // Or cycle through sit animations?
+                    if (!IsOneShotPlaying && CurrentAction != PlayerAction.PlayerSit1)
+                        CurrentAction = PlayerAction.PlayerSit1; // Or cycle through sit animations?
                     return; // Stay in sitting state animation
                 }
                 else if (sitDistance > 1.0f) // Threshold for moving away
@@ -176,21 +187,27 @@ namespace Client.Main.Objects.Player
             // --- Standard In-Game Animation Logic ---
             else
             {
+                PlayerAction desiredAction;
+
                 if (IsMoving)
                 {
-                    CurrentAction = worldControl.WorldIndex switch
+                    desiredAction = worldControl.WorldIndex switch
                     {
-                        8 => PlayerAction.RunSwim,    // Atlans
-                        11 => PlayerAction.Fly,   // Icarus
+                        8 => PlayerAction.RunSwim, // Atlans
+                        11 => PlayerAction.Fly,    // Icarus
                         _ => PlayerAction.WalkMale // Default walking/running
                     };
                 }
                 else // Not moving
                 {
-                    CurrentAction = (worldControl.WorldIndex == 8 || worldControl.WorldIndex == 11)
-                        ? PlayerAction.StopFlying // Atlans or Icarus
-                        : PlayerAction.StopMale;  // Default standing
+                    desiredAction = (worldControl.WorldIndex == 8 || worldControl.WorldIndex == 11)
+                        ? PlayerAction.StopFlying   // Atlans or Icarus
+                        : PlayerAction.StopMale;    // Default standing
                 }
+
+                // Do not override an active one-shot animation
+                if (!IsOneShotPlaying && CurrentAction != desiredAction)
+                    CurrentAction = desiredAction;
             }
         }
 
@@ -211,13 +228,18 @@ namespace Client.Main.Objects.Player
                 return;
             }
 
-            // Stop current movement
-            if (_currentPath != null)
+            // ───── RANGE VALIDATION ─────
+            float rangeTiles = GetAttackRangeTiles();
+            if (Vector2.Distance(Location, target.Location) > rangeTiles)
             {
-                _currentPath.Clear();
+                // Target out of reach - don't send attack packet.
+                // Optionally start moving closer:
+                MoveTo(target.Location);
+                return;
             }
-            // If WalkerObject has an IsMoving flag that needs to be manually reset:
-            // IsMoving = false; // This might be implicitly handled by clearing path and no new MoveTo call
+
+            // Stop current movement so the attack animation is not overridden.
+            _currentPath?.Clear();
 
             // Turn to face the target
             Vector2 directionToTarget = target.Location - this.Location;
@@ -227,13 +249,33 @@ namespace Client.Main.Objects.Player
                 this.Direction = DirectionExtensions.FromAngle(angle);
             }
 
-            PlayAction((ushort)PlayerAction.AttackFist); // Use a default melee attack
-            // Send attack packet to server
-            if (MuGame.Network != null)
-            {
-                _ = MuGame.Network.SendHitRequestAsync(target.NetworkId, (byte)PlayerAction.AttackFist, (byte)this.Direction);
-            }
+            PlayAction((ushort)SelectedAttackAction);
+            // In-range → send attack packet to server
+            MuGame.Network?.SendHitRequestAsync(
+                target.NetworkId,
+                (byte)SelectedAttackAction,
+                (byte)this.Direction);
         }
+
+        /// <summary>
+        /// Returns the maximum distance (in terrain tiles) at which the currently
+        /// selected attack/skill can hit a target.
+        /// </summary>
+        public float GetAttackRangeTiles() => GetAttackRangeForAction(SelectedAttackAction);
+
+        private static float GetAttackRangeForAction(PlayerAction action) => action switch
+        {
+            PlayerAction.AttackFist => 3f,   // default melee
+            PlayerAction.PlayerAttackBow => 8f,     // bow ranged
+            PlayerAction.PlayerAttackCrossbow => 8f,     // crossbow ranged
+            PlayerAction.PlayerAttackFlyBow => 8f,     // flying bow
+            PlayerAction.PlayerAttackFlyCrossbow => 8f,     // flying crossbow
+            PlayerAction.PlayerAttackSpear1 => 3f,     // spear melee
+            PlayerAction.PlayerAttackSkillSword1 => 6f,     // generic skill (example)
+            PlayerAction.PlayerAttackSkillSpear => 6f,     // skill spear
+            // Add more as needed for other skills/attacks
+            _ => 3f    // fallback
+        };
 
         // Private Methods
         /// <summary>

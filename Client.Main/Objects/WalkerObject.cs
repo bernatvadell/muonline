@@ -48,6 +48,22 @@ namespace Client.Main.Objects
         private const float RotationSpeed = 8f;
         private int _previousActionForSound = -1;
 
+        /// <summary>
+        /// Stores the currently-playing one-shot (non-looping) animation, if any.
+        /// </summary>
+        private ushort? _currentOneShotAction = null;
+
+        /// <summary>
+        /// True while a one-shot animation (attack, hit, skill, etc.) is running.
+        /// </summary>
+        public bool IsOneShotPlaying => _currentOneShotAction.HasValue;
+
+        /// <summary>
+        /// Ensures very short one-shot actions (e.g. attack) are shown long
+        /// enough to be noticeable even if the model reports only a few frames.
+        /// </summary>
+        private const int MinOneShotDurationMs = 500;
+
         // Properties
         public bool IsMainWalker => World is WalkableWorldControl walkableWorld && walkableWorld.Walker == this;
 
@@ -149,12 +165,8 @@ namespace Client.Main.Objects
 
             var act = Model.Actions[actionIndex];
 
-            bool isOneShot = this is MonsterObject m
-                             && actionIndex != (ushort)MonsterActionType.Stop1
-                             && actionIndex != (ushort)MonsterActionType.Stop2
-                             && actionIndex != (ushort)MonsterActionType.Walk
-                             && actionIndex != (ushort)MonsterActionType.Run
-                             && actionIndex != (ushort)MonsterActionType.Die;
+            bool isLooping = IsLoopingAction(actionIndex);
+            bool isOneShot = !isLooping;
 
             if (!isOneShot && CurrentAction == actionIndex)
                 return;
@@ -165,6 +177,7 @@ namespace Client.Main.Objects
             _autoIdleCts?.Cancel();
             _autoIdleCts?.Dispose();
             _autoIdleCts = null;
+            _currentOneShotAction = isOneShot ? actionIndex : null;
 
             if (isOneShot && act.NumAnimationKeys > 1)
             {
@@ -174,6 +187,10 @@ namespace Client.Main.Objects
 
                 int frames = act.NumAnimationKeys;
                 int delayMs = (int)((frames / effectiveFps) * 1000f) + 100;
+                // Guarantee a perceptible length for actions with very few frames
+                if (isOneShot)
+                    delayMs = Math.Max(delayMs, MinOneShotDurationMs);
+
                 delayMs = Math.Clamp(delayMs, 50, 60_000);
 
                 _autoIdleCts = new CancellationTokenSource();
@@ -193,10 +210,44 @@ namespace Client.Main.Objects
 
                             if (Model?.Actions != null && idle < Model.Actions.Length)
                                 CurrentAction = idle;
+                            // one-shot finished
+                            _currentOneShotAction = null;
                         }
                     });
                 }, token, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
             }
+        }
+
+        /// <summary>
+        /// Determines whether <paramref name="actionIndex"/> is a looping animation for
+        /// the current object type.  All other actions are considered one-shot.
+        /// </summary>
+        private bool IsLoopingAction(ushort actionIndex)
+        {
+            if (this is MonsterObject)
+            {
+                var ma = (MonsterActionType)actionIndex;
+                return ma == MonsterActionType.Stop1
+                       || ma == MonsterActionType.Stop2
+                       || ma == MonsterActionType.Walk
+                       || ma == MonsterActionType.Run
+                       || ma == MonsterActionType.Die;   // death stays on last frame
+            }
+
+            // Player object
+            var pa = (PlayerAction)actionIndex;
+            return pa switch
+            {
+                PlayerAction.StopMale
+                or PlayerAction.StopFlying
+                or PlayerAction.WalkMale
+                or PlayerAction.RunSwim
+                or PlayerAction.Fly
+                or PlayerAction.PlayerStandingRest
+                or PlayerAction.PlayerFlyingRest
+                or PlayerAction.PlayerSit1 => true,
+                _ => false
+            };
         }
 
         public void MoveTo(Vector2 targetLocation, bool sendToServer = true)
@@ -221,6 +272,7 @@ namespace Client.Main.Objects
                         // Cancel any ongoing one-shot action (like attack) if we start moving.
                         _autoIdleCts?.Cancel();
                         _autoIdleCts = null;
+                        _currentOneShotAction = null; // moving aborts any one-shot
 
                         _currentPath = path;
 
