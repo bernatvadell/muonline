@@ -15,14 +15,6 @@ namespace Client.Main.Configuration
         public string ConnectServerHost { get; set; } = "127.0.0.1";
         public int ConnectServerPort { get; set; } = 44405;
 
-        // Game Server Settings (usually obtained from Connect Server)
-        // public string GameServerHost { get; set; } = ""; // Not typically set here
-        // public int GameServerPort { get; set; }
-
-        // Account Settings
-        public string Username { get; set; } = "";
-        public string Password { get; set; } = "";
-
         // Client/Protocol Settings
         public string ProtocolVersion { get; set; } = nameof(TargetProtocolVersion.Season6); // Use nameof for safety
         public string ClientVersion { get; set; } = "1.04d"; // Example default

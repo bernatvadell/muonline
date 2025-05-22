@@ -867,13 +867,40 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             MuGame.ScheduleOnMainThread(() =>
             {
                 if (MuGame.Instance.ActiveScene?.World is not WorldControl world) return;
-                if (!world.TryGetWalkerById(id, out var walker)) return;
+
+                var player = world.Objects.OfType<PlayerObject>()
+                               .FirstOrDefault(p => p.NetworkId == id);
+
+                if (!world.TryGetWalkerById(id, out var walker) && player == null) return;
 
                 byte raw = anim.Animation;
                 byte dir = anim.Direction;
+
+                if (player != null)
+                {
+                    walker = player;
+                }
+
                 byte actionIdx = walker is MonsterObject
                                  ? (byte)((raw & 0xE0) >> 5)
                                  : (byte)((raw & 0xF8) >> 3);
+
+                string name = walker switch
+                {
+                    MonsterObject => ((MonsterActionType)actionIdx).ToString(),
+                    PlayerObject => PlayerActionMapper.GetActionName(actionIdx),
+                    _ => $"Unknown Action ({actionIdx})"
+                };
+
+                ushort networkId = walker switch
+                {
+                    PlayerObject pObj => pObj.NetworkId,
+                    MonsterObject monster => monster.NetworkId,
+                    _ => 0
+                };
+
+                _logger.LogInformation("🎞️ Animation: {Type}[{Id}] → ActionIdx: {ActionIdx} ({ActionName})",
+                    walker.GetType().Name, networkId, actionIdx, name);
 
                 walker.PlayAction(actionIdx);
                 walker.Direction = (Models.Direction)dir;
@@ -881,6 +908,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
             return Task.CompletedTask;
         }
+
 
         [PacketHandler(0x65, PacketRouter.NoSubCode)] // AssignCharacterToGuild
         public Task HandleAssignCharacterToGuildAsync(Memory<byte> packet)

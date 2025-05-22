@@ -1,12 +1,14 @@
 ﻿using Client.Main.Controls;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
-using System.Diagnostics;
 
 namespace Client.Main.Worlds
 {
     public class LoadWorld : WorldControl
     {
+        private static readonly ILogger _logger = Microsoft.Extensions.Logging.LoggerFactory.Create(builder => { }).CreateLogger<LoadWorld>();
+
         public LoadWorld() : base(-1)
         {
             Camera.Instance.ViewFar = 50000f;
@@ -40,7 +42,7 @@ namespace Client.Main.Worlds
                 if (Objects.Count > 0)
                 {
                     var obj = Objects[0];
-                    Debug.WriteLine($"Removing obj: {obj.Type} -> {obj.ObjectName}");
+                    _logger?.LogDebug($"Removing obj: {obj.Type} -> {obj.ObjectName}");
                     Objects.RemoveAt(0);
                 }
             }

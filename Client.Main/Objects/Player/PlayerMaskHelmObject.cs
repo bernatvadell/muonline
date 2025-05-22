@@ -1,5 +1,6 @@
 ﻿using Client.Main.Content;
 using Client.Main.Models;
+using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Player
@@ -13,6 +14,8 @@ namespace Client.Main.Objects.Player
             set { _playerClass = value; } // Only set the field, no async logic here
         }
 
+        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<PlayerObject>();
+
         // New async setter for correct model loading
         public async Task SetPlayerClassAsync(PlayerClass playerClass)
         {
@@ -20,6 +23,10 @@ namespace Client.Main.Objects.Player
             {
                 _playerClass = playerClass;
                 await OnChangePlayerClass();
+            }
+            else
+            {
+                _logger?.LogDebug($"SetPlayerClass Warning: Attempted to set class on a null part.");
             }
         }
 
@@ -38,7 +45,7 @@ namespace Client.Main.Objects.Player
                 Status = GameControlStatus.Ready;
             else if (Model == null)
             {
-                System.Diagnostics.Debug.WriteLine($"PlayerMaskHelmObject: Failed to load model for PlayerClass {(int)PlayerClass}. Path: Player/MaskHelmMale{(int)PlayerClass:D2}.bmd");
+                _logger?.LogDebug($"PlayerMaskHelmObject: Failed to load model for PlayerClass {(int)PlayerClass}. Path: Player/MaskHelmMale{(int)PlayerClass:D2}.bmd");
                 Status = GameControlStatus.Error;
             }
         }

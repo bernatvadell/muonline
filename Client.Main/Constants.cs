@@ -5,9 +5,6 @@ namespace Client.Main
 {
         public static class Constants
         {
-                public static string IPAddress = "127.0.0.1";
-                public static int Port = 44405;
-
                 // Terrain constants
                 public const int TERRAIN_SIZE = 256;
                 public const int TERRAIN_SIZE_MASK = 255;

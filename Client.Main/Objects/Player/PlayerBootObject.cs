@@ -1,5 +1,6 @@
 ﻿using Client.Main.Content;
 using Client.Main.Models;
+using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Player
@@ -12,6 +13,8 @@ namespace Client.Main.Objects.Player
             get => _playerClass;
             set { _playerClass = value; }
         }
+
+        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<PlayerObject>();
 
         public async Task SetPlayerClassAsync(PlayerClass playerClass)
         {
@@ -34,7 +37,7 @@ namespace Client.Main.Objects.Player
                 Status = GameControlStatus.Ready;
             else if (Model == null)
             {
-                System.Diagnostics.Debug.WriteLine($"PlayerBootObject: Failed to load model for PlayerClass {(int)PlayerClass}. Path: Player/BootClass{(int)PlayerClass:D2}.bmd");
+                _logger?.LogDebug($"PlayerBootObject: Failed to load model for PlayerClass {(int)PlayerClass}. Path: Player/BootClass{(int)PlayerClass:D2}.bmd");
                 Status = GameControlStatus.Error;
             }
         }

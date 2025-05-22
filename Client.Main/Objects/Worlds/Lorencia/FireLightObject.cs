@@ -1,10 +1,10 @@
 ﻿using Client.Data;
 using Client.Main.Content;
 using Client.Main.Objects.Effects;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Worlds.Lorencia
@@ -52,6 +52,8 @@ namespace Client.Main.Objects.Worlds.Lorencia
         private readonly Vector3 TopFlameColor = new Vector3(1.0f, 0.75f, 0.35f);
 
         private Random _random;
+
+        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<ModelObject>();
 
         public FireLightObject()
         {
@@ -103,7 +105,7 @@ namespace Client.Main.Objects.Worlds.Lorencia
             }
             else
             {
-                Debug.WriteLine("World was not set in FireLightObject during Load.");
+                _logger?.LogDebug("World was not set in FireLightObject during Load.");
             }
         }
 

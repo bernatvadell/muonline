@@ -5,13 +5,13 @@ using Client.Main.Controllers;
 using Client.Main.Models;
 using Client.Main.Objects;
 using Client.Main.Objects.Player;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
@@ -52,6 +52,8 @@ namespace Client.Main.Controls
         private readonly List<WorldObject> _solidInFront = new();
 
         public Dictionary<ushort, WalkerObject> WalkerObjectsById { get; } = new();
+
+        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<WorldControl>();
 
         // --- Properties ---
 
@@ -170,7 +172,7 @@ namespace Client.Main.Controls
                 walker.NetworkId != 0xFFFF)
             {
                 if (!WalkerObjectsById.TryAdd(walker.NetworkId, walker))
-                    Debug.WriteLine($"Warning: Duplicate WalkerObject ID {walker.NetworkId:X4}");
+                    _logger?.LogDebug($"Warning: Duplicate WalkerObject ID {walker.NetworkId:X4}");
             }
         }
 
@@ -204,6 +206,7 @@ namespace Client.Main.Controls
                 walker = walkable.Walker;
                 return true;
             }
+
             return WalkerObjectsById.TryGetValue(networkId, out walker);
         }
 
@@ -368,8 +371,7 @@ namespace Client.Main.Controls
 
             sw.Stop();
             var elapsedBase = sw.ElapsedMilliseconds;
-            Debug.WriteLine(
-                $"Dispose WorldControl {WorldIndex} - Objects: {elapsedObjects}ms, Base: {elapsedBase}ms");
+            _logger?.LogDebug($"Dispose WorldControl {WorldIndex} - Objects: {elapsedObjects}ms, Base: {elapsedBase}ms");
         }
     }
 }

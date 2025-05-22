@@ -1,7 +1,7 @@
-﻿using Client.Main.Controllers;
-using Client.Main.Models;
+﻿using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Linq;
 
@@ -12,6 +12,7 @@ namespace Client.Main.Controls.UI
         private readonly TextureControl _background;
         private readonly LabelControl _label;
         private readonly OkButton _okButton;
+        private static readonly ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<MessageWindow>();
 
         public string Text
         {
@@ -92,7 +93,7 @@ namespace Client.Main.Controls.UI
             var scene = MuGame.Instance?.ActiveScene;
             if (scene == null)
             {
-                System.Diagnostics.Debug.WriteLine("[MessageWindow.Show] Error: ActiveScene is null.");
+                _logger?.LogDebug("[MessageWindow.Show] Error: ActiveScene is null.");
                 return null;
             }
 

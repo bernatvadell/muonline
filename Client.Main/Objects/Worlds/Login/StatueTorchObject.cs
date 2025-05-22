@@ -1,22 +1,18 @@
 ﻿using Client.Main.Content;
-using Client.Main.Controls;
 using Client.Main.Objects.Effects;
 using Client.Main.Objects.Particles;
 using Client.Main.Objects.Particles.Effects;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Worlds.Login
 {
     public class StatueTorchObject : ModelObject
     {
+        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<ModelObject>();
+
         public StatueTorchObject()
         {
             HiddenMesh = 0;
@@ -56,7 +52,7 @@ namespace Client.Main.Objects.Worlds.Login
             Model = await BMDLoader.Instance.Prepare(modelPath);
 
             if (Model == null)
-                Debug.WriteLine($"Can't load MapObject for model: {modelPath}");
+                _logger?.LogDebug($"Can't load MapObject for model: {modelPath}");
 
             await base.Load();
         }

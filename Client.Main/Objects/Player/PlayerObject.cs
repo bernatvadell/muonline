@@ -4,10 +4,10 @@ using Client.Main.Models;
 using Client.Main.Objects.Wings;
 using Client.Main.Objects.Monsters;
 using Client.Main.Worlds;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using MUnique.OpenMU.Network.Packets;
 using System;
-using System.Diagnostics; // For Debug.WriteLine
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Player
@@ -16,6 +16,7 @@ namespace Client.Main.Objects.Player
     {
         // Fields
         private CharacterClassNumber _characterClass;
+        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<PlayerObject>();
 
         // Properties
         // State properties
@@ -26,7 +27,7 @@ namespace Client.Main.Objects.Player
 
         // Identification and Network Class
         public string Name { get; set; } = "Character";
-        public new ushort NetworkId { get; set; }  // ID from server packets (masked 0x7FFF)
+        public ushort NetworkId { get; set; }  // ID from server packets (masked 0x7FFF)
 
         public CharacterClassNumber CharacterClass
         {
@@ -35,12 +36,12 @@ namespace Client.Main.Objects.Player
             {
                 if (_characterClass != value)
                 {
-                    Debug.WriteLine($"PlayerObject {Name}: Setting CharacterClass from {_characterClass} to {value}");
+                    _logger?.LogDebug($"PlayerObject {Name}: Setting CharacterClass from {_characterClass} to {value}");
                     _characterClass = value;
                 }
                 else
                 {
-                    Debug.WriteLine($"PlayerObject {Name}: CharacterClass is already {value}. Skipping UpdateBodyPartClasses.");
+                    _logger?.LogDebug($"PlayerObject {Name}: CharacterClass is already {value}. Skipping UpdateBodyPartClasses.");
                 }
             }
         }
@@ -104,35 +105,35 @@ namespace Client.Main.Objects.Player
         {
             // NOTE: _characterClass should already be set BEFORE calling Load()
             //       (usually by GameScene.Load or constructor)
-            Debug.WriteLine($"PlayerObject {Name}: Load() started. Current _characterClass: {_characterClass}");
+            _logger?.LogDebug($"PlayerObject {Name}: Load() started. Current _characterClass: {_characterClass}");
 
             // 1. Load the base player model
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
             if (Model == null)
             {
-                Debug.WriteLine($"PlayerObject {Name}: Failed to load base model 'Player/Player.bmd'");
+                _logger?.LogDebug($"PlayerObject {Name}: Failed to load base model 'Player/Player.bmd'");
                 Status = GameControlStatus.Error;
                 return; // Cannot proceed without base model
             }
-            Debug.WriteLine($"PlayerObject {Name}: Base model prepared.");
+            _logger?.LogDebug($"PlayerObject {Name}: Base model prepared.");
 
             // 2. CRITICAL: Ensure children have the correct class BEFORE their Load is called
             await UpdateBodyPartClassesAsync();
-            Debug.WriteLine($"PlayerObject {Name}: UpdateBodyPartClassesAsync() called within Load().");
+            _logger?.LogDebug($"PlayerObject {Name}: UpdateBodyPartClassesAsync() called within Load().");
 
             // 3. Load base content, which WILL trigger Load() on children (including equipment)
             await base.Load(); // base.Load -> base.LoadContent -> children's LoadContent
-            Debug.WriteLine($"PlayerObject {Name}: base.Load() completed.");
+            _logger?.LogDebug($"PlayerObject {Name}: base.Load() completed.");
 
             // 4. Verify children status after load
             foreach (var child in Children)
             {
                 if (child is ModelObject modelChild)
                 {
-                    Debug.WriteLine($"{modelChild.GetType().Name}: Status={modelChild.Status}, Model={(modelChild.Model != null ? "OK" : "NULL")}");
+                    _logger?.LogDebug($"{modelChild.GetType().Name}: Status={modelChild.Status}, Model={(modelChild.Model != null ? "OK" : "NULL")}");
                 }
             }
-            Debug.WriteLine($"PlayerObject {Name}: Status after load: {Status}");
+            _logger?.LogDebug($"PlayerObject {Name}: Status after load: {Status}");
         }
 
         public override void Update(GameTime gameTime)
@@ -285,7 +286,7 @@ namespace Client.Main.Objects.Player
         private void UpdateBodyPartClasses()
         {
             PlayerClass mappedClass = MapNetworkClassToModelClass(_characterClass);
-            Debug.WriteLine($"PlayerObject {Name}: UpdateBodyPartClasses mapping network class {_characterClass} to model class {mappedClass} ({(int)mappedClass})");
+            _logger?.LogDebug($"PlayerObject {Name}: UpdateBodyPartClasses mapping network class {_characterClass} to model class {mappedClass} ({(int)mappedClass})");
 
             HelmMask?.SetPlayerClass(mappedClass);
             Helm?.SetPlayerClass(mappedClass);
@@ -354,7 +355,7 @@ namespace Client.Main.Objects.Player
         {
             if (part == null)
             {
-                Debug.WriteLine($"SetPlayerClass Warning: Attempted to set class on a null part.");
+                ModelObject.AppLoggerFactory?.CreateLogger<PlayerObject>()?.LogDebug($"SetPlayerClass Warning: Attempted to set class on a null part.");
                 return;
             }
 

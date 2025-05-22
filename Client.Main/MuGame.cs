@@ -35,7 +35,7 @@ namespace Client.Main
 
         // Instance Fields
         private readonly GraphicsDeviceManager _graphics;
-        private ILogger _logger;
+        private ILogger _logger = AppLoggerFactory?.CreateLogger<MuGame>();
         private bool _networkDisposed = false;
         private float _scaleFactor;
 
@@ -132,7 +132,6 @@ namespace Client.Main
             if (settings == null) { logger.LogError("❌ Failed to load config from 'MuOnlineSettings'."); return false; }
             bool isValid = true;
             if (string.IsNullOrWhiteSpace(settings.ConnectServerHost) || settings.ConnectServerPort == 0) { logger.LogError("❌ Connect Server host/port invalid."); isValid = false; }
-            if (string.IsNullOrWhiteSpace(settings.Username) || string.IsNullOrWhiteSpace(settings.Password)) { logger.LogError("❌ Username/password invalid."); isValid = false; }
             if (string.IsNullOrWhiteSpace(settings.ProtocolVersion) || !Enum.TryParse<TargetProtocolVersion>(settings.ProtocolVersion, true, out _)) // Case-insensitive parse
             { logger.LogError("❌ ProtocolVersion '{V}' invalid. Valid: {Vs}", settings.ProtocolVersion, string.Join(", ", Enum.GetNames<TargetProtocolVersion>())); isValid = false; }
             if (string.IsNullOrWhiteSpace(settings.ClientVersion)) { logger.LogWarning("⚠️ ClientVersion not set."); }
@@ -235,7 +234,7 @@ namespace Client.Main
             float currentAspectRatio = (float)_graphics.PreferredBackBufferWidth / _graphics.PreferredBackBufferHeight;
             _scaleFactor = currentAspectRatio / baseAspectRatio;
 
-            Console.WriteLine($"Scale Factor: {_scaleFactor}");
+            _logger?.LogDebug($"Scale Factor: {_scaleFactor}");
         }
 
         protected override void UnloadContent()
@@ -300,7 +299,6 @@ namespace Client.Main
             }
             catch (Exception e) // Catch other unexpected errors in Update
             {
-                Debug.WriteLine(e);
                 _logger?.LogCritical(e, "Unhandled exception in MuGame.Update loop (outside scene/base update)!");
                 // Exit();
             }
@@ -329,7 +327,7 @@ namespace Client.Main
             ChangeSceneAsync(Constants.ENTRY_SCENE).ContinueWith(t =>
             {
                 if (t.Exception != null)
-                    Debug.WriteLine("Error changing scene: " + t.Exception);
+                    _logger?.LogDebug($"Error changing scene: {t.Exception}");
             });
         }
 
@@ -344,7 +342,7 @@ namespace Client.Main
             }
             catch (Exception e)
             {
-                Debug.WriteLine(e);
+                _logger?.LogDebug(e, "Exception in MuGame");
             }
             finally
             {

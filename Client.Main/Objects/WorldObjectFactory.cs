@@ -1,20 +1,22 @@
 ﻿using Client.Main.Controls;
 using Client.Main.Objects;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using System;
-using System.Diagnostics;
 
 namespace Client.Main
 {
     public static class WorldObjectFactory
     {
+        private static readonly ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger(typeof(WorldObjectFactory));
+
         public static WorldObject CreateMapTileObject(this WorldControl world, Data.OBJS.IMapObject obj)
         {
             var objType = obj.Type;
 
             if (objType < 0 || objType >= world.MapTileObjects.Length)
             {
-                Debug.WriteLine($"Object {objType} not registered as map tile objects / Pos -> {(int)(obj.Position.X / Constants.TERRAIN_SCALE)}:{(int)(obj.Position.Y / Constants.TERRAIN_SCALE)}");
+                _logger?.LogDebug($"Object {objType} not registered as map tile objects / Pos -> {(int)(obj.Position.X / Constants.TERRAIN_SCALE)}:{(int)(obj.Position.Y / Constants.TERRAIN_SCALE)}");
                 return null;
             }
 
@@ -22,7 +24,7 @@ namespace Client.Main
 
             if (type == null)
             {
-                Debug.WriteLine($"Object {objType} not registered as map tile objects / Pos -> {(int)(obj.Position.X / Constants.TERRAIN_SCALE)}:{(int)(obj.Position.Y / Constants.TERRAIN_SCALE)}");
+                _logger?.LogDebug($"Object {objType} not registered as map tile objects / Pos -> {(int)(obj.Position.X / Constants.TERRAIN_SCALE)}:{(int)(obj.Position.Y / Constants.TERRAIN_SCALE)}");
                 return null;
             }
 

@@ -3,9 +3,9 @@ using Microsoft.Xna.Framework.Audio;
 using NLayer;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using Microsoft.Xna.Framework;
+using Microsoft.Extensions.Logging;
 
 namespace Client.Main.Controllers
 {
@@ -19,6 +19,7 @@ namespace Client.Main.Controllers
         private HashSet<string> _failedPaths = new HashSet<string>();
 
         private readonly Dictionary<string, SoundEffectInstance> _managedLoopingInstances = new Dictionary<string, SoundEffectInstance>();
+        private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<SoundController>();
 
         public void StopBackgroundMusic()
         {
@@ -58,7 +59,7 @@ namespace Client.Main.Controllers
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"[PlayBackgroundMusic] Error playing sound '{relativePath}': {ex.Message}");
+                    _logger?.LogDebug($"[PlayBackgroundMusic] Error playing sound '{relativePath}': {ex.Message}");
                     _activeBackgroundMusicInstance.Dispose();
                     _activeBackgroundMusicInstance = null;
                     _currentBackgroundMusicPath = null;
@@ -66,7 +67,7 @@ namespace Client.Main.Controllers
             }
             else
             {
-                Debug.WriteLine($"[PlayBackgroundMusic] Failed to load SoundEffect for: {relativePath}");
+                _logger?.LogDebug($"[PlayBackgroundMusic] Failed to load SoundEffect for: {relativePath}");
             }
         }
 
@@ -101,7 +102,7 @@ namespace Client.Main.Controllers
                     SoundEffect sfxData = LoadSoundEffectData(fullPath);
                     if (sfxData == null || sfxData.IsDisposed)
                     {
-                        Debug.WriteLine($"[ManagedLoop] Failed to load SoundEffect data for: {relativePath}");
+                        _logger?.LogDebug($"[ManagedLoop] Failed to load SoundEffect data for: {relativePath}");
                         return;
                     }
                     instance = sfxData.CreateInstance();
@@ -121,7 +122,7 @@ namespace Client.Main.Controllers
                         }
                         catch (Exception ex)
                         {
-                            Debug.WriteLine($"[ManagedLoop] Error playing instance of '{relativePath}': {ex.Message}");
+                            _logger?.LogDebug($"[ManagedLoop] Error playing instance of '{relativePath}': {ex.Message}");
                             instance.Dispose(); // Usuń uszkodzoną instancję
                             _managedLoopingInstances.Remove(instanceKey);
                         }
@@ -151,7 +152,7 @@ namespace Client.Main.Controllers
                     }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"[PlayEffectWithAttenuation] Error playing sound '{relativePath}': {ex.Message}");
+                        _logger?.LogDebug($"[PlayEffectWithAttenuation] Error playing sound '{relativePath}': {ex.Message}");
                     }
                 }
             }
@@ -171,7 +172,7 @@ namespace Client.Main.Controllers
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[PlayEffect] Error playing sound '{relativePath}': {ex.Message}");
+                _logger?.LogDebug($"[PlayEffect] Error playing sound '{relativePath}': {ex.Message}");
             }
         }
 
@@ -190,7 +191,7 @@ namespace Client.Main.Controllers
 
             if (!File.Exists(fullPath))
             {
-                Debug.WriteLine($"[LoadSoundEffectData] File not found: {fullPath}");
+                _logger?.LogDebug($"[LoadSoundEffectData] File not found: {fullPath}");
                 _failedPaths.Add(cacheKey);
                 return null;
             }
@@ -212,13 +213,13 @@ namespace Client.Main.Controllers
                     }
                     else
                     {
-                        Debug.WriteLine($"[LoadSoundEffectData] Failed to load PCM data from MP3: {fullPath}");
+                        _logger?.LogDebug($"[LoadSoundEffectData] Failed to load PCM data from MP3: {fullPath}");
                         _failedPaths.Add(cacheKey);
                     }
                 }
                 else
                 {
-                    Debug.WriteLine($"[LoadSoundEffectData] Unsupported audio file extension: {extension} for path {fullPath}");
+                    _logger?.LogDebug($"[LoadSoundEffectData] Unsupported audio file extension: {extension} for path {fullPath}");
                     _failedPaths.Add(cacheKey);
                     return null;
                 }
@@ -231,7 +232,7 @@ namespace Client.Main.Controllers
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[LoadSoundEffectData] Error loading sound data from '{fullPath}': {ex.Message}");
+                _logger?.LogDebug($"[LoadSoundEffectData] Error loading sound data from '{fullPath}': {ex.Message}");
                 _failedPaths.Add(cacheKey);
             }
             return null;
@@ -248,7 +249,7 @@ namespace Client.Main.Controllers
                 {
                     if (mpegFile.SampleRate == 0 || mpegFile.Channels == 0 || mpegFile.Length == 0)
                     {
-                        Debug.WriteLine($"[LoadMp3PcmData] Invalid MP3 header or empty file: {filePath}. SampleRate: {mpegFile.SampleRate}, Channels: {mpegFile.Channels}, Length: {mpegFile.Length}");
+                        _logger?.LogDebug($"[LoadMp3PcmData] Invalid MP3 header or empty file: {filePath}. SampleRate: {mpegFile.SampleRate}, Channels: {mpegFile.Channels}, Length: {mpegFile.Length}");
                         return null;
                     }
                     sampleRate = mpegFile.SampleRate;
@@ -256,7 +257,7 @@ namespace Client.Main.Controllers
 
                     if (mpegFile.Length <= 0)
                     {
-                        Debug.WriteLine($"[LoadMp3PcmData] MP3 file has zero length (no samples): {filePath}");
+                        _logger?.LogDebug($"[LoadMp3PcmData] MP3 file has zero length (no samples): {filePath}");
                         return null;
                     }
 
@@ -276,12 +277,12 @@ namespace Client.Main.Controllers
 
                     if (pcmList.Count == 0 && mpegFile.Length > 0)
                     {
-                        Debug.WriteLine($"[LoadMp3PcmData] No PCM data generated from MP3 despite non-zero length: {filePath}. Total Samples in file: {mpegFile.Length}");
+                        _logger?.LogDebug($"[LoadMp3PcmData] No PCM data generated from MP3 despite non-zero length: {filePath}. Total Samples in file: {mpegFile.Length}");
                         return null;
                     }
                     else if (pcmList.Count == 0)
                     {
-                        Debug.WriteLine($"[LoadMp3PcmData] No PCM data generated from MP3: {filePath}");
+                        _logger?.LogDebug($"[LoadMp3PcmData] No PCM data generated from MP3: {filePath}");
                         return null;
                     }
                     return pcmList.ToArray();
@@ -289,7 +290,7 @@ namespace Client.Main.Controllers
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[LoadMp3PcmData] Error loading MP3 file '{filePath}': {ex.Message}");
+                _logger?.LogDebug($"[LoadMp3PcmData] Error loading MP3 file '{filePath}': {ex.Message}");
                 return null;
             }
         }
@@ -312,7 +313,7 @@ namespace Client.Main.Controllers
             _managedLoopingInstances.Clear();
 
             _failedPaths.Clear();
-            Debug.WriteLine("SoundController: SoundEffect cache and managed looping instances cleared.");
+            _logger?.LogDebug("SoundController: SoundEffect cache and managed looping instances cleared.");
         }
 
         public void Dispose()

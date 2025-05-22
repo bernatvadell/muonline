@@ -299,18 +299,6 @@ namespace Client.Main.Networking
             await _loginService.SendLoginRequestAsync(username, password);
         }
 
-        public async Task SendLoginRequestFromSettingsAsync()
-        {
-            if (_currentState != ClientConnectionState.ConnectedToGameServer)
-            {
-                OnErrorOccurred($"Cannot send login request in state: {_currentState}");
-                return;
-            }
-            _logger.LogInformation("Sending login request using settings for user: {Username}", _settings.Username);
-            UpdateState(ClientConnectionState.Authenticating);
-            await _loginService.SendLoginRequestAsync(_settings.Username, _settings.Password);
-        }
-
         public async Task SendSelectCharacterRequestAsync(string characterName)
         {
             if (_currentState != ClientConnectionState.ConnectedToGameServer)
