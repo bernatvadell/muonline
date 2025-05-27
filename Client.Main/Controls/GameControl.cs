@@ -1,4 +1,4 @@
-﻿using Client.Main.Controllers;
+using Client.Main.Controllers;
 using Client.Main.Models;
 using Client.Main.Scenes;
 using Microsoft.Xna.Framework;

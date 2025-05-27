@@ -36,7 +36,7 @@ namespace Client.Main.Content
         public void SetGraphicsDevice(GraphicsDevice graphicsDevice) => _graphicsDevice = graphicsDevice;
 
         public Task<TextureData> Prepare(string path)
-        {
+        { 
             if (string.IsNullOrWhiteSpace(path))
                 throw new ArgumentException("Path cannot be null or whitespace.", nameof(path));
 

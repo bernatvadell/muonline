@@ -1,4 +1,4 @@
-﻿using Client.Main.Content;
+using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Controls.UI.Game; // Assuming ExtendedUIControl might be here or in Models
 using Client.Main.Models;
