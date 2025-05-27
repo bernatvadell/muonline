@@ -1,6 +1,7 @@
 ﻿using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Models;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
 
@@ -9,6 +10,8 @@ namespace Client.Main.Objects.Monsters
     [NpcInfo(2, "Budge Dragon")]
     public class BudgeDragon : MonsterObject
     {
+        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<MonsterObject>();
+
         public BudgeDragon()
         {
             RenderShadow = true;
@@ -31,18 +34,18 @@ namespace Client.Main.Objects.Monsters
                 SetActionSpeed(MonsterActionType.Shock, 0.5f);
                 SetActionSpeed(MonsterActionType.Die, 0.55f);
 
-                System.Diagnostics.Debug.WriteLine("Walk speed for BudgeDragon...");
+                _logger?.LogDebug("Walk speed for BudgeDragon...");
                 SetActionSpeed(MonsterActionType.Walk, 0.7f);
 
                 int dieActionIndex = (int)MonsterActionType.Die;
                 if (IsValidAction(dieActionIndex))
                 {
-                    System.Diagnostics.Debug.WriteLine($"Action Die ({dieActionIndex}) should be looped (C++ logic).");
+                    _logger?.LogDebug($"Action Die ({dieActionIndex}) should be looped (C++ logic).");
                 }
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"Error: Model or Actions is null for BudgeDragon after Load.");
+                _logger?.LogDebug($"Error: Model or Actions is null for BudgeDragon after Load.");
             }
         }
 
@@ -101,11 +104,11 @@ namespace Client.Main.Objects.Monsters
                 // Assuming that BMDTextureAction in C# is a class/struct with a PlaySpeed field
                 // (as implied by the provided BMDTextureAction.cs snippet)
                 action.PlaySpeed = speed * 2;
-                System.Diagnostics.Debug.WriteLine($" - Set PlaySpeed for action {(MonsterActionType)actionIndex} ({actionIndex}) to {speed}");
+                _logger?.LogDebug($" - Set PlaySpeed for action {(MonsterActionType)actionIndex} ({actionIndex}) to {speed}");
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($" - Warning: Cannot set PlaySpeed for action {(MonsterActionType)actionType} ({actionIndex}). Action does not exist or is null.");
+                _logger?.LogDebug($" - Warning: Cannot set PlaySpeed for action {(MonsterActionType)actionType} ({actionIndex}). Action does not exist or is null.");
             }
         }
     }

@@ -13,7 +13,7 @@ namespace Client.Main.Objects.Monsters
         public MonsterObject()
         {
             Interactive = true;
-            AnimationSpeed = 8f;
+            AnimationSpeed = 4f;
         }
 
         // --- Public Methods ---
@@ -24,7 +24,7 @@ namespace Client.Main.Objects.Monsters
             base.Update(gameTime);
 
             // If the monster just stopped moving
-            if (wasMoving && !IsMoving)
+            if (wasMoving && !IsMoving && !IsOneShotPlaying)
             {
                 // Transition to idle animation if appropriate
                 if (CurrentAction == (int)MonsterActionType.Walk ||
@@ -55,7 +55,8 @@ namespace Client.Main.Objects.Monsters
             // If idle and sound not yet played
             else
             {
-                if (CurrentAction == (int)MonsterActionType.Stop1 &&
+                if (!IsOneShotPlaying &&
+                    CurrentAction == (int)MonsterActionType.Stop1 &&
                     _lastActionForIdleSound != CurrentAction)
                 {
                     OnIdle();

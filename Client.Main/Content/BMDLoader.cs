@@ -1,10 +1,10 @@
 ﻿using Client.Data.BMD;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -21,6 +21,7 @@ namespace Client.Main.Content
         private readonly Dictionary<BMD, Dictionary<string, string>> _texturePathMap = [];
 
         private GraphicsDevice _graphicsDevice;
+        private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<BMDLoader>();
 
         public void SetGraphicsDevice(GraphicsDevice graphicsDevice)
         {
@@ -49,7 +50,7 @@ namespace Client.Main.Content
 
                 if (!File.Exists(path))
                 {
-                    Debug.WriteLine($"Model not found: {path}");
+                    _logger?.LogDebug($"Model not found: {path}");
                     return null;
                 }
 
@@ -172,7 +173,7 @@ namespace Client.Main.Content
                 result = fullTexturePath;
 
             if (result == null)
-                Debug.WriteLine($"Texture path not found: {texturePath}");
+                _logger?.LogDebug($"Texture path not found: {texturePath}");
 
             return result;
         }

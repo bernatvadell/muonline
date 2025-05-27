@@ -5,6 +5,7 @@ using Client.Main.Controllers;
 using Client.Main.Models;
 using Client.Main.Objects;
 using Client.Main.Objects.Player;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -51,7 +52,9 @@ namespace Client.Main.Controls
         private readonly List<WorldObject> _transparentObjects = new();
         private readonly List<WorldObject> _solidInFront = new();
 
-        protected Dictionary<ushort, WalkerObject> WalkerObjectsById { get; } = new();
+        public Dictionary<ushort, WalkerObject> WalkerObjectsById { get; } = new();
+
+        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<WorldControl>();
 
         // --- Properties ---
 
@@ -76,6 +79,7 @@ namespace Client.Main.Controls
 
             Controls.Add(Terrain = new TerrainControl { WorldIndex = worldIndex });
             Objects.ControlAdded += OnObjectAdded;
+            Objects.ControlRemoved += OnObjectRemoved;
 
             Camera.Instance.CameraMoved += OnCameraMoved;
             UpdateBoundingFrustum();
@@ -168,23 +172,105 @@ namespace Client.Main.Controls
                 walker.NetworkId != 0 &&
                 walker.NetworkId != 0xFFFF)
             {
-                if (!WalkerObjectsById.TryAdd(walker.NetworkId, walker))
-                    Debug.WriteLine($"Warning: Duplicate WalkerObject ID {walker.NetworkId:X4}");
+                if (WalkerObjectsById.TryGetValue(walker.NetworkId, out var existing))
+                {
+                    if (!ReferenceEquals(existing, walker))
+                    {
+                        _logger?.LogWarning("Replacing WalkerObject ID {Id:X4} - old: {OldType}, new: {NewType}",
+                                           walker.NetworkId, existing.GetType().Name, walker.GetType().Name);
+                        existing.Dispose(); // Dispose the old one
+                    }
+                }
+                WalkerObjectsById[walker.NetworkId] = walker; // Always update/add
             }
+        }
+
+        private void OnObjectRemoved(object sender, ChildrenEventArgs<WorldObject> e)
+        {
+            if (e.Control is WalkerObject walker &&
+                walker.NetworkId != 0 &&
+                walker.NetworkId != 0xFFFF)
+            {
+                if (WalkerObjectsById.TryGetValue(walker.NetworkId, out var storedWalker))
+                {
+                    // Only remove if it's the same object reference
+                    if (ReferenceEquals(storedWalker, walker))
+                    {
+                        WalkerObjectsById.Remove(walker.NetworkId);
+                        _logger?.LogTrace("Removed walker {Id:X4} from dictionary.", walker.NetworkId);
+                    }
+                    else
+                    {
+                        _logger?.LogDebug("Walker {Id:X4} removed from Objects but different object in dictionary.", walker.NetworkId);
+                    }
+                }
+            }
+        }
+
+        public void DebugListWalkers()
+        {
+            _logger?.LogDebug("=== Walker Debug Info ===");
+            _logger?.LogDebug("Objects collection count: {Count}", Objects.OfType<WalkerObject>().Count());
+            _logger?.LogDebug("WalkerObjectsById count: {Count}", WalkerObjectsById.Count);
+
+            foreach (var walker in Objects.OfType<WalkerObject>())
+            {
+                _logger?.LogDebug("Objects: {Type} {Id:X4}", walker.GetType().Name, walker.NetworkId);
+            }
+
+            foreach (var kvp in WalkerObjectsById)
+            {
+                _logger?.LogDebug("Dictionary: {Id:X4} -> {Type}", kvp.Key, kvp.Value.GetType().Name);
+            }
+
+            if (this is WalkableWorldControl walkable && walkable.Walker != null)
+            {
+                _logger?.LogDebug("Local player: {Type} {Id:X4}", walkable.Walker.GetType().Name, walkable.Walker.NetworkId);
+            }
+            _logger?.LogDebug("=== End Walker Debug ===");
         }
 
         /// <summary>
         /// Attempts to retrieve a walker by its network ID.
+        /// Checks local player first, then dictionary, then full Objects search as fallback.
         /// </summary>
         public virtual bool TryGetWalkerById(ushort networkId, out WalkerObject walker)
         {
+            // First check: local player in WalkableWorldControl
             if (this is WalkableWorldControl walkable &&
                 walkable.Walker?.NetworkId == networkId)
             {
                 walker = walkable.Walker;
                 return true;
             }
-            return WalkerObjectsById.TryGetValue(networkId, out walker);
+
+            // Second check: WalkerObjectsById dictionary
+            if (WalkerObjectsById.TryGetValue(networkId, out walker))
+            {
+                return true;
+            }
+
+            // Third check: fallback search in Objects collection
+            // This handles cases where object might be in Objects but not in dictionary
+            walker = Objects.OfType<WalkerObject>()
+                           .FirstOrDefault(w => w.NetworkId == networkId);
+
+            if (walker == null)
+                walker = Objects.OfType<PlayerObject>()
+                .FirstOrDefault(p => p.NetworkId == networkId);
+
+            if (walker != null)
+            {
+                // If found but not in dictionary, add it (sync issue fix)
+                if (!WalkerObjectsById.ContainsKey(networkId))
+                {
+                    WalkerObjectsById[networkId] = walker;
+                    _logger?.LogDebug("Sync fix: Added walker {Id:X4} to dictionary during lookup.", networkId);
+                }
+                return true;
+            }
+
+            return false;
         }
 
         public bool ContainsWalkerId(ushort networkId) =>
@@ -348,8 +434,7 @@ namespace Client.Main.Controls
 
             sw.Stop();
             var elapsedBase = sw.ElapsedMilliseconds;
-            Debug.WriteLine(
-                $"Dispose WorldControl {WorldIndex} - Objects: {elapsedObjects}ms, Base: {elapsedBase}ms");
+            _logger?.LogDebug($"Dispose WorldControl {WorldIndex} - Objects: {elapsedObjects}ms, Base: {elapsedBase}ms");
         }
     }
 }

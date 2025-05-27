@@ -1,13 +1,12 @@
-﻿using Client.Main.Controls;
+﻿using Client.Main.Controllers;
+using Client.Main.Controls;
 using Client.Main.Models;
 using Client.Main.Objects.Monsters;
-using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
-using System.Threading;
+using System.Diagnostics;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects
@@ -18,7 +17,7 @@ namespace Client.Main.Objects
         private Vector3 _targetAngle;
         private Direction _direction;
         private Vector2 _location;
-        private List<Vector2> _currentPath;
+        protected List<Vector2> _currentPath;
 
         // Camera control
         private float _currentCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
@@ -44,9 +43,10 @@ namespace Client.Main.Objects
         private static readonly float _maxPitch = Constants.MAX_PITCH;
         private static readonly float _minPitch = Constants.MIN_PITCH;
 
-        private CancellationTokenSource _autoIdleCts;
+        // private CancellationTokenSource _autoIdleCts; // Now managed by AnimationController
         private const float RotationSpeed = 8f;
         private int _previousActionForSound = -1;
+        private bool _serverControlledAnimation = false;
 
         // Properties
         public bool IsMainWalker => World is WalkableWorldControl walkableWorld && walkableWorld.Walker == this;
@@ -88,13 +88,22 @@ namespace Client.Main.Objects
         public bool IsMoving => Vector3.Distance(MoveTargetPosition, TargetPosition) > 0f;
         public ushort NetworkId { get; set; }
 
+        public ushort idanim = 0;
+        private KeyboardState _previousKeyboardState_WalkerTest;
+
         // Public Methods
+        protected AnimationController _animationController;
+
+        public bool IsOneShotPlaying => _animationController?.IsOneShotPlaying ?? false;
+
         public override async Task Load()
         {
+            _animationController = new AnimationController(this);
             MoveTargetPosition = Vector3.Zero;
             _previousScrollValue = MuGame.Instance.Mouse.ScrollWheelValue;
             _cameraYaw = _defaultCameraYaw;
             _cameraPitch = _defaultCameraPitch;
+
             await base.Load();
         }
 
@@ -116,10 +125,35 @@ namespace Client.Main.Objects
         {
             base.Update(gameTime);
 
+            // --- animation test ---
+            // if (IsMainWalker)
+            // {
+            //     KeyboardState currentKeyboardState = Keyboard.GetState();
+            //     if (currentKeyboardState.IsKeyDown(Keys.A) && _previousKeyboardState_WalkerTest.IsKeyUp(Keys.A))
+            //     {
+            //         idanim += 1;
+            //         Debug.WriteLine($"[WALKER_ANIM_TEST] Key 'A' pressed. Changing animation to ID: {idanim}");
+            //         PlayAction((ushort)idanim);
+            //     }
+
+            //     if (currentKeyboardState.IsKeyDown(Keys.B) && _previousKeyboardState_WalkerTest.IsKeyUp(Keys.B)) 
+            //     {
+            //         idanim -= 1;
+            //         Debug.WriteLine($"[WALKER_ANIM_TEST] Key 'A' pressed. Changing animation to ID: {idanim}");
+            //         PlayAction((ushort)idanim);
+            //     }
+            //     _previousKeyboardState_WalkerTest = currentKeyboardState;
+            // }
+            // -----------------------------------------
+
+
             if (IsMainWalker)
                 HandleMouseInput();
 
             UpdatePosition(gameTime);
+
+            // Call the animation update method
+            Animation(gameTime);
 
             if (_currentPath != null && _currentPath.Count > 0 && !IsMoving)
             {
@@ -138,65 +172,114 @@ namespace Client.Main.Objects
             }
         }
 
+        private void Animation(GameTime gameTime)
+        {
+            if (LinkParentAnimation) return;
+            if (Model?.Actions == null || Model.Actions.Length == 0) return;
+
+            int currentActionIndex = CurrentAction;
+
+            if (currentActionIndex < 0 || currentActionIndex >= Model.Actions.Length)
+            {
+                currentActionIndex = 0;
+                if (currentActionIndex >= Model.Actions.Length) return;
+            }
+
+            var action = Model.Actions[currentActionIndex];
+            int totalFrames = Math.Max(action.NumAnimationKeys, 1);
+
+            float delta = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            float objFps = AnimationSpeed;
+            float playMul = action.PlaySpeed == 0 ? 1.0f : action.PlaySpeed;
+            float effectiveFps = Math.Max(0.01f, objFps * playMul);
+
+            AnimationType animType = _animationController.GetAnimationType((ushort)currentActionIndex);
+
+            // Reset czasu animacji przy zmianie akcji
+            if (_priorAction != currentActionIndex)
+            {
+                _animTime = 0.0;
+                Debug.WriteLine($"[WalkerObject] Animation change: {_priorAction} → {currentActionIndex} ({animType})");
+            }
+
+            double framePos;
+
+            if (animType == AnimationType.Death)
+            {
+                _animTime += delta * effectiveFps;
+                _animTime = Math.Min(_animTime, totalFrames - 0.0001f);
+                framePos = _animTime;
+            }
+            else if (animType == AnimationType.Attack ||
+                    animType == AnimationType.Skill ||
+                    animType == AnimationType.Emote)
+            {
+                if (_animationController.IsOneShotPlaying)
+                {
+                    _animTime += delta * effectiveFps;
+
+                    if (_animTime >= totalFrames - 1.0f)
+                    {
+                        Debug.WriteLine($"[WalkerObject] One-shot animation reached end at frame {_animTime:F2}/{totalFrames}");
+                        _animationController?.NotifyAnimationCompleted();
+                        framePos = totalFrames - 0.0001f; // Ostatnia klatka
+                    }
+                    else
+                    {
+                        framePos = _animTime;
+                    }
+                }
+                else
+                {
+                    framePos = 0;
+                }
+            }
+            else // Normal looping animations (Idle, Walk, Rest, Sit)
+            {
+                _animTime += delta * effectiveFps;
+                framePos = _animTime % totalFrames;
+            }
+
+            int f0 = Math.Max(0, (int)framePos);
+            int f1 = f0;
+            float t = 0f;
+
+            if (animType == AnimationType.Walk || animType == AnimationType.Idle ||
+                animType == AnimationType.Rest || animType == AnimationType.Sit ||
+                (IsOneShotPlaying && (animType == AnimationType.Attack || animType == AnimationType.Skill || animType == AnimationType.Emote)))
+            {
+                f1 = (totalFrames > 1) ? ((f0 + 1) % totalFrames) : f0;
+                t = (float)(framePos - f0);
+            }
+
+            if (animType == AnimationType.Death && framePos >= totalFrames - 1)
+            {
+                f0 = Math.Max(0, totalFrames - 1);
+                f1 = f0;
+                t = 0f;
+            }
+
+            // Clamp frame indices
+            f0 = Math.Min(f0, totalFrames - 1);
+            f1 = Math.Min(f1, totalFrames - 1);
+
+            GenerateBoneMatrix(currentActionIndex, f0, f1, t);
+            _priorAction = currentActionIndex;
+        }
+
         /// <summary>
-        /// Plays the specified action. For monsters/NPCs, automatically returns to idle
-        /// when the animation finishes and the object is stationary.
+        /// Plays the specified action using the centralized animation controller.
         /// </summary>
+        public void PlayAction(ushort actionIndex, bool fromServer = false)
+        {
+            _serverControlledAnimation = fromServer;
+            _animationController?.PlayAnimation(actionIndex, fromServer);
+        }
+
+        // Overload for backward compatibility
         public void PlayAction(ushort actionIndex)
         {
-            if (Model?.Actions == null || actionIndex >= Model.Actions.Length)
-                return;
-
-            var act = Model.Actions[actionIndex];
-
-            bool isOneShot = this is MonsterObject m
-                             && actionIndex != (ushort)MonsterActionType.Stop1
-                             && actionIndex != (ushort)MonsterActionType.Stop2
-                             && actionIndex != (ushort)MonsterActionType.Walk
-                             && actionIndex != (ushort)MonsterActionType.Run
-                             && actionIndex != (ushort)MonsterActionType.Die;
-
-            if (!isOneShot && CurrentAction == actionIndex)
-                return;
-
-            CurrentAction = actionIndex;
-            InvalidateBuffers();
-
-            _autoIdleCts?.Cancel();
-            _autoIdleCts?.Dispose();
-            _autoIdleCts = null;
-
-            if (isOneShot && act.NumAnimationKeys > 1)
-            {
-                float objFps = AnimationSpeed;
-                float playMul = act.PlaySpeed == 0 ? 1.0f : act.PlaySpeed;
-                float effectiveFps = Math.Max(0.1f, objFps * playMul);
-
-                int frames = act.NumAnimationKeys;
-                int delayMs = (int)((frames / effectiveFps) * 1000f) + 100;
-                delayMs = Math.Clamp(delayMs, 50, 60_000);
-
-                _autoIdleCts = new CancellationTokenSource();
-                var token = _autoIdleCts.Token;
-
-                Task.Delay(delayMs, token).ContinueWith(t =>
-                {
-                    if (t.IsCanceled || token.IsCancellationRequested) return;
-
-                    MuGame.ScheduleOnMainThread(() =>
-                    {
-                        if (!IsMoving && CurrentAction == actionIndex)
-                        {
-                            byte idle = this is MonsterObject
-                                        ? (byte)MonsterActionType.Stop1
-                                        : (byte)PlayerAction.StopMale; //TODO:female
-
-                            if (Model?.Actions != null && idle < Model.Actions.Length)
-                                CurrentAction = idle;
-                        }
-                    });
-                }, token, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
-            }
+            PlayAction(actionIndex, false);
         }
 
         public void MoveTo(Vector2 targetLocation, bool sendToServer = true)
@@ -218,6 +301,8 @@ namespace Client.Main.Objects
                 {
                     if (MuGame.Instance.ActiveScene?.World == currentWorld && this.Status != GameControlStatus.Disposed)
                     {
+                        _animationController?.PlayAnimation((ushort)PlayerAction.WalkMale); // Or appropriate walk animation
+
                         _currentPath = path;
 
                         if (sendToServer && IsMainWalker)
@@ -409,6 +494,14 @@ namespace Client.Main.Objects
 
             if (this is MonsterObject monster)
             {
+                // Check if a one-shot animation is currently playing
+                if (_animationController?.IsOneShotPlaying == true)
+                {
+                    // Don't override the animation if a one-shot is playing
+                    Debug.WriteLine($"[WalkerObject] Monster one-shot animation is playing, not overriding with walk animation");
+                    return;
+                }
+
                 const int MONSTER_ACTION_WALK = (int)MonsterActionType.Walk;
                 int moveAction = MONSTER_ACTION_WALK;
                 if (Model?.Actions?.Length > (int)MonsterActionType.Run &&
@@ -418,7 +511,10 @@ namespace Client.Main.Objects
                 }
 
                 if (CurrentAction != moveAction)
+                {
+                    Debug.WriteLine($"[WalkerObject] Monster starting walk animation: {moveAction}");
                     PlayAction((byte)moveAction);
+                }
             }
         }
 
@@ -469,5 +565,14 @@ namespace Client.Main.Objects
                 _wasRotating = false;
             }
         }
+
+        // protected override void Dispose(bool disposing)
+        // {
+        //     if (disposing)
+        //     {
+        //         _animationController?.Dispose();
+        //     }
+        //     base.Dispose(disposing);
+        // }
     }
 }

@@ -63,6 +63,8 @@ namespace Client.Main.Networking
         public Task SendClientReadyAfterMapChangeAsync()
             => _characterService.SendClientReadyAfterMapChangeAsync();
 
+        public CharacterService GetCharacterService() => _characterService;
+
         // Constructors
         public NetworkManager(ILoggerFactory loggerFactory, MuOnlineSettings settings, CharacterState characterState, ScopeManager scopeManager)
         {
@@ -175,6 +177,8 @@ namespace Client.Main.Networking
         public Task SendInstantMoveRequestAsync(byte x, byte y)
             => _characterService.SendInstantMoveRequestAsync(x, y);
 
+        public Task SendHitRequestAsync(ushort targetId, byte attackAnimation, byte lookingDirection)
+            => _characterService.SendHitRequestAsync(targetId, attackAnimation, lookingDirection);
 
         /// <summary>
         /// Sends a warp command request to the server.
@@ -295,18 +299,6 @@ namespace Client.Main.Networking
             _logger.LogInformation("Sending login request for user: {Username}", username);
             UpdateState(ClientConnectionState.Authenticating);
             await _loginService.SendLoginRequestAsync(username, password);
-        }
-
-        public async Task SendLoginRequestFromSettingsAsync()
-        {
-            if (_currentState != ClientConnectionState.ConnectedToGameServer)
-            {
-                OnErrorOccurred($"Cannot send login request in state: {_currentState}");
-                return;
-            }
-            _logger.LogInformation("Sending login request using settings for user: {Username}", _settings.Username);
-            UpdateState(ClientConnectionState.Authenticating);
-            await _loginService.SendLoginRequestAsync(_settings.Username, _settings.Password);
         }
 
         public async Task SendSelectCharacterRequestAsync(string characterName)

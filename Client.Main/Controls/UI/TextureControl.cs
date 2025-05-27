@@ -1,9 +1,10 @@
-﻿using Client.Main.Content;
+using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Controls.UI.Game; // Assuming ExtendedUIControl might be here or in Models
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 
 namespace Client.Main.Controls.UI
@@ -18,6 +19,8 @@ namespace Client.Main.Controls.UI
         public new float Alpha { get; set; } = 1f;
         public string TexturePath { get => _texturePath; set { if (_texturePath != value) { _texturePath = value; OnChangeTexturePath(); } } }
         public BlendState BlendState { get; set; } = BlendState.AlphaBlend;
+
+        private static readonly ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<TextureControl>();
 
         public override async Task Initialize()
         {
@@ -63,7 +66,6 @@ namespace Client.Main.Controls.UI
             {
                 Texture = null; // Explicitly ensure Texture is null
                 if (AutoViewSize) ViewSize = Point.Zero; // Reset ViewSize if auto and no texture
-                // Debug.WriteLineIf(TexturePath == null || TexturePath == "", $"TextureControl: TexturePath is null or empty for {this.GetType().Name}. Skipping texture load.");
                 return; // Do not attempt to load if path is invalid
             }
 
@@ -73,7 +75,7 @@ namespace Client.Main.Controls.UI
             if (Texture == null)
             {
                 if (AutoViewSize) ViewSize = Point.Zero;
-                System.Diagnostics.Debug.WriteLine($"Warning: Failed to load texture for TextureControl: {TexturePath}");
+                _logger?.LogDebug($"Warning: Failed to load texture for TextureControl: {TexturePath}");
                 return;
             }
 

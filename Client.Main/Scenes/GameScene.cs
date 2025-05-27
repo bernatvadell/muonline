@@ -9,7 +9,6 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using MUnique.OpenMU.Network.Packets;
@@ -18,6 +17,7 @@ using Client.Main.Objects;
 using Client.Main.Core.Utilities;
 using Client.Main.Networking.PacketHandling.Handlers; // For CharacterClassNumber
 using Client.Main.Controllers;
+using Microsoft.Extensions.Logging;
 
 namespace Client.Main.Scenes
 {
@@ -38,6 +38,7 @@ namespace Client.Main.Scenes
         private bool _isChangingWorld = false;
         private readonly List<(ServerMessage.MessageType Type, string Message)> _pendingNotifications = new();
         private CharacterInfoWindowControl _characterInfoWindow;
+        private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<GameScene>();
 
         // ───────────────────────── Properties ─────────────────────────
         public PlayerObject Hero => _hero;
@@ -62,7 +63,7 @@ namespace Client.Main.Scenes
         public GameScene((string Name, CharacterClassNumber Class, ushort Level) characterInfo)
         {
             _characterInfo = characterInfo;
-            Debug.WriteLine($"GameScene constructor called for Character: {_characterInfo.Name} ({_characterInfo.Class})");
+            _logger?.LogDebug($"GameScene constructor called for Character: {_characterInfo.Name} ({_characterInfo.Class})");
 
             _main = new MainControl(MuGame.Network.GetCharacterState());
             Controls.Add(_main);
@@ -145,7 +146,7 @@ namespace Client.Main.Scenes
             if (charState == null)
             {
                 UpdateLoadProgress("Error: CharacterState is null.", 1.0f);
-                Debug.WriteLine("CharacterState is null in GameScene.Load, cannot proceed.");
+                _logger?.LogDebug("CharacterState is null in GameScene.Load, cannot proceed.");
                 if (_loadingScreen != null) { Controls.Remove(_loadingScreen); _loadingScreen.Dispose(); _loadingScreen = null; }
                 _main.Visible = false;
                 return;
@@ -153,7 +154,7 @@ namespace Client.Main.Scenes
 
             if (charState.Name != _characterInfo.Name || charState.Level != _characterInfo.Level || charState.Class != _characterInfo.Class || !charState.IsInGame)
             {
-                Debug.WriteLine("GameScene load: CharacterState differs from _characterInfo or not in game. Updating core info for {CharacterName}.", _characterInfo.Name);
+                _logger?.LogDebug($"GameScene load: CharacterState differs from _characterInfo or not in game. Updating core info for {_characterInfo.Name}.");
 
                 byte initialPosX = charState.PositionX;
                 byte initialPosY = charState.PositionY;
@@ -187,7 +188,7 @@ namespace Client.Main.Scenes
             }
             else
             {
-                Debug.WriteLine($"GameScene.Load: Unknown MapId: {charState?.MapId}. Defaulting to Lorencia.");
+                _logger?.LogDebug($"GameScene.Load: Unknown MapId: {charState?.MapId}. Defaulting to Lorencia.");
             }
             UpdateLoadProgress($"Initial world: {initialWorldType.Name}.", 0.2f);
 
@@ -229,7 +230,7 @@ namespace Client.Main.Scenes
             }
             else
             {
-                Debug.WriteLine($"GameScene.Load: World not ready after Initialize (Status: {World.Status}). Pending objects may not import correctly.");
+                _logger?.LogDebug($"GameScene.Load: World not ready after Initialize (Status: {World.Status}). Pending objects may not import correctly.");
             }
             UpdateLoadProgress("Entities imported.", 0.95f);
 
@@ -258,14 +259,14 @@ namespace Client.Main.Scenes
             else
             {
                 // Fallback to old behavior or log a warning
-                Debug.WriteLine("GameScene.Load() called outside of InitializeWithProgressReporting flow. Consider refactoring.");
+                _logger?.LogDebug("GameScene.Load() called outside of InitializeWithProgressReporting flow. Consider refactoring.");
                 await base.Load(); // Which is empty in BaseScene, then calls derived GameScene's old Load logic
             }
         }
 
         private async void OnMapWarpRequested(int mapIndex)
         {
-            Debug.WriteLine($"Player requested warp to map index: {mapIndex}");
+            _logger?.LogDebug($"Player requested warp to map index: {mapIndex}");
             _chatLog.AddMessage("System", $"Warping to map index {mapIndex} requested.", MessageType.System);
 
             try
@@ -274,7 +275,7 @@ namespace Client.Main.Scenes
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(ex, $"Error sending warp request for map index {mapIndex}.");
+                _logger?.LogDebug(ex, $"Error sending warp request for map index {mapIndex}.");
                 _chatLog.AddMessage("System", $"Error warping: {ex.Message}", MessageType.Error);
             }
         }
@@ -312,16 +313,16 @@ namespace Client.Main.Scenes
             World.Objects.Add(_hero); // Add hero to new world
 
             _loadingScreen.Progress = 0.1f;
-            Debug.WriteLine($"GameScene.ChangeMap<{worldType.Name}>: Initializing new world...");
+            _logger?.LogDebug($"GameScene.ChangeMap<{worldType.Name}>: Initializing new world...");
             await _nextWorld.Initialize();
-            Debug.WriteLine($"GameScene.ChangeMap<{worldType.Name}>: New world initialized. Status: {_nextWorld.Status}");
+            _logger?.LogDebug($"GameScene.ChangeMap<{worldType.Name}>: New world initialized. Status: {_nextWorld.Status}");
             _loadingScreen.Progress = 0.7f;
 
             if (previousWorld != null)
             {
                 Controls.Remove(previousWorld);
                 previousWorld.Dispose();
-                Debug.WriteLine("GameScene.ChangeMap: Disposed previous world.");
+                _logger?.LogDebug("GameScene.ChangeMap: Disposed previous world.");
             }
 
             _nextWorld = null;
@@ -329,13 +330,13 @@ namespace Client.Main.Scenes
             if (World.Status == GameControlStatus.Ready)
             {
                 _loadingScreen.Progress = 0.8f;
-                Debug.WriteLine("GameScene.ChangeMap: World is Ready. Importing pending objects...");
+                _logger?.LogDebug("GameScene.ChangeMap: World is Ready. Importing pending objects...");
                 await ImportPendingRemotePlayers();
                 await ImportPendingNpcsMonsters();
             }
             else
             {
-                Debug.WriteLine($"GameScene.ChangeMap: World not ready after Initialize (Status: {World.Status}). Pending objects may not import correctly.");
+                _logger?.LogDebug($"GameScene.ChangeMap: World not ready after Initialize (Status: {World.Status}). Pending objects may not import correctly.");
             }
             _loadingScreen.Progress = 0.95f;
 
@@ -358,7 +359,7 @@ namespace Client.Main.Scenes
                 DebugPanel.BringToFront();
                 Cursor.BringToFront();
             }
-            Debug.WriteLine($"GameScene.ChangeMap<{worldType.Name}>: ChangeMap completed.");
+            _logger?.LogDebug($"GameScene.ChangeMap<{worldType.Name}>: ChangeMap completed.");
         }
 
         public async Task ChangeMap<T>() where T : WalkableWorldControl, new()
@@ -525,6 +526,17 @@ namespace Client.Main.Scenes
                 return;
             }
 
+            // Handle attack clicks on monsters
+            else if (!IsMouseInputConsumedThisFrame && MouseHoverObject is Client.Main.Objects.Monsters.MonsterObject targetMonster &&
+                MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
+                MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released) // Fresh press
+            {
+                if (Hero != null)
+                {
+                    Hero.Attack(targetMonster);
+                    SetMouseInputConsumed(); // Consume the click
+                }
+            }
 
             if (currentKeyboardState.IsKeyDown(Keys.F5) && _previousKeyboardState.IsKeyUp(Keys.F5)) _chatLog?.ToggleFrame();
             if (currentKeyboardState.IsKeyDown(Keys.F4) && _previousKeyboardState.IsKeyUp(Keys.F4)) _chatLog?.CycleSize();

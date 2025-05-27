@@ -2,6 +2,7 @@
 using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Models;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
 
@@ -10,6 +11,8 @@ namespace Client.Main.Objects.Monsters
     [NpcInfo(7, "Giant")]
     public class Giant : MonsterObject
     {
+        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<MonsterObject>();
+
         public Giant()
         {
             RenderShadow = true;
@@ -24,7 +27,7 @@ namespace Client.Main.Objects.Monsters
 
             if (Model != null && Model.Actions != null)
             {
-                System.Diagnostics.Debug.WriteLine($"Setting speeds for Giant (Model: {Model.Name})");
+                _logger?.LogDebug($"Setting speeds for Giant (Model: {Model.Name})");
 
                 SetActionSpeed(MonsterActionType.Stop1, 0.25f);
                 SetActionSpeed(MonsterActionType.Stop2, 0.20f);
@@ -36,7 +39,7 @@ namespace Client.Main.Objects.Monsters
                 // If a Run action exists, set its default speed
                 // SetActionSpeed(MonsterActionType.Run, DEFAULT_RUN_SPEED);
 
-                System.Diagnostics.Debug.WriteLine(" - Giant uses default animation speeds.");
+                _logger?.LogDebug(" - Giant uses default animation speeds.");
 
                 // --- Step 2: (Optional) Set Loop for Die ---
                 int dieActionIndex = (int)MonsterActionType.Die;
@@ -44,13 +47,13 @@ namespace Client.Main.Objects.Monsters
                 {
                     // Assuming BMDTextureAction has a bool Loop field
                     // Model.Actions[dieActionIndex].Loop = true;
-                    System.Diagnostics.Debug.WriteLine($" - Action Die ({dieActionIndex}) should be looped (C++ logic).");
+                    _logger?.LogDebug($" - Action Die ({dieActionIndex}) should be looped (C++ logic).");
                     // Note: Looping the death animation may be undesirable in game logic.
                 }
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"Error: Model or Actions is null for Giant after Load.");
+                _logger?.LogDebug($"Error: Model or Actions is null for Giant after Load.");
             }
         }
 
@@ -119,11 +122,11 @@ namespace Client.Main.Objects.Monsters
             {
                 var action = Model.Actions[actionIndex];
                 action.PlaySpeed = speed * 2;
-                System.Diagnostics.Debug.WriteLine($" - Set PlaySpeed for action {(MonsterActionType)actionIndex} ({actionIndex}) to {speed}");
+                _logger?.LogDebug($" - Set PlaySpeed for action {(MonsterActionType)actionIndex} ({actionIndex}) to {speed}");
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($" - Warning: Cannot set PlaySpeed for action {(MonsterActionType)actionType} ({actionIndex}). Action does not exist or is null.");
+                _logger?.LogDebug($" - Warning: Cannot set PlaySpeed for action {(MonsterActionType)actionType} ({actionIndex}). Action does not exist or is null.");
             }
         }
     }

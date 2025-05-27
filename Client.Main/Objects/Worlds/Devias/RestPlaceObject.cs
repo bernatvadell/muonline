@@ -15,7 +15,7 @@ namespace Client.Main.Objects.Worlds.Devias
         {
             Interactive = true;
         }
-        
+
         public override async Task Load()
         {
             await base.Load();
@@ -53,43 +53,11 @@ namespace Client.Main.Objects.Worlds.Devias
                     {
                         player.IsResting = true;
                         player.RestPlaceTarget = targetTile;
-                        player.Direction = GetDirectionFromAngle(this.Angle.Z);
+                        player.Direction = DirectionExtensions.GetDirectionFromAngle(this.Angle.Z);
                     }
                 }
 
             }
-        }
-
-        /// <summary>
-        /// Maps a given angle (in radians) to the nearest Direction value.
-        /// </summary>
-        /// <param name="angle">Rotation angle in radians.</param>
-        /// <returns>Nearest Direction enum value.</returns>
-        private Direction GetDirectionFromAngle(float angle)
-        {
-            // Convert angle from radians to degrees and normalize to [0,360)
-            float degrees = MathHelper.ToDegrees(angle);
-            if (degrees < 0)
-                degrees += 360;
-
-            // Add half step (22.5) and divide by 45 to determine the nearest index (0-7)
-            int index = (int)Math.Floor((degrees + 22.5f) / 45f) % 8;
-
-            // Mapping order: index 0: SouthWest (0°), 1: South (45°), 2: SouthEast (90°),
-            // 3: East (135°), 4: NorthEast (180°), 5: North (225°), 6: NorthWest (270°), 7: West (315°)
-            Direction[] mapping =
-            [
-                Direction.SouthWest,
-                Direction.South,
-                Direction.SouthEast,
-                Direction.East,
-                Direction.NorthEast,
-                Direction.North,
-                Direction.NorthWest,
-                Direction.West
-            ];
-
-            return mapping[index];
         }
     }
 }

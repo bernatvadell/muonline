@@ -29,14 +29,15 @@ namespace Client.Main.Objects
         private int[] _blendMeshIndicesScratch;
 
         private bool _renderShadow = false;
-        private int _priorAction = 0;
+        protected int _priorAction = 0;
         private bool _invalidatedBuffers = true;
         private float _blendMeshLight = 1f;
-        private double _animTime = 0.0;
+        protected double _animTime = 0.0;
         private bool _contentLoaded = false;
         public float ShadowOpacity { get; set; } = 1f;
         public Color Color { get; set; } = Color.White;
         protected Matrix[] BoneTransform { get; set; }
+        public Matrix[] GetBoneTransforms() => BoneTransform;
         public int CurrentAction { get; set; }
         public int ParentBoneLink { get; set; } = -1;
         public BMD Model { get; set; }
@@ -79,7 +80,7 @@ namespace Client.Main.Objects
 
             if (Model == null)
             {
-                Debug.WriteLine($"Model is not assigned for {ObjectName} -> Type: {Type}");
+                _logger?.LogDebug($"Model is not assigned for {ObjectName} -> Type: {Type}");
                 Status = Models.GameControlStatus.Error;
                 return;
             }
@@ -140,7 +141,7 @@ namespace Client.Main.Objects
 
             var gd = GraphicsDevice;
             var prevCull = gd.RasterizerState;                      // zapisz
-            gd.RasterizerState = RasterizerState.CullClockwise ;
+            gd.RasterizerState = RasterizerState.CullClockwise;
 
             GraphicsManager.Instance.AlphaTestEffect3D.View = Camera.Instance.View;
             GraphicsManager.Instance.AlphaTestEffect3D.Projection = Camera.Instance.Projection;
@@ -273,7 +274,7 @@ namespace Client.Main.Objects
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error in DrawMesh: {ex.Message}");
+                _logger?.LogDebug($"Error in DrawMesh: {ex.Message}");
             }
         }
 
@@ -356,7 +357,7 @@ namespace Client.Main.Objects
 
                 if (!ValidateWorldMatrix(WorldPosition))
                 {
-                    Debug.WriteLine("Invalid WorldPosition matrix detected - skipping shadow rendering");
+                    _logger?.LogDebug("Invalid WorldPosition matrix detected - skipping shadow rendering");
                     return;
                 }
 
@@ -424,7 +425,7 @@ namespace Client.Main.Objects
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Error creating shadow matrix: {ex.Message}");
+                    _logger?.LogDebug($"Error creating shadow matrix: {ex.Message}");
                     return;
                 }
 
@@ -469,7 +470,7 @@ namespace Client.Main.Objects
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error in DrawShadowMesh: {ex.Message}");
+                _logger?.LogDebug($"Error in DrawShadowMesh: {ex.Message}");
             }
         }
 
@@ -708,7 +709,7 @@ namespace Client.Main.Objects
 
                 if (bones == null)
                 {
-                    Debug.WriteLine("SetDynamicBuffers: BoneTransform == null – skip");
+                    _logger?.LogDebug("SetDynamicBuffers: BoneTransform == null – skip");
                     return;
                 }
 
@@ -749,7 +750,7 @@ namespace Client.Main.Objects
                     }
                     catch (Exception exMesh)
                     {
-                        Debug.WriteLine($"SetDynamicBuffers – mesh {meshIndex}: {exMesh.Message}");
+                        _logger?.LogDebug($"SetDynamicBuffers – mesh {meshIndex}: {exMesh.Message}");
                     }
                 }
 
@@ -758,7 +759,7 @@ namespace Client.Main.Objects
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"SetDynamicBuffers FATAL: {ex.Message}");
+                _logger?.LogDebug($"SetDynamicBuffers FATAL: {ex.Message}");
             }
         }
 
@@ -775,7 +776,7 @@ namespace Client.Main.Objects
                     array[i] = defaultValue;
         }
 
-        protected void InvalidateBuffers()
+        public void InvalidateBuffers()
         {
             _invalidatedBuffers = true;
 

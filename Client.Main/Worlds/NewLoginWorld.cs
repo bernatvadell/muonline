@@ -1,15 +1,16 @@
 ﻿using Client.Main.Controls;
 using Client.Main.Objects.Player;
 using Client.Main.Objects.Worlds.Login;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
-using System.Diagnostics;
 
 namespace Client.Main.Worlds
 {
     public class NewLoginWorld : WorldControl
     {
         private PlayerObject _player;
+        private static readonly ILogger _logger = Microsoft.Extensions.Logging.LoggerFactory.Create(builder => { }).CreateLogger<NewLoginWorld>();
 
         public NewLoginWorld() : base(worldIndex: 95)
         {
@@ -57,7 +58,7 @@ namespace Client.Main.Worlds
                 if (Objects.Count > 0)
                 {
                     var obj = Objects[0];
-                    Debug.WriteLine($"Removing obj: {obj.Type} -> {obj.ObjectName}");
+                    _logger?.LogDebug($"Removing obj: {obj.Type} -> {obj.ObjectName}");
                     Objects.RemoveAt(0);
                 }
             }

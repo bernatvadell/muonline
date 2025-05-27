@@ -1,19 +1,16 @@
-﻿using Client.Data.OBJS;
-using Client.Main.Content;
+﻿using Client.Main.Content;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
     public class MapTileObject : ModelObject
     {
+        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<MapTileObject>();
+
         public MapTileObject()
         {
             BlendState = BlendState.AlphaBlend;
@@ -26,7 +23,7 @@ namespace Client.Main.Objects
             Model = await BMDLoader.Instance.Prepare(modelPath);
 
             if (Model == null)
-                Debug.WriteLine($"Can't load MapObject for model: {modelPath}");
+                _logger?.LogDebug($"Can't load MapObject for model: {modelPath}");
 
             await base.Load();
         }

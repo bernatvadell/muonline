@@ -185,7 +185,7 @@ namespace Client.Main.Scenes
 
         private async Task DownloadFileWithProgressAsync(
             string url, string destination,
-            Action<string, float>? report,
+            Action<string, float> report,
             CancellationToken ct = default)
         {
             byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);

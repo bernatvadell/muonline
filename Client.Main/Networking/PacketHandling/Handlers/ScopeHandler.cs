@@ -109,15 +109,22 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 // Spawn remote players immediately if the world is ready,
                 // otherwise buffer for later
                 if (MuGame.Instance.ActiveScene?.World is WalkableWorldControl w
-                    && w.Status == GameControlStatus.Ready
-                    && masked != _characterState.Id)
+                    && w.Status == GameControlStatus.Ready)
                 {
-                    SpawnRemotePlayerIntoWorld(w, masked, c.CurrentPositionX, c.CurrentPositionY, c.Name, cls);
+                    if (masked != _characterState.Id) // Don't spawn self as a remote player
+                    {
+                        SpawnRemotePlayerIntoWorld(w, masked, raw, c.CurrentPositionX, c.CurrentPositionY, c.Name, cls);
+                    }
                 }
                 else if (masked != _characterState.Id)
                 {
                     lock (_pendingPlayers)
-                        _pendingPlayers.Add(new PlayerScopeObject(masked, raw, c.CurrentPositionX, c.CurrentPositionY, c.Name, cls));
+                    {
+                        if (!_pendingPlayers.Any(p => p.Id == masked))
+                        {
+                            _pendingPlayers.Add(new PlayerScopeObject(masked, raw, c.CurrentPositionX, c.CurrentPositionY, c.Name, cls));
+                        }
+                    }
                 }
             }
         }
@@ -146,19 +153,24 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         private static void SpawnRemotePlayerIntoWorld(
                    WalkableWorldControl world,
                    ushort maskedId,
+                   ushort rawId,
                    byte x,
                    byte y,
                    string name,
                    CharacterClassNumber cls)
         {
-            if (world.Walker is PlayerObject local && local.NetworkId == maskedId)
-                return;
-
             MuGame.ScheduleOnMainThread(async () =>
             {
                 if (MuGame.Instance.ActiveScene?.World != world || world.Status != GameControlStatus.Ready)
                 {
                     return;
+                }
+
+                if (world.WalkerObjectsById.TryGetValue(maskedId, out WalkerObject existingWalker))
+                {
+                    // GameScene._logger.LogWarning($"SpawnRemotePlayer: Stale PlayerObject {maskedId:X4} found. Removing before adding new.");
+                    world.Objects.Remove(existingWalker);
+                    existingWalker.Dispose();
                 }
 
                 if (world.Objects.OfType<PlayerObject>().Any(p => p.NetworkId == maskedId))
@@ -262,23 +274,31 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     if (MuGame.Instance.ActiveScene?.World is WalkableWorldControl worldRef && worldRef.Status == GameControlStatus.Ready)
                     {
-                        if (worldRef.Objects.OfType<WalkerObject>().Any(o => o.NetworkId == maskedId))
+                        if (worldRef.WalkerObjectsById.TryGetValue(maskedId, out WalkerObject existingWalker))
                         {
-                            return;
+                            // An object with this ID already exists in the dictionary.
+                            // This could be a stale object or a rapid respawn with ID reuse.
+                            _logger.LogWarning($"ScopeHandler: Stale/Duplicate NPC/Monster ID {maskedId:X4} ({existingWalker.GetType().Name}) found in WalkerObjectsById. Removing it before adding new {name} (Type: {type}).");
+
+                            // Remove from visual list (triggers OnObjectRemoved in WorldControl)
+                            worldRef.Objects.Remove(existingWalker);
+                            existingWalker.Dispose(); // Dispose the old instance.
                         }
+                        // else: No existing walker with this ID in the dictionary, proceed to add.
 
                         if (NpcDatabase.TryGetNpcType(type, out var npcClassType))
                         {
+                            // Check again if it was added by another thread in the meantime, though less likely now with prior check
+                            if (worldRef.Objects.OfType<WalkerObject>().Any(o => o.NetworkId == maskedId)) return;
+
                             if (Activator.CreateInstance(npcClassType) is WalkerObject obj)
                             {
                                 obj.NetworkId = maskedId;
                                 obj.Location = new Vector2(x, y);
 
-                                // NAJPIERW DODAJ DO ŚWIATA, ABY USTAWIĆ worldRef.World
-                                worldRef.Objects.Add(obj); // To ustawi obj.World
+                                worldRef.Objects.Add(obj);
 
-                                // TERAZ MOŻNA BEZPIECZNIE USTAWIĆ POZYCJE, bo obj.World jest dostępne
-                                if (obj.World != null && obj.World.Terrain != null) // Dodatkowe zabezpieczenie
+                                if (obj.World?.Terrain != null)
                                 {
                                     obj.MoveTargetPosition = obj.TargetPosition;
                                     obj.Position = obj.TargetPosition;
@@ -385,7 +405,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                     var txt = new DamageTextObject(
                         totalDmg == 0 ? "Miss" : totalDmg.ToString(),
-                        headPos,
+                        maskedId,
                         totalDmg == 0 ? Color.White : Color.Red
                     );
                     world.Objects.Add(txt);
@@ -405,9 +425,20 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         _logger.LogWarning("💀 Local player (ID: {Id:X4}) died!", maskedId);
                         MuGame.ScheduleOnMainThread(() =>
                         {
-                            if (MuGame.Instance.ActiveScene is GameScene gs && gs.Hero != null)
+                            if (MuGame.Instance.ActiveScene?.World is WalkableWorldControl walkableWorld &&
+                                walkableWorld.Walker != null)
                             {
-                                gs.Hero.PlayAction((ushort)PlayerAction.PlayerDie1); //TODO: no action visible
+                                var localPlayer = walkableWorld.Walker;
+
+                                if (localPlayer is PlayerObject playerObj)
+                                {
+                                    playerObj.IsResting = false;
+                                    playerObj.IsSitting = false;
+                                    playerObj.RestPlaceTarget = null;
+                                    playerObj.SitPlaceTarget = null;
+                                }
+
+                                localPlayer.PlayAction((ushort)PlayerAction.PlayerDie1);
                                 _logger.LogDebug("Triggered PlayerDie1 animation for local player.");
                             }
                         });
@@ -751,19 +782,49 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl world)
                     return;
 
+                bool isLocalPlayer = maskedId == _characterState.Id;
+
                 // Local player movement
                 var player = world.Objects.OfType<PlayerObject>()
-                               .FirstOrDefault(p => p.NetworkId == maskedId);
+                                   .FirstOrDefault(p => p.NetworkId == maskedId);
                 if (player != null)
                 {
-                    bool wasMoving = player.IsMoving;
+                    bool wasResting = player.IsResting;
+                    bool wasSitting = player.IsSitting;
+
+                    if (wasResting || wasSitting)
+                    {
+                        player.IsResting = false;
+                        player.IsSitting = false;
+                        player.RestPlaceTarget = null;
+                        player.SitPlaceTarget = null;
+                        _logger.LogDebug("Reset rest/sit state for player {Id:X4} due to movement", maskedId);
+                    }
+
                     player.MoveTo(new Vector2(x, y), sendToServer: false);
 
-                    const byte walkActionPlayer = 1;
-                    if (!wasMoving && player.Model?.Actions?.Length > walkActionPlayer)
+                    PlayerAction walkAction;
+                    if (world.WorldIndex == 8) // Swimming world
                     {
-                        player.CurrentAction = (PlayerAction)walkActionPlayer;
+                        walkAction = PlayerAction.RunSwim;
                     }
+                    else if (world.WorldIndex == 11) // Flying world
+                    {
+                        walkAction = PlayerAction.Fly;
+                    }
+                    else
+                    {
+                        walkAction = PlayerActionMapper.IsCharacterFemale(player.CharacterClass)
+                            ? PlayerAction.WalkFemale
+                            : PlayerAction.WalkMale;
+                    }
+
+                    if (player.CurrentAction != walkAction)
+                    {
+                        player.PlayAction((ushort)walkAction);
+                        _logger.LogDebug("Set walk animation {WalkAction} for player {Id:X4}", walkAction, maskedId);
+                    }
+
                     return;
                 }
 
@@ -772,13 +833,13 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                                  .FirstOrDefault(w => w.NetworkId == maskedId);
                 if (walker != null)
                 {
-                    bool wasMoving = walker.IsMoving;
                     walker.MoveTo(new Vector2(x, y), sendToServer: false);
 
-                    const byte walkActionNpc = 2;
-                    if (!wasMoving && walker.Model?.Actions?.Length > walkActionNpc)
+                    const byte walkActionNpc = (byte)MonsterActionType.Walk;
+                    if (walker.Model?.Actions?.Length > walkActionNpc)
                     {
-                        walker.CurrentAction = walkActionNpc;
+                        walker.PlayAction(walkActionNpc);
+                        _logger.LogDebug("Set walk animation for NPC/monster {Id:X4}", maskedId);
                     }
                 }
             });
@@ -786,7 +847,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
-        [PacketHandler(0x17, PacketRouter.NoSubCode)] // ObjectGotKilled
+
+        [PacketHandler(0x17, PacketRouter.NoSubCode)]
         public Task HandleObjectGotKilledAsync(Memory<byte> packet)
         {
             try
@@ -808,25 +870,98 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     _logger.LogWarning("💀 You died! Killed by {Killer}", killerName);
                     _characterState.UpdateCurrentHealthShield(0, 0);
+
+                    // CRITICAL: Don't remove local player from scope - let respawn handle it
+                    // _scopeManager.RemoveObjectFromScope(killed); // REMOVED THIS LINE
                 }
                 else
                 {
                     _logger.LogInformation("💀 {Killed} died. Killed by {Killer}", killedName, killerName);
+                    _scopeManager.RemoveObjectFromScope(killed);
                 }
-
-                _scopeManager.RemoveObjectFromScope(killed);
 
                 MuGame.ScheduleOnMainThread(() =>
                 {
-                    if (MuGame.Instance.ActiveScene?.World is WalkableWorldControl world)
+                    if (MuGame.Instance.ActiveScene?.World is not WorldControl world) return;
+
+                    // Use same lookup as HandleObjectAnimation
+                    var player = world.Objects.OfType<PlayerObject>()
+                                   .FirstOrDefault(p => p.NetworkId == killed);
+
+                    WalkerObject walker = null;
+                    if (!world.TryGetWalkerById(killed, out walker) && player == null)
                     {
-                        var obj = world.Objects.OfType<WalkerObject>()
-                                       .FirstOrDefault(w => w.NetworkId == killed);
-                        if (obj != null)
+                        _logger.LogTrace("HandleObjectGotKilled: Walker with ID {Id:X4} not found in world.", killed);
+                        return;
+                    }
+
+                    if (player != null)
+                    {
+                        walker = player;
+                    }
+
+                    if (walker != null)
+                    {
+                        // Handle local player death differently
+                        if (killed == _characterState.Id && walker is PlayerObject localPlayer)
                         {
-                            world.Objects.Remove(obj);
-                            obj.Dispose();
-                            _logger.LogDebug("Removed killed {Type} {Id:X4}", obj.GetType().Name, killed);
+                            // Reset all animation states
+                            localPlayer.IsResting = false;
+                            localPlayer.IsSitting = false;
+                            localPlayer.RestPlaceTarget = null;
+                            localPlayer.SitPlaceTarget = null;
+
+                            // Play death animation but DON'T remove from world
+                            localPlayer.PlayAction((ushort)PlayerAction.PlayerDie1);
+                            _logger.LogDebug("💀 Local player death animation started - staying in world for respawn");
+                            return; // Don't remove local player
+                        }
+
+                        // Handle remote player death
+                        if (walker is PlayerObject remotePlayer && !remotePlayer.IsMainWalker)
+                        {
+                            remotePlayer.IsResting = false;
+                            remotePlayer.IsSitting = false;
+                            remotePlayer.RestPlaceTarget = null;
+                            remotePlayer.SitPlaceTarget = null;
+
+                            remotePlayer.PlayAction((ushort)PlayerAction.PlayerDie1);
+                            _logger.LogDebug("💀 Remote player {Name} ({Id:X4}) death animation started",
+                                            remotePlayer.Name, killed);
+
+                            // Remove after death animation
+                            Task.Delay(3000).ContinueWith(_ =>
+                            {
+                                MuGame.ScheduleOnMainThread(() =>
+                                {
+                                    if (world.Objects.Contains(walker))
+                                    {
+                                        world.Objects.Remove(walker);
+                                        walker.Dispose();
+                                        _logger.LogDebug("💀 Removed dead remote player {Name} after animation",
+                                                        remotePlayer.Name);
+                                    }
+                                });
+                            });
+                        }
+                        // Handle monster death
+                        else if (walker is MonsterObject monster)
+                        {
+                            monster.PlayAction((byte)MonsterActionType.Die);
+                            _logger.LogDebug("💀 Monster {Id:X4} death animation started", killed);
+
+                            Task.Delay(2000).ContinueWith(_ =>
+                            {
+                                MuGame.ScheduleOnMainThread(() =>
+                                {
+                                    if (world.Objects.Contains(walker))
+                                    {
+                                        world.Objects.Remove(walker);
+                                        walker.Dispose();
+                                        _logger.LogDebug("💀 Removed dead monster {Id:X4}", killed);
+                                    }
+                                });
+                            });
                         }
                     }
                 });
@@ -842,25 +977,77 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         public Task HandleObjectAnimationAsync(Memory<byte> packet)
         {
             var anim = new ObjectAnimation(packet);
-            ushort id = (ushort)(anim.ObjectId & 0x7FFF);
+            ushort rawId = anim.ObjectId;
+            ushort maskedId = (ushort)(rawId & 0x7FFF);
+            byte serverActionId = anim.Animation;
+            byte serverDirection = anim.Direction;
 
             MuGame.ScheduleOnMainThread(() =>
             {
                 if (MuGame.Instance.ActiveScene?.World is not WorldControl world) return;
-                if (!world.TryGetWalkerById(id, out var walker)) return;
 
-                byte raw = anim.Animation;
-                byte dir = anim.Direction;
-                byte actionIdx = walker is MonsterObject
-                                 ? (byte)((raw & 0xE0) >> 5)
-                                 : (byte)((raw & 0xF8) >> 3);
+                var player = world.Objects.OfType<PlayerObject>()
+                               .FirstOrDefault(p => p.NetworkId == maskedId);
 
-                walker.PlayAction(actionIdx);
-                walker.Direction = (Models.Direction)dir;
+                if (!world.TryGetWalkerById(maskedId, out var walker) && player == null)
+                {
+                    _logger.LogTrace("HandleObjectAnimation: Walker with MaskedID {MaskedId} (RawID {RawId}) not found in world.", maskedId, rawId);
+                    return;
+                }
+
+                if (player != null)
+                {
+                    walker = player;
+                }
+
+                if (walker == null || walker.Status == GameControlStatus.Disposed)
+                {
+                    _logger.LogWarning("HandleObjectAnimation: Walker {MaskedId} is null or disposed, cannot animate.", maskedId);
+                    return;
+                }
+
+                PlayerAction clientActionToPlay;
+                string actionNameForLog;
+
+                if (walker is PlayerObject playerToAnimate)
+                {
+                    CharacterClassNumber playerClass = playerToAnimate.CharacterClass;
+                    clientActionToPlay = PlayerActionMapper.GetClientAction(serverActionId, playerClass);
+                    actionNameForLog = clientActionToPlay.ToString();
+                }
+                else if (walker is MonsterObject monsterToAnimate)
+                {
+                    byte actionIdx = (byte)((serverActionId & 0xE0) >> 5);
+                    clientActionToPlay = (PlayerAction)(MonsterActionType)actionIdx;
+                    actionNameForLog = ((MonsterActionType)actionIdx).ToString();
+                }
+                else
+                {
+                    _logger.LogWarning("HandleObjectAnimation: Walker {MaskedId} is not PlayerObject or MonsterObject. Type: {WalkerType}", maskedId, walker.GetType().Name);
+                    return;
+                }
+
+                Client.Main.Models.Direction clientDirection = (Client.Main.Models.Direction)serverDirection;
+
+                if (maskedId == _characterState.Id && walker is PlayerObject localPlayer)
+                {
+                    localPlayer.Direction = clientDirection;
+                    localPlayer.PlayAction((ushort)clientActionToPlay, fromServer: true); // <-- Dodaj fromServer: true
+                    _logger.LogInformation("🎞️ Animation (LocalPlayer {Id:X4}): Action: {ActionName} ({ClientAction}), ServerActionID: {ServerActionId}, Dir: {Direction}",
+                        maskedId, actionNameForLog, clientActionToPlay, serverActionId, clientDirection);
+                }
+                else
+                {
+                    walker.Direction = clientDirection;
+                    walker.PlayAction((ushort)clientActionToPlay, fromServer: true); // <-- Dodaj fromServer: true
+                    _logger.LogInformation("🎞️ Animation ({WalkerType} {Id:X4}): Action: {ActionName} ({ClientAction}), ServerActionID: {ServerActionId}, Dir: {Direction}",
+                       walker.GetType().Name, maskedId, actionNameForLog, clientActionToPlay, serverActionId, clientDirection);
+                }
             });
 
             return Task.CompletedTask;
         }
+
 
         [PacketHandler(0x65, PacketRouter.NoSubCode)] // AssignCharacterToGuild
         public Task HandleAssignCharacterToGuildAsync(Memory<byte> packet)

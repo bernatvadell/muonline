@@ -1,13 +1,13 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using Client.Data;
 using Client.Data.Texture;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Extensions.Logging;
 
 namespace Client.Main.Content
 {
@@ -30,6 +30,8 @@ namespace Client.Main.Content
             { ".ozd", new OZDReader() },
             { ".dds", new OZDReader() }
         };
+
+        private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<TextureLoader>();
 
         public void SetGraphicsDevice(GraphicsDevice graphicsDevice) => _graphicsDevice = graphicsDevice;
 
@@ -63,7 +65,7 @@ namespace Client.Main.Content
 
                 if (!_readers.TryGetValue(ext, out var reader))
                 {
-                    Debug.WriteLine($"Unsupported file extension: {ext}");
+                    _logger?.LogDebug($"Unsupported file extension: {ext}");
                     return null;
                 }
 
@@ -73,7 +75,7 @@ namespace Client.Main.Content
                 var data = await reader.Load(fullPath);
                 if (data == null)
                 {
-                    Debug.WriteLine($"Failed to load texture data from: {fullPath}");
+                    _logger?.LogDebug($"Failed to load texture data from: {fullPath}");
                     return null;
                 }
 
@@ -88,7 +90,7 @@ namespace Client.Main.Content
             }
             catch (Exception e)
             {
-                Debug.WriteLine($"Failed to load asset {path}: {e.Message}");
+                _logger?.LogDebug($"Failed to load asset {path}: {e.Message}");
                 return null;
             }
         }
@@ -111,7 +113,7 @@ namespace Client.Main.Content
                     return actualPath;
             }
 
-            Debug.WriteLine($"Texture file not found: {expectedFilePath}");
+            _logger?.LogDebug($"Texture file not found: {expectedFilePath}");
             return null;
         }
 
@@ -197,7 +199,7 @@ namespace Client.Main.Content
 
             if (components != 3 && components != 4)
             {
-                Debug.WriteLine($"Unsupported texture components: {components} for texture {path}");
+                _logger?.LogDebug($"Unsupported texture components: {components} for texture {path}");
                 return null;
             }
 

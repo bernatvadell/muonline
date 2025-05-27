@@ -1,5 +1,6 @@
 ﻿using Client.Main.Content;
 using Client.Main.Models;
+using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Player
@@ -7,6 +8,8 @@ namespace Client.Main.Objects.Player
     public class PlayerHelmObject : ModelObject
     {
         private PlayerClass _playerClass;
+        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<PlayerObject>();
+
         public PlayerClass PlayerClass
         {
             get => _playerClass;
@@ -39,7 +42,7 @@ namespace Client.Main.Objects.Player
             else if (Model == null)
             {
                 // Explicitly log if model failed to load for this specific class
-                System.Diagnostics.Debug.WriteLine($"PlayerHelmObject: Failed to load model for PlayerClass {(int)PlayerClass}. Path: Player/HelmClass{(int)PlayerClass:D2}.bmd");
+                _logger?.LogDebug($"PlayerHelmObject: Failed to load model for PlayerClass {(int)PlayerClass}. Path: Player/HelmClass{(int)PlayerClass:D2}.bmd");
                 Status = GameControlStatus.Error; // Keep error status if model is null
             }
         }

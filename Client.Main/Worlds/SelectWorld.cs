@@ -214,7 +214,7 @@ namespace Client.Main.Worlds
                 if (Objects.Count > 0)
                 {
                     var obj = Objects[0];
-                    Debug.WriteLine($"Removing obj: {obj.Type} -> {obj.ObjectName}");
+                    _logger?.LogDebug($"Removing obj: {obj.Type} -> {obj.ObjectName}");
                     Objects.RemoveAt(0);
                 }
             }

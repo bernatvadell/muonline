@@ -4,6 +4,7 @@ using Client.Main.Helpers;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
@@ -19,6 +20,8 @@ namespace Client.Main.Objects
         private Matrix _worldPosition;
         private WorldControl _world;
         private bool _interactive;
+
+        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<WorldObject>();
 
         public virtual float Depth
         {
@@ -123,7 +126,7 @@ namespace Client.Main.Objects
             }
             catch (Exception e)
             {
-                Debug.WriteLine(e);
+                _logger?.LogDebug(e, "Exception in WorldObject");
                 Status = GameControlStatus.Error;
             }
         }

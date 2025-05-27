@@ -1,9 +1,10 @@
-﻿using Client.Main.Controllers;
+using Client.Main.Controllers;
 using Client.Main.Models;
 using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -16,6 +17,7 @@ namespace Client.Main.Controls
         // Fields
         private Point _controlSize, _viewSize;
         private bool _isCurrentlyPressedByMouse = false;
+        private static readonly ILogger _logger = Microsoft.Extensions.Logging.LoggerFactory.Create(builder => { }).CreateLogger<GameControl>();
 
         // Properties
         public GraphicsDevice GraphicsDevice => MuGame.Instance.GraphicsDevice;
@@ -124,7 +126,7 @@ namespace Client.Main.Controls
             }
             catch (Exception e)
             {
-                Debug.WriteLine(e);
+                _logger?.LogDebug(e, "Exception in GameControl");
                 Status = GameControlStatus.Error;
             }
         }
@@ -235,7 +237,7 @@ namespace Client.Main.Controls
 
                     if (!Align.HasFlag(ControlAlign.Left))
                         controlWidth += control.X;
-                    if (!Align.HasFlag(ControlAlign.Bottom)) 
+                    if (!Align.HasFlag(ControlAlign.Bottom))
                         controlHeight += control.Y;
 
                     if (controlWidth > maxWidth)

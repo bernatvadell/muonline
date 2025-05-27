@@ -7,9 +7,9 @@ using Client.Main.Objects;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -29,6 +29,8 @@ namespace Client.Main.Scenes
         public bool IsMouseHandledByUI { get; set; }
         public bool IsMouseInputConsumedThisFrame { get; private set; }
         public bool IsKeyboardEnterConsumedThisFrame { get; private set; }
+
+        private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<BaseScene>();
 
         public BaseScene()
         {
@@ -103,7 +105,7 @@ namespace Client.Main.Scenes
             }
             catch (Exception e)
             {
-                Debug.WriteLine($"Error during InitializeWithProgressReporting for {GetType().Name}: {e.Message}{Environment.NewLine}{e.StackTrace}");
+                _logger?.LogDebug($"Error during InitializeWithProgressReporting for {GetType().Name}: {e.Message}{Environment.NewLine}{e.StackTrace}");
                 Status = GameControlStatus.Error;
                 Report($"Error initializing {GetType().Name}: {e.Message}", 1.0f);
                 throw;
@@ -134,7 +136,7 @@ namespace Client.Main.Scenes
             GameControl topmostInteractiveForScroll = null;
 
             // set scene's MouseControl (which is the target for scroll)
-            MouseControl = null; 
+            MouseControl = null;
 
             for (int i = Controls.Count - 1; i >= 0; i--)
             {
@@ -147,7 +149,7 @@ namespace Client.Main.Scenes
                     }
                     if (topmostInteractiveForScroll == null && uiCtrl.Interactive)
                     {
-                        topmostInteractiveForScroll = uiCtrl; 
+                        topmostInteractiveForScroll = uiCtrl;
                         // for scroll, we take the first topmost interactive one.
                         // clicks are handled by controls themselves now.
                     }
