@@ -12,6 +12,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 
@@ -171,8 +172,16 @@ namespace Client.Main.Controls
                 walker.NetworkId != 0 &&
                 walker.NetworkId != 0xFFFF)
             {
-                if (!WalkerObjectsById.TryAdd(walker.NetworkId, walker))
-                    _logger?.LogDebug($"Warning: Duplicate WalkerObject ID {walker.NetworkId:X4}");
+                if (WalkerObjectsById.TryGetValue(walker.NetworkId, out var existing))
+                {
+                    if (!ReferenceEquals(existing, walker))
+                    {
+                        _logger?.LogWarning("Replacing WalkerObject ID {Id:X4} - old: {OldType}, new: {NewType}",
+                                           walker.NetworkId, existing.GetType().Name, walker.GetType().Name);
+                        existing.Dispose(); // Dispose the old one
+                    }
+                }
+                WalkerObjectsById[walker.NetworkId] = walker; // Always update/add
             }
         }
 
@@ -182,24 +191,52 @@ namespace Client.Main.Controls
                 walker.NetworkId != 0 &&
                 walker.NetworkId != 0xFFFF)
             {
-                if (WalkerObjectsById.TryGetValue(walker.NetworkId, out var storedWalker) && ReferenceEquals(storedWalker, walker))
+                if (WalkerObjectsById.TryGetValue(walker.NetworkId, out var storedWalker))
                 {
-                    WalkerObjectsById.Remove(walker.NetworkId);
-                    // Consider logging this if needed, but it can be noisy during normal cleanup.
-                    // Debug.WriteLine($"WorldControl: WalkerObject {walker.NetworkId:X4} removed from WalkerObjectsById via OnObjectRemoved.");
-                }
-                else
-                {
-                    // This might happen if RemoveObject was called directly and already cleaned WalkerObjectsById, which is fine.
+                    // Only remove if it's the same object reference
+                    if (ReferenceEquals(storedWalker, walker))
+                    {
+                        WalkerObjectsById.Remove(walker.NetworkId);
+                        _logger?.LogTrace("Removed walker {Id:X4} from dictionary.", walker.NetworkId);
+                    }
+                    else
+                    {
+                        _logger?.LogDebug("Walker {Id:X4} removed from Objects but different object in dictionary.", walker.NetworkId);
+                    }
                 }
             }
         }
 
+        public void DebugListWalkers()
+        {
+            _logger?.LogDebug("=== Walker Debug Info ===");
+            _logger?.LogDebug("Objects collection count: {Count}", Objects.OfType<WalkerObject>().Count());
+            _logger?.LogDebug("WalkerObjectsById count: {Count}", WalkerObjectsById.Count);
+
+            foreach (var walker in Objects.OfType<WalkerObject>())
+            {
+                _logger?.LogDebug("Objects: {Type} {Id:X4}", walker.GetType().Name, walker.NetworkId);
+            }
+
+            foreach (var kvp in WalkerObjectsById)
+            {
+                _logger?.LogDebug("Dictionary: {Id:X4} -> {Type}", kvp.Key, kvp.Value.GetType().Name);
+            }
+
+            if (this is WalkableWorldControl walkable && walkable.Walker != null)
+            {
+                _logger?.LogDebug("Local player: {Type} {Id:X4}", walkable.Walker.GetType().Name, walkable.Walker.NetworkId);
+            }
+            _logger?.LogDebug("=== End Walker Debug ===");
+        }
+
         /// <summary>
         /// Attempts to retrieve a walker by its network ID.
+        /// Checks local player first, then dictionary, then full Objects search as fallback.
         /// </summary>
         public virtual bool TryGetWalkerById(ushort networkId, out WalkerObject walker)
         {
+            // First check: local player in WalkableWorldControl
             if (this is WalkableWorldControl walkable &&
                 walkable.Walker?.NetworkId == networkId)
             {
@@ -207,7 +244,33 @@ namespace Client.Main.Controls
                 return true;
             }
 
-            return WalkerObjectsById.TryGetValue(networkId, out walker);
+            // Second check: WalkerObjectsById dictionary
+            if (WalkerObjectsById.TryGetValue(networkId, out walker))
+            {
+                return true;
+            }
+
+            // Third check: fallback search in Objects collection
+            // This handles cases where object might be in Objects but not in dictionary
+            walker = Objects.OfType<WalkerObject>()
+                           .FirstOrDefault(w => w.NetworkId == networkId);
+
+            if (walker == null)
+                walker = Objects.OfType<PlayerObject>()
+                .FirstOrDefault(p => p.NetworkId == networkId);
+
+            if (walker != null)
+            {
+                // If found but not in dictionary, add it (sync issue fix)
+                if (!WalkerObjectsById.ContainsKey(networkId))
+                {
+                    WalkerObjectsById[networkId] = walker;
+                    _logger?.LogDebug("Sync fix: Added walker {Id:X4} to dictionary during lookup.", networkId);
+                }
+                return true;
+            }
+
+            return false;
         }
 
         public bool ContainsWalkerId(ushort networkId) =>

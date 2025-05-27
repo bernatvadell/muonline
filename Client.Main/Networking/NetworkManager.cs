@@ -63,6 +63,8 @@ namespace Client.Main.Networking
         public Task SendClientReadyAfterMapChangeAsync()
             => _characterService.SendClientReadyAfterMapChangeAsync();
 
+        public CharacterService GetCharacterService() => _characterService;
+
         // Constructors
         public NetworkManager(ILoggerFactory loggerFactory, MuOnlineSettings settings, CharacterState characterState, ScopeManager scopeManager)
         {

@@ -56,7 +56,7 @@ namespace Client.Main
                 public static readonly float MIN_PITCH = MathHelper.ToRadians(110); // Limit downward rotation
 
                 // Player movement speed
-                public const float MOVE_SPEED = 400f; // Default(?) walk speed
+                public const float MOVE_SPEED = 350f; // Default(?) walk speed
 
                 // Others
 

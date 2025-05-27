@@ -29,10 +29,10 @@ namespace Client.Main.Objects
         private int[] _blendMeshIndicesScratch;
 
         private bool _renderShadow = false;
-        private int _priorAction = 0;
+        protected int _priorAction = 0;
         private bool _invalidatedBuffers = true;
         private float _blendMeshLight = 1f;
-        private double _animTime = 0.0;
+        protected double _animTime = 0.0;
         private bool _contentLoaded = false;
         public float ShadowOpacity { get; set; } = 1f;
         public Color Color { get; set; } = Color.White;
@@ -776,7 +776,7 @@ namespace Client.Main.Objects
                     array[i] = defaultValue;
         }
 
-        protected void InvalidateBuffers()
+        public void InvalidateBuffers()
         {
             _invalidatedBuffers = true;
 

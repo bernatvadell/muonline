@@ -13,7 +13,7 @@ namespace Client.Main.Objects.Monsters
         public MonsterObject()
         {
             Interactive = true;
-            AnimationSpeed = 8f;
+            AnimationSpeed = 4f;
         }
 
         // --- Public Methods ---
