@@ -18,6 +18,9 @@ using Client.Main.Core.Utilities;
 using Client.Main.Networking.PacketHandling.Handlers; // For CharacterClassNumber
 using Client.Main.Controllers;
 using Microsoft.Extensions.Logging;
+using Client.Main.Controls.UI.Game.Inventory;
+using Client.Main.Helpers;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace Client.Main.Scenes
 {
@@ -32,6 +35,7 @@ namespace Client.Main.Scenes
         private ChatLogWindow _chatLog;
         private MoveCommandWindow _moveCommandWindow;
         private ChatInputBoxControl _chatInput;
+        private InventoryControl _inventoryControl; // Dodaj to pole
         private NotificationManager _notificationManager;
         private readonly (string Name, CharacterClassNumber Class, ushort Level) _characterInfo;
         private KeyboardState _previousKeyboardState;
@@ -89,6 +93,9 @@ namespace Client.Main.Scenes
             _notificationManager = new NotificationManager();
             Controls.Add(_notificationManager);
             _notificationManager.BringToFront();
+
+            _inventoryControl = new InventoryControl();
+            Controls.Add(_inventoryControl);
 
             // Initialize LoadingScreenControl here to show progress
             _loadingScreen = new LoadingScreenControl { Visible = true, Message = "Loading Game..." };
@@ -489,6 +496,27 @@ namespace Client.Main.Scenes
             bool isMoveCommandWindowFocused = FocusControl == _moveCommandWindow && _moveCommandWindow.Visible;
             bool isChatInputFocused = FocusControl == _chatInput && _chatInput.Visible;
 
+            if (!isChatInputFocused && !isMoveCommandWindowFocused)
+            {
+                if (currentKeyboardState.IsKeyDown(Keys.I) && !_previousKeyboardState.IsKeyDown(Keys.I))
+                {
+                    if (_inventoryControl.Visible)
+                        _inventoryControl.Hide();
+                    else
+                        _inventoryControl.Show();
+                    SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
+                }
+                if (currentKeyboardState.IsKeyDown(Keys.V) && !_previousKeyboardState.IsKeyDown(Keys.V))
+                {
+                    if (NpcShopControl.Instance.Visible)
+                        NpcShopControl.Instance.Visible = false;
+                    else
+                        NpcShopControl.Instance.Visible = true;
+
+                    SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
+                }
+            }
+
             if (!isMoveCommandWindowFocused && !isChatInputFocused)
             {
                 if (currentKeyboardState.IsKeyDown(Keys.M) && !_previousKeyboardState.IsKeyDown(Keys.M))
@@ -571,6 +599,24 @@ namespace Client.Main.Scenes
                 _loadingScreen?.Draw(gameTime);
                 return;
             }
+            
+            using (new SpriteBatchScope(
+                       GraphicsManager.Instance.Sprite,
+                       SpriteSortMode.Deferred,
+                       BlendState.AlphaBlend,
+                       SamplerState.PointClamp,
+                       DepthStencilState.None))
+            {
+                for (int i = 0; i < Controls.Count; i++)
+                {
+                    var ctrl = Controls[i];
+                    if (ctrl != World && ctrl != _inventoryControl?._pickedItemRenderer && ctrl.Visible) // Upewnij się, że _pickedItemRenderer nie jest null
+                        ctrl.Draw(gameTime);
+                }
+
+                _inventoryControl?._pickedItemRenderer?.Draw(gameTime);
+            }
+
             base.Draw(gameTime);
             _characterInfoWindow?.BringToFront();
         }
