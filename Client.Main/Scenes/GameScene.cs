@@ -43,6 +43,7 @@ namespace Client.Main.Scenes
         private readonly List<(ServerMessage.MessageType Type, string Message)> _pendingNotifications = new();
         private CharacterInfoWindowControl _characterInfoWindow;
         private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<GameScene>();
+        private MapNameControl _currentMapNameControl; // Track active map name display
 
         // ───────────────────────── Properties ─────────────────────────
         public PlayerObject Hero => _hero;
@@ -53,6 +54,42 @@ namespace Client.Main.Scenes
             { 1, typeof(DungeonWorld) },
             { 2, typeof(DeviasWorld) },
             { 3, typeof(NoriaWorld) },
+            { 51, typeof(ElvelandWorld) },
+            { 4, typeof(LostTowerWorld) },
+            // { 5, typeof(Exile) },
+            { 6, typeof(StadiumWorld) },
+            { 7, typeof(AtlansWorld) },
+            { 8, typeof(TarkanWorld) },
+            { 9, typeof(DevilSquareWorld) },
+            { 10, typeof(IcarusWorld) },
+            // { 11, typeof(BloodCastleWorld) },
+            // { 12, "Blood Castle 2" },
+            // { 13, "Blood Castle 3" },
+            // { 14, "Blood Castle 4" },
+            // { 15, "Blood Castle 5" },
+            // { 16, "Blood Castle 6" },
+            // { 17, "Blood Castle 7" },
+            // { 18, "Chaos Castle 1" },
+            // { 19, "Chaos Castle 2" },
+            // { 20, "Chaos Castle 3" },
+            // { 21, "Chaos Castle 4" },
+            // { 22, "Chaos Castle 5" },
+            // { 23, "Chaos Castle 6" },
+            // { 24, "Kalima 1" },
+            // { 25, "Kalima 2" },
+            // { 26, "Kalima 3" },
+            // { 27, "Kalima 4" },
+            // { 28, "Kalima 5" },
+            // { 29, "Kalima 6" },
+            { 30, typeof(World031World) },
+            { 31, typeof(World032World) },
+            // { 32, typeof(World033World)},
+            { 33, typeof(World034World) },
+            { 34, typeof(World035World) },
+            // { 36, typeof(World036World) },
+            // { 37, "Kantru1" },
+            // { 38, "Kantru2" },
+            // { 39, "Kantru3" },
             // Add additional maps according to mapId
         };
 
@@ -94,7 +131,7 @@ namespace Client.Main.Scenes
             Controls.Add(_notificationManager);
             _notificationManager.BringToFront();
 
-            _inventoryControl = new InventoryControl();
+            _inventoryControl = new InventoryControl(MuGame.Network);
             Controls.Add(_inventoryControl);
 
             // Initialize LoadingScreenControl here to show progress
@@ -357,9 +394,17 @@ namespace Client.Main.Scenes
 
             if (!string.IsNullOrEmpty(World.Name))
             {
-                var mapNameControl = new MapNameControl { LabelText = World.Name };
-                Controls.Add(mapNameControl);
-                mapNameControl.BringToFront();
+                // Hide previous map name control if exists
+                if (_currentMapNameControl != null)
+                {
+                    Controls.Remove(_currentMapNameControl);
+                    _currentMapNameControl = null;
+                }
+                
+                // Create and show new map name control
+                _currentMapNameControl = new MapNameControl { LabelText = World.Name };
+                Controls.Add(_currentMapNameControl);
+                _currentMapNameControl.BringToFront();
                 _chatLog.BringToFront();
                 _chatInput.BringToFront();
                 _mapListControl?.BringToFront();

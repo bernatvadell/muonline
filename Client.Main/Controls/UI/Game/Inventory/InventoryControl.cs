@@ -7,6 +7,8 @@ using Microsoft.Xna.Framework.Input;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Client.Main.Helpers; // For SpriteBatchScope
+using System;
+using Client.Main.Networking;
 
 namespace Client.Main.Controls.UI.Game.Inventory
 {
@@ -19,37 +21,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
         private const int WND_BOTTOM_EDGE = 8;
         private const int WND_RIGHT_EDGE = 9;
 
-        // Configurable inventory dimensions
-        private int _columns = 8;
-        private int _rows = 8;
-
-        public int Columns
-        {
-            get => _columns;
-            set
-            {
-                if (_columns != value)
-                {
-                    _columns = value;
-                    if (_items != null) // If already initialized
-                        InitializeGrid();
-                }
-            }
-        }
-
-        public int Rows
-        {
-            get => _rows;
-            set
-            {
-                if (_rows != value)
-                {
-                    _rows = value;
-                    if (_items != null) // If already initialized
-                        InitializeGrid();
-                }
-            }
-        }
+        // Fixed inventory dimensions (8x8)
+        public const int Columns = 8;
+        public const int Rows = 8;
 
         private LabelControl _zenLabel;
         private long _zenAmount = 0; // Player's ZEN amount
@@ -78,6 +52,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
         private Point _gridOffset = new Point(WND_LEFT_EDGE + 2, WND_TOP_EDGE + 38); // Grid offset inside the frame (adjust as needed)
 
         public PickedItemRenderer _pickedItemRenderer;
+        private readonly NetworkManager _networkManager;
         private InventoryItem _hoveredItem = null;
         private Point _hoveredSlot = new Point(-1, -1);
 
@@ -111,14 +86,11 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 UpdateZenLabelPosition();
         }
 
-        public InventoryControl(int columns = 8, int rows = 8)
+        public InventoryControl(NetworkManager networkManager)
         {
-            // First, initialize _items so setters can work correctly
+            // First, initialize _items
             _items = new List<InventoryItem>();
-
-            // Set dimensions privately, without calling setters
-            _columns = columns;
-            _rows = rows;
+            _networkManager = networkManager ?? throw new ArgumentNullException(nameof(networkManager));
 
             // Call InitializeGrid() manually
             InitializeGrid();
@@ -151,9 +123,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void UpdateZenLabel()
         {
+            var playerState = _networkManager.GetCharacterState();
             if (_zenLabel != null)
             {
-                _zenLabel.Text = $"ZEN: {_zenAmount}"; // Format with thousand separators
+                _zenLabel.Text = $"ZEN: {playerState.InventoryZen}"; // Format with thousand separators
                 UpdateZenLabelPosition();
             }
         }
@@ -211,6 +184,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         public void Show()
         {
+            UpdateZenLabel();
             Visible = true;
             BringToFront();
             Scene.FocusControl = this;
@@ -243,31 +217,48 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void PlaceItemOnGrid(InventoryItem item)
         {
+            if (item?.Definition == null) return;
+
             for (int y = 0; y < item.Definition.Height; y++)
             {
                 for (int x = 0; x < item.Definition.Width; x++)
                 {
-                    _itemGrid[item.GridPosition.X + x, item.GridPosition.Y + y] = item;
+                    int gridX = item.GridPosition.X + x;
+                    int gridY = item.GridPosition.Y + y;
+                    
+                    if (gridX < Columns && gridY < Rows)
+                    {
+                        _itemGrid[gridX, gridY] = item;
+                    }
                 }
             }
         }
 
         private void RemoveItemFromGrid(InventoryItem item)
         {
+            if (item?.Definition == null) return;
+
             for (int y = 0; y < item.Definition.Height; y++)
             {
                 for (int x = 0; x < item.Definition.Width; x++)
                 {
-                    _itemGrid[item.GridPosition.X + x, item.GridPosition.Y + y] = null;
+                    int gridX = item.GridPosition.X + x;
+                    int gridY = item.GridPosition.Y + y;
+                    
+                    if (gridX < Columns && gridY < Rows)
+                    {
+                        _itemGrid[gridX, gridY] = null;
+                    }
                 }
             }
         }
 
         private bool CanPlaceItem(InventoryItem itemToPlace, Point targetSlot)
         {
-            if (itemToPlace == null) return false;
+            if (itemToPlace == null || itemToPlace.Definition == null)
+                return false;
 
-            // Check inventory boundaries
+            // Check inventory boundaries using fixed constants
             if (targetSlot.X < 0 || targetSlot.Y < 0 ||
                 targetSlot.X + itemToPlace.Definition.Width > Columns ||
                 targetSlot.Y + itemToPlace.Definition.Height > Rows)
@@ -280,7 +271,13 @@ namespace Client.Main.Controls.UI.Game.Inventory
             {
                 for (int x = 0; x < itemToPlace.Definition.Width; x++)
                 {
-                    if (_itemGrid[targetSlot.X + x, targetSlot.Y + y] != null)
+                    int checkX = targetSlot.X + x;
+                    int checkY = targetSlot.Y + y;
+                    
+                    if (checkX >= Columns || checkY >= Rows)
+                        return false;
+                        
+                    if (_itemGrid[checkX, checkY] != null)
                     {
                         return false; // Slot is occupied
                     }
@@ -348,6 +345,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private Point GetSlotAtScreenPosition(Point screenPos)
         {
+            if (DisplayRectangle.Width <= 0 || DisplayRectangle.Height <= 0)
+                return new Point(-1, -1);
+
             Point localPos = new Point(screenPos.X - DisplayRectangle.X - _gridOffset.X,
                                        screenPos.Y - DisplayRectangle.Y - _gridOffset.Y);
 
@@ -358,7 +358,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 return new Point(-1, -1); // Outside grid
             }
 
-            return new Point(localPos.X / INVENTORY_SQUARE_WIDTH, localPos.Y / INVENTORY_SQUARE_HEIGHT);
+            return new Point(
+                Math.Min(Columns - 1, localPos.X / INVENTORY_SQUARE_WIDTH),
+                Math.Min(Rows - 1, localPos.Y / INVENTORY_SQUARE_HEIGHT)
+            );
         }
 
         public override void Draw(GameTime gameTime)
@@ -501,20 +504,13 @@ namespace Client.Main.Controls.UI.Game.Inventory
             // Check if the item can be placed here
             bool canPlace = CanPlaceItem(draggedItem, _hoveredSlot);
 
-            // Check if this specific slot is occupied
-            bool isSlotOccupied = IsSlotOccupied(slot);
-
             if (canPlace)
             {
                 return Color.GreenYellow * 0.5f; // Green - can drop
             }
-            else if (isSlotOccupied)
-            {
-                return Color.Red * 0.6f; // Red - slot occupied
-            }
             else
             {
-                return Color.Orange * 0.5f; // Orange - other obstacles (e.g., goes out of bounds)
+                return Color.Red * 0.6f; // Red - cannot drop
             }
         }
 

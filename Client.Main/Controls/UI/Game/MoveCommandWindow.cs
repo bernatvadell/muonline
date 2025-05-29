@@ -165,7 +165,7 @@ namespace Client.Main.Controls.UI.Game
             int requiredLevel = mapInfo.RequiredLevel;
             var charClass = playerState.Class;
 
-            if (charClass == CharacterClassNumber.DarkKnight || charClass == CharacterClassNumber.BladeKnight || charClass == CharacterClassNumber.BladeMaster ||
+            if (charClass == CharacterClassNumber.MagicGladiator || charClass == CharacterClassNumber.DuelMaster ||
                 charClass == CharacterClassNumber.DarkLord || charClass == CharacterClassNumber.LordEmperor ||
                 charClass == CharacterClassNumber.RageFighter || charClass == CharacterClassNumber.FistMaster)
             {

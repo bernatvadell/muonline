@@ -822,7 +822,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     if (player.CurrentAction != walkAction)
                     {
                         player.PlayAction((ushort)walkAction);
-                        _logger.LogDebug("Set walk animation {WalkAction} for player {Id:X4}", walkAction, maskedId);
+                        // _logger.LogDebug("Set walk animation {WalkAction} for player {Id:X4}", walkAction, maskedId);
                     }
 
                     return;
@@ -839,7 +839,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     if (walker.Model?.Actions?.Length > walkActionNpc)
                     {
                         walker.PlayAction(walkActionNpc);
-                        _logger.LogDebug("Set walk animation for NPC/monster {Id:X4}", maskedId);
+                        // _logger.LogDebug("Set walk animation for NPC/monster {Id:X4}", maskedId);
                     }
                 }
             });
