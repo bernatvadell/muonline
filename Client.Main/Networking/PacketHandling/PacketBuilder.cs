@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Text;
 using Client.Main.Core.Client;
+using MUnique.OpenMU.Network.Packets;
 using MUnique.OpenMU.Network.Packets.ClientToServer;
 using MUnique.OpenMU.Network.Packets.ConnectServer;
 
@@ -231,6 +232,25 @@ namespace Client.Main.Networking.PacketHandling
             packet.TargetId = targetId;
             packet.AttackAnimation = attackAnimation;
             packet.LookingDirection = lookingDirection;
+
+            return length;
+        }
+
+        /// <summary>
+        /// Builds a packet to request increasing a character's stat point.
+        /// </summary>
+        /// <param name="writer">The buffer writer to write the packet to.</param>
+        /// <param name="attribute">The attribute to increase.</param>
+        /// <returns>The length of the built packet.</returns>
+        public static int BuildIncreaseCharacterStatPointPacket(
+            IBufferWriter<byte> writer,
+            CharacterStatAttribute attribute)
+        {
+            int length = IncreaseCharacterStatPoint.Length;
+            var memory = writer.GetMemory(length).Slice(0, length);
+            var packet = new IncreaseCharacterStatPoint(memory);
+
+            packet.StatType = attribute;
 
             return length;
         }

@@ -4,6 +4,7 @@ using Client.Main.Networking.PacketHandling;
 using System;
 using System.Threading.Tasks;
 using MUnique.OpenMU.Network.Packets.ClientToServer;
+using MUnique.OpenMU.Network.Packets;
 
 namespace Client.Main.Networking.Services
 {
@@ -228,6 +229,30 @@ namespace Client.Main.Networking.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending hit request.");
+            }
+        }
+
+        /// <summary>
+        /// Sends a request to increase a specific character stat attribute.
+        /// </summary>
+        /// <param name="attribute">The attribute to be increased.</param>
+        public async Task SendIncreaseCharacterStatPointRequestAsync(CharacterStatAttribute attribute)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send stat increase request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending stat increase request for attribute: {Attribute}...", attribute);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() => PacketBuilder.BuildIncreaseCharacterStatPointPacket(_connectionManager.Connection.Output, attribute));
+                _logger.LogInformation("Stat increase request sent for attribute: {Attribute}.", attribute);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending stat increase request for attribute {Attribute}.", attribute);
             }
         }
     }
