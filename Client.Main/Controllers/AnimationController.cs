@@ -33,7 +33,7 @@ namespace Client.Main.Controllers
         {
             if (_oneShotEnded || !_currentOneShot.HasValue) return;
 
-            Debug.WriteLine($"[AnimCtrl] notification received → {_currentOneShot}");
+            // Debug.WriteLine($"[AnimCtrl] notification received → {_currentOneShot}");
 
             _forceReturnToIdle = true;
 
@@ -80,7 +80,7 @@ namespace Client.Main.Controllers
             float wait = real + BACKUP_MARGIN;
 
             _timer = new CancellationTokenSource();
-            Debug.WriteLine($"[AnimCtrl] backup {wait:F2}s for {idx}");
+            // Debug.WriteLine($"[AnimCtrl] backup {wait:F2}s for {idx}");
 
             Task.Delay(TimeSpan.FromSeconds(wait), _timer.Token).ContinueWith(t =>
             {
@@ -90,7 +90,7 @@ namespace Client.Main.Controllers
                 {
                     if (!_oneShotEnded && _currentOneShot == idx && !_forceReturnToIdle)
                     {
-                        Debug.WriteLine($"[AnimCtrl] backup fired → idle");
+                        // Debug.WriteLine($"[AnimCtrl] backup fired → idle");
                         ReturnToIdle();
                     }
                 });
@@ -106,7 +106,7 @@ namespace Client.Main.Controllers
             float hold = Math.Min(anim + DEATH_HOLD, DEATH_HOLD);
 
             _timer = new CancellationTokenSource();
-            Debug.WriteLine($"[AnimCtrl] death hold {hold:F2}s");
+            // Debug.WriteLine($"[AnimCtrl] death hold {hold:F2}s");
 
             Task.Delay(TimeSpan.FromSeconds(hold), _timer.Token).ContinueWith(t =>
             {
@@ -128,7 +128,7 @@ namespace Client.Main.Controllers
         /* ----------------------------------------------------------------- */
         private void ReturnToIdle()
         {
-            Debug.WriteLine($"[AnimCtrl] ReturnToIdle called");
+            // Debug.WriteLine($"[AnimCtrl] ReturnToIdle called");
 
             _oneShotEnded = true;
             _forceReturnToIdle = true;
@@ -148,7 +148,7 @@ namespace Client.Main.Controllers
                 _ => (ushort)MonsterActionType.Stop1
             };
 
-            Debug.WriteLine($"[AnimCtrl] Setting idle action: {_owner.CurrentAction} → {idle}");
+            // Debug.WriteLine($"[AnimCtrl] Setting idle action: {_owner.CurrentAction} → {idle}");
             _owner.CurrentAction = idle;
             _owner.InvalidateBuffers();
 

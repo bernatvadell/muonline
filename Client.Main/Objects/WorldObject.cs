@@ -277,7 +277,7 @@ namespace Client.Main.Objects
             MatrixChanged?.Invoke(this, EventArgs.Empty);
         }
 
-        private void DrawBoundingBox3D()
+        protected void DrawBoundingBox3D()
         {
             var draw = Constants.DRAW_BOUNDING_BOXES || (Interactive && Constants.DRAW_BOUNDING_BOXES_INTERACTIVES);
 
@@ -313,7 +313,7 @@ namespace Client.Main.Objects
             GraphicsDevice.DepthStencilState = previousDepthState;
         }
 
-        private void DrawBoundingBox2D()
+        protected void DrawBoundingBox2D()
         {
             if (!(Constants.DRAW_BOUNDING_BOXES && IsMouseHover && _font != null))
                 return;
@@ -425,5 +425,7 @@ namespace Client.Main.Objects
 
             BoundingBoxWorld = BoundingBox.CreateFromPoints(boundingBoxCorners);
         }
+
+        public virtual ushort NetworkId { get; protected set; }
     }
 }

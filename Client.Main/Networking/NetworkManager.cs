@@ -64,6 +64,7 @@ namespace Client.Main.Networking
             => _characterService.SendClientReadyAfterMapChangeAsync();
 
         public CharacterService GetCharacterService() => _characterService;
+        public TargetProtocolVersion TargetVersion => _packetRouter.TargetVersion;
 
         // Constructors
         public NetworkManager(ILoggerFactory loggerFactory, MuOnlineSettings settings, CharacterState characterState, ScopeManager scopeManager)

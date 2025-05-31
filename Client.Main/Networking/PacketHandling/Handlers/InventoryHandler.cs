@@ -4,6 +4,10 @@ using Client.Main.Core.Utilities;
 using System;
 using System.Threading.Tasks;
 using Client.Main.Core.Client;
+using Client.Main.Controllers;
+using System.Linq;
+using Client.Main.Controls.UI;
+using Client.Main.Models;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
@@ -92,6 +96,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 _characterState.AddOrUpdateInventoryItem(itemAdded.InventorySlot, data.ToArray());
                 string itemName = ItemDatabase.GetItemName(data) ?? "Unknown Item";
                 _logger.LogInformation("Picked up '{ItemName}' into slot {Slot}.", itemName, itemAdded.InventorySlot);
+                SoundController.Instance.PlayBuffer("Sound/pGetItem.wav");
             }
             catch (Exception ex)
             {
@@ -111,13 +116,42 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     return Task.CompletedTask;
                 }
                 var response = new ItemPickUpRequestFailed(packet);
-                string reason = response.FailReason switch
+
+                string messageToUser = string.Empty;
+                MessageType uiMessageType = MessageType.Error; // Domyślnie błąd
+
+                switch (response.FailReason)
                 {
-                    ItemPickUpRequestFailed.ItemPickUpFailReason.General => "Failed to pick up item.",
-                    ItemPickUpRequestFailed.ItemPickUpFailReason.ItemStacked => "Failed to pick up: item stacked.",
-                    _ => $"Pick-up failed (Reason: {response.FailReason})."
-                };
-                _logger.LogWarning(reason);
+                    case ItemPickUpRequestFailed.ItemPickUpFailReason.ItemStacked:
+                        _logger.LogInformation("Item pick-up succeeded by stacking. Waiting for further inventory updates.");
+                        return Task.CompletedTask;
+
+                    case ItemPickUpRequestFailed.ItemPickUpFailReason.__MaximumInventoryMoneyReached:
+                        messageToUser = "Your inventory is full (money limit reached).";
+                        break;
+
+                    case ItemPickUpRequestFailed.ItemPickUpFailReason.General:
+                        messageToUser = "Item pick-up failed: General server error.";
+                        break;
+                    default:
+                        messageToUser = $"Item pick-up failed for unknown reason: {response.FailReason}.";
+                        break;
+                }
+
+                _logger.LogWarning(messageToUser);
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
+                    if (gameScene != null)
+                    {
+                        var chatLog = gameScene.Controls.OfType<ChatLogWindow>().FirstOrDefault();
+                        if (chatLog != null)
+                        {
+                            chatLog.AddMessage("System", messageToUser, uiMessageType);
+                        }
+                    }
+                });
             }
             catch (Exception ex)
             {

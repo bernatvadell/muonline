@@ -25,8 +25,32 @@ namespace Client.Main.Objects.Player
         public Vector2? SitPlaceTarget { get; set; }
 
         public string Name { get; set; } = "Character";
-        public ushort NetworkId { get; set; }
+        private ushort _networkId; // Private backing field
 
+        public ushort NetworkId
+        {
+            get => _networkId;
+            set
+            {
+                if (_networkId != value)
+                {
+                    _logger?.LogDebug($"PlayerObject {Name}: Setting NetworkId from {_networkId:X4} to {value:X4}");
+                    _networkId = value;
+
+                    // This ensures both the PlayerObject and its base WalkerObject have the same NetworkId
+                    if (this is WorldObject worldObj)
+                    {
+                        // Use reflection or direct property access if NetworkId exists in base class
+                        var baseNetworkIdProperty = typeof(WalkerObject).GetProperty("NetworkId") ?? typeof(WorldObject).GetProperty("NetworkId");
+                        if (baseNetworkIdProperty != null && baseNetworkIdProperty.CanWrite)
+                        {
+                            baseNetworkIdProperty.SetValue(this, value);
+                            _logger?.LogDebug($"PlayerObject {Name}: Also set base class NetworkId to {value:X4}");
+                        }
+                    }
+                }
+            }
+        }
         private CharacterService _characterService;
         private NetworkManager _networkManager;
 
@@ -63,6 +87,8 @@ namespace Client.Main.Objects.Player
 
         public PlayerObject()
         {
+            _networkId = 0x0000;
+
             BoundingBoxLocal = new BoundingBox(
                 new Vector3(-40, -40, 0),
                 new Vector3(40, 40, 120));
@@ -91,8 +117,6 @@ namespace Client.Main.Objects.Player
             _networkManager = MuGame.Network;
             if (_networkManager != null && MuGame.AppLoggerFactory != null)
             {
-                // Assuming NetworkManager has a public method to get the CharacterService instance
-                // This is a cleaner approach than PlayerObject trying to new-up services.
                 _characterService = _networkManager.GetCharacterService();
                 if (_characterService == null)
                 {
@@ -107,7 +131,10 @@ namespace Client.Main.Objects.Player
 
         public override async Task Load()
         {
-            _logger?.LogDebug($"PlayerObject {Name}: Load() started. Current _characterClass: {_characterClass}");
+            _logger?.LogDebug($"PlayerObject {Name}: Load() started. Current _characterClass: {_characterClass}, NetworkId: {_networkId:X4}");
+
+            ushort preservedNetworkId = _networkId;
+
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
             if (Model == null)
             {
@@ -123,6 +150,12 @@ namespace Client.Main.Objects.Player
             await base.Load();
             _logger?.LogDebug($"PlayerObject {Name}: base.Load() completed.");
 
+            if (_networkId != preservedNetworkId)
+            {
+                _logger?.LogWarning($"PlayerObject {Name}: NetworkId was changed during Load() from {preservedNetworkId:X4} to {_networkId:X4}. Restoring original value.");
+                NetworkId = preservedNetworkId;
+            }
+
             foreach (var child in Children)
             {
                 if (child is ModelObject modelChild)
@@ -130,7 +163,7 @@ namespace Client.Main.Objects.Player
                     _logger?.LogDebug($"{modelChild.GetType().Name}: Status={modelChild.Status}, Model={(modelChild.Model != null ? "OK" : "NULL")}");
                 }
             }
-            _logger?.LogDebug($"PlayerObject {Name}: Status after load: {Status}");
+            _logger?.LogDebug($"PlayerObject {Name}: Status after load: {Status}, Final NetworkId: {_networkId:X4}");
         }
 
 
