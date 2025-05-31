@@ -65,19 +65,7 @@ namespace Client.Main
             }
         }
 
-        public void RemoveAt(int index)
-        {
-            T control;
-            lock (_lock)
-            {
-                control = _controls[index];
-                _controls.RemoveAt(index);
-            }
-
-            control.Parent = null;
-            ControlRemoved?.Invoke(this, new ChildrenEventArgs<T>(control));
-        }
-
+        // Add a strongly-typed Add for IChildItem<T> controls
         public void Add(T control)
         {
             lock (_lock)
@@ -85,8 +73,19 @@ namespace Client.Main
                 control.Parent = Parent;
                 _controls.Add(control);
             }
-
             ControlAdded?.Invoke(this, new ChildrenEventArgs<T>(control));
+        }
+
+        internal void Add(object value)
+        {
+            if (value is T control)
+            {
+                Add(control);
+            }
+            else
+            {
+                throw new ArgumentException($"Value must be of type {typeof(T).Name}");
+            }
         }
 
         public void Insert(int index, T control)
@@ -121,22 +120,6 @@ namespace Client.Main
             return this.GetEnumerator();
         }
 
-        public void Clear()
-        {
-            T[] controls;
-            lock (_lock)
-            {
-                controls = _controls.ToArray();
-                _controls.Clear();
-            }
-
-            foreach (var control in controls)
-            {
-                control.Parent = null;
-                ControlRemoved?.Invoke(this, new ChildrenEventArgs<T>(control));
-            }
-        }
-
         public bool Contains(T item)
         {
             lock (_lock)
@@ -165,19 +148,52 @@ namespace Client.Main
             {
                 control.Parent = null;
                 ControlRemoved?.Invoke(this, new ChildrenEventArgs<T>(control));
+
+                if (control is Client.Main.Objects.WorldObject wo)
+                    wo.Dispose();
             }
 
             return removed;
         }
 
+        public void RemoveAt(int index)
+        {
+            T control;
+            lock (_lock)
+            {
+                control = _controls[index];
+                _controls.RemoveAt(index);
+            }
+
+            control.Parent = null;
+            ControlRemoved?.Invoke(this, new ChildrenEventArgs<T>(control));
+
+            if (control is Client.Main.Objects.WorldObject wo)
+                wo.Dispose();
+        }
+
+        public void Clear()
+        {
+            T[] controls;
+            lock (_lock)
+            {
+                controls = _controls.ToArray();
+                _controls.Clear();
+            }
+
+            foreach (var control in controls)
+            {
+                control.Parent = null;
+                ControlRemoved?.Invoke(this, new ChildrenEventArgs<T>(control));
+
+                if (control is Client.Main.Objects.WorldObject wo)
+                    wo.Dispose();
+            }
+        }
+
         bool ICollection<T>.Remove(T control)
         {
             return this.Remove(control);
-        }
-
-        internal void Add(object value)
-        {
-            throw new NotImplementedException();
         }
     }
 }

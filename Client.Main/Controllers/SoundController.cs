@@ -73,7 +73,19 @@ namespace Client.Main.Controllers
 
         public void PreloadBackgroundMusic(string relativePath)
         {
-            if (!Constants.BACKGROUND_MUSIC || string.IsNullOrEmpty(relativePath))
+            if ((!Constants.BACKGROUND_MUSIC && !Constants.SOUND_EFFECTS) || string.IsNullOrEmpty(relativePath))
+                return;
+
+            LoadSoundEffectData(Path.Combine(Constants.DataPath, relativePath));
+        }
+
+        /// <summary>
+        /// Preloads a sound effect into the cache to avoid loading delays during playback.
+        /// This is a new, more generic method name.
+        /// </summary>
+        public void PreloadSound(string relativePath)
+        {
+            if ((!Constants.BACKGROUND_MUSIC && !Constants.SOUND_EFFECTS) || string.IsNullOrEmpty(relativePath))
                 return;
 
             LoadSoundEffectData(Path.Combine(Constants.DataPath, relativePath));

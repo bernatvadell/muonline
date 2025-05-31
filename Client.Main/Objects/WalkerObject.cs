@@ -199,7 +199,7 @@ namespace Client.Main.Objects
             if (_priorAction != currentActionIndex)
             {
                 _animTime = 0.0;
-                Debug.WriteLine($"[WalkerObject] Animation change: {_priorAction} → {currentActionIndex} ({animType})");
+                // Debug.WriteLine($"[WalkerObject] Animation change: {_priorAction} → {currentActionIndex} ({animType})");
             }
 
             double framePos;
@@ -220,7 +220,7 @@ namespace Client.Main.Objects
 
                     if (_animTime >= totalFrames - 1.0f)
                     {
-                        Debug.WriteLine($"[WalkerObject] One-shot animation reached end at frame {_animTime:F2}/{totalFrames}");
+                        // Debug.WriteLine($"[WalkerObject] One-shot animation reached end at frame {_animTime:F2}/{totalFrames}");
                         _animationController?.NotifyAnimationCompleted();
                         framePos = totalFrames - 0.0001f; // Ostatnia klatka
                     }
@@ -498,7 +498,7 @@ namespace Client.Main.Objects
                 if (_animationController?.IsOneShotPlaying == true)
                 {
                     // Don't override the animation if a one-shot is playing
-                    Debug.WriteLine($"[WalkerObject] Monster one-shot animation is playing, not overriding with walk animation");
+                    // Debug.WriteLine($"[WalkerObject] Monster one-shot animation is playing, not overriding with walk animation");
                     return;
                 }
 
@@ -512,7 +512,7 @@ namespace Client.Main.Objects
 
                 if (CurrentAction != moveAction)
                 {
-                    Debug.WriteLine($"[WalkerObject] Monster starting walk animation: {moveAction}");
+                    // Debug.WriteLine($"[WalkerObject] Monster starting walk animation: {moveAction}");
                     PlayAction((byte)moveAction);
                 }
             }

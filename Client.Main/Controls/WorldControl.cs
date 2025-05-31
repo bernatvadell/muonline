@@ -368,7 +368,7 @@ namespace Client.Main.Controls
 
         // --- View Frustum & Culling ---
 
-        private bool IsObjectInView(WorldObject obj)
+        public bool IsObjectInView(WorldObject obj)
         {
             var pos3 = obj.WorldPosition.Translation;
             var cam = Camera.Instance;

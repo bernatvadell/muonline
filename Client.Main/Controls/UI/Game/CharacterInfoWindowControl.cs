@@ -11,14 +11,16 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using MUnique.OpenMU.Network.Packets; // For CharacterClassNumber
 using System.Threading.Tasks;
+using System.Threading;
 using Client.Main.Helpers;
+using System;
 
 namespace Client.Main.Controls.UI.Game
 {
     public class CharacterInfoWindowControl : UIControl
     {
-        private const int WINDOW_WIDTH = 190; 
-        private const int WINDOW_HEIGHT = 429; 
+        private const int WINDOW_WIDTH = 190;
+        private const int WINDOW_HEIGHT = 429;
 
         private const int HEIGHT_STRENGTH = 120;
         private const int HEIGHT_DEXTERITY = 175;
@@ -28,7 +30,7 @@ namespace Client.Main.Controls.UI.Game
         private const int BTN_STAT_COUNT = 5;
 
         private CharacterState _characterState;
-        private NetworkManager _networkManager;
+        private NetworkManager _networkManager; // Changed to non-readonly to allow re-initialization
         private ILogger<CharacterInfoWindowControl> _logger;
 
         // UI Elements
@@ -62,11 +64,19 @@ namespace Client.Main.Controls.UI.Game
             Interactive = true;
             Visible = false; // Start hidden
             VisibilityChanged += (s, e) => { if (Visible) OpenningProcess(); };
+
+            // Initialize NetworkManager here. Ensure it's globally available in MuGame.
+            _networkManager = MuGame.Network;
+            if (_networkManager == null)
+            { _logger.LogWarning("NetworkManager is null in CharacterInfoWindowControl constructor. Stat increase functionality may not work."); }
         }
 
-        public override async Task Load()
+        public override Task Load()
         {
             _characterState = MuGame.Network.GetCharacterState();
+            _networkManager = MuGame.Network;
+
+            // Ensure _networkManager is re-initialized in Load, in case it was null earlier.
             _networkManager = MuGame.Network;
 
             // Load Textures
@@ -77,14 +87,40 @@ namespace Client.Main.Controls.UI.Game
             _rightFrame = new TextureControl { TexturePath = "Interface/newui_item_back02-R.tga", ViewSize = new Point(21, 320), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
             _bottomFrame = new TextureControl { TexturePath = "Interface/newui_item_back03.tga", ViewSize = new Point(WINDOW_WIDTH, 45), AutoViewSize = false, BlendState = BlendState.AlphaBlend }; // Should be 190x45
 
-            _texTableTopLeft = await tl.PrepareAndGetTexture("Interface/newui_item_table01(L).tga");
-            _texTableTopRight = await tl.PrepareAndGetTexture("Interface/newui_item_table01(R).tga");
-            _texTableBottomLeft = await tl.PrepareAndGetTexture("Interface/newui_item_table02(L).tga");
-            _texTableBottomRight = await tl.PrepareAndGetTexture("Interface/newui_item_table02(R).tga");
-            _texTableTopHorizontalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(Up).tga");
-            _texTableBottomHorizontalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(Dw).tga");
-            _texTableLeftVerticalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(L).tga");
-            _texTableRightVerticalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(R).tga");
+            // Capture the current synchronization context (main thread)
+            var context = SynchronizationContext.Current;
+            if (context == null)
+            {
+                // Fallback to thread pool if there's no context (shouldn't happen in game)
+                context = new SynchronizationContext();
+            }
+
+            // Start a task to load the textures in the background
+            Task.Run(async () =>
+            {
+                // Load each texture asynchronously
+                var texTableTopLeft = await tl.PrepareAndGetTexture("Interface/newui_item_table01(L).tga");
+                var texTableTopRight = await tl.PrepareAndGetTexture("Interface/newui_item_table01(R).tga");
+                var texTableBottomLeft = await tl.PrepareAndGetTexture("Interface/newui_item_table02(L).tga");
+                var texTableBottomRight = await tl.PrepareAndGetTexture("Interface/newui_item_table02(R).tga");
+                var texTableTopHorizontalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(Up).tga");
+                var texTableBottomHorizontalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(Dw).tga");
+                var texTableLeftVerticalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(L).tga");
+                var texTableRightVerticalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(R).tga");
+
+                // Post the results to the main thread
+                context.Post(_ =>
+                {
+                    _texTableTopLeft = texTableTopLeft;
+                    _texTableTopRight = texTableTopRight;
+                    _texTableBottomLeft = texTableBottomLeft;
+                    _texTableBottomRight = texTableBottomRight;
+                    _texTableTopHorizontalLinePixel = texTableTopHorizontalLinePixel;
+                    _texTableBottomHorizontalLinePixel = texTableBottomHorizontalLinePixel;
+                    _texTableLeftVerticalLinePixel = texTableLeftVerticalLinePixel;
+                    _texTableRightVerticalLinePixel = texTableRightVerticalLinePixel;
+                }, null);
+            });
 
             Controls.Add(_background);
             Controls.Add(_topFrame);
@@ -104,7 +140,7 @@ namespace Client.Main.Controls.UI.Game
             _expLabel = new LabelControl { X = 22, Y = 75 - 7, FontSize = 9f, TextColor = Color.WhiteSmoke };
             _fruitPointsProbLabel = new LabelControl { X = 22, Y = 88 - 7, FontSize = 9f, TextColor = new Color(76, 197, 254) };
             _fruitPointsStatsLabel = new LabelControl { X = 22, Y = 101 - 7, FontSize = 9f, TextColor = new Color(76, 197, 254) };
-            _statPointsLabel = new LabelControl { X = 120, Y = 58 - 7, FontSize = 10f, IsBold = true, TextColor = new Color(255, 138, 0) }; // Adjusted X
+            _statPointsLabel = new LabelControl { X = 110, Y = 58 - 7, FontSize = 10f, IsBold = true, TextColor = new Color(255, 138, 0) }; // Adjusted X
             Controls.Add(_levelLabel);
             Controls.Add(_expLabel);
             Controls.Add(_fruitPointsProbLabel);
@@ -179,7 +215,7 @@ namespace Client.Main.Controls.UI.Game
             Controls.Add(_masterLevelButton);
 
             SetupLayout();
-            await base.Load();
+            return base.Load();
         }
 
         private ButtonControl CreateBottomButton(int xOffset, string texturePath, string tooltip)
@@ -239,10 +275,54 @@ namespace Client.Main.Controls.UI.Game
         private void OnStatButtonClicked(int statIndex)
         {
             _logger.LogInformation($"Stat button {statIndex} clicked.");
-            SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
-            if (_networkManager.CurrentState >= ClientConnectionState.InGame)
+            SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on click.
+
+            // Check network connection and game state
+            if (_networkManager == null || !_networkManager.IsConnected || _networkManager.CurrentState < ClientConnectionState.InGame)
             {
-                _logger.LogInformation($"TODO: Implement actual stat increase network request for stat index {statIndex}");
+                _logger.LogWarning("Cannot increase stat: Not connected to game server or invalid state.");
+                MessageWindow.Show("Cannot add stat points: Not connected to server or not in game.");
+                return;
+            }
+
+            // Map stat index to CharacterStatAttribute enum
+            CharacterStatAttribute attributeToSend = statIndex switch
+            {
+                0 => CharacterStatAttribute.Strength,
+                1 => CharacterStatAttribute.Agility,
+                2 => CharacterStatAttribute.Vitality,
+                3 => CharacterStatAttribute.Energy,
+                4 => CharacterStatAttribute.Leadership,
+                _ => throw new ArgumentOutOfRangeException(nameof(statIndex), $"Invalid stat index: {statIndex}")
+            };
+
+            // Client-side validation: Check for available points
+            if (_characterState.LevelUpPoints <= 0)
+            {
+                _logger.LogInformation("No available points to distribute for {Attribute}.", attributeToSend);
+                MessageWindow.Show("No available stat points.");
+                return;
+            }
+
+            // Specific validation for Leadership (only for Dark Lord)
+            if (attributeToSend == CharacterStatAttribute.Leadership && !(_characterState.Class == CharacterClassNumber.DarkLord || _characterState.Class == CharacterClassNumber.LordEmperor))
+            {
+                _logger.LogInformation("Cannot add Leadership points for non-Dark Lord character.");
+                MessageWindow.Show("Only Dark Lords can add Leadership points.");
+                return;
+            }
+
+            // Send request to server
+            var characterService = _networkManager.GetCharacterService();
+            if (characterService != null)
+            {
+                _ = characterService.SendIncreaseCharacterStatPointRequestAsync(attributeToSend);
+                _logger.LogInformation("Sent request to add point to {Attribute}.", attributeToSend);
+            }
+            else
+            {
+                _logger.LogError("CharacterService is null. Cannot send stat increase request.");
+                MessageWindow.Show("Internal error: Could not add points.");
             }
         }
 
@@ -287,7 +367,8 @@ namespace Client.Main.Controls.UI.Game
             {
                 _levelLabel.Text = $"Level: {_characterState.Level}";
                 _expLabel.Text = $"Exp: {_characterState.Experience} / {_characterState.ExperienceForNextLevel}";
-                _statPointsLabel.Text = _characterState.LevelUpPoints > 0 ? $"Point: {_characterState.LevelUpPoints}" : "";
+                _statPointsLabel.Text = $"Points: {_characterState.LevelUpPoints}";
+                _statPointsLabel.Visible = true;
             }
             _fruitPointsProbLabel.Text = "[+]100%|[-]100%";
             _fruitPointsStatsLabel.Text = "Create 0/0 | Decrease 0/0";
@@ -405,14 +486,14 @@ namespace Client.Main.Controls.UI.Game
                 for (int x = tableX + cornerSize; x < tableX + tableWidth - cornerSize; x++)
                 { // Top border line
                     sb.Draw(_texTableTopHorizontalLinePixel, new Rectangle(x, tableY, 1, _texTableTopHorizontalLinePixel.Height), Color.White);
-                } 
+                }
             }
             if (_texTableBottomHorizontalLinePixel != null && _texTableBottomHorizontalLinePixel.Height > 0) // Bottom border line
             {
-                 for (int x = tableX + cornerSize; x < tableX + tableWidth - cornerSize; x++)
-                 {
+                for (int x = tableX + cornerSize; x < tableX + tableWidth - cornerSize; x++)
+                {
                     sb.Draw(_texTableBottomHorizontalLinePixel, new Rectangle(x, tableY + tableHeight - _texTableBottomHorizontalLinePixel.Height, 1, _texTableBottomHorizontalLinePixel.Height), Color.White);
-                 }
+                }
             }
 
             if (_texTableLeftVerticalLinePixel != null && _texTableLeftVerticalLinePixel.Width > 0) // Left border line
@@ -424,10 +505,10 @@ namespace Client.Main.Controls.UI.Game
             }
             if (_texTableRightVerticalLinePixel != null && _texTableRightVerticalLinePixel.Width > 0) // Right border line
             {
-                 for (int y = tableY + cornerSize; y < tableY + tableHeight - cornerSize; y++)
-                 {
+                for (int y = tableY + cornerSize; y < tableY + tableHeight - cornerSize; y++)
+                {
                     sb.Draw(_texTableRightVerticalLinePixel, new Rectangle(tableX + tableWidth - _texTableRightVerticalLinePixel.Width, y, _texTableRightVerticalLinePixel.Width, 1), Color.White);
-                 }
+                }
             }
         }
 

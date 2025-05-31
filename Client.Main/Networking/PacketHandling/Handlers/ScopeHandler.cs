@@ -16,6 +16,7 @@ using Client.Main.Objects;
 using Client.Main.Objects.Effects;
 using Client.Main.Core.Client;
 using Client.Main.Scenes;
+using Client.Main.Controllers;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
@@ -30,6 +31,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         private readonly CharacterState _characterState;
         private readonly NetworkManager _networkManager;
         private readonly TargetProtocolVersion _targetVersion;
+        private readonly ILoggerFactory _loggerFactory;
 
         private static readonly List<NpcScopeObject> _pendingNpcsMonsters = new List<NpcScopeObject>();
         private static readonly List<PlayerScopeObject> _pendingPlayers = new List<PlayerScopeObject>();
@@ -47,6 +49,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             _characterState = characterState;
             _networkManager = networkManager;
             _targetVersion = targetVersion;
+            _loggerFactory = loggerFactory;
         }
 
         // ───────────────────── Internal API ────────────────────────
@@ -514,7 +517,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     byte x = item.PositionX;
                     byte y = item.PositionY;
                     var data = item.ItemData;
-                    bool isMoney = data.Length >= 6 && data[0] == 15 && (data[5] >> 4) == 14;
+                    bool isMoney = data.Length >= 6 && data[0] == 15 && (data[5] >> 4) == 14; // Money is ItemGroup 14, ItemId 15
                     ScopeObject dropObj;
 
                     if (isMoney)
@@ -523,17 +526,73 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         dropObj = new MoneyScopeObject(maskedId, rawId, x, y, amount);
                         _scopeManager.AddOrUpdateMoneyInScope(maskedId, rawId, x, y, amount);
                         _logger.LogDebug("Dropped Money: Amount={Amount}, ID={Id:X4}", amount, maskedId);
+
+                        // Schedule on main thread for visual update and sound
+                        MuGame.ScheduleOnMainThread(async () =>
+                        {
+                            if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl w) return;
+                            // Remove existing visual object if it's already there (e.g., from a previous packet re-send)
+                            var existing = w.Objects.OfType<DroppedItemObject>().FirstOrDefault(d => d.NetworkId == maskedId);
+                            if (existing != null)
+                            {
+                                w.Objects.Remove(existing);
+                                existing.Dispose();
+                            }
+                            // Create and add the new visual object
+                            var obj = new DroppedItemObject(dropObj, _characterState.Id, _networkManager.GetCharacterService(), _loggerFactory.CreateLogger<DroppedItemObject>());
+                            w.Objects.Add(obj); // Add the object to the world's objects collection
+                            await obj.Load(); // Ensure its assets are loaded
+
+                            SoundController.Instance.PlayBufferWithAttenuation("Sound/pDropMoney.wav", obj.Position, w.Walker.Position); // Play money drop sound
+                            // Initial visibility check (hide if too far or out of view initially)
+                            obj.Hidden = !w.IsObjectInView(obj);
+                            _logger.LogDebug($"Spawned dropped money ({obj.DisplayName}) at {obj.Position.X},{obj.Position.Y},{obj.Position.Z}. RawId: {obj.RawId:X4}, MaskedId: {obj.NetworkId:X4}");
+                        });
                     }
                     else
                     {
                         dropObj = new ItemScopeObject(maskedId, rawId, x, y, data.ToArray());
                         _scopeManager.AddOrUpdateItemInScope(maskedId, rawId, x, y, data.ToArray());
                         _logger.LogDebug("Dropped Item: ID={Id:X4}, DataLen={Len}", maskedId, data.Length);
+
+                        // Schedule on main thread for visual update and sound
+                        MuGame.ScheduleOnMainThread(async () =>
+                        {
+                            if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl w) return;
+                            // Remove existing visual object if it's already there
+                            var existing = w.Objects.OfType<DroppedItemObject>().FirstOrDefault(d => d.NetworkId == maskedId);
+                            if (existing != null)
+                            {
+                                w.Objects.Remove(existing);
+                                existing.Dispose();
+                            }
+
+                            // Play drop sound based on item type (Jewel vs. Generic)
+                            byte[] dataCopy = item.ItemData.ToArray(); // Create a defensive copy
+                            string itemName = ItemDatabase.GetItemName(dataCopy) ?? string.Empty;
+
+                            var obj = new DroppedItemObject(dropObj, _characterState.Id, _networkManager.GetCharacterService(), _loggerFactory.CreateLogger<DroppedItemObject>());
+                            w.Objects.Add(obj); // Add the object to the world's objects collection
+                            await obj.Load(); // Ensure its assets are loaded
+
+                            if (itemName.StartsWith("Jewel", StringComparison.OrdinalIgnoreCase))
+                            {
+                                SoundController.Instance.PlayBufferWithAttenuation("Sound/pGem.wav", obj.Position, w.Walker.Position); // Play jewel drop sound
+                            }
+                            else
+                            {
+                                SoundController.Instance.PlayBufferWithAttenuation("Sound/pDropItem.wav", obj.Position, w.Walker.Position); // Play generic item drop sound
+                            }
+                            // Initial visibility check
+                            obj.Hidden = !w.IsObjectInView(obj);
+                            _logger.LogDebug($"Spawned dropped item ({obj.DisplayName}) at {obj.Position.X},{obj.Position.Y},{obj.Position.Z}. RawId: {obj.RawId:X4}, MaskedId: {obj.NetworkId:X4}");
+                        });
                     }
                 }
             }
             else if (_targetVersion == TargetProtocolVersion.Version075)
             {
+                // This block also needs to play sounds, similar to S6+ logic
                 if (packet.Length < MoneyDropped075.Length)
                 {
                     _logger.LogWarning("Dropped Object packet too short: {Length}", packet.Length);
@@ -550,14 +609,32 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     byte y = legacy.PositionY;
                     ScopeObject dropObj;
 
-                    if (legacy.MoneyGroup == 14 && legacy.MoneyNumber == 15)
+                    if (legacy.MoneyGroup == 14 && legacy.MoneyNumber == 15) // Money identification
                     {
                         uint amount = legacy.Amount;
                         dropObj = new MoneyScopeObject(maskedId, rawId, x, y, amount);
                         _scopeManager.AddOrUpdateMoneyInScope(maskedId, rawId, x, y, amount);
                         _logger.LogDebug("Dropped Money (0.75): Amount={Amount}, ID={Id:X4}", amount, maskedId);
+
+                        MuGame.ScheduleOnMainThread(async () =>
+                        {
+                            if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl w) return;
+                            var existing = w.Objects.OfType<DroppedItemObject>().FirstOrDefault(d => d.NetworkId == maskedId);
+                            if (existing != null)
+                            {
+                                w.Objects.Remove(existing);
+                                existing.Dispose();
+                            }
+                            var newScopeObject = new MoneyScopeObject(maskedId, rawId, x, y, amount);
+                            var obj = new DroppedItemObject(newScopeObject, _characterState.Id, _networkManager.GetCharacterService());
+                            w.Objects.Add(obj);
+                            await obj.Load();
+                            SoundController.Instance.PlayBufferWithAttenuation("Sound/pDropMoney.wav", obj.Position, w.Walker.Position); // Sound for money
+                            obj.Hidden = !w.IsObjectInView(obj);
+                            _logger.LogDebug($"Spawned dropped money (0.75) ({obj.DisplayName}) at {obj.Position.X},{obj.Position.Y},{obj.Position.Z}. RawId: {obj.RawId:X4}, MaskedId: {obj.NetworkId:X4}");
+                        });
                     }
-                    else
+                    else // Item identification
                     {
                         const int dataOffset = 9, dataLen075 = 7;
                         if (packet.Length >= dataOffset + dataLen075)
@@ -566,6 +643,32 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             dropObj = new ItemScopeObject(maskedId, rawId, x, y, data);
                             _scopeManager.AddOrUpdateItemInScope(maskedId, rawId, x, y, data);
                             _logger.LogDebug("Dropped Item (0.75): ID={Id:X4}, DataLen={Len}", maskedId, dataLen075);
+
+                            MuGame.ScheduleOnMainThread(async () =>
+                            {
+                                if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl w) return;
+                                var existing = w.Objects.OfType<DroppedItemObject>().FirstOrDefault(d => d.NetworkId == maskedId);
+                                if (existing != null)
+                                {
+                                    w.Objects.Remove(existing);
+                                    existing.Dispose();
+                                }
+                                var newScopeObject = new ItemScopeObject(maskedId, rawId, x, y, data);
+                                var obj = new DroppedItemObject(newScopeObject, _characterState.Id, _networkManager.GetCharacterService());
+                                w.Objects.Add(obj);
+                                await obj.Load();
+                                string itemName = ItemDatabase.GetItemName(data) ?? string.Empty;
+                                if (itemName.StartsWith("Jewel", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    SoundController.Instance.PlayBufferWithAttenuation("Sound/pGem.wav", obj.Position, w.Walker.Position); // Sound for jewel
+                                }
+                                else
+                                {
+                                    SoundController.Instance.PlayBufferWithAttenuation("Sound/pDropItem.wav", obj.Position, w.Walker.Position); // Sound for generic item
+                                }
+                                obj.Hidden = !w.IsObjectInView(obj);
+                                _logger.LogDebug($"Spawned dropped item (0.75) ({obj.DisplayName}) at {obj.Position.X},{obj.Position.Y},{obj.Position.Z}. RawId: {obj.RawId:X4}, MaskedId: {obj.NetworkId:X4}");
+                            });
                         }
                         else
                         {
@@ -602,7 +705,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         private void ParseAndRemoveDroppedItemsFromScope(Memory<byte> packet)
         {
             const int headerSize = 4;
-            const int prefix = headerSize + 1;
+            const int prefix = headerSize + 1;   // +count
 
             if (packet.Length < prefix)
             {
@@ -612,14 +715,14 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
             var removed = new ItemDropRemoved(packet);
             byte count = removed.ItemCount;
-            _logger.LogInformation("Received ItemDropRemoved: {Count} items.", count);
+            _logger.LogInformation("Received ItemDropRemoved: {Count} objects.", count);
 
             const int idSize = 2;
             int expectedLen = prefix + count * idSize;
             if (packet.Length < expectedLen)
             {
                 count = (byte)((packet.Length - prefix) / idSize);
-                _logger.LogWarning("Adjusting removal count to {Count} based on packet length.", count);
+                _logger.LogWarning("Packet shorter than expected – adjusted removal count to {Count}.", count);
             }
 
             for (int i = 0; i < count; i++)
@@ -628,26 +731,27 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     var entry = removed[i];
                     ushort rawId = entry.Id;
-                    ushort maskedId = (ushort)(rawId & 0x7FFF);
-                    string objectName = _scopeManager.TryGetScopeObjectName(rawId, out var nm) ? (nm ?? "Object") : "Object";
+                    ushort masked = (ushort)(rawId & 0x7FFF);
 
-                    if (_scopeManager.RemoveObjectFromScope(maskedId))
+                    _scopeManager.RemoveObjectFromScope(masked);
+
+                    MuGame.ScheduleOnMainThread(() =>
                     {
-                        _logger.LogInformation("💨 {Name} (ID: {Id:X4}) disappeared.", objectName, maskedId);
-                    }
-                    else
-                    {
-                        _logger.LogDebug("Attempted to remove {Id:X4} but it was not found.", maskedId);
-                    }
-                }
-                catch (IndexOutOfRangeException ex)
-                {
-                    _logger.LogError(ex, "Index out of range removing item at index {Index}.", i);
-                    break;
+                        if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl world) return;
+
+                        var obj = world.Objects
+                                       .OfType<DroppedItemObject>()
+                                       .FirstOrDefault(d => d.NetworkId == masked);
+                        if (obj != null)
+                        {
+                            world.Objects.Remove(obj);
+                            _logger.LogDebug("Removed DroppedItemObject {Id:X4} from world (scope gone).", masked);
+                        }
+                    });
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error removing item at index {Index}.", i);
+                    _logger.LogError(ex, "Error removing dropped item at idx {Idx}.", i);
                 }
             }
         }
@@ -687,28 +791,34 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
             MuGame.ScheduleOnMainThread(() =>
             {
-                if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl world)
-                    return;
+                if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl world) return;
 
                 for (int i = 0; i < count; i++)
                 {
-                    ushort rawId = outPkt[i].Id;
-                    ushort maskedId = (ushort)(rawId & 0x7FFF);
+                    ushort raw = outPkt[i].Id;
+                    ushort masked = (ushort)(raw & 0x7FFF);
 
-                    _scopeManager.RemoveObjectFromScope(maskedId);
+                    _scopeManager.RemoveObjectFromScope(masked);
 
-                    var obj = world.Objects
-                                   .OfType<WalkerObject>()
-                                   .FirstOrDefault(w => w.NetworkId == maskedId);
-                    if (obj != null)
+                    // ---- 1) Walker / NPC / Player -----------------------------------
+                    var walker = world.Objects
+                                      .OfType<WalkerObject>()
+                                      .FirstOrDefault(w => w.NetworkId == masked);
+                    if (walker != null)
                     {
-                        world.Objects.Remove(obj);
-                        obj.Dispose();
-                        _logger.LogDebug("Removed {Type} {Id:X4} from world.", obj.GetType().Name, maskedId);
+                        world.Objects.Remove(walker);
+                        walker.Dispose();
+                        continue;
                     }
-                    else
+
+                    // ---- 2) Dropped item --------------------------------------------
+                    var drop = world.Objects
+                                     .OfType<DroppedItemObject>()
+                                     .FirstOrDefault(d => d.NetworkId == masked);
+                    if (drop != null)
                     {
-                        _logger.LogTrace("Object {Id:X4} not found for removal.", maskedId);
+                        world.Objects.Remove(drop);
+                        drop.Dispose();
                     }
                 }
             });
@@ -822,7 +932,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     if (player.CurrentAction != walkAction)
                     {
                         player.PlayAction((ushort)walkAction);
-                        _logger.LogDebug("Set walk animation {WalkAction} for player {Id:X4}", walkAction, maskedId);
+                        // _logger.LogDebug("Set walk animation {WalkAction} for player {Id:X4}", walkAction, maskedId);
                     }
 
                     return;
@@ -839,7 +949,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     if (walker.Model?.Actions?.Length > walkActionNpc)
                     {
                         walker.PlayAction(walkActionNpc);
-                        _logger.LogDebug("Set walk animation for NPC/monster {Id:X4}", maskedId);
+                        // _logger.LogDebug("Set walk animation for NPC/monster {Id:X4}", maskedId);
                     }
                 }
             });

@@ -64,6 +64,7 @@ namespace Client.Main.Networking
             => _characterService.SendClientReadyAfterMapChangeAsync();
 
         public CharacterService GetCharacterService() => _characterService;
+        public TargetProtocolVersion TargetVersion => _packetRouter.TargetVersion;
 
         // Constructors
         public NetworkManager(ILoggerFactory loggerFactory, MuOnlineSettings settings, CharacterState characterState, ScopeManager scopeManager)
@@ -337,7 +338,7 @@ namespace Client.Main.Networking
                     }
 
                     var currentWorld = gs.World as WalkableWorldControl;
-                    bool mapChanged = currentWorld == null || currentWorld.WorldIndex != mapId;
+                    bool mapChanged = currentWorld == null || currentWorld.WorldIndex != mapId + 1;
 
                     _logger.LogDebug("ProcessCharacterRespawn: CurrentWorldIndex: {CurrentIdx}, NewMapId: {NewMapId}, MapChanged: {MapChangedFlag}",
                         currentWorld?.WorldIndex, mapId, mapChanged);

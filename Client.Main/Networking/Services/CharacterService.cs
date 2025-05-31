@@ -4,6 +4,8 @@ using Client.Main.Networking.PacketHandling;
 using System;
 using System.Threading.Tasks;
 using MUnique.OpenMU.Network.Packets.ClientToServer;
+using MUnique.OpenMU.Network.Packets;
+using Client.Main.Core.Client;
 
 namespace Client.Main.Networking.Services
 {
@@ -228,6 +230,64 @@ namespace Client.Main.Networking.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending hit request.");
+            }
+        }
+
+        /// <summary>
+        /// Sends a request to increase a specific character stat attribute.
+        /// </summary>
+        /// <param name="attribute">The attribute to be increased.</param>
+        public async Task SendIncreaseCharacterStatPointRequestAsync(CharacterStatAttribute attribute)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send stat increase request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending stat increase request for attribute: {Attribute}...", attribute);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() => PacketBuilder.BuildIncreaseCharacterStatPointPacket(_connectionManager.Connection.Output, attribute));
+                _logger.LogInformation("Stat increase request sent for attribute: {Attribute}.", attribute);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending stat increase request for attribute {Attribute}.", attribute);
+            }
+        }
+
+        /// <summary>
+        /// Sends a request to pick up a dropped item or money by its network ID.
+        /// </summary>
+        public async Task SendPickupItemRequestAsync(ushort itemId, TargetProtocolVersion version)
+        {
+            ushort itemIdMasked = (ushort)(itemId & 0x7FFF);
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send pickup item request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending pickup item request for itemId: {ItemId}...", itemIdMasked);
+            try
+            {
+                // Using the ConnectionExtensions directly based on protocol version
+                switch (version)
+                {
+                    case TargetProtocolVersion.Season6:
+                                        case TargetProtocolVersion.Version097:
+                    await _connectionManager.Connection.SendPickupItemRequestAsync(itemIdMasked);
+                                            break;
+                                        case TargetProtocolVersion.Version075:
+                    await _connectionManager.Connection.SendPickupItemRequest075Async(itemIdMasked);
+                                            break;
+                                    }
+                _logger.LogInformation("Pickup item request sent for itemId: {ItemId}.", itemIdMasked);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending pickup item request for itemId {ItemId}.", itemIdMasked);
             }
         }
     }
