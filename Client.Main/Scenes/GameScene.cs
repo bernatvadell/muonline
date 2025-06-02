@@ -131,7 +131,7 @@ namespace Client.Main.Scenes
             Controls.Add(_notificationManager);
             _notificationManager.BringToFront();
 
-            _inventoryControl = new InventoryControl(MuGame.Network);
+            _inventoryControl = new InventoryControl(MuGame.Network, MuGame.AppLoggerFactory);
             Controls.Add(_inventoryControl);
 
             _loadingScreen = new LoadingScreenControl { Visible = true, Message = "Loading Game..." };
@@ -388,9 +388,13 @@ namespace Client.Main.Scenes
             _main.Visible = false;
 
             var previousWorld = World;
-            _nextWorld = (WorldControl)Activator.CreateInstance(worldType)
-                ?? throw new InvalidOperationException($"Cannot create world: {worldType}");
 
+            if (previousWorld is { Objects: { } objects })
+            {
+                objects.Detach(_hero);
+            }
+
+            _nextWorld = (WorldControl)Activator.CreateInstance(worldType);
             if (_nextWorld is WalkableWorldControl walkable)
                 walkable.Walker = _hero;
 

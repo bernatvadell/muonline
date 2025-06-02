@@ -105,57 +105,101 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
-        [PacketHandler(0x22, 0xFF)]  // ItemPickupFailed
+        [PacketHandler(0x22, PacketRouter.NoSubCode)]  // Catches 0x22 with subcodes not 0x01, or if no subcode, effectively 0xFF
         public Task HandleItemPickupFailedAsync(Memory<byte> packet)
         {
             try
             {
-                if (packet.Length < ItemPickUpRequestFailed.Length)
+                if (packet.Length < 4) // C3 Size Code SubCode/FailReasonByte
                 {
-                    _logger.LogWarning("ItemPickupFailed packet too short: {Length}", packet.Length);
+                    _logger.LogWarning("ItemPickupFailed-like packet (0x22) too short: {Length}", packet.Length);
+                    _characterState.ClearPendingPickedItem(); // Clean up just in case
                     return Task.CompletedTask;
                 }
-                var response = new ItemPickUpRequestFailed(packet);
+
+                // The byte at index 3 is the sub-code, which in some cases is the FailReason or a slot index.
+                byte subCodeOrSlotByte = packet.Span[3];
+                var failReasonEnum = (ItemPickUpRequestFailed.ItemPickUpFailReason)subCodeOrSlotByte;
 
                 string messageToUser = string.Empty;
-                MessageType uiMessageType = MessageType.Error; // Domyślnie błąd
+                MessageType uiMessageType = MessageType.System;
+                bool actionHandled = false;
 
-                switch (response.FailReason)
+                if (failReasonEnum == ItemPickUpRequestFailed.ItemPickUpFailReason.ItemStacked) // 0xFD
                 {
-                    case ItemPickUpRequestFailed.ItemPickUpFailReason.ItemStacked:
-                        _logger.LogInformation("Item pick-up succeeded by stacking. Waiting for further inventory updates.");
-                        return Task.CompletedTask;
+                    _logger.LogInformation("Item pick-up reported as 'Stacked'. Item should be updated by another packet (e.g., durability or inventory list).");
+                    _characterState.ClearPendingPickedItem();
+                    SoundController.Instance.PlayBuffer("Sound/pGetItem.wav");
+                    actionHandled = true;
+                }
+                else if (failReasonEnum == ItemPickUpRequestFailed.ItemPickUpFailReason.General) // 0xFF
+                {
+                    messageToUser = "Item pick-up failed.";
+                    _characterState.ClearPendingPickedItem();
+                    actionHandled = true;
+                }
+                else if (failReasonEnum == ItemPickUpRequestFailed.ItemPickUpFailReason.__MaximumInventoryMoneyReached) // 0xFE
+                {
+                    // This case for money should ideally be handled by InventoryMoneyUpdate.
+                    // If it comes here, it's likely an error or an old server behavior.
+                    messageToUser = "Your inventory is full (money limit reached).";
+                    _characterState.ClearPendingPickedItem();
+                    actionHandled = true;
+                }
+                else // The byte is NOT a known FailReason enum value, assume it's a slot index for SUCCESS.
+                {
+                    // This packet structure is now like ItemAddedToInventory: C3 Size 22 Slot ItemData...
+                    // packet.Span[3] is the slot. ItemData starts at packet.Span[4].
+                    byte targetSlot = subCodeOrSlotByte;
+                    ReadOnlySpan<byte> itemDataSpan = packet.Span.Slice(4); // Item data starts AFTER the slot byte.
 
-                    case ItemPickUpRequestFailed.ItemPickUpFailReason.__MaximumInventoryMoneyReached:
-                        messageToUser = "Your inventory is full (money limit reached).";
-                        break;
-
-                    case ItemPickUpRequestFailed.ItemPickUpFailReason.General:
-                        messageToUser = "Item pick-up failed: General server error.";
-                        break;
-                    default:
-                        messageToUser = $"Item pick-up failed for unknown reason: {response.FailReason}.";
-                        break;
+                    if (itemDataSpan.IsEmpty)
+                    {
+                        _logger.LogWarning("Item pickup 'success' (0x22, Slot: {Slot}) received, but item data is empty.", targetSlot);
+                        messageToUser = "Item pick-up error (missing item data).";
+                        _characterState.ClearPendingPickedItem();
+                    }
+                    // Attempt to commit the stashed item.
+                    else if (_characterState.CommitStashedItem(targetSlot))
+                    {
+                        // Successfully committed the stashed item.
+                        // The item name is now available from the updated CharacterState.
+                        string itemName = "Unknown Item";
+                        if (_characterState.GetInventoryItems().TryGetValue(targetSlot, out var committedItemData))
+                        {
+                            itemName = ItemDatabase.GetItemName(committedItemData) ?? "Item";
+                        }
+                        _logger.LogInformation("Item '{ItemName}' picked up successfully into slot {Slot} (via 0x22, SubCode={SubCode:X2} interpreted as slot).", itemName, targetSlot, targetSlot);
+                        SoundController.Instance.PlayBuffer("Sound/pGetItem.wav");
+                        messageToUser = $"Item '{itemName}' picked up successfully into slot {targetSlot}";
+                    }
+                    else
+                    {
+                        // CommitStashedItem returned false, likely because _pendingPickedItem was null.
+                        _logger.LogError("Failed to commit stashed item for slot {Slot} after receiving 'success' type message (0x22, SubCode={SubCode:X2}). No pending item data was stashed by client?", targetSlot, targetSlot);
+                        messageToUser = "Item pick-up error (client state issue).";
+                        // _pendingPickedItem is already null or was never set, so ClearPendingPickedItem is effectively done.
+                        // We still call it to ensure the state is clean if it somehow wasn't null.
+                        _characterState.ClearPendingPickedItem();
+                    }
+                    actionHandled = true; // This path is considered handled, whether commit succeeded or logged an error.
                 }
 
-                _logger.LogWarning(messageToUser);
-
-                MuGame.ScheduleOnMainThread(() =>
+                // If an error message was set, display it.
+                if (!string.IsNullOrEmpty(messageToUser))
                 {
-                    var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
-                    if (gameScene != null)
+                    _logger.LogWarning("Item Pickup Issue: {Message}", messageToUser);
+                    MuGame.ScheduleOnMainThread(() =>
                     {
-                        var chatLog = gameScene.Controls.OfType<ChatLogWindow>().FirstOrDefault();
-                        if (chatLog != null)
-                        {
-                            chatLog.AddMessage("System", messageToUser, uiMessageType);
-                        }
-                    }
-                });
+                        var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
+                        gameScene?.Controls.OfType<ChatLogWindow>().FirstOrDefault()?.AddMessage("System", messageToUser, uiMessageType);
+                    });
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error parsing ItemPickupFailed packet.");
+                _logger.LogError(ex, "Error processing ItemPickupFailed-like packet (0x22).");
+                _characterState.ClearPendingPickedItem(); // Ensure cleanup on any exception.
             }
             return Task.CompletedTask;
         }

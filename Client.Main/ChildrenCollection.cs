@@ -88,6 +88,20 @@ namespace Client.Main
             }
         }
 
+        public bool Detach(T control)
+        {
+            bool removed;
+            lock (_lock)
+                removed = _controls.Remove(control);
+
+            if (removed)
+            {
+                control.Parent = null;
+                ControlRemoved?.Invoke(this, new ChildrenEventArgs<T>(control));
+            }
+            return removed;
+        }
+
         public void Insert(int index, T control)
         {
             lock (_lock)

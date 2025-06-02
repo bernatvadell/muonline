@@ -144,6 +144,50 @@ namespace Client.Main.Core.Client
         public ushort TotalEnergy => (ushort)(Energy + AddedEnergy);
         public ushort TotalLeadership => (ushort)(Leadership + AddedLeadership);
 
+        public event Action InventoryChanged;
+
+        private byte[] _pendingPickedItem;
+
+        /// <summary>
+        /// Stores item data temporarily before a pickup attempt.
+        /// </summary>
+        public void StashPickedItem(byte[] rawItemData)
+        {
+            _pendingPickedItem = rawItemData;
+            _logger.LogTrace("Stashed item data for pending pickup: {ItemDataHex}", BitConverter.ToString(rawItemData ?? Array.Empty<byte>()).Replace("-", ""));
+        }
+
+        /// <summary>
+        /// Commits the stashed item to the specified inventory slot.
+        /// Clears the stash on success.
+        /// </summary>
+        public bool CommitStashedItem(byte slot)
+        {
+            if (_pendingPickedItem == null)
+            {
+                _logger.LogWarning("CommitStashedItem called for slot {Slot}, but no item was stashed.", slot);
+                return false;
+            }
+
+            AddOrUpdateInventoryItem(slot, _pendingPickedItem);
+            string itemName = ItemDatabase.GetItemName(_pendingPickedItem) ?? "Unknown Item";
+            _logger.LogDebug("Committed stashed item '{ItemName}' to slot {Slot}.", itemName, slot);
+            _pendingPickedItem = null; // Clear after successful commit
+            return true;
+        }
+
+        /// <summary>
+        /// Clears any stashed item data. Call this if a pickup attempt definitively fails.
+        /// </summary>
+        public void ClearPendingPickedItem()
+        {
+            if (_pendingPickedItem != null)
+            {
+                _logger.LogTrace("Cleared stashed pending picked item.");
+                _pendingPickedItem = null;
+            }
+        }
+
         private void RaiseHealth() => HealthChanged?.Invoke(CurrentHealth, MaximumHealth);
         private void RaiseMana() => ManaChanged?.Invoke(CurrentMana, MaximumMana);
 
@@ -334,6 +378,7 @@ namespace Client.Main.Core.Client
         public void ClearInventory()
         {
             _inventoryItems.Clear();
+            InventoryChanged?.Invoke();
             _logger.LogDebug("Inventory cleared.");
         }
 
@@ -343,6 +388,7 @@ namespace Client.Main.Core.Client
         public void AddOrUpdateInventoryItem(byte slot, byte[] itemData)
         {
             _inventoryItems[slot] = itemData;
+            InventoryChanged?.Invoke();
             string itemName = ItemDatabase.GetItemName(itemData) ?? "Unknown Item";
             _logger.LogDebug("Inventory item added/updated at slot {Slot}: {ItemName}", slot, itemName);
         }
@@ -355,6 +401,7 @@ namespace Client.Main.Core.Client
             bool removed = _inventoryItems.TryRemove(slot, out _);
             if (removed)
             {
+                InventoryChanged?.Invoke();
                 _logger.LogDebug("Inventory item removed from slot {Slot}", slot);
             }
             else
