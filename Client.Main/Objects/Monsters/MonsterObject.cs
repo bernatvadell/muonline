@@ -7,6 +7,11 @@ namespace Client.Main.Objects.Monsters
     {
         // --- Fields ---
         private int _lastActionForIdleSound = -1;
+        private bool _isFading = false;
+        private float _fadeTimer = 0f;
+        private float _fadeDuration = 2f;
+        private float _startZ;
+        private const float SinkDistance = 20f;
 
         // --- Constructors ---
         public MonsterObject()
@@ -15,12 +20,39 @@ namespace Client.Main.Objects.Monsters
             AnimationSpeed = 4f;
         }
 
+        public void StartDeathFade(float duration = 2f)
+        {
+            if (_isFading) return;
+            _isFading = true;
+            _fadeDuration = duration;
+            _fadeTimer = 0f;
+            _startZ = Position.Z;
+        }
+
         // --- Public Methods ---
         public override void Update(GameTime gameTime)
         {
             bool wasMoving = IsMoving;
 
             base.Update(gameTime);
+
+            if (_isFading)
+            {
+                RenderShadow = false;
+                _fadeTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
+                float progress = MathHelper.Clamp(_fadeTimer / _fadeDuration, 0f, 1f);
+                Alpha = MathHelper.Lerp(1f, 0f, progress);
+                Position = new Vector3(Position.X, Position.Y, MathHelper.Lerp(_startZ, _startZ - SinkDistance, progress));
+
+                if (progress >= 1f)
+                {
+                    _isFading = false;
+                    World?.RemoveObject(this);
+                    Dispose();
+                    return;
+                }
+            }
+
 
             // If the monster just stopped moving
             if (wasMoving && !IsMoving && !IsOneShotPlaying)

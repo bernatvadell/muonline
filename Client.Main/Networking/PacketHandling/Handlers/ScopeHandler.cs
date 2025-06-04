@@ -1058,31 +1058,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         else if (walker is MonsterObject monster)
                         {
                             monster.PlayAction((byte)MonsterActionType.Die);
+                            monster.StartDeathFade();
                             _logger.LogDebug("💀 Monster {Id:X4} death animation started", killed);
-
-                            int removalDelay = 2000;
-                            var actions = monster.Model?.Actions;
-                            int dieIdx = (int)MonsterActionType.Die;
-                            if (actions != null && dieIdx < actions.Length && actions[dieIdx] != null)
-                            {
-                                float frames = Math.Max(actions[dieIdx].NumAnimationKeys, 1);
-                                float mul = actions[dieIdx].PlaySpeed == 0 ? 1f : actions[dieIdx].PlaySpeed;
-                                float fps = Math.Max(0.1f, monster.AnimationSpeed * mul);
-                                removalDelay = (int)((frames / fps) * 1000f) + 500;
-                            }
-
-                            Task.Delay(removalDelay).ContinueWith(_ =>
-                            {
-                                MuGame.ScheduleOnMainThread(() =>
-                                {
-                                    if (world.Objects.Contains(walker))
-                                    {
-                                        world.Objects.Remove(walker);
-                                        walker.Dispose();
-                                        _logger.LogDebug("💀 Removed dead monster {Id:X4}", killed);
-                                    }
-                                });
-                            });
                         }
                     }
                 });

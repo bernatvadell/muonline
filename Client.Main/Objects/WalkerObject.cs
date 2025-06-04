@@ -282,16 +282,6 @@ namespace Client.Main.Objects
         /// </summary>
         public void PlayAction(ushort actionIndex, bool fromServer = false)
         {
-            var newType = _animationController.GetAnimationType(actionIndex);
-            var prevType = _animationController.GetAnimationType((ushort)CurrentAction);
-
-            Debug.WriteLine(
-                $"[ANIM-DBG] PlayAction " +
-                $"NetId={NetworkId:X4} {GetType().Name} " +
-                $"prev={CurrentAction}:{prevType} -> new={actionIndex}:{newType} " +
-                $"fromServer={fromServer}");
-
-            // (Twój istniejący kod zabezpieczeń zostaje bez zmian)
             _serverControlledAnimation = fromServer;
             _animationController?.PlayAnimation(actionIndex, fromServer);
         }
