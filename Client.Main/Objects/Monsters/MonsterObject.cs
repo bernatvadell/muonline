@@ -1,5 +1,6 @@
 ﻿using Client.Main.Models;
 using Microsoft.Xna.Framework;
+using System.Linq;
 
 namespace Client.Main.Objects.Monsters
 {
@@ -12,6 +13,20 @@ namespace Client.Main.Objects.Monsters
         private float _fadeDuration = 2f;
         private float _startZ;
         private const float SinkDistance = 20f;
+
+        /// <summary>
+        /// Gets the monster's display name defined by <see cref="NpcInfoAttribute"/>.
+        /// </summary>
+        public override string DisplayName
+        {
+            get
+            {
+                var attr = (NpcInfoAttribute)GetType()
+                    .GetCustomAttributes(typeof(NpcInfoAttribute), inherit: false)
+                    .FirstOrDefault();
+                return attr?.DisplayName ?? base.DisplayName;
+            }
+        }
 
         // --- Constructors ---
         public MonsterObject()

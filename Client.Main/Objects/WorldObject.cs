@@ -46,6 +46,7 @@ namespace Client.Main.Objects
         public GameControlStatus Status { get; protected set; } = GameControlStatus.NonInitialized;
         public bool Hidden { get; set; }
         public string ObjectName => GetType().Name;
+        public virtual string DisplayName => ObjectName;
         public BlendState BlendState { get; set; } = BlendState.Opaque;
         public float Alpha { get; set; } = 1f;
         public float TotalAlpha { get => (Parent?.TotalAlpha ?? 1f) * Alpha; }
@@ -189,11 +190,75 @@ namespace Client.Main.Objects
             if (!Visible) return;
 
             DrawBoundingBox2D();
+            DrawHoverName();
 
             // Avoid enumeration overhead
             int count = Children.Count;
             for (int i = 0; i < count; i++)
                 Children[i].DrawAfter(gameTime);
+        }
+
+        /// <summary>
+        /// Draws the object's <see cref="DisplayName"/> above it when hovered.
+        /// </summary>
+        protected virtual void DrawHoverName()
+        {
+            if (_font == null)
+                _font = GraphicsManager.Instance.Font;
+
+            if (!Constants.SHOW_NAMES_ON_HOVER || !IsMouseHover || _font == null)
+                return;
+
+            // Limit name display to WalkerObject-derived entities only
+            if (this is not Player.PlayerObject &&
+                this is not Monsters.MonsterObject &&
+                this is not NPCS.NPCObject)
+                return;
+
+            string name = DisplayName;
+            if (string.IsNullOrEmpty(name))
+                return;
+
+            Vector3 anchor = new(
+                (BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) * 0.5f,
+                BoundingBoxWorld.Max.Y + 5f,
+                (BoundingBoxWorld.Min.Z + BoundingBoxWorld.Max.Z) * 0.5f);
+
+            Vector3 screen = GraphicsDevice.Viewport.Project(
+                anchor,
+                Camera.Instance.Projection,
+                Camera.Instance.View,
+                Matrix.Identity);
+
+            if (screen.Z < 0f || screen.Z > 1f)
+                return;
+
+            const float scale = 0.4f;
+            Vector2 size = _font.MeasureString(name) * scale;
+            var sb = GraphicsManager.Instance.Sprite;
+
+            void draw() => sb.DrawString(
+                _font,
+                name,
+                new Vector2(screen.X - size.X * 0.5f, screen.Y - size.Y),
+                Color.White,
+                0f,
+                Vector2.Zero,
+                scale,
+                SpriteEffects.None,
+                0f);
+
+            if (!SpriteBatchScope.BatchIsBegun)
+            {
+                using (new SpriteBatchScope(sb, SpriteSortMode.Deferred, BlendState.NonPremultiplied, SamplerState.PointClamp, DepthStencilState.None))
+                {
+                    draw();
+                }
+            }
+            else
+            {
+                draw();
+            }
         }
 
         public void BringToFront()

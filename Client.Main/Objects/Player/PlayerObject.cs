@@ -25,6 +25,7 @@ namespace Client.Main.Objects.Player
         public Vector2? SitPlaceTarget { get; set; }
 
         public string Name { get; set; } = "Character";
+        public override string DisplayName => Name;
         private ushort _networkId; // Private backing field
 
         public ushort NetworkId
@@ -88,6 +89,9 @@ namespace Client.Main.Objects.Player
         public PlayerObject()
         {
             _networkId = 0x0000;
+
+            // Enable mouse hover interactions so the name is shown
+            Interactive = true;
 
             BoundingBoxLocal = new BoundingBox(
                 new Vector3(-40, -40, 0),

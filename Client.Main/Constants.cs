@@ -61,5 +61,10 @@ namespace Client.Main
                 // Others
 
                 public const float BASE_FONT_SIZE = 25f;
+
+                /// <summary>
+                /// Enables drawing of object names when hovered with the mouse.
+                /// </summary>
+                public const bool SHOW_NAMES_ON_HOVER = true;
         }
 }
