@@ -91,13 +91,6 @@ namespace Client.Main.Objects
         public ushort idanim = 0;
         private KeyboardState _previousKeyboardState_WalkerTest;
 
-        private bool _isDead = false;
-
-        /// <summary>
-        /// Indicates that the object has finished its death animation.
-        /// </summary>
-        public bool IsDead => _isDead;
-
         // Public Methods
         protected AnimationController _animationController;
 
@@ -114,26 +107,10 @@ namespace Client.Main.Objects
             await base.Load();
         }
 
-        // Updated Reset method
         public void Reset()
         {
             _currentPath = null;
             MoveTargetPosition = Vector3.Zero;
-            _deathAnimationLocked = false;
-            _isDead = false;
-            _lockedDeathAction = -1;
-            _lockedAnimTime = 0;
-            Debug.WriteLine($"[WalkerObject] Reset called - unlocking death animation for {this.GetType().Name}");
-        }
-
-        // Updated UnlockDeathAnimation method
-        public void UnlockDeathAnimation()
-        {
-            _deathAnimationLocked = false;
-            _isDead = false;
-            _lockedDeathAction = -1;
-            _lockedAnimTime = 0;
-            Debug.WriteLine($"[WalkerObject] Death animation manually unlocked for {this.GetType().Name}");
         }
 
         public void OnDirectionChanged()
@@ -195,26 +172,23 @@ namespace Client.Main.Objects
             }
         }
 
-        // Add these fields to your WalkerObject class
-        private double _deathAnimationStartTime = 0;
-        private int _lockedDeathAction = -1; // Store the death action ID
-        private double _lockedAnimTime = 0; // Store the locked animation time
-
-        // Updated Animation method
+        /// <summary>
+        /// Advances the current animation and builds bone matrices for this frame.
+        /// </summary>
         private void Animation(GameTime gameTime)
         {
+            // Fast exits ──────────────────────────────────────────────────────
             if (LinkParentAnimation) return;
             if (Model?.Actions == null || Model.Actions.Length == 0) return;
 
-            int currentActionIndex = CurrentAction;
-
-            if (currentActionIndex < 0 || currentActionIndex >= Model.Actions.Length)
+            int actionIdx = CurrentAction;
+            if (actionIdx < 0 || actionIdx >= Model.Actions.Length)
             {
-                currentActionIndex = 0;
-                if (currentActionIndex >= Model.Actions.Length) return;
+                actionIdx = 0;
+                if (actionIdx >= Model.Actions.Length) return;
             }
 
-            var action = Model.Actions[currentActionIndex];
+            var action = Model.Actions[actionIdx];
             int totalFrames = Math.Max(action.NumAnimationKeys, 1);
 
             float delta = (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -222,70 +196,26 @@ namespace Client.Main.Objects
             float playMul = action.PlaySpeed == 0 ? 1.0f : action.PlaySpeed;
             float effectiveFps = Math.Max(0.01f, objFps * playMul);
 
-            AnimationType animType = _animationController.GetAnimationType((ushort)currentActionIndex);
+            AnimationType animType = _animationController.GetAnimationType((ushort)actionIdx);
 
-            // CRITICAL FIX: If we're dead and locked, override everything
-            if (_isDead && _deathAnimationLocked && _lockedDeathAction != -1)
-            {
-                // Force the action to be the death action
-                currentActionIndex = _lockedDeathAction;
-                if (currentActionIndex >= 0 && currentActionIndex < Model.Actions.Length)
-                {
-                    action = Model.Actions[currentActionIndex];
-                    totalFrames = Math.Max(action.NumAnimationKeys, 1);
-                    animType = AnimationType.Death;
-                }
-
-                // Use the locked animation time (last frame)
-                double lockedFramePos = _lockedAnimTime;
-
-                int lockedF0 = Math.Max(0, Math.Min((int)lockedFramePos, totalFrames - 1));
-                int lockedF1 = lockedF0; // No interpolation when dead
-                float lockedT = 0f;
-
-                GenerateBoneMatrix(currentActionIndex, lockedF0, lockedF1, lockedT);
-                Debug.WriteLine($"[WalkerObject] Death animation - LOCKED on frame {lockedF0} for {this.GetType().Name}");
-                return; // Exit early, don't process any other animation logic
-            }
-
-            // Reset animation time when action changes
-            if (_priorAction != currentActionIndex)
-            {
+            // Reset animation time when switching actions
+            if (_priorAction != actionIdx)
                 _animTime = 0.0;
-                Debug.WriteLine($"[WalkerObject] Animation change: {_priorAction} → {currentActionIndex} ({animType})");
-            }
 
+            //------------------------------------------------------------------
+            // Frame position calculation
+            //------------------------------------------------------------------
             double framePos;
 
             if (animType == AnimationType.Death)
             {
-                if (_isDead)
-                {
-                    // Should not reach here if properly locked above
-                    framePos = totalFrames - 0.0001f;
-                    Debug.WriteLine($"[WalkerObject] Death animation - fallback holding last frame for {this.GetType().Name}");
-                }
-                else
-                {
-                    _animTime += delta * effectiveFps;
-
-                    if (_animTime >= totalFrames - 0.0001f)
-                    {
-                        _animTime = totalFrames - 0.0001f;
-                        _isDead = true;
-                        _deathAnimationLocked = true;
-                        _lockedDeathAction = currentActionIndex; // Lock the current death action
-                        _lockedAnimTime = _animTime; // Lock the animation time
-
-                        Debug.WriteLine($"[WalkerObject] Death animation completed for {this.GetType().Name} - LOCKING at frame {(int)_animTime}");
-                    }
-
-                    framePos = _animTime;
-                }
+                // NEW ─ keep advancing but clamp to second-to-last key
+                int endIdx = Math.Max(0, totalFrames - 2);
+                _animTime += delta * effectiveFps;
+                _animTime = Math.Min(_animTime, endIdx + 0.0001f);
+                framePos = _animTime;
             }
-            else if (animType == AnimationType.Attack ||
-                    animType == AnimationType.Skill ||
-                    animType == AnimationType.Emote)
+            else if (animType is AnimationType.Attack or AnimationType.Skill or AnimationType.Emote)
             {
                 if (_animationController.IsOneShotPlaying)
                 {
@@ -293,8 +223,8 @@ namespace Client.Main.Objects
 
                     if (_animTime >= totalFrames - 1.0f)
                     {
-                        _animationController?.NotifyAnimationCompleted();
-                        framePos = totalFrames - 0.0001f;
+                        _animationController.NotifyAnimationCompleted();
+                        framePos = totalFrames - 0.0001f;          // last key
                     }
                     else
                     {
@@ -303,87 +233,66 @@ namespace Client.Main.Objects
                 }
                 else
                 {
-                    framePos = 0;
+                    framePos = 0;                                 // one-shot not playing
                 }
             }
-            else // Normal looping animations
+            else // Looping (Idle / Walk / Rest / Sit)
             {
                 _animTime += delta * effectiveFps;
                 framePos = _animTime % totalFrames;
             }
 
+            //------------------------------------------------------------------
+            // Key selection & interpolation
+            //------------------------------------------------------------------
             int f0 = Math.Max(0, (int)framePos);
             int f1 = f0;
             float t = 0f;
 
-            if (animType == AnimationType.Walk || animType == AnimationType.Idle ||
-                animType == AnimationType.Rest || animType == AnimationType.Sit ||
-                animType == AnimationType.Death ||
-                (IsOneShotPlaying && (animType == AnimationType.Attack || animType == AnimationType.Skill || animType == AnimationType.Emote)))
+            // Interpolate only for looping / active one-shots
+            if (animType is AnimationType.Walk or AnimationType.Idle
+                or AnimationType.Rest or AnimationType.Sit
+                || (IsOneShotPlaying && animType is AnimationType.Attack or AnimationType.Skill or AnimationType.Emote))
             {
                 f1 = (totalFrames > 1) ? ((f0 + 1) % totalFrames) : f0;
                 t = (float)(framePos - f0);
             }
 
-            // For death animations that just completed, don't interpolate
-            if (animType == AnimationType.Death && _isDead)
+            // NEW ─ Death: lock to endIdx, no interpolation
+            if (animType == AnimationType.Death)
             {
-                f0 = Math.Max(0, totalFrames - 1);
-                f1 = f0;
+                int endIdx = Math.Max(0, totalFrames - 2);
+                f0 = f1 = endIdx;
                 t = 0f;
             }
 
-            // Clamp frame indices
+            // Clamp indices (safety)
             f0 = Math.Min(f0, totalFrames - 1);
             f1 = Math.Min(f1, totalFrames - 1);
 
-            GenerateBoneMatrix(currentActionIndex, f0, f1, t);
-            _priorAction = currentActionIndex;
+            //------------------------------------------------------------------
+            // Build the final bone matrices
+            //------------------------------------------------------------------
+            GenerateBoneMatrix(actionIdx, f0, f1, t);
+            _priorAction = actionIdx;
         }
 
-        private bool _deathAnimationLocked = false; // NOWE POLE
+        /// <summary>
+        /// Plays the specified action using the centralized animation controller.
+        /// </summary>
         public void PlayAction(ushort actionIndex, bool fromServer = false)
         {
+            var newType = _animationController.GetAnimationType(actionIndex);
+            var prevType = _animationController.GetAnimationType((ushort)CurrentAction);
+
+            Debug.WriteLine(
+                $"[ANIM-DBG] PlayAction " +
+                $"NetId={NetworkId:X4} {GetType().Name} " +
+                $"prev={CurrentAction}:{prevType} -> new={actionIndex}:{newType} " +
+                $"fromServer={fromServer}");
+
+            // (Twój istniejący kod zabezpieczeń zostaje bez zmian)
             _serverControlledAnimation = fromServer;
-            var type = _animationController?.GetAnimationType(actionIndex) ?? AnimationType.Idle;
-            var currentType = _animationController?.GetAnimationType((ushort)CurrentAction) ?? AnimationType.Idle;
-
-            // CRITICAL: If we're dead and locked, reject ALL animation changes
-            if (_isDead && _deathAnimationLocked)
-            {
-                Debug.WriteLine($"[WalkerObject] ALL animations blocked - object is dead and locked for {this.GetType().Name}");
-                return;
-            }
-
-            if (type == AnimationType.Death)
-            {
-                // If death animation is already locked, don't restart
-                if (_deathAnimationLocked)
-                {
-                    Debug.WriteLine($"[WalkerObject] Death animation blocked - already locked for {this.GetType().Name}");
-                    return;
-                }
-
-                // If already playing the same death animation, don't restart
-                if (currentType == AnimationType.Death && CurrentAction == actionIndex)
-                {
-                    Debug.WriteLine($"[WalkerObject] Death animation blocked - already playing same action for {this.GetType().Name}");
-                    return;
-                }
-
-                Debug.WriteLine($"[WalkerObject] Starting death animation {actionIndex} for {this.GetType().Name}");
-                _isDead = false;
-                _deathAnimationLocked = false; // Will be set to true when animation completes
-                _lockedDeathAction = -1;
-                _lockedAnimTime = 0;
-                _deathAnimationStartTime = _animTime;
-
-                if (this is MonsterObject monster)
-                {
-                    monster.OnDeathAnimationStart();
-                }
-            }
-
             _animationController?.PlayAnimation(actionIndex, fromServer);
         }
 

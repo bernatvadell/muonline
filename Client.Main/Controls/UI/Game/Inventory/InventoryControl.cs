@@ -184,6 +184,14 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 _zenLabel.Visible = false;
         }
 
+        /// <summary>
+        /// Preloads inventory data and item textures without showing the window.
+        /// </summary>
+        public void Preload()
+        {
+            RefreshInventoryContent();
+        }
+
         private void RefreshInventoryContent()
         {
             _items.Clear();

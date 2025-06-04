@@ -308,6 +308,11 @@ namespace Client.Main.Scenes
             PreloadSounds();
             UpdateLoadProgress("Sounds preloaded.", 0.97f);
 
+            // Preload UI textures so opening windows doesn't cause stalls
+            UpdateLoadProgress("Preloading UI textures...", 0.975f);
+            await PreloadUITextures();
+            UpdateLoadProgress("UI textures preloaded.", 0.985f);
+
             if (World is WalkableWorldControl finalWalkable)
             {
                 _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: FINAL CHECK - Walker.NetworkId: {finalWalkable.Walker?.NetworkId:X4}, CharState.Id: {charState.Id:X4}");
@@ -393,6 +398,8 @@ namespace Client.Main.Scenes
             {
                 objects.Detach(_hero);
             }
+
+            _hero.Reset();
 
             _nextWorld = (WorldControl)Activator.CreateInstance(worldType);
             if (_nextWorld is WalkableWorldControl walkable)
@@ -719,6 +726,23 @@ namespace Client.Main.Scenes
             SoundController.Instance.PreloadSound("Sound/pDropMoney.wav");
             SoundController.Instance.PreloadSound("Sound/pGem.wav");
             SoundController.Instance.PreloadSound("Sound/pGetItem.wav");
+        }
+
+        /// <summary>
+        /// Preloads textures for UI controls to avoid stalls when opening them later.
+        /// </summary>
+        private async Task PreloadUITextures()
+        {
+            if (_inventoryControl != null)
+            {
+                await _inventoryControl.Initialize();
+                _inventoryControl.Preload();
+            }
+
+            if (_characterInfoWindow != null)
+            {
+                await _characterInfoWindow.Initialize();
+            }
         }
     }
 }
