@@ -257,6 +257,7 @@ namespace Client.Main.Objects
                 var gd = GraphicsDevice;
                 var prevCull = gd.RasterizerState;
                 var prevBlend = gd.BlendState;
+                float prevAlpha = GraphicsManager.Instance.AlphaTestEffect3D.Alpha;
 
                 bool isTwoSided = _meshIsRGBA[mesh] || IsBlendMesh(mesh);
                 gd.RasterizerState = isTwoSided
@@ -274,6 +275,8 @@ namespace Client.Main.Objects
                     gd.Indices = indexBuffer;
                     gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
                 }
+
+                GraphicsManager.Instance.AlphaTestEffect3D.Alpha = prevAlpha;
 
                 // ❹ przywrócenie stanów
                 gd.BlendState = prevBlend;
@@ -307,6 +310,7 @@ namespace Client.Main.Objects
             // Save previous graphics states
             var previousDepthState = GraphicsDevice.DepthStencilState;
             var previousBlendState = GraphicsDevice.BlendState;
+            float prevAlpha = GraphicsManager.Instance.AlphaTestEffect3D.Alpha;
 
             GraphicsManager.Instance.AlphaTestEffect3D.World = highlightMatrix;
             GraphicsManager.Instance.AlphaTestEffect3D.Texture = _boneTextures[mesh];
@@ -336,6 +340,8 @@ namespace Client.Main.Objects
                 GraphicsDevice.Indices = indexBuffer;
                 GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
             }
+
+            GraphicsManager.Instance.AlphaTestEffect3D.Alpha = prevAlpha;
 
             // Restore previous graphics states
             GraphicsDevice.DepthStencilState = previousDepthState;

@@ -1060,7 +1060,18 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             monster.PlayAction((byte)MonsterActionType.Die);
                             _logger.LogDebug("💀 Monster {Id:X4} death animation started", killed);
 
-                            Task.Delay(2000).ContinueWith(_ =>
+                            int removalDelay = 2000;
+                            var actions = monster.Model?.Actions;
+                            int dieIdx = (int)MonsterActionType.Die;
+                            if (actions != null && dieIdx < actions.Length && actions[dieIdx] != null)
+                            {
+                                float frames = Math.Max(actions[dieIdx].NumAnimationKeys, 1);
+                                float mul = actions[dieIdx].PlaySpeed == 0 ? 1f : actions[dieIdx].PlaySpeed;
+                                float fps = Math.Max(0.1f, monster.AnimationSpeed * mul);
+                                removalDelay = (int)((frames / fps) * 1000f) + 500;
+                            }
+
+                            Task.Delay(removalDelay).ContinueWith(_ =>
                             {
                                 MuGame.ScheduleOnMainThread(() =>
                                 {
