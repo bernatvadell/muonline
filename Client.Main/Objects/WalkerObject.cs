@@ -246,6 +246,7 @@ namespace Client.Main.Objects
 
             if (animType == AnimationType.Walk || animType == AnimationType.Idle ||
                 animType == AnimationType.Rest || animType == AnimationType.Sit ||
+                animType == AnimationType.Death ||
                 (IsOneShotPlaying && (animType == AnimationType.Attack || animType == AnimationType.Skill || animType == AnimationType.Emote)))
             {
                 f1 = (totalFrames > 1) ? ((f0 + 1) % totalFrames) : f0;
