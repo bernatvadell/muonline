@@ -11,6 +11,8 @@ namespace Client.Main.Controls.UI.Game
         private readonly LabelControl _label;
         private int _currentHP;
         private int _maxHP;
+        private float _targetPercentage;
+        private const float LerpSpeed = 5f;
 
         public int CurrentHP
         {
@@ -56,17 +58,23 @@ namespace Client.Main.Controls.UI.Game
                 ShadowOpacity = 0.3f,
                 BoldWeight = 1
             };
+
+            _targetPercentage = _progress.Percentage;
         }
 
         public void UpdatePercent()
         {
-            _progress.Percentage = MaxHP <= 0 ? 0 : (float)CurrentHP / MaxHP;
+            _targetPercentage = MaxHP <= 0 ? 0 : (float)CurrentHP / MaxHP;
             _label.Text = $"{CurrentHP}/{MaxHP}";
         }
 
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
+
+            float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            float lerpAmount = LerpSpeed * deltaTime;
+            _progress.Percentage = MathHelper.Lerp(_progress.Percentage, _targetPercentage, lerpAmount);
         }
 
         public override void Draw(GameTime gameTime)

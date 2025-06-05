@@ -44,6 +44,12 @@ namespace Client.Main.Objects.Monsters
             _startZ = Position.Z;
         }
 
+        /// <summary>
+        /// Indicates whether the monster is in its death fade stage.
+        /// While true the monster should no longer be considered alive.
+        /// </summary>
+        public bool IsDead => _isFading;
+
         // --- Public Methods ---
         public override void Update(GameTime gameTime)
         {

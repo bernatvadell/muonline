@@ -218,16 +218,16 @@ namespace Client.Main.Objects
             };
 
         // =====================================================================
-        private void OnLabelClicked(object? sender, EventArgs e) => OnClick(); // proxy dla LabelControl
+        private void OnLabelClicked(object? sender, EventArgs e) => OnClick();
 
         // =====================================================================
         public override void Dispose()
         {
-            // Zdejmij etykietę z UI
-            if (_label != null && World?.Scene != null)
+            // Remove the label from whichever parent currently holds it
+            if (_label != null)
             {
                 _label.Click -= OnLabelClicked;
-                World.Scene.Controls.Remove(_label);
+                _label.Parent?.Controls.Remove(_label);
                 _label.Dispose();
             }
             base.Dispose();

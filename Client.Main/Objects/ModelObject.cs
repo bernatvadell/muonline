@@ -177,7 +177,8 @@ namespace Client.Main.Objects
                 if (!isAfterDraw && RenderShadow)
                     DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, MuGame.Instance.GameTime);
 
-                if (!isAfterDraw && IsMouseHover)
+                bool highlightAllowed = !(this is Monsters.MonsterObject m && m.IsDead);
+                if (!isAfterDraw && IsMouseHover && highlightAllowed)
                     DrawMeshHighlight(i);
 
                 DrawMesh(i);
@@ -208,7 +209,8 @@ namespace Client.Main.Objects
                 if (!isAfterDraw && RenderShadow)
                     DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, MuGame.Instance.GameTime);
 
-                if (!isAfterDraw && IsMouseHover)
+                bool highlightAllowed = !(this is Monsters.MonsterObject m && m.IsDead);
+                if (!isAfterDraw && IsMouseHover && highlightAllowed)
                     DrawMeshHighlight(i);
 
                 if (draw) DrawMesh(i);

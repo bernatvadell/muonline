@@ -169,6 +169,13 @@ namespace Client.Main.Scenes
                 }
             }
 
+            // Consume scroll for UI before the world processes input
+            int preScrollChange = MuGame.Instance.Mouse.ScrollWheelValue - MuGame.Instance.PrevMouseState.ScrollWheelValue;
+            if (preScrollChange != 0 && MouseControl != null && MouseControl.Interactive && MouseControl != World)
+            {
+                IsMouseInputConsumedThisFrame = true;
+            }
+
             base.Update(gameTime);
 
             if (Status != GameControlStatus.Ready)

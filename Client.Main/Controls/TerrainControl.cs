@@ -207,25 +207,28 @@ namespace Client.Main.Controls
             CreateTerrainNormal();
             CreateTerrainLight();
 
-            string grassSpritePath = Path.Combine(worldFolder, "TileGrass01.ozt");
-            try
+            if (Constants.DRAW_GRASS)
             {
-                _grassSpriteTexture = await TextureLoader.Instance.PrepareAndGetTexture(grassSpritePath);
-                if (_grassSpriteTexture != null)
+                string grassSpritePath = Path.Combine(worldFolder, "TileGrass01.ozt");
+                try
                 {
-                    PremultiplyAlpha(_grassSpriteTexture);
+                    _grassSpriteTexture = await TextureLoader.Instance.PrepareAndGetTexture(grassSpritePath);
+                    if (_grassSpriteTexture != null)
+                    {
+                        PremultiplyAlpha(_grassSpriteTexture);
+                    }
+                    if (_grassSpriteTexture == null)
+                    {
+                        Console.WriteLine($"Warning: Could not load grass sprite texture: {grassSpritePath}");
+                    }
                 }
-                if (_grassSpriteTexture == null)
+                catch (Exception ex)
                 {
-                    Console.WriteLine($"Warning: Could not load grass sprite texture: {grassSpritePath}");
+                    Console.WriteLine($"Error loading grass sprite texture '{grassSpritePath}': {ex.Message}");
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error loading grass sprite texture '{grassSpritePath}': {ex.Message}");
-            }
 
-            _grassEffect = GraphicsManager.Instance.AlphaTestEffect3D;
+                _grassEffect = GraphicsManager.Instance.AlphaTestEffect3D;
+            }
 
             await base.Load();
         }
@@ -701,7 +704,7 @@ namespace Client.Main.Controls
         /// <summary>Renders the buffered grass tufts and restores GPU states.</summary>
         private void FlushGrassBatch()
         {
-            if (_grassBatchCount == 0 || _grassSpriteTexture == null)
+            if (!Constants.DRAW_GRASS || _grassBatchCount == 0 || _grassSpriteTexture == null)
                 return;
 
             //--------------------------------------------------------------------
@@ -795,7 +798,7 @@ namespace Client.Main.Controls
             }
 
             byte baseTex = (a1 < 255) ? _mapping.Layer1[idx1] : _mapping.Layer2[idx1];
-            if (baseTex != BASE_GRASS_TEXTURE_INDEX || _grassSpriteTexture == null)
+            if (!Constants.DRAW_GRASS || baseTex != BASE_GRASS_TEXTURE_INDEX || _grassSpriteTexture == null)
                 return;
 
             // Calculate distance to the center of the tile
@@ -862,7 +865,7 @@ namespace Client.Main.Controls
             float u0,
             float u1)
         {
-            if (_grassSpriteTexture == null) return;
+            if (!Constants.DRAW_GRASS || _grassSpriteTexture == null) return;
 
             const float BASE_W = 130f, BASE_H = 30f;
             float w = BASE_W * (u1 - u0) * lodFactor;

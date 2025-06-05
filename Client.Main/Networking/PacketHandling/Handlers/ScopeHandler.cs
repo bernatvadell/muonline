@@ -745,6 +745,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         if (obj != null)
                         {
                             world.Objects.Remove(obj);
+                            obj.Dispose(); // ensure label and resources are removed
                             _logger.LogDebug("Removed DroppedItemObject {Id:X4} from world (scope gone).", masked);
                         }
                     });
