@@ -68,6 +68,7 @@ namespace Client.Main.Controls
         public float DistortionAmplitude { get; set; } = 0f; // Amplitude of UV distortion for water effect
         public float DistortionFrequency { get; set; } = 0f; // Frequency of UV distortion for water effect
         public float GrassBrightness { get; set; } = 2f;
+        public float AmbientLight { get; set; } = 0.25f;
 
         // Private Fields
         private TerrainAttribute _terrain;
@@ -91,6 +92,10 @@ namespace Client.Main.Controls
         private readonly Vector2[] _terrainTextureCoord;
         private readonly Vector3[] _tempTerrainVertex;
         private readonly Color[] _tempTerrainLights;
+
+        // Dynamic Lights
+        private readonly List<DynamicLight> _dynamicLights = new();
+        public IReadOnlyList<DynamicLight> DynamicLights => _dynamicLights;
 
         // Wind Data
         private float _lastWindSpeed = float.MinValue;
@@ -350,12 +355,41 @@ namespace Client.Main.Controls
                             break;
                     }
                 }
-
                 output[i] = MathHelper.Lerp(left, right, xd);
             }
 
-            return new Vector3(output[0], output[1], output[2]);
+            Vector3 result = new(output[0], output[1], output[2]);
+            result += EvaluateDynamicLight(new Vector2(xf * Constants.TERRAIN_SCALE, yf * Constants.TERRAIN_SCALE));
+
+            result += new Vector3(AmbientLight * 255f);
+
+            result = Vector3.Clamp(result, Vector3.Zero, new Vector3(255f));
+            result /= 255f;
+
+            return result;
         }
+
+        private Vector3 EvaluateDynamicLight(Vector2 position)
+        {
+            Vector3 result = Vector3.Zero;
+            foreach (var light in _dynamicLights)
+            {
+                Vector2 diff = new(light.Position.X - position.X, light.Position.Y - position.Y);
+                float distSq = diff.LengthSquared();
+                if (distSq > light.Radius * light.Radius)
+                    continue;
+
+                float dist = MathF.Sqrt(distSq);
+                float factor = 1f - dist / light.Radius;
+                result += light.Color * 255f * light.Intensity * factor;
+            }
+
+            return result;
+        }
+
+        public void AddDynamicLight(DynamicLight light) => _dynamicLights.Add(light);
+
+        public void RemoveDynamicLight(DynamicLight light) => _dynamicLights.Remove(light);
 
         public float GetWindValue(int x, int y)
         {
@@ -950,10 +984,26 @@ namespace Client.Main.Controls
 
         private void PrepareTileLights(int idx1, int idx2, int idx3, int idx4)
         {
-            _tempTerrainLights[0] = idx1 < _backTerrainLight.Length ? _backTerrainLight[idx1] : Color.Black;
-            _tempTerrainLights[1] = idx2 < _backTerrainLight.Length ? _backTerrainLight[idx2] : Color.Black;
-            _tempTerrainLights[2] = idx3 < _backTerrainLight.Length ? _backTerrainLight[idx3] : Color.Black;
-            _tempTerrainLights[3] = idx4 < _backTerrainLight.Length ? _backTerrainLight[idx4] : Color.Black;
+            _tempTerrainLights[0] = BuildVertexLight(idx1, _tempTerrainVertex[0]);
+            _tempTerrainLights[1] = BuildVertexLight(idx2, _tempTerrainVertex[1]);
+            _tempTerrainLights[2] = BuildVertexLight(idx3, _tempTerrainVertex[2]);
+            _tempTerrainLights[3] = BuildVertexLight(idx4, _tempTerrainVertex[3]);
+        }
+
+        private Color BuildVertexLight(int index, Vector3 position)
+        {
+            Vector3 baseColor = index < _backTerrainLight.Length
+                ? new Vector3(_backTerrainLight[index].R,
+                              _backTerrainLight[index].G,
+                              _backTerrainLight[index].B)
+                : Vector3.Zero;
+
+            baseColor += EvaluateDynamicLight(new Vector2(position.X, position.Y));
+
+            baseColor += new Vector3(AmbientLight * 255f);
+
+            baseColor = Vector3.Clamp(baseColor, Vector3.Zero, new Vector3(255f));
+            return new Color((int)baseColor.X, (int)baseColor.Y, (int)baseColor.Z);
         }
 
         private void ApplyAlphaToLights(byte alpha1, byte alpha2, byte alpha3, byte alpha4)

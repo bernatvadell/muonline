@@ -18,7 +18,7 @@ namespace Client.Main
                 public static bool SOUND_EFFECTS = true;
                 public static bool DRAW_BOUNDING_BOXES = false;
                 public static bool DRAW_BOUNDING_BOXES_INTERACTIVES = false;
-                public static bool DRAW_GRASS = false;
+                public static bool DRAW_GRASS = true;
                 public static string DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
                 //public static string DataPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
 #else
@@ -27,7 +27,7 @@ namespace Client.Main
                 public static bool SOUND_EFFECTS = true;
                 public static bool DRAW_BOUNDING_BOXES = false;
                 public static bool DRAW_BOUNDING_BOXES_INTERACTIVES = false;
-                public static bool DRAW_GRASS = false;
+                public static bool DRAW_GRASS = true;
                 public static string DataPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
 #endif
                 public static string DataPathUrl = "http://192.168.55.220/Data.zip";
