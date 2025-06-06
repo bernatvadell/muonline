@@ -592,10 +592,11 @@ namespace Client.Main.Scenes
                 }
             }
 
-            bool isMoveCommandWindowFocused = FocusControl == _moveCommandWindow && _moveCommandWindow.Visible;
-            bool isChatInputFocused = FocusControl == _chatInput && _chatInput.Visible;
+            // Determine if any UI element that captures typing has focus.
+            bool isUiInputActive = FocusControl is TextFieldControl || (FocusControl == _moveCommandWindow && _moveCommandWindow.Visible);
 
-            if (!isChatInputFocused && !isMoveCommandWindowFocused)
+            // Process global hotkeys ONLY if a UI input element is NOT active.
+            if (!isUiInputActive)
             {
                 if (currentKeyboardState.IsKeyDown(Keys.I) && !_previousKeyboardState.IsKeyDown(Keys.I))
                 {
@@ -614,10 +615,18 @@ namespace Client.Main.Scenes
 
                     SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
                 }
-            }
+                if (currentKeyboardState.IsKeyDown(Keys.C) && !_previousKeyboardState.IsKeyDown(Keys.C))
+                {
+                    if (_characterInfoWindow != null)
+                    {
+                        if (_characterInfoWindow.Visible)
+                            _characterInfoWindow.HideWindow();
+                        else
+                            _characterInfoWindow.ShowWindow();
 
-            if (!isMoveCommandWindowFocused && !isChatInputFocused)
-            {
+                        SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
+                    }
+                }
                 if (currentKeyboardState.IsKeyDown(Keys.M) && !_previousKeyboardState.IsKeyDown(Keys.M))
                 {
                     if (!NpcShopControl.Instance.Visible)
@@ -625,24 +634,15 @@ namespace Client.Main.Scenes
                         _moveCommandWindow.ToggleVisibility();
                     }
                 }
-                else if (!IsKeyboardEnterConsumedThisFrame && !_chatInput.Visible && currentKeyboardState.IsKeyDown(Keys.Enter) && !_previousKeyboardState.IsKeyDown(Keys.Enter))
+
+                // Handle opening the chat window if it's not focused and Enter is pressed.
+                if (!IsKeyboardEnterConsumedThisFrame && !_chatInput.Visible && currentKeyboardState.IsKeyDown(Keys.Enter) && !_previousKeyboardState.IsKeyDown(Keys.Enter))
                 {
                     _chatInput.Show();
                 }
             }
 
-            if (currentKeyboardState.IsKeyDown(Keys.C) && !_previousKeyboardState.IsKeyDown(Keys.C))
-            {
-                if (_characterInfoWindow != null)
-                {
-                    if (_characterInfoWindow.Visible)
-                        _characterInfoWindow.HideWindow();
-                    else
-                        _characterInfoWindow.ShowWindow();
 
-                    SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
-                }
-            }
 
             _notificationManager?.Update(gameTime);
             ProcessPendingNotifications();

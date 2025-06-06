@@ -206,7 +206,7 @@ namespace Client.Main.Objects
         /// <summary>
         /// Draws the object's <see cref="DisplayName"/> above it when hovered.
         /// </summary>
-        protected virtual void DrawHoverName()
+        public virtual void DrawHoverName()
         {
             if (_font == null)
                 _font = GraphicsManager.Instance.Font;
@@ -224,10 +224,9 @@ namespace Client.Main.Objects
             if (string.IsNullOrEmpty(name))
                 return;
 
-            Vector3 anchor = new(
-                (BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) * 0.5f,
-                BoundingBoxWorld.Max.Y + 5f,
-                (BoundingBoxWorld.Min.Z + BoundingBoxWorld.Max.Z) * 0.5f);
+            Vector3 anchor = new((BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) * 0.5f,
+                (BoundingBoxWorld.Min.Y + BoundingBoxWorld.Max.Y) * 0.5f,
+                BoundingBoxWorld.Max.Z + 80f);
 
             Vector3 screen = GraphicsDevice.Viewport.Project(
                 anchor,
@@ -238,24 +237,17 @@ namespace Client.Main.Objects
             if (screen.Z < 0f || screen.Z > 1f)
                 return;
 
-            const float scale = 0.4f;
+            const float scale = 0.5f;
             Vector2 size = _font.MeasureString(name) * scale;
             var sb = GraphicsManager.Instance.Sprite;
 
-            void draw() => sb.DrawString(
-                _font,
-                name,
+            void draw() => sb.DrawString(_font, name,
                 new Vector2(screen.X - size.X * 0.5f, screen.Y - size.Y),
-                Color.White,
-                0f,
-                Vector2.Zero,
-                scale,
-                SpriteEffects.None,
-                0f);
+                Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, screen.Z);
 
             if (!SpriteBatchScope.BatchIsBegun)
             {
-                using (new SpriteBatchScope(sb, SpriteSortMode.Deferred, BlendState.NonPremultiplied, SamplerState.PointClamp, DepthStencilState.None))
+                using (new SpriteBatchScope(sb, SpriteSortMode.BackToFront, BlendState.NonPremultiplied, SamplerState.PointClamp, DepthStencilState.DepthRead))
                 {
                     draw();
                 }
@@ -383,7 +375,7 @@ namespace Client.Main.Objects
             GraphicsDevice.DepthStencilState = previousDepthState;
         }
 
-        protected void DrawBoundingBox2D()
+        public void DrawBoundingBox2D()
         {
             if (!(Constants.DRAW_BOUNDING_BOXES && IsMouseHover && _font != null))
                 return;

@@ -209,7 +209,7 @@ namespace Client.Main.Objects
 
             if (animType == AnimationType.Death)
             {
-                // NEW ─ keep advancing but clamp to second-to-last key
+                // Keep advancing but clamp to second-to-last key to hold the pose
                 int endIdx = Math.Max(0, totalFrames - 2);
                 _animTime += delta * effectiveFps;
                 _animTime = Math.Min(_animTime, endIdx + 0.0001f);
@@ -224,7 +224,7 @@ namespace Client.Main.Objects
                     if (_animTime >= totalFrames - 1.0f)
                     {
                         _animationController.NotifyAnimationCompleted();
-                        framePos = totalFrames - 0.0001f;          // last key
+                        framePos = totalFrames - 0.0001f; // last key
                     }
                     else
                     {
@@ -233,7 +233,7 @@ namespace Client.Main.Objects
                 }
                 else
                 {
-                    framePos = 0;                                 // one-shot not playing
+                    framePos = 0; // one-shot not playing
                 }
             }
             else // Looping (Idle / Walk / Rest / Sit)
@@ -246,25 +246,8 @@ namespace Client.Main.Objects
             // Key selection & interpolation
             //------------------------------------------------------------------
             int f0 = Math.Max(0, (int)framePos);
-            int f1 = f0;
-            float t = 0f;
-
-            // Interpolate only for looping / active one-shots
-            if (animType is AnimationType.Walk or AnimationType.Idle
-                or AnimationType.Rest or AnimationType.Sit
-                || (IsOneShotPlaying && animType is AnimationType.Attack or AnimationType.Skill or AnimationType.Emote))
-            {
-                f1 = (totalFrames > 1) ? ((f0 + 1) % totalFrames) : f0;
-                t = (float)(framePos - f0);
-            }
-
-            // NEW ─ Death: lock to endIdx, no interpolation
-            if (animType == AnimationType.Death)
-            {
-                int endIdx = Math.Max(0, totalFrames - 2);
-                f0 = f1 = endIdx;
-                t = 0f;
-            }
+            int f1 = (totalFrames > 1) ? ((f0 + 1) % totalFrames) : f0;
+            float t = (float)(framePos - f0);
 
             // Clamp indices (safety)
             f0 = Math.Min(f0, totalFrames - 1);
