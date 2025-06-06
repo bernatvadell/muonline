@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework;
+using Client.Main.Objects;
 
 namespace Client.Main.Controls
 {
@@ -7,6 +8,9 @@ namespace Client.Main.Controls
     /// </summary>
     public class DynamicLight
     {
+        /// <summary>The WorldObject that owns this light source.</summary>
+        public WorldObject Owner { get; set; }
+
         /// <summary>World position of the light.</summary>
         public Vector3 Position { get; set; }
 

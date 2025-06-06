@@ -1,4 +1,6 @@
-﻿using Client.Main.Controllers;
+﻿// Client.Main/Objects/WorldObject.cs
+
+using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Helpers;
 using Client.Main.Models;
@@ -141,14 +143,17 @@ namespace Client.Main.Objects
         {
             if (Status == GameControlStatus.NonInitialized)
             {
-                // Use ConfigureAwait(false) to avoid context switching
                 Load().ConfigureAwait(false);
             }
-
             if (Status != GameControlStatus.Ready) return;
 
-            // Early exit if object is out of view
-            OutOfView = Camera.Instance.Frustum.Contains(BoundingBoxWorld) == ContainmentType.Disjoint;
+            // Update OutOfView flag. The derived class will decide whether to act on it.
+            if (World != null)
+            {
+                OutOfView = !World.IsObjectInView(this);
+            }
+
+            // OPTIMIZATION: Early exit if the object is not in the camera's view.
             if (OutOfView) return;
 
             // Cache parent's mouse hover state

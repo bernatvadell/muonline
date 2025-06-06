@@ -10,7 +10,6 @@ namespace Client.Main.Objects.Worlds.Lorencia
 {
     public class DungeonGateObject : ModelObject
     {
-        // --- THE FIX: STEP 1 ---
         // A single, static Random instance shared by all DungeonGateObject instances.
         private static readonly Random _random = new Random();
 
@@ -24,7 +23,6 @@ namespace Client.Main.Objects.Worlds.Lorencia
             public List<float> ScaleOffsets { get; } = new();
             public Vector3 BasePosition { get; set; }
 
-            // --- THE FIX: STEP 2 ---
             // Each flame set gets its own light and unique time offset.
             public float TimeOffset { get; set; }
             public DynamicLight Light { get; } = new DynamicLight
@@ -58,7 +56,6 @@ namespace Client.Main.Objects.Worlds.Lorencia
             _firstFlameSet = CreateFlameSet();
             _secondFlameSet = CreateFlameSet();
 
-            // --- THE FIX: STEP 3 ---
             // Assign a unique, random time offset to each flame set.
             _firstFlameSet.TimeOffset = (float)_random.NextDouble() * 1000f;
             _secondFlameSet.TimeOffset = (float)_random.NextDouble() * 1000f;
@@ -67,6 +64,9 @@ namespace Client.Main.Objects.Worlds.Lorencia
         private FlameSet CreateFlameSet()
         {
             var flameSet = new FlameSet();
+
+            flameSet.Light.Owner = this;
+
             for (int i = 0; i < FLAME_COUNT; i++)
             {
                 var topFlame = new FireHik01Effect();
@@ -93,7 +93,6 @@ namespace Client.Main.Objects.Worlds.Lorencia
             Model = await BMDLoader.Instance.Prepare("Object1/DoungeonGate01.bmd");
             await base.Load();
 
-            // --- THE FIX: STEP 4 ---
             // Add the dynamic lights to the world when the object is loaded.
             if (World != null)
             {

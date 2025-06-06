@@ -30,6 +30,7 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
             _dynamicLight = new DynamicLight
             {
+                Owner = this,
                 Color = new Vector3(1.0f, 0.8f, 0.5f), // A warm, yellowish color
                 Radius = 250f, // Smaller radius for a small flame
                 Intensity = 1.2f // Less intense than a bonfire

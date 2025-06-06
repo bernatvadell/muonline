@@ -62,6 +62,8 @@ namespace Client.Main.Objects.Worlds.Lorencia
         {
             var flameSet = new FlameSet();
 
+            flameSet.Light.Owner = this;
+
             for (int i = 0; i < FLAME_COUNT; i++)
             {
                 var topFlame = new FireHik01Effect();

@@ -39,6 +39,10 @@ namespace Client.Main.Controls
         // Public Properties
         public short WorldIndex { get; set; }
         public Vector3 Light { get; set; } = new Vector3(0.5f, -0.5f, 0.5f);
+
+        // OPTIMIZATION: A new field to store only the lights that are currently in range.
+        private readonly List<DynamicLight> _activeLights = new(32); // Pre-allocate for 32 lights
+
         public Dictionary<int, string> TextureMappingFiles { get; set; } = new Dictionary<int, string>
         {
             { 0, "TileGrass01.ozj" },
@@ -245,6 +249,8 @@ namespace Client.Main.Controls
             if (Status != Models.GameControlStatus.Ready)
                 return;
 
+            UpdateVisibleBlocks(new Vector2(Camera.Instance.Position.X, Camera.Instance.Position.Y));
+
             InitTerrainWind(time);
 
             // Increase continuous water offset using WaterSpeed property.
@@ -358,30 +364,40 @@ namespace Client.Main.Controls
                 output[i] = MathHelper.Lerp(left, right, xd);
             }
 
+            // Calculate base light (static + ambient)
             Vector3 result = new(output[0], output[1], output[2]);
-            result += EvaluateDynamicLight(new Vector2(xf * Constants.TERRAIN_SCALE, yf * Constants.TERRAIN_SCALE));
-
             result += new Vector3(AmbientLight * 255f);
 
-            result = Vector3.Clamp(result, Vector3.Zero, new Vector3(255f));
-            result /= 255f;
+            // Add influence of active dynamic lights
+            result += EvaluateDynamicLight(new Vector2(xf * Constants.TERRAIN_SCALE, yf * Constants.TERRAIN_SCALE));
 
-            return result;
+            // Clamp and return
+            result = Vector3.Clamp(result, Vector3.Zero, new Vector3(255f));
+            return result / 255f;
         }
 
         private Vector3 EvaluateDynamicLight(Vector2 position)
         {
             Vector3 result = Vector3.Zero;
-            foreach (var light in _dynamicLights)
+            int activeCount = _activeLights.Count;
+
+            // Using a standard for-loop which is slightly faster in critical paths.
+            for (int i = 0; i < activeCount; i++)
             {
+                var light = _activeLights[i];
+                float radiusSq = light.Radius * light.Radius;
+
                 Vector2 diff = new(light.Position.X - position.X, light.Position.Y - position.Y);
                 float distSq = diff.LengthSquared();
-                if (distSq > light.Radius * light.Radius)
+
+                // Compare squared distances to avoid costly Sqrt
+                if (distSq > radiusSq)
                     continue;
 
+                // Sqrt is now only calculated for lights that are actually in range.
                 float dist = MathF.Sqrt(distSq);
                 float factor = 1f - dist / light.Radius;
-                result += light.Color * 255f * light.Intensity * factor;
+                result += light.Color * (255f * light.Intensity * factor);
             }
 
             return result;
@@ -526,13 +542,12 @@ namespace Client.Main.Controls
             });
         }
 
-
         private void RenderTerrain(bool isAfter)
         {
             if (_backTerrainHeight == null) return;
 
-            UpdateVisibleBlocks(new Vector2(Camera.Instance.Position.X,
-                                            Camera.Instance.Position.Y));
+            // Update the list of active lights once per frame.
+            UpdateActiveLights();
 
             var effect = GraphicsManager.Instance.BasicEffect3D;
             effect.Projection = Camera.Instance.Projection;
@@ -550,6 +565,29 @@ namespace Client.Main.Controls
             }
 
             FlushGrassBatch();
+        }
+
+        private void UpdateActiveLights()
+        {
+            _activeLights.Clear();
+            if (_dynamicLights.Count == 0 || World == null) return;
+
+            foreach (var light in _dynamicLights)
+            {
+                // Skip lights that are turned off.
+                if (light.Intensity <= 0.001f)
+                {
+                    continue;
+                }
+
+                // Use the new, efficient method from WorldControl to check if the light's
+                // bounding sphere intersects the camera's view. This provides the
+                // visual buffer you need without the performance cost.
+                if (World.IsLightInView(light))
+                {
+                    _activeLights.Add(light);
+                }
+            }
         }
 
         private int GetLODLevel(float distance)
@@ -992,16 +1030,20 @@ namespace Client.Main.Controls
 
         private Color BuildVertexLight(int index, Vector3 position)
         {
+            // Get static lighting from lightmap
             Vector3 baseColor = index < _backTerrainLight.Length
                 ? new Vector3(_backTerrainLight[index].R,
                               _backTerrainLight[index].G,
                               _backTerrainLight[index].B)
                 : Vector3.Zero;
 
-            baseColor += EvaluateDynamicLight(new Vector2(position.X, position.Y));
-
+            // Add ambient light
             baseColor += new Vector3(AmbientLight * 255f);
 
+            // Add influence of ACTIVE dynamic lights
+            baseColor += EvaluateDynamicLight(new Vector2(position.X, position.Y));
+
+            // Clamp and return color
             baseColor = Vector3.Clamp(baseColor, Vector3.Zero, new Vector3(255f));
             return new Color((int)baseColor.X, (int)baseColor.Y, (int)baseColor.Z);
         }

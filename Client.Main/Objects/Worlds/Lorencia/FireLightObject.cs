@@ -60,6 +60,7 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
             _dynamicLight = new DynamicLight
             {
+                Owner = this,
                 Color = new Vector3(1f, 0.7f, 0.4f),
                 Radius = 250f,
                 Intensity = 1f,

@@ -33,6 +33,7 @@ namespace Client.Main.Objects.Worlds.Login
 
             _dynamicLight = new DynamicLight
             {
+                Owner = this,
                 Color = new Vector3(1.0f, 0.75f, 0.45f), // Warm fire color
                 Radius = 350f, // A decent radius for a torch
                 Intensity = 1.0f
