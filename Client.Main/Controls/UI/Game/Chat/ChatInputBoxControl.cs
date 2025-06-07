@@ -50,7 +50,7 @@ namespace Client.Main.Controls.UI
         private bool _isWhisperLocked = false; // Corresponds to m_bBlockWhisper
         private bool _isWhisperSendMode = true; // Corresponds to m_bWhisperSend (true = show ID box)
         private bool _suppressNextEnter;
-        private ChatLogWindow _chatLogWindowRef; // Reference to the chat log
+        private readonly ChatLogWindow _chatLogWindowRef; // Reference to the chat log
 
         // History
         private List<string> _chatHistory = new List<string>();
@@ -68,6 +68,9 @@ namespace Client.Main.Controls.UI
         // Properties
         public InputMessageType CurrentInputType => _currentInputType;
         public bool IsWhisperLocked => _isWhisperLocked;
+
+        // Event for sending messages
+        public event EventHandler<ChatMessageEventArgs> MessageSendRequested;
 
         // Constructors
         public ChatInputBoxControl(ChatLogWindow chatLogWindow, ILoggerFactory loggerFactory)
@@ -424,80 +427,52 @@ namespace Client.Main.Controls.UI
                 return;
             }
 
-            // --- Get NetworkManager ---
-            var networkManager = MuGame.Network;
-            if (networkManager == null || !networkManager.IsConnected || networkManager.CurrentState < ClientConnectionState.InGame)
-            {
-                _logger.LogWarning("Cannot send chat message. NetworkManager unavailable or not in game.");
-                _chatLogWindowRef.AddMessage("System", "Cannot send message: Not connected to game.", MessageType.Error);
-                // Optionally hide the input box here too, or leave it open for the user to see the error.
-                return;
-            }
-            // --- End Get NetworkManager ---
-
-            string messageToSend = messageText; // Start with the trimmed message.
-
-            // --- Determine Message Type and Send ---
-            Task sendTask = Task.CompletedTask; // Task to await potential network send.
-
+            // --- Remove direct NetworkManager usage, use event instead ---
             if (_isWhisperSendMode && !string.IsNullOrEmpty(whisperTarget))
             {
                 if (string.IsNullOrEmpty(messageText))
                 {
-                    _logger.LogWarning("Attempted to send whisper with empty message to {Target}.", whisperTarget);
-                    _chatLogWindowRef.AddMessage("System", "Cannot send empty whisper message.", MessageType.Error);
-                    return; // Don't send empty whispers.
-                }
-
-                finalType = MessageType.Whisper;
-                AddWhisperIdHistory(whisperTarget);
-                // Send whisper via NetworkManager.
-                sendTask = networkManager.SendWhisperMessageAsync(whisperTarget, messageText);
-            }
-            else // Not whisper mode or no target specified.
-            {
-                if (string.IsNullOrEmpty(messageText))
-                {
-                    // Don't send empty public/group messages.
-                    Hide(); // Just hide the box if message is empty.
+                    Hide();
                     if (Scene != null) Scene.ConsumeKeyboardEnter();
                     return;
                 }
-
+                finalType = MessageType.Whisper;
+                AddWhisperIdHistory(whisperTarget);
+                MessageSendRequested?.Invoke(this, new ChatMessageEventArgs(messageText, finalType, whisperTarget));
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(messageText))
+                {
+                    Hide();
+                    if (Scene != null) Scene.ConsumeKeyboardEnter();
+                    return;
+                }
+                string messageToSend = messageText;
                 // Check for explicit prefixes FIRST.
                 if (messageText.StartsWith("~"))
                 {
-                    finalType = MessageType.Party;
-                    // Keep prefix for sending.
+                    finalType = MessageType.Chat;
+                    messageToSend = messageText.Substring(1);
                 }
                 else if (messageText.StartsWith("@"))
                 {
                     finalType = MessageType.Guild;
-                    // Keep prefix for sending.
+                    messageToSend = messageText.Substring(1);
                 }
-                else if (messageText.StartsWith("$")) // Assuming '$' for Gens.
+                else if (messageText.StartsWith("$"))
                 {
                     finalType = MessageType.Gens;
-                    // Keep prefix for sending.
+                    messageToSend = messageText.Substring(1);
                 }
-                else // No explicit prefix, use button state.
+                else
                 {
-                    finalType = _currentInputType switch
-                    {
-                        InputMessageType.Party => MessageType.Party,
-                        InputMessageType.Guild => MessageType.Guild,
-                        InputMessageType.Gens => MessageType.Gens,
-                        _ => MessageType.Chat, // Default to Chat.
-                    };
-
-                    // Add prefix based on button state IF NOT normal chat.
+                    finalType = (MessageType)_currentInputType;
                     if (finalType == MessageType.Party) messageToSend = "~" + messageText;
                     else if (finalType == MessageType.Guild) messageToSend = "@" + messageText;
                     else if (finalType == MessageType.Gens) messageToSend = "$" + messageText;
-                    // Normal chat (finalType == MessageType.Chat) sends without prefix.
                 }
-                // Send public/group chat via NetworkManager (with prefix if needed).
-                sendTask = networkManager.SendPublicChatMessageAsync(messageToSend);
+                MessageSendRequested?.Invoke(this, new ChatMessageEventArgs(messageToSend, finalType));
             }
 
             // Add to chat history (only the message text, not the prefix).

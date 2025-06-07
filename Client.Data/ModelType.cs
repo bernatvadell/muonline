@@ -30,7 +30,7 @@
         Stone03 = 32,
         Stone04 = 33,
         Stone05 = 34,
-        
+
         StoneStatue01 = 40,
         StoneStatue02 = 41,
         StoneStatue03 = 42,
@@ -134,7 +134,7 @@
         Furniture06 = 145,
         Furniture07 = 146,
         Unknown147 = 147,
-        
+
         Candle = 150,
         Beer01 = 151,
         Beer02 = 152,
@@ -160,5 +160,42 @@
         Face05 = 172,
         Face06 = 173,
         Face07 = 174,
+
+        ITEM_GROUP_SWORD = 0 * 512,
+        ITEM_GROUP_AXE = 1 * 512,
+        ITEM_GROUP_MACE_SCEPTER = 2 * 512,
+        ITEM_GROUP_SPEAR = 3 * 512,
+        ITEM_GROUP_BOW_CROSSBOW = 4 * 512,
+        ITEM_GROUP_STAFF = 5 * 512,
+        ITEM_GROUP_SHIELD = 6 * 512,
+        ITEM_GROUP_HELM = 7 * 512,
+        ITEM_GROUP_ARMOR = 8 * 512,
+        ITEM_GROUP_PANT = 9 * 512,
+        ITEM_GROUP_GLOVE = 10 * 512,
+        ITEM_GROUP_BOOT = 11 * 512,
+        ITEM_GROUP_WING_ORB_ETC = 12 * 512,
+        ITEM_GROUP_PET_RING_PENDANT = 13 * 512,
+        ITEM_GROUP_POTION_JEWEL_QUEST = 14 * 512, 
+        ITEM_GROUP_SCROLL = 15 * 512,
+
+        Wings_of_Elf = ITEM_GROUP_WING_ORB_ETC + 0,
+        Wings_of_Heaven = ITEM_GROUP_WING_ORB_ETC + 1,
+        Wings_of_Satan = ITEM_GROUP_WING_ORB_ETC + 2,
+        Wings_of_Spirits = ITEM_GROUP_WING_ORB_ETC + 3,
+        Wings_of_Soul = ITEM_GROUP_WING_ORB_ETC + 4,
+        Wings_of_Dragon = ITEM_GROUP_WING_ORB_ETC + 5,
+        Wings_of_Darkness = ITEM_GROUP_WING_ORB_ETC + 6,
+        Wing_of_Storm = ITEM_GROUP_WING_ORB_ETC + 36,
+        Wing_of_Eternal = ITEM_GROUP_WING_ORB_ETC + 37,
+        Wing_of_Illusion = ITEM_GROUP_WING_ORB_ETC + 38,
+        Wing_of_Ruin = ITEM_GROUP_WING_ORB_ETC + 39,
+        Cape_of_Emperor = ITEM_GROUP_WING_ORB_ETC + 40,
+        Wing_of_Curse = ITEM_GROUP_WING_ORB_ETC + 41,
+        Wings_of_Despair = ITEM_GROUP_WING_ORB_ETC + 42,
+        Wing_of_Dimension = ITEM_GROUP_WING_ORB_ETC + 43,
+        Cape_of_Fighter = ITEM_GROUP_WING_ORB_ETC + 49,
+        Cape_of_Overrule = ITEM_GROUP_WING_ORB_ETC + 50,
+
+        Berdysh = ITEM_GROUP_SPEAR + 7
     }
 }

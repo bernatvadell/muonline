@@ -1,6 +1,7 @@
 using Client.Main.Content;
 using Client.Main.Models;
 using Client.Main.Objects.Player;
+using Client.Main.Objects.Wings;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
@@ -8,11 +9,6 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects
 {
-    /// <summary>
-    /// Abstract base class for character-like objects composed of multiple body parts,
-    /// such as players and certain humanoid NPCs. This class manages the loading
-    /// and animation linkage of individual equipment parts.
-    /// </summary>
     public abstract class HumanoidObject : WalkerObject
     {
         protected ILogger _logger;
@@ -23,6 +19,9 @@ namespace Client.Main.Objects
         public PlayerPantObject Pants { get; private set; }
         public PlayerGloveObject Gloves { get; private set; }
         public PlayerBootObject Boots { get; private set; }
+        public WeaponObject Weapon1 { get; private set; }
+        public WeaponObject Weapon2 { get; private set; }
+        public WingObject Wings { get; private set; }
 
         protected HumanoidObject()
         {
@@ -35,6 +34,9 @@ namespace Client.Main.Objects
             Pants = new PlayerPantObject { LinkParentAnimation = true };
             Gloves = new PlayerGloveObject { LinkParentAnimation = true };
             Boots = new PlayerBootObject { LinkParentAnimation = true };
+            Weapon1 = new WeaponObject { IsRightHand = true };
+            Weapon2 = new WeaponObject { IsRightHand = false };
+            Wings = new WingObject { LinkParentAnimation = true, Hidden = true };
 
             Children.Add(HelmMask);
             Children.Add(Helm);
@@ -42,6 +44,9 @@ namespace Client.Main.Objects
             Children.Add(Pants);
             Children.Add(Gloves);
             Children.Add(Boots);
+            Children.Add(Weapon1);
+            Children.Add(Weapon2);
+            Children.Add(Wings);
         }
 
         /// <summary>
@@ -74,9 +79,15 @@ namespace Client.Main.Objects
                 part.Model = await BMDLoader.Instance.Prepare(modelPath);
                 if (part.Model == null)
                 {
-                    _logger?.LogWarning("Failed to load model for {PartType} at path: {Path}", part.GetType().Name, modelPath);
+                    _logger?.LogDebug("Model part not found (this is often normal for NPCs): {Path}", modelPath);
                 }
             }
+        }
+
+       
+        public override void Draw(GameTime gameTime)
+        {
+            base.Draw(gameTime);
         }
 
         public override void Update(GameTime gameTime)
@@ -86,12 +97,11 @@ namespace Client.Main.Objects
 
             if (wasMoving && !IsMoving && !IsOneShotPlaying)
             {
-                // Humanoid NPCs use PlayerAction enums.
-                if (CurrentAction == (int) PlayerAction.WalkMale || CurrentAction == (int) PlayerAction.WalkFemale)
+                if (CurrentAction == (int)PlayerAction.WalkMale || CurrentAction == (int)PlayerAction.WalkFemale)
                 {
-                    PlayAction((ushort) PlayerAction.StopMale);
+                    PlayAction((ushort)PlayerAction.StopMale);
                 }
             }
-         }
+        }
     }
 }
