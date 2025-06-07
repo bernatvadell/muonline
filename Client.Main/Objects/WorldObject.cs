@@ -214,10 +214,11 @@ namespace Client.Main.Objects
             if (!Constants.SHOW_NAMES_ON_HOVER || !IsMouseHover || _font == null)
                 return;
 
-            // Limit name display to WalkerObject-derived entities only
+            // Limit name display to player, monster and NPC entities
             if (this is not Player.PlayerObject &&
                 this is not Monsters.MonsterObject &&
-                this is not NPCS.NPCObject)
+                this is not NPCS.NPCObject &&
+                this is not NPCS.CompositeNPCObject)
                 return;
 
             string name = DisplayName;

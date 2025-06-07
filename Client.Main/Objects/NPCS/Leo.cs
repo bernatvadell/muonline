@@ -12,9 +12,7 @@ namespace Client.Main.Objects.NPCS
         public override async Task Load()
         {
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
-            await SetBodyPartsAsync("Player/",
-                "HelmMale", "ArmorMale", "PantMale", "GloveMale", "BootMale",
-                11);
+            await SetBodyPartsAsync("Player/", "HelmMale", "ArmorMale", "PantMale", "GloveMale", "BootMale", 10);
             await base.Load();
             CurrentAction = (int)PlayerAction.StopMale;
         }

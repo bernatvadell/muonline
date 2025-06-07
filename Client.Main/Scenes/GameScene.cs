@@ -21,6 +21,7 @@ using Microsoft.Extensions.Logging;
 using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Helpers;
 using Microsoft.Xna.Framework.Graphics;
+using Client.Main.Networking;
 
 namespace Client.Main.Scenes
 {
@@ -124,6 +125,7 @@ namespace Client.Main.Scenes
                 X = 5,
                 Y = MuGame.Instance.Height - 65 - ChatInputBoxControl.CHATBOX_HEIGHT
             };
+            _chatInput.MessageSendRequested += OnChatMessageSendRequested;
             Controls.Add(_chatInput);
 
             _pendingNotifications.AddRange(ChatMessageHandler.TakePendingServerMessages());
@@ -151,6 +153,12 @@ namespace Client.Main.Scenes
         }
 
         public GameScene() : this(GetCharacterInfoFromState()) { }
+
+        public GameScene((string Name, CharacterClassNumber Class, ushort Level) characterInfo, NetworkManager networkManager)
+            : this(characterInfo)
+        {
+            // Optionally store networkManager if needed in the future
+        }
 
         private static (string Name, CharacterClassNumber Class, ushort Level) GetCharacterInfoFromState()
         {
@@ -743,6 +751,23 @@ namespace Client.Main.Scenes
             if (_characterInfoWindow != null)
             {
                 await _characterInfoWindow.Initialize();
+            }
+        }
+
+        private void OnChatMessageSendRequested(object sender, ChatMessageEventArgs e)
+        {
+            if (_isChangingWorld || MuGame.Network == null || !MuGame.Network.IsConnected)
+            {
+                _chatLog.AddMessage("System", "Cannot send message while disconnected or changing maps.", MessageType.Error);
+                return;
+            }
+            if (e.MessageType == MessageType.Whisper)
+            {
+                _ = MuGame.Network.SendWhisperMessageAsync(e.Receiver, e.Message);
+            }
+            else
+            {
+                _ = MuGame.Network.SendPublicChatMessageAsync(e.Message);
             }
         }
     }

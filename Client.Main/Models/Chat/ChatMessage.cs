@@ -43,4 +43,18 @@ namespace Client.Main.Models
             return Vector2.Zero;
         }
     }
+
+    public class ChatMessageEventArgs : EventArgs
+    {
+        public string Message { get; }
+        public string Receiver { get; } // Null for public/group messages
+        public MessageType MessageType { get; }
+
+        public ChatMessageEventArgs(string message, MessageType type, string receiver = null)
+        {
+            Message = message;
+            MessageType = type;
+            Receiver = receiver;
+        }
+    }
 }

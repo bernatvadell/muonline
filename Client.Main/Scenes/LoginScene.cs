@@ -376,7 +376,7 @@ namespace Client.Main.Scenes
                     try
                     {
                         _logger.LogInformation("--- Creating SelectCharacterScene instance...");
-                        var newScene = new SelectCharacterScene(characters);
+                        var newScene = new SelectCharacterScene(characters, _networkManager);
                         _logger.LogInformation("--- SelectCharacterScene instance created.");
                         _logger.LogInformation("--- Calling ChangeScene...");
                         MuGame.Instance.ChangeScene(newScene);
