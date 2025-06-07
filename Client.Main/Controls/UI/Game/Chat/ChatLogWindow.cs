@@ -26,6 +26,7 @@ namespace Client.Main.Controls.UI
         private const int SCROLL_BTN_WIDTH = 15;
         private const int SCROLL_BTN_HEIGHT = 30;
         private const float DEFAULT_BACK_ALPHA = 0.6f;
+        private const int SCROLL_WHEEL_STEP = 120; // standard mouse wheel delta
         private const float LINE_HEIGHT_FALLBACK = 15f;
 
         // --- UI Textures ---
@@ -289,7 +290,7 @@ namespace Client.Main.Controls.UI
         {
             if (!_showFrame) return; // Only when frame is visible
 
-            _scrollOffset -= lineDelta; // Negative delta scrolls down (increases offset)
+            _scrollOffset += lineDelta;
             ClampScrollOffset();
             UpdateScrollbar();
         }
@@ -344,12 +345,15 @@ namespace Client.Main.Controls.UI
                 // Mouse wheel (only in main window)
                 if (DisplayRectangle.Contains(mouse.Position) && mouse.ScrollWheelValue != prevMouse.ScrollWheelValue)
                 {
-                    int delta = (prevMouse.ScrollWheelValue - mouse.ScrollWheelValue);
-                    // Change here: invert the delta sign
-                    // old: _scrollOffset += delta;
-                    _scrollOffset -= delta; // inverted wheel scroll direction
+                    int wheelDelta = mouse.ScrollWheelValue - prevMouse.ScrollWheelValue; // positive when wheel up
+                    int lines = wheelDelta / SCROLL_WHEEL_STEP;
+                    if (lines == 0)
+                        lines = Math.Sign(wheelDelta); // at least one line
+
+                    _scrollOffset += lines; // positive -> scroll up (older messages)
                     ClampScrollOffset();
                     UpdateScrollbar();
+                    Scene?.SetMouseInputConsumed(); // prevent world zoom while scrolling chat
                 }
 
                 // Frame interactions (only when visible)
@@ -886,23 +890,29 @@ namespace Client.Main.Controls.UI
             // Check if mouse is over the scrollbar area (not a separate _scrollBar control, but the area/logic is internal)
             if (_showFrame && !_scrollBarArea.IsEmpty && _scrollBarArea.Contains(MuGame.Instance.Mouse.Position))
             {
+                int lines = scrollDelta / SCROLL_WHEEL_STEP;
+                if (lines == 0)
+                    lines = Math.Sign(scrollDelta);
                 // If the thumb is hovered, treat as handled (simulate scrollbar logic)
                 if (!_scrollThumbArea.IsEmpty && _scrollThumbArea.Contains(MuGame.Instance.Mouse.Position))
                 {
                     // Simulate thumb scroll: scroll by one line per wheel event
-                    _scrollOffset -= scrollDelta;
+                    _scrollOffset += lines; // one line per wheel step
                     ClampScrollOffset();
                     UpdateScrollbar();
                     return true;
                 }
                 // If over the scrollbar but not the thumb, still treat as handled
-                _scrollOffset -= scrollDelta;
+                _scrollOffset += lines; // one line per wheel step
                 ClampScrollOffset();
                 UpdateScrollbar();
                 return true;
             }
             // Not over scrollbar, process for main content
-            _scrollOffset -= scrollDelta; // inverted from original logic; scrollDelta positive = wheel up = content scroll down = offset decrease
+            int linesOutside = scrollDelta / SCROLL_WHEEL_STEP;
+            if (linesOutside == 0)
+                linesOutside = Math.Sign(scrollDelta);
+            _scrollOffset += linesOutside; // Wheel delta positive = scroll up (older messages)
             ClampScrollOffset();
             UpdateScrollbar();
             return true; // scroll handled

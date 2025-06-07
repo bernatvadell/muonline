@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.NPCS
 {
+    [NpcInfo(243, "Eo the Craftsman")]
     public class EoTheCraftsman : NPCObject
     {
         public override async Task Load()
@@ -10,10 +11,6 @@ namespace Client.Main.Objects.NPCS
             Model = await BMDLoader.Instance.Prepare($"NPC/ElfMerchant01.bmd");
             await base.Load();
         }
-
-          protected override void HandleClick()
-        {
-            // Handle the click event specific to this NPC
-        }
+        protected override void HandleClick() { }
     }
 }

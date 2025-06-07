@@ -131,7 +131,7 @@ namespace Client.Main.Scenes
             Controls.Add(_notificationManager);
             _notificationManager.BringToFront();
 
-            _inventoryControl = new InventoryControl(MuGame.Network);
+            _inventoryControl = new InventoryControl(MuGame.Network, MuGame.AppLoggerFactory);
             Controls.Add(_inventoryControl);
 
             _loadingScreen = new LoadingScreenControl { Visible = true, Message = "Loading Game..." };
@@ -200,7 +200,7 @@ namespace Client.Main.Scenes
                 _characterInfo.Name,
                 _characterInfo.Class,
                 _characterInfo.Level,
-                charState.PositionX, 
+                charState.PositionX,
                 charState.PositionY,
                 charState.MapId
             );
@@ -308,6 +308,11 @@ namespace Client.Main.Scenes
             PreloadSounds();
             UpdateLoadProgress("Sounds preloaded.", 0.97f);
 
+            // Preload UI textures so opening windows doesn't cause stalls
+            UpdateLoadProgress("Preloading UI textures...", 0.975f);
+            await PreloadUITextures();
+            UpdateLoadProgress("UI textures preloaded.", 0.985f);
+
             if (World is WalkableWorldControl finalWalkable)
             {
                 _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: FINAL CHECK - Walker.NetworkId: {finalWalkable.Walker?.NetworkId:X4}, CharState.Id: {charState.Id:X4}");
@@ -388,9 +393,15 @@ namespace Client.Main.Scenes
             _main.Visible = false;
 
             var previousWorld = World;
-            _nextWorld = (WorldControl)Activator.CreateInstance(worldType)
-                ?? throw new InvalidOperationException($"Cannot create world: {worldType}");
 
+            if (previousWorld is { Objects: { } objects })
+            {
+                objects.Detach(_hero);
+            }
+
+            _hero.Reset();
+
+            _nextWorld = (WorldControl)Activator.CreateInstance(worldType);
             if (_nextWorld is WalkableWorldControl walkable)
                 walkable.Walker = _hero;
 
@@ -491,6 +502,7 @@ namespace Client.Main.Scenes
                 {
                     npcMonster.NetworkId = s.Id;
                     npcMonster.Location = new Vector2(s.PositionX, s.PositionY);
+                    npcMonster.Direction = (Models.Direction)s.Direction;
                     w.Objects.Add(npcMonster);
                     await npcMonster.Load();
                 }
@@ -581,10 +593,11 @@ namespace Client.Main.Scenes
                 }
             }
 
-            bool isMoveCommandWindowFocused = FocusControl == _moveCommandWindow && _moveCommandWindow.Visible;
-            bool isChatInputFocused = FocusControl == _chatInput && _chatInput.Visible;
+            // Determine if any UI element that captures typing has focus.
+            bool isUiInputActive = FocusControl is TextFieldControl || (FocusControl == _moveCommandWindow && _moveCommandWindow.Visible);
 
-            if (!isChatInputFocused && !isMoveCommandWindowFocused)
+            // Process global hotkeys ONLY if a UI input element is NOT active.
+            if (!isUiInputActive)
             {
                 if (currentKeyboardState.IsKeyDown(Keys.I) && !_previousKeyboardState.IsKeyDown(Keys.I))
                 {
@@ -603,10 +616,18 @@ namespace Client.Main.Scenes
 
                     SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
                 }
-            }
+                if (currentKeyboardState.IsKeyDown(Keys.C) && !_previousKeyboardState.IsKeyDown(Keys.C))
+                {
+                    if (_characterInfoWindow != null)
+                    {
+                        if (_characterInfoWindow.Visible)
+                            _characterInfoWindow.HideWindow();
+                        else
+                            _characterInfoWindow.ShowWindow();
 
-            if (!isMoveCommandWindowFocused && !isChatInputFocused)
-            {
+                        SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
+                    }
+                }
                 if (currentKeyboardState.IsKeyDown(Keys.M) && !_previousKeyboardState.IsKeyDown(Keys.M))
                 {
                     if (!NpcShopControl.Instance.Visible)
@@ -614,24 +635,15 @@ namespace Client.Main.Scenes
                         _moveCommandWindow.ToggleVisibility();
                     }
                 }
-                else if (!IsKeyboardEnterConsumedThisFrame && !_chatInput.Visible && currentKeyboardState.IsKeyDown(Keys.Enter) && !_previousKeyboardState.IsKeyDown(Keys.Enter))
+
+                // Handle opening the chat window if it's not focused and Enter is pressed.
+                if (!IsKeyboardEnterConsumedThisFrame && !_chatInput.Visible && currentKeyboardState.IsKeyDown(Keys.Enter) && !_previousKeyboardState.IsKeyDown(Keys.Enter))
                 {
                     _chatInput.Show();
                 }
             }
 
-            if (currentKeyboardState.IsKeyDown(Keys.C) && !_previousKeyboardState.IsKeyDown(Keys.C))
-            {
-                if (_characterInfoWindow != null)
-                {
-                    if (_characterInfoWindow.Visible)
-                        _characterInfoWindow.HideWindow();
-                    else
-                        _characterInfoWindow.ShowWindow();
 
-                    SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
-                }
-            }
 
             _notificationManager?.Update(gameTime);
             ProcessPendingNotifications();
@@ -715,6 +727,23 @@ namespace Client.Main.Scenes
             SoundController.Instance.PreloadSound("Sound/pDropMoney.wav");
             SoundController.Instance.PreloadSound("Sound/pGem.wav");
             SoundController.Instance.PreloadSound("Sound/pGetItem.wav");
+        }
+
+        /// <summary>
+        /// Preloads textures for UI controls to avoid stalls when opening them later.
+        /// </summary>
+        private async Task PreloadUITextures()
+        {
+            if (_inventoryControl != null)
+            {
+                await _inventoryControl.Initialize();
+                _inventoryControl.Preload();
+            }
+
+            if (_characterInfoWindow != null)
+            {
+                await _characterInfoWindow.Initialize();
+            }
         }
     }
 }

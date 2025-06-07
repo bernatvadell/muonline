@@ -1,4 +1,4 @@
-﻿using Client.Main.Content;
+using Client.Main.Content;
 using Client.Main.Controls;
 using Client.Main.Models;
 using Client.Main.Objects.Wings;
@@ -14,10 +14,9 @@ using System.Collections.Generic; // Required for IConnection if CharacterServic
 
 namespace Client.Main.Objects.Player
 {
-    public class PlayerObject : WalkerObject
+    public class PlayerObject : HumanoidObject
     {
         private CharacterClassNumber _characterClass;
-        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<PlayerObject>(); // Assumes ModelObject.AppLoggerFactory is set
 
         public bool IsResting { get; set; } = false;
         public bool IsSitting { get; set; } = false;
@@ -25,32 +24,9 @@ namespace Client.Main.Objects.Player
         public Vector2? SitPlaceTarget { get; set; }
 
         public string Name { get; set; } = "Character";
+        public override string DisplayName => Name;
         private ushort _networkId; // Private backing field
 
-        public ushort NetworkId
-        {
-            get => _networkId;
-            set
-            {
-                if (_networkId != value)
-                {
-                    _logger?.LogDebug($"PlayerObject {Name}: Setting NetworkId from {_networkId:X4} to {value:X4}");
-                    _networkId = value;
-
-                    // This ensures both the PlayerObject and its base WalkerObject have the same NetworkId
-                    if (this is WorldObject worldObj)
-                    {
-                        // Use reflection or direct property access if NetworkId exists in base class
-                        var baseNetworkIdProperty = typeof(WalkerObject).GetProperty("NetworkId") ?? typeof(WorldObject).GetProperty("NetworkId");
-                        if (baseNetworkIdProperty != null && baseNetworkIdProperty.CanWrite)
-                        {
-                            baseNetworkIdProperty.SetValue(this, value);
-                            _logger?.LogDebug($"PlayerObject {Name}: Also set base class NetworkId to {value:X4}");
-                        }
-                    }
-                }
-            }
-        }
         private CharacterService _characterService;
         private NetworkManager _networkManager;
 
@@ -69,12 +45,6 @@ namespace Client.Main.Objects.Player
             }
         }
 
-        public PlayerMaskHelmObject HelmMask { get; private set; }
-        public PlayerHelmObject Helm { get; private set; }
-        public PlayerArmorObject Armor { get; private set; }
-        public PlayerPantObject Pants { get; private set; }
-        public PlayerGloveObject Gloves { get; private set; }
-        public PlayerBootObject Boots { get; private set; }
         public WingObject Wings { get; private set; }
 
         public new PlayerAction CurrentAction
@@ -89,6 +59,9 @@ namespace Client.Main.Objects.Player
         {
             _networkId = 0x0000;
 
+            // Enable mouse hover interactions so the name is shown
+            Interactive = true;
+
             BoundingBoxLocal = new BoundingBox(
                 new Vector3(-40, -40, 0),
                 new Vector3(40, 40, 120));
@@ -98,20 +71,8 @@ namespace Client.Main.Objects.Player
             CurrentAction = PlayerAction.StopMale;
             _characterClass = CharacterClassNumber.DarkWizard;
 
-            HelmMask = new PlayerMaskHelmObject { LinkParentAnimation = true, Hidden = true };
-            Helm = new PlayerHelmObject { LinkParentAnimation = true };
-            Armor = new PlayerArmorObject { LinkParentAnimation = true };
-            Pants = new PlayerPantObject { LinkParentAnimation = true };
-            Gloves = new PlayerGloveObject { LinkParentAnimation = true };
-            Boots = new PlayerBootObject { LinkParentAnimation = true };
             Wings = new Wing403 { LinkParentAnimation = false, Hidden = true };
 
-            Children.Add(HelmMask);
-            Children.Add(Helm);
-            Children.Add(Armor);
-            Children.Add(Pants);
-            Children.Add(Gloves);
-            Children.Add(Boots);
             Children.Add(Wings);
 
             _networkManager = MuGame.Network;
@@ -131,41 +92,28 @@ namespace Client.Main.Objects.Player
 
         public override async Task Load()
         {
-            _logger?.LogDebug($"PlayerObject {Name}: Load() started. Current _characterClass: {_characterClass}, NetworkId: {_networkId:X4}");
-
-            ushort preservedNetworkId = _networkId;
-
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
-            if (Model == null)
-            {
-                _logger?.LogDebug($"PlayerObject {Name}: Failed to load base model 'Player/Player.bmd'");
-                Status = GameControlStatus.Error;
-                return;
-            }
-            _logger?.LogDebug($"PlayerObject {Name}: Base model prepared.");
-
             await UpdateBodyPartClassesAsync();
-            _logger?.LogDebug($"PlayerObject {Name}: UpdateBodyPartClassesAsync() called within Load().");
-
             await base.Load();
-            _logger?.LogDebug($"PlayerObject {Name}: base.Load() completed.");
 
-            if (_networkId != preservedNetworkId)
-            {
-                _logger?.LogWarning($"PlayerObject {Name}: NetworkId was changed during Load() from {preservedNetworkId:X4} to {_networkId:X4}. Restoring original value.");
-                NetworkId = preservedNetworkId;
-            }
-
-            foreach (var child in Children)
-            {
-                if (child is ModelObject modelChild)
-                {
-                    _logger?.LogDebug($"{modelChild.GetType().Name}: Status={modelChild.Status}, Model={(modelChild.Model != null ? "OK" : "NULL")}");
-                }
-            }
-            _logger?.LogDebug($"PlayerObject {Name}: Status after load: {Status}, Final NetworkId: {_networkId:X4}");
+            SetActionSpeed(PlayerAction.StopMale, 0.5f);
+            SetActionSpeed(PlayerAction.StopFemale, 0.5f);
+            SetActionSpeed(PlayerAction.StopFlying, 0.5f);
         }
 
+        private void SetActionSpeed(PlayerAction action, float speed)
+        {
+            var actionIndex = (int)action;
+            if (Model?.Actions != null && actionIndex >= 0 && actionIndex < Model.Actions.Length)
+            {
+                Model.Actions[actionIndex].PlaySpeed = speed;
+                _logger?.LogDebug($"Set PlaySpeed for action '{action}' to {speed}");
+            }
+            else
+            {
+                _logger?.LogWarning($"Could not set PlaySpeed for action '{action}' - model or action not loaded.");
+            }
+        }
 
         public override void Update(GameTime gameTime)
         {
@@ -478,18 +426,9 @@ namespace Client.Main.Objects.Player
         public async Task UpdateBodyPartClassesAsync()
         {
             PlayerClass mappedClass = MapNetworkClassToModelClass(_characterClass);
-            // Using Task.WhenAll to load them concurrently if they are independent
-            var tasks = new List<Task>
-            {
-                HelmMask?.SetPlayerClassAsync(mappedClass) ?? Task.CompletedTask,
-                Helm?.SetPlayerClassAsync(mappedClass) ?? Task.CompletedTask,
-                Armor?.SetPlayerClassAsync(mappedClass) ?? Task.CompletedTask,
-                Pants?.SetPlayerClassAsync(mappedClass) ?? Task.CompletedTask,
-                Gloves?.SetPlayerClassAsync(mappedClass) ?? Task.CompletedTask,
-                Boots?.SetPlayerClassAsync(mappedClass) ?? Task.CompletedTask
-                // Wings might not use SetPlayerClassAsync or PlayerClass
-            };
-            await Task.WhenAll(tasks);
+            // Use the new helper from HumanoidObject with an integer index
+            await SetBodyPartsAsync("Player/",
+                "HelmClass", "ArmorClass", "PantClass", "GloveClass", "BootClass", (int)mappedClass);
         }
     }
 }

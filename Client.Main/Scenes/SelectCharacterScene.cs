@@ -81,6 +81,11 @@ namespace Client.Main.Scenes
                 UpdateLoadProgress("Select World Initialized.", 0.35f); // Zwiększony postęp po inicjalizacji świata
                 _logger.LogInformation("--- SelectCharacterScene: SelectWorld initialized and set.");
 
+                if (_selectWorld.Terrain != null)
+                {
+                    _selectWorld.Terrain.AmbientLight = 0.6f;
+                }
+
                 if (_selectWorld != null && _characters.Any())
                 {
                     UpdateLoadProgress("Preparing Character Data...", 0.40f);

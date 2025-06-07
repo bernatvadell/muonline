@@ -224,7 +224,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         {
             Memory<byte> packet = packetData;
             int npcCount = 0, firstOffset = 0, dataSize = 0;
-            Func<Memory<byte>, (ushort id, ushort type, byte x, byte y)> readNpc = null!;
+            Func<Memory<byte>, (ushort id, ushort type, byte x, byte y, byte direction)> readNpc = null!;
 
             switch (_targetVersion)
             {
@@ -233,21 +233,21 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     npcCount = s6.NpcCount;
                     firstOffset = 5;
                     dataSize = AddNpcsToScope.NpcData.Length;
-                    readNpc = m => { var d = new AddNpcsToScope.NpcData(m); return (d.Id, d.TypeNumber, d.CurrentPositionX, d.CurrentPositionY); };
+                    readNpc = m => { var d = new AddNpcsToScope.NpcData(m); return (d.Id, d.TypeNumber, d.CurrentPositionX, d.CurrentPositionY, d.Rotation); };
                     break;
                 case TargetProtocolVersion.Version097:
                     var v97 = new AddNpcsToScope095(packet);
                     npcCount = v97.NpcCount;
                     firstOffset = 5;
                     dataSize = AddNpcsToScope095.NpcData.Length;
-                    readNpc = m => { var d = new AddNpcsToScope095.NpcData(m); return (d.Id, d.TypeNumber, d.CurrentPositionX, d.CurrentPositionY); };
+                    readNpc = m => { var d = new AddNpcsToScope095.NpcData(m); return (d.Id, d.TypeNumber, d.CurrentPositionX, d.CurrentPositionY, d.Rotation); };
                     break;
                 case TargetProtocolVersion.Version075:
                     var v75 = new AddNpcsToScope075(packet);
                     npcCount = v75.NpcCount;
                     firstOffset = 5;
                     dataSize = AddNpcsToScope075.NpcData.Length;
-                    readNpc = m => { var d = new AddNpcsToScope075.NpcData(m); return (d.Id, d.TypeNumber, d.CurrentPositionX, d.CurrentPositionY); };
+                    readNpc = m => { var d = new AddNpcsToScope075.NpcData(m); return (d.Id, d.TypeNumber, d.CurrentPositionX, d.CurrentPositionY, d.Rotation); };
                     break;
                 default:
                     _logger.LogWarning("Unsupported protocol version {Version} for AddNpcToScope.", _targetVersion);
@@ -265,7 +265,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     break;
                 }
 
-                var (rawId, type, x, y) = readNpc(packet.Slice(currentPacketOffset));
+                var (rawId, type, x, y, direction) = readNpc(packet.Slice(currentPacketOffset));
                 currentPacketOffset += dataSize;
 
                 ushort maskedId = (ushort)(rawId & 0x7FFF);
@@ -298,6 +298,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             {
                                 obj.NetworkId = maskedId;
                                 obj.Location = new Vector2(x, y);
+                                obj.Direction = (Client.Main.Models.Direction)direction;
 
                                 worldRef.Objects.Add(obj);
 
@@ -309,10 +310,9 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                                 else
                                 {
                                     _logger.LogError($"ScopeHandler: obj.World or obj.World.Terrain is null for NPC/Monster {maskedId} ({obj.GetType().Name}) AFTER adding to worldRef.Objects. This should not happen.");
-                                    // Awaryjne ustawienie, jeśli teren nie jest dostępny
                                     float worldX = obj.Location.X * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
                                     float worldY = obj.Location.Y * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
-                                    obj.MoveTargetPosition = new Vector3(worldX, worldY, 0); // Z = 0 jako fallback
+                                    obj.MoveTargetPosition = new Vector3(worldX, worldY, 0);
                                     obj.Position = obj.MoveTargetPosition;
                                 }
 
@@ -345,7 +345,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         {
                             if (!_pendingNpcsMonsters.Any(p => p.Id == maskedId))
                             {
-                                _pendingNpcsMonsters.Add(new NpcScopeObject(maskedId, rawId, x, y, type, name));
+                                _pendingNpcsMonsters.Add(new NpcScopeObject(maskedId, rawId, x, y, type, name) { Direction = direction });
                             }
                         }
                     }
@@ -745,6 +745,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         if (obj != null)
                         {
                             world.Objects.Remove(obj);
+                            obj.Dispose(); // ensure label and resources are removed
                             _logger.LogDebug("Removed DroppedItemObject {Id:X4} from world (scope gone).", masked);
                         }
                     });
@@ -1058,20 +1059,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         else if (walker is MonsterObject monster)
                         {
                             monster.PlayAction((byte)MonsterActionType.Die);
+                            monster.StartDeathFade();
                             _logger.LogDebug("💀 Monster {Id:X4} death animation started", killed);
-
-                            Task.Delay(2000).ContinueWith(_ =>
-                            {
-                                MuGame.ScheduleOnMainThread(() =>
-                                {
-                                    if (world.Objects.Contains(walker))
-                                    {
-                                        world.Objects.Remove(walker);
-                                        walker.Dispose();
-                                        _logger.LogDebug("💀 Removed dead monster {Id:X4}", killed);
-                                    }
-                                });
-                            });
                         }
                     }
                 });

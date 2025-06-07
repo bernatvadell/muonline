@@ -1,4 +1,6 @@
-﻿using Client.Main.Controllers;
+// Client.Main/Objects/WorldObject.cs
+
+using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Helpers;
 using Client.Main.Models;
@@ -46,6 +48,7 @@ namespace Client.Main.Objects
         public GameControlStatus Status { get; protected set; } = GameControlStatus.NonInitialized;
         public bool Hidden { get; set; }
         public string ObjectName => GetType().Name;
+        public virtual string DisplayName => ObjectName;
         public BlendState BlendState { get; set; } = BlendState.Opaque;
         public float Alpha { get; set; } = 1f;
         public float TotalAlpha { get => (Parent?.TotalAlpha ?? 1f) * Alpha; }
@@ -140,14 +143,17 @@ namespace Client.Main.Objects
         {
             if (Status == GameControlStatus.NonInitialized)
             {
-                // Use ConfigureAwait(false) to avoid context switching
                 Load().ConfigureAwait(false);
             }
-
             if (Status != GameControlStatus.Ready) return;
 
-            // Early exit if object is out of view
-            OutOfView = Camera.Instance.Frustum.Contains(BoundingBoxWorld) == ContainmentType.Disjoint;
+            // Update OutOfView flag. The derived class will decide whether to act on it.
+            if (World != null)
+            {
+                OutOfView = !World.IsObjectInView(this);
+            }
+
+            // OPTIMIZATION: Early exit if the object is not in the camera's view.
             if (OutOfView) return;
 
             // Cache parent's mouse hover state
@@ -189,11 +195,67 @@ namespace Client.Main.Objects
             if (!Visible) return;
 
             DrawBoundingBox2D();
+            DrawHoverName();
 
             // Avoid enumeration overhead
             int count = Children.Count;
             for (int i = 0; i < count; i++)
                 Children[i].DrawAfter(gameTime);
+        }
+
+        /// <summary>
+        /// Draws the object's <see cref="DisplayName"/> above it when hovered.
+        /// </summary>
+        public virtual void DrawHoverName()
+        {
+            if (_font == null)
+                _font = GraphicsManager.Instance.Font;
+
+            if (!Constants.SHOW_NAMES_ON_HOVER || !IsMouseHover || _font == null)
+                return;
+
+            // Limit name display to WalkerObject-derived entities only
+            if (this is not Player.PlayerObject &&
+                this is not Monsters.MonsterObject &&
+                this is not NPCS.NPCObject)
+                return;
+
+            string name = DisplayName;
+            if (string.IsNullOrEmpty(name))
+                return;
+
+            Vector3 anchor = new((BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) * 0.5f,
+                (BoundingBoxWorld.Min.Y + BoundingBoxWorld.Max.Y) * 0.5f,
+                BoundingBoxWorld.Max.Z + 80f);
+
+            Vector3 screen = GraphicsDevice.Viewport.Project(
+                anchor,
+                Camera.Instance.Projection,
+                Camera.Instance.View,
+                Matrix.Identity);
+
+            if (screen.Z < 0f || screen.Z > 1f)
+                return;
+
+            const float scale = 0.5f;
+            Vector2 size = _font.MeasureString(name) * scale;
+            var sb = GraphicsManager.Instance.Sprite;
+
+            void draw() => sb.DrawString(_font, name,
+                new Vector2(screen.X - size.X * 0.5f, screen.Y - size.Y),
+                Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, screen.Z);
+
+            if (!SpriteBatchScope.BatchIsBegun)
+            {
+                using (new SpriteBatchScope(sb, SpriteSortMode.BackToFront, BlendState.NonPremultiplied, SamplerState.PointClamp, DepthStencilState.DepthRead))
+                {
+                    draw();
+                }
+            }
+            else
+            {
+                draw();
+            }
         }
 
         public void BringToFront()
@@ -313,7 +375,7 @@ namespace Client.Main.Objects
             GraphicsDevice.DepthStencilState = previousDepthState;
         }
 
-        protected void DrawBoundingBox2D()
+        public void DrawBoundingBox2D()
         {
             if (!(Constants.DRAW_BOUNDING_BOXES && IsMouseHover && _font != null))
                 return;

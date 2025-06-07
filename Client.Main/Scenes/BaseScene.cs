@@ -169,6 +169,13 @@ namespace Client.Main.Scenes
                 }
             }
 
+            // Consume scroll for UI before the world processes input
+            int preScrollChange = MuGame.Instance.Mouse.ScrollWheelValue - MuGame.Instance.PrevMouseState.ScrollWheelValue;
+            if (preScrollChange != 0 && MouseControl != null && MouseControl.Interactive && MouseControl != World)
+            {
+                IsMouseInputConsumedThisFrame = true;
+            }
+
             base.Update(gameTime);
 
             if (Status != GameControlStatus.Ready)
@@ -255,11 +262,30 @@ namespace Client.Main.Scenes
             if (World == null)
                 return;
 
+            // --- Pass 1: Render all 3D world geometry ---
+            // This pass populates the depth buffer.
             World.Draw(gameTime);
-
             World.DrawAfter(gameTime);
 
-            // UI 2-D
+            // --- Pass 2: Render 3D-aware UI (Nameplates, 2D BBoxes) ---
+            // This batch respects the depth buffer populated by the 3D world.
+            using (new SpriteBatchScope(
+                       GraphicsManager.Instance.Sprite,
+                       SpriteSortMode.BackToFront,       // Sort sprites by depth
+                       BlendState.NonPremultiplied,      // Correct for text/UI textures
+                       SamplerState.PointClamp,
+                       DepthStencilState.DepthRead))     // Read depth buffer but don't write to it
+            {
+                foreach (var worldObject in World.Objects)
+                {
+                    // Call the public methods to draw depth-aware UI elements
+                    worldObject.DrawHoverName();
+                    worldObject.DrawBoundingBox2D();
+                }
+            }
+
+            // --- Pass 3: Render standard 2D UI (HUD overlays) ---
+            // This batch ignores the depth buffer and draws on top of everything.
             using (new SpriteBatchScope(
                        GraphicsManager.Instance.Sprite,
                        SpriteSortMode.Deferred,

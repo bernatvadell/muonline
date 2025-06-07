@@ -69,6 +69,13 @@ namespace Client.Main.Objects
         public static ILoggerFactory AppLoggerFactory { get; private set; }
         private ILogger _logger => AppLoggerFactory?.CreateLogger<ModelObject>();
 
+        private int _blendFromAction = -1;
+        private double _blendFromTime = 0.0;
+        private Matrix[] _blendFromBones = null;
+        private bool _isBlending = false;
+        private float _blendElapsed = 0f;
+        private float _blendDuration = 0.25f;
+
         public ModelObject()
         {
             MatrixChanged += (_s, _e) => UpdateWorldPosition();
@@ -170,7 +177,8 @@ namespace Client.Main.Objects
                 if (!isAfterDraw && RenderShadow)
                     DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, MuGame.Instance.GameTime);
 
-                if (!isAfterDraw && IsMouseHover)
+                bool highlightAllowed = !(this is Monsters.MonsterObject m && m.IsDead);
+                if (!isAfterDraw && IsMouseHover && highlightAllowed)
                     DrawMeshHighlight(i);
 
                 DrawMesh(i);
@@ -201,7 +209,8 @@ namespace Client.Main.Objects
                 if (!isAfterDraw && RenderShadow)
                     DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, MuGame.Instance.GameTime);
 
-                if (!isAfterDraw && IsMouseHover)
+                bool highlightAllowed = !(this is Monsters.MonsterObject m && m.IsDead);
+                if (!isAfterDraw && IsMouseHover && highlightAllowed)
                     DrawMeshHighlight(i);
 
                 if (draw) DrawMesh(i);
@@ -250,6 +259,7 @@ namespace Client.Main.Objects
                 var gd = GraphicsDevice;
                 var prevCull = gd.RasterizerState;
                 var prevBlend = gd.BlendState;
+                float prevAlpha = GraphicsManager.Instance.AlphaTestEffect3D.Alpha;
 
                 bool isTwoSided = _meshIsRGBA[mesh] || IsBlendMesh(mesh);
                 gd.RasterizerState = isTwoSided
@@ -267,6 +277,8 @@ namespace Client.Main.Objects
                     gd.Indices = indexBuffer;
                     gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
                 }
+
+                GraphicsManager.Instance.AlphaTestEffect3D.Alpha = prevAlpha;
 
                 // ❹ przywrócenie stanów
                 gd.BlendState = prevBlend;
@@ -300,6 +312,7 @@ namespace Client.Main.Objects
             // Save previous graphics states
             var previousDepthState = GraphicsDevice.DepthStencilState;
             var previousBlendState = GraphicsDevice.BlendState;
+            float prevAlpha = GraphicsManager.Instance.AlphaTestEffect3D.Alpha;
 
             GraphicsManager.Instance.AlphaTestEffect3D.World = highlightMatrix;
             GraphicsManager.Instance.AlphaTestEffect3D.Texture = _boneTextures[mesh];
@@ -329,6 +342,8 @@ namespace Client.Main.Objects
                 GraphicsDevice.Indices = indexBuffer;
                 GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
             }
+
+            GraphicsManager.Instance.AlphaTestEffect3D.Alpha = prevAlpha;
 
             // Restore previous graphics states
             GraphicsDevice.DepthStencilState = previousDepthState;
@@ -568,6 +583,8 @@ namespace Client.Main.Objects
             var action = Model.Actions[currentActionIndex];
             int totalFrames = Math.Max(action.NumAnimationKeys, 1);
 
+            float delta = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            float objFps = AnimationSpeed;
             if (totalFrames == 1)
             {
                 if (_priorAction != currentActionIndex)
@@ -577,10 +594,40 @@ namespace Client.Main.Objects
             }
 
             if (_priorAction != currentActionIndex)
+            {
+                _blendFromAction = _priorAction;
+                _blendFromTime = _animTime;
+                _blendElapsed = 0f;
+                _isBlending = true;
                 _animTime = 0.0;
+                EnsureArray(ref _blendFromBones, Model.Bones.Length, Matrix.Identity);
 
-            float delta = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            float objFps = AnimationSpeed;
+                if (_blendFromAction >= 0 && _blendFromAction < Model.Actions.Length)
+                {
+                    var prevAction = Model.Actions[_blendFromAction];
+                    int prevTotal = Math.Max(prevAction.NumAnimationKeys, 1);
+                    double pf = _blendFromTime % prevTotal;
+                    int pf0 = (int)pf;
+                    int pf1 = (pf0 + 1) % prevTotal;
+                    float pt = (float)(pf - pf0);
+                    ComputeBoneMatrixTo(_blendFromAction, pf0, pf1, pt, _blendFromBones);
+                }
+            }
+
+            if (_isBlending && _blendFromAction >= 0 && _blendFromAction < Model.Actions.Length)
+            {
+                var prevAction = Model.Actions[_blendFromAction];
+                float prevMul = prevAction.PlaySpeed == 0 ? 1.0f : prevAction.PlaySpeed;
+                float prevFps = Math.Max(0.01f, objFps * prevMul);
+                _blendFromTime += delta * prevFps;
+                _blendElapsed += delta;
+                if (_blendElapsed >= _blendDuration)
+                {
+                    _blendElapsed = _blendDuration;
+                    _isBlending = false;
+                }
+            }
+
             float playMul = action.PlaySpeed == 0 ? 1.0f : action.PlaySpeed;
             float effectiveFps = Math.Max(0.01f, objFps * playMul);
 
@@ -592,6 +639,53 @@ namespace Client.Main.Objects
             float t = (float)(framePos - f0);
 
             GenerateBoneMatrix(currentActionIndex, f0, f1, t);
+
+            if (_isBlending && _blendFromBones != null && _blendFromAction >= 0 && _blendFromAction < Model.Actions.Length)
+            {
+                var prevAction = Model.Actions[_blendFromAction];
+                int prevTotal = Math.Max(prevAction.NumAnimationKeys, 1);
+                double pf = _blendFromTime % prevTotal;
+                int pf0 = (int)pf;
+                int pf1 = (pf0 + 1) % prevTotal;
+                float pt = (float)(pf - pf0);
+                ComputeBoneMatrixTo(_blendFromAction, pf0, pf1, pt, _blendFromBones);
+
+                float blendFactor = Math.Clamp(_blendElapsed / _blendDuration, 0f, 1f);
+                bool changed = false;
+                for (int i = 0; i < BoneTransform.Length && i < _blendFromBones.Length; i++)
+                {
+                    Quaternion curRot = Quaternion.CreateFromRotationMatrix(BoneTransform[i]);
+                    Quaternion prevRot = Quaternion.CreateFromRotationMatrix(_blendFromBones[i]);
+                    Vector3 curPos = BoneTransform[i].Translation;
+                    Vector3 prevPos = _blendFromBones[i].Translation;
+
+                    Quaternion rot = Quaternion.Slerp(prevRot, curRot, blendFactor);
+                    Vector3 pos = Vector3.Lerp(prevPos, curPos, blendFactor);
+
+                    Matrix m = Matrix.CreateFromQuaternion(rot);
+                    m.Translation = pos;
+
+                    if (m != BoneTransform[i])
+                    {
+                        BoneTransform[i] = m;
+                        changed = true;
+                    }
+                }
+
+                if (!_isBlending || blendFactor >= 1f)
+                {
+                    _isBlending = false;
+                    _blendFromBones = null;
+                    _blendFromAction = -1;
+                }
+
+                if (changed)
+                {
+                    InvalidateBuffers();
+                    UpdateBoundings();
+                }
+            }
+
             _priorAction = currentActionIndex;
         }
 
@@ -602,7 +696,6 @@ namespace Client.Main.Objects
                 _logger?.LogWarning("GenerateBoneMatrix called with null Model or Model.Bones for {ObjectName}", this.ObjectName ?? GetType().Name);
                 return;
             }
-
 
             Matrix[] transforms = BoneTransform ??= new Matrix[Model.Bones.Length];
             var bones = Model.Bones;
@@ -677,6 +770,61 @@ namespace Client.Main.Objects
             {
                 InvalidateBuffers();
                 UpdateBoundings();
+            }
+        }
+
+        private void ComputeBoneMatrixTo(int actionIdx, int frame0, int frame1, float t, Matrix[] output)
+        {
+            if (Model?.Bones == null || output == null)
+                return;
+
+            var bones = Model.Bones;
+            if (actionIdx < 0 || actionIdx >= Model.Actions.Length)
+                actionIdx = 0;
+
+            var action = Model.Actions[actionIdx];
+
+            for (int i = 0; i < bones.Length; i++)
+            {
+                var bone = bones[i];
+
+                if (bone == BMDTextureBone.Dummy || bone.Matrixes == null || actionIdx >= bone.Matrixes.Length)
+                    continue;
+
+                var bm = bone.Matrixes[actionIdx];
+
+                int numPosKeys = bm.Position?.Length ?? 0;
+                int numQuatKeys = bm.Quaternion?.Length ?? 0;
+                if (numPosKeys == 0 || numQuatKeys == 0)
+                    continue;
+
+                if (frame0 < 0 || frame1 < 0 || frame0 >= numPosKeys || frame1 >= numPosKeys || frame0 >= numQuatKeys || frame1 >= numQuatKeys)
+                {
+                    int maxValidIndex = Math.Min(numPosKeys, numQuatKeys) - 1;
+                    if (maxValidIndex < 0) maxValidIndex = 0;
+                    frame0 = Math.Clamp(frame0, 0, maxValidIndex);
+                    frame1 = Math.Clamp(frame1, 0, maxValidIndex);
+                    if (frame0 == frame1) t = 0f;
+                }
+
+                Quaternion q = Quaternion.Slerp(bm.Quaternion[frame0], bm.Quaternion[frame1], t);
+                Matrix m = Matrix.CreateFromQuaternion(q);
+
+                Vector3 p0 = bm.Position[frame0];
+                Vector3 p1 = bm.Position[frame1];
+
+                m.M41 = p0.X + (p1.X - p0.X) * t;
+                m.M42 = p0.Y + (p1.Y - p0.Y) * t;
+                m.M43 = p0.Z + (p1.Z - p0.Z) * t;
+
+                if (i == 0 && action.LockPositions)
+                    m.Translation = new Vector3(bm.Position[0].X, bm.Position[0].Y, m.M43 + BodyHeight);
+
+                Matrix world = bone.Parent != -1 && bone.Parent < output.Length
+                    ? m * output[bone.Parent]
+                    : m;
+
+                output[i] = world;
             }
         }
 

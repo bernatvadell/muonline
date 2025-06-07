@@ -416,6 +416,11 @@ namespace Client.Main
                 else if (PrevKeyboard.IsKeyDown(Keys.F2) && Keyboard.IsKeyUp(Keys.F2))
                     GraphicsManager.Instance.IsFXAAEnabled = !GraphicsManager.Instance.IsFXAAEnabled;
             }
+
+            if (PrevKeyboard.IsKeyDown(Keys.F8) && Keyboard.IsKeyUp(Keys.F8))
+                Constants.DRAW_BOUNDING_BOXES = !Constants.DRAW_BOUNDING_BOXES;
+            else if (PrevKeyboard.IsKeyDown(Keys.F9) && Keyboard.IsKeyUp(Keys.F9))
+                Constants.DRAW_BOUNDING_BOXES_INTERACTIVES = !Constants.DRAW_BOUNDING_BOXES_INTERACTIVES;
         }
 
         private async Task ChangeSceneAsync(Type sceneType)

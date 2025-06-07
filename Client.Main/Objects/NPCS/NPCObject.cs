@@ -1,4 +1,3 @@
-
 namespace Client.Main.Objects.NPCS
 {
     public abstract class NPCObject : WalkerObject
@@ -9,9 +8,8 @@ namespace Client.Main.Objects.NPCS
         }
         public override void OnClick()
         {
-            Interactive = false;
-            HandleClick();       
-            Interactive = true;
+            base.OnClick();
+            HandleClick();
         }
         protected abstract void HandleClick();
     }

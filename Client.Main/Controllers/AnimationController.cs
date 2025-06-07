@@ -44,6 +44,13 @@ namespace Client.Main.Controllers
         {
             var kind = GetAnimationType(idx);
 
+            if (_currentOneShot.HasValue &&
+                GetAnimationType(_currentOneShot.Value) == AnimationType.Death &&
+                kind != AnimationType.Death)
+            {
+                return;
+            }
+
             if (!AllowWhenDead(kind)) return;
 
             _timer?.Cancel();

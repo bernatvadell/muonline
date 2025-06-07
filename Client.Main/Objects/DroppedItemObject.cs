@@ -11,6 +11,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Client.Main.Core.Client;
 
 namespace Client.Main.Objects
 {
@@ -126,7 +127,7 @@ namespace Client.Main.Objects
             if (_pickedUp) return;
 
             if (World is not Controls.WalkableWorldControl w || w.Walker == null) return;
-            if (w.Walker.NetworkId != _mainPlayerId)                              return;
+            if (w.Walker.NetworkId != _mainPlayerId) return;
 
             float d = Vector3.Distance(w.Walker.Position, Position);
             if (d > PickupRange)
@@ -136,12 +137,44 @@ namespace Client.Main.Objects
                 return;
             }
 
-            _pickedUp          = true;
-            _label.Interactive = false;
+            // Stash the item data BEFORE sending the request
+            CharacterState charState = MuGame.Network?.GetCharacterState();
+            if (charState == null)
+            {
+                _log.LogError("OnClick: CharacterState is null, cannot stash item for pickup.");
+                return;
+            }
+
+            if (_scope is ItemScopeObject itemScope)
+            {
+                charState.StashPickedItem(itemScope.ItemData.ToArray());
+            }
+            else if (_scope is MoneyScopeObject moneyScope)
+            {
+                // For money, the server typically handles amount updates directly.
+                // Stashing a representation of money might be complex if the server doesn't expect item data for it.
+                // Let's assume for now that if a 0x22 packet comes for money, it might be an error or unhandled by this specific logic.
+                // If the server *does* use this packet type for money pickup success with a slot,
+                // then a placeholder byte[] representing money would need to be stashed.
+                // For simplicity, and based on typical MU, money pickups are handled by C1 22 FE (InventoryMoneyUpdate).
+                // So, if this OnClick is for money, we might not need to stash, and the success indication
+                // from 0xC3 0x22 <slot> would be for an actual item.
+                _log.LogInformation("OnClick: Pick up initiated for Money. Server will update Zen directly.");
+                // No stashing needed for money if server sends InventoryMoneyUpdate on success.
+                // If server *does* send C3 22 <slot> for money, then stashing a representative byte[] is needed.
+                // Example: charState.StashPickedItem(new byte[] { 15, 0, 0, 0, (byte)(moneyScope.Amount & 0xFF), 14 << 4 }); // Dummy data
+            }
+            else
+            {
+                _log.LogWarning("OnClick: Attempting to pick up unknown scope object type: {ScopeType}", _scope.ObjectType);
+                return; // Don't send request for unknown types
+            }
+
+            _pickedUp = true;
+            _label.Interactive = false; // Prevent further clicks on label while pickup is in progress
 
             Task.Run(() => _charSvc.SendPickupItemRequestAsync(RawId, MuGame.Network.TargetVersion));
-            _log.LogDebug("Pickup request sent for {Id:X4}", RawId);
-            // Czekamy na pakiet serwera, obiektu na razie nie usuwamy.
+            _log.LogDebug("Pickup request sent for {RawId:X4} ({DisplayName})", RawId, DisplayName);
         }
 
         // ─────────────────── label helpers
@@ -185,16 +218,16 @@ namespace Client.Main.Objects
             };
 
         // =====================================================================
-        private void OnLabelClicked(object? sender, EventArgs e) => OnClick(); // proxy dla LabelControl
+        private void OnLabelClicked(object? sender, EventArgs e) => OnClick();
 
         // =====================================================================
         public override void Dispose()
         {
-            // Zdejmij etykietę z UI
-            if (_label != null && World?.Scene != null)
+            // Remove the label from whichever parent currently holds it
+            if (_label != null)
             {
                 _label.Click -= OnLabelClicked;
-                World.Scene.Controls.Remove(_label);
+                _label.Parent?.Controls.Remove(_label);
                 _label.Dispose();
             }
             base.Dispose();

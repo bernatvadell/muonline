@@ -88,6 +88,11 @@ namespace Client.Main.Scenes
 
             progressCallback?.Invoke("Login World Loaded.", 0.70f);
 
+            if (loginWorld.Terrain != null)
+            {
+                loginWorld.Terrain.AmbientLight = 0.2f;
+            }
+
             progressCallback?.Invoke("Playing Login Theme...", 0.75f);
             SoundController.Instance.PlayBackgroundMusic("Music/login_theme.mp3");
 

@@ -1,4 +1,5 @@
 ﻿using Client.Main.Content;
+using Client.Main.Controls;
 using Client.Main.Objects.Effects;
 using Microsoft.Xna.Framework;
 using System;
@@ -9,9 +10,18 @@ namespace Client.Main.Objects.Worlds.Lorencia
 {
     public class BonfireObject : ModelObject
     {
+        private static readonly Random _random = new Random();
+
         private List<FireHik01Effect> _topFlames;
         private List<FireHik02Effect> _middleFlames;
         private List<FireHik03Effect> _baseFlames;
+
+        // The dynamic light source for this bonfire.
+        private DynamicLight _dynamicLight;
+
+        // A unique time offset for this bonfire instance.
+        private float _timeOffset;
+
         private float _baseHeight = 30f;
         private Vector3 _basePosition;
         private List<float> _individualWindTimes;
@@ -24,21 +34,27 @@ namespace Client.Main.Objects.Worlds.Lorencia
         private const float MAX_WIND_STRENGTH = 0.5f;
         private const int FLAME_COUNT = 3;
 
-
-        private const float SCALE_CHANGE_SPEED = 0.9f; 
-        private const float RANDOM_SCALE_INFLUENCE = 0.15f; 
+        private const float SCALE_CHANGE_SPEED = 0.9f;
+        private const float RANDOM_SCALE_INFLUENCE = 0.15f;
 
         private readonly Vector3 BaseFlameColor = new Vector3(1.0f, 0.45f, 0.15f);
         private readonly Vector3 MiddleFlameColor = new Vector3(1.0f, 0.65f, 0.25f);
         private readonly Vector3 TopFlameColor = new Vector3(1.0f, 0.75f, 0.35f);
 
-        private Random _random;
-
         public BonfireObject()
         {
             LightEnabled = true;
             BlendMesh = 1;
-            _random = new Random();
+
+            _timeOffset = (float)_random.NextDouble() * 1000f;
+
+            _dynamicLight = new DynamicLight
+            {
+                Owner = this,
+                Color = new Vector3(1f, 0.7f, 0.4f),
+                Radius = 450f, // Bonfires are usually larger
+                Intensity = 1.2f
+            };
 
             _topFlames = new List<FireHik01Effect>();
             _middleFlames = new List<FireHik02Effect>();
@@ -49,9 +65,9 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
             for (int i = 0; i < FLAME_COUNT; i++)
             {
-                var topFlame = new FireHik01Effect { };
-                var middleFlame = new FireHik02Effect { };
-                var baseFlame = new FireHik03Effect { };
+                var topFlame = new FireHik01Effect();
+                var middleFlame = new FireHik02Effect();
+                var baseFlame = new FireHik03Effect();
 
                 Children.Add(topFlame);
                 Children.Add(middleFlame);
@@ -69,21 +85,37 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare($"Object1/Bonfire01.bmd");
+            Model = await BMDLoader.Instance.Prepare("Object1/Bonfire01.bmd");
             await base.Load();
+
+            // Add the dynamic light to the world when the object is loaded.
+            if (World != null)
+            {
+                World.Terrain.AddDynamicLight(_dynamicLight);
+            }
         }
 
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
 
-            var time = (float)gameTime.TotalGameTime.TotalSeconds;
-            UpdateIndividualWindEffects(time);
+            // Use the offset time for all calculations to desynchronize.
+            var time = (float)gameTime.TotalGameTime.TotalSeconds + _timeOffset;
 
+            UpdateIndividualWindEffects(time);
             var baseLuminosity = CalculateBaseLuminosity(time);
             _basePosition = BoneTransform[3].Translation;
 
+            // Update both the visual effects and the dynamic light.
+            UpdateDynamicLight(baseLuminosity);
             UpdateFireEffects(time, baseLuminosity);
+        }
+
+        private void UpdateDynamicLight(float intensity)
+        {
+            // The light's position must be in absolute world coordinates.
+            _dynamicLight.Position = WorldPosition.Translation + _basePosition + new Vector3(0f, 0f, _baseHeight);
+            _dynamicLight.Intensity = intensity;
         }
 
         private void UpdateIndividualWindEffects(float time)
@@ -124,11 +156,9 @@ namespace Client.Main.Objects.Worlds.Lorencia
         private void UpdateFireEffects(float time, float baseLuminosity)
         {
             var turbulence = CalculateTurbulence(time);
-
             for (int i = 0; i < FLAME_COUNT; i++)
             {
                 _scaleOffsets[i] += SCALE_CHANGE_SPEED * 0.016f;
-
                 UpdateBaseFlame(i, time, baseLuminosity, turbulence);
                 UpdateMiddleFlame(i, time, baseLuminosity, turbulence);
                 UpdateTopFlame(i, time, baseLuminosity, turbulence);
@@ -137,18 +167,17 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
         private float CalculateTurbulence(float time)
         {
-            return (float)(
+            return 1.0f + (float)(
                 Math.Sin(time * 4.0f) * 0.12f +
                 Math.Sin(time * 9.0f) * 0.06f +
                 Math.Sin(time * 15.0f) * 0.03f
-            ) + 1.0f;
+            );
         }
 
         private float CalculateFlameScale(int index, float baseScale, float turbulence, float time)
         {
             float smoothRandomFactor = (float)Math.Sin(_scaleOffsets[index]) * RANDOM_SCALE_INFLUENCE;
-            float turbulenceInfluence = (turbulence - 1.0f) * 0.2f;
-            return baseScale + turbulenceInfluence + smoothRandomFactor;
+            return baseScale + (turbulence - 1.0f) * 0.2f + smoothRandomFactor;
         }
 
         private void UpdateBaseFlame(int index, float time, float baseLuminosity, float turbulence)
@@ -163,7 +192,6 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
             var colorIntensity = 0.85f + turbulence * 0.15f;
             flame.Light = BaseFlameColor * flameIntensity * colorIntensity;
-
             flame.Scale = CalculateFlameScale(index, 2.3f, turbulence, time);
         }
 
@@ -179,7 +207,6 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
             var colorIntensity = 0.9f + turbulence * 0.1f;
             flame.Light = MiddleFlameColor * flameIntensity * colorIntensity;
-
             flame.Scale = CalculateFlameScale(index, 2.7f, turbulence, time);
         }
 
@@ -202,13 +229,21 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
             var colorIntensity = 0.95f + turbulence * 0.1f;
             flame.Light = TopFlameColor * flameIntensity * colorIntensity;
-
             flame.Scale = CalculateFlameScale(index, 2.9f, turbulence, time);
         }
 
         private float ClampAlpha(float alpha)
         {
             return Math.Max(MIN_ALPHA, Math.Min(MAX_ALPHA, alpha));
+        }
+
+        public override void Dispose()
+        {
+            if (World != null)
+            {
+                World.Terrain.RemoveDynamicLight(_dynamicLight);
+            }
+            base.Dispose();
         }
     }
 }

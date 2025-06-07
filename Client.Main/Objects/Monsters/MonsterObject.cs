@@ -1,6 +1,6 @@
 ﻿using Client.Main.Models;
 using Microsoft.Xna.Framework;
-using System.Threading.Tasks;
+using System.Linq;
 
 namespace Client.Main.Objects.Monsters
 {
@@ -8,6 +8,25 @@ namespace Client.Main.Objects.Monsters
     {
         // --- Fields ---
         private int _lastActionForIdleSound = -1;
+        private bool _isFading = false;
+        private float _fadeTimer = 0f;
+        private float _fadeDuration = 2f;
+        private float _startZ;
+        private const float SinkDistance = 20f;
+
+        /// <summary>
+        /// Gets the monster's display name defined by <see cref="NpcInfoAttribute"/>.
+        /// </summary>
+        public override string DisplayName
+        {
+            get
+            {
+                var attr = (NpcInfoAttribute)GetType()
+                    .GetCustomAttributes(typeof(NpcInfoAttribute), inherit: false)
+                    .FirstOrDefault();
+                return attr?.DisplayName ?? base.DisplayName;
+            }
+        }
 
         // --- Constructors ---
         public MonsterObject()
@@ -16,12 +35,45 @@ namespace Client.Main.Objects.Monsters
             AnimationSpeed = 4f;
         }
 
+        public void StartDeathFade(float duration = 2f)
+        {
+            if (_isFading) return;
+            _isFading = true;
+            _fadeDuration = duration;
+            _fadeTimer = 0f;
+            _startZ = Position.Z;
+        }
+
+        /// <summary>
+        /// Indicates whether the monster is in its death fade stage.
+        /// While true the monster should no longer be considered alive.
+        /// </summary>
+        public bool IsDead => _isFading;
+
         // --- Public Methods ---
         public override void Update(GameTime gameTime)
         {
             bool wasMoving = IsMoving;
 
             base.Update(gameTime);
+
+            if (_isFading)
+            {
+                RenderShadow = false;
+                _fadeTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
+                float progress = MathHelper.Clamp(_fadeTimer / _fadeDuration, 0f, 1f);
+                Alpha = MathHelper.Lerp(1f, 0f, progress);
+                Position = new Vector3(Position.X, Position.Y, MathHelper.Lerp(_startZ, _startZ - SinkDistance, progress));
+
+                if (progress >= 1f)
+                {
+                    _isFading = false;
+                    World?.RemoveObject(this);
+                    Dispose();
+                    return;
+                }
+            }
+
 
             // If the monster just stopped moving
             if (wasMoving && !IsMoving && !IsOneShotPlaying)

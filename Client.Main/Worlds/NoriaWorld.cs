@@ -19,10 +19,10 @@ namespace Client.Main.Worlds
         {
             await base.Load();
 
-            Objects.Add(new ElfLala() { Location = new Vector2(173, 125), Direction = Models.Direction.SouthWest });
-            Objects.Add(new EoTheCraftsman() { Location = new Vector2(195, 124), Direction = Models.Direction.South });
-            Objects.Add(new Charon() { Location = new Vector2(171, 104), Direction = Models.Direction.SouthEast });
-            Objects.Add(new IceQueen() { Location = new Vector2(175, 117), Direction = Models.Direction.South });
+            // Objects.Add(new ElfLala() { Location = new Vector2(173, 125), Direction = Models.Direction.SouthWest });
+            // Objects.Add(new EoTheCraftsman() { Location = new Vector2(195, 124), Direction = Models.Direction.South });
+            // Objects.Add(new Charon() { Location = new Vector2(171, 104), Direction = Models.Direction.SouthEast });
+            // Objects.Add(new IceQueen() { Location = new Vector2(175, 117), Direction = Models.Direction.South });
         }
 
         public override void AfterLoad()

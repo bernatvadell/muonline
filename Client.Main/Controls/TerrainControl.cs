@@ -39,6 +39,10 @@ namespace Client.Main.Controls
         // Public Properties
         public short WorldIndex { get; set; }
         public Vector3 Light { get; set; } = new Vector3(0.5f, -0.5f, 0.5f);
+
+        // OPTIMIZATION: A new field to store only the lights that are currently in range.
+        private readonly List<DynamicLight> _activeLights = new(32); // Pre-allocate for 32 lights
+
         public Dictionary<int, string> TextureMappingFiles { get; set; } = new Dictionary<int, string>
         {
             { 0, "TileGrass01.ozj" },
@@ -68,6 +72,7 @@ namespace Client.Main.Controls
         public float DistortionAmplitude { get; set; } = 0f; // Amplitude of UV distortion for water effect
         public float DistortionFrequency { get; set; } = 0f; // Frequency of UV distortion for water effect
         public float GrassBrightness { get; set; } = 2f;
+        public float AmbientLight { get; set; } = 0.25f;
 
         // Private Fields
         private TerrainAttribute _terrain;
@@ -91,6 +96,10 @@ namespace Client.Main.Controls
         private readonly Vector2[] _terrainTextureCoord;
         private readonly Vector3[] _tempTerrainVertex;
         private readonly Color[] _tempTerrainLights;
+
+        // Dynamic Lights
+        private readonly List<DynamicLight> _dynamicLights = new();
+        public IReadOnlyList<DynamicLight> DynamicLights => _dynamicLights;
 
         // Wind Data
         private float _lastWindSpeed = float.MinValue;
@@ -207,25 +216,28 @@ namespace Client.Main.Controls
             CreateTerrainNormal();
             CreateTerrainLight();
 
-            string grassSpritePath = Path.Combine(worldFolder, "TileGrass01.ozt");
-            try
+            if (Constants.DRAW_GRASS)
             {
-                _grassSpriteTexture = await TextureLoader.Instance.PrepareAndGetTexture(grassSpritePath);
-                if (_grassSpriteTexture != null)
+                string grassSpritePath = Path.Combine(worldFolder, "TileGrass01.ozt");
+                try
                 {
-                    PremultiplyAlpha(_grassSpriteTexture);
+                    _grassSpriteTexture = await TextureLoader.Instance.PrepareAndGetTexture(grassSpritePath);
+                    if (_grassSpriteTexture != null)
+                    {
+                        PremultiplyAlpha(_grassSpriteTexture);
+                    }
+                    if (_grassSpriteTexture == null)
+                    {
+                        Console.WriteLine($"Warning: Could not load grass sprite texture: {grassSpritePath}");
+                    }
                 }
-                if (_grassSpriteTexture == null)
+                catch (Exception ex)
                 {
-                    Console.WriteLine($"Warning: Could not load grass sprite texture: {grassSpritePath}");
+                    Console.WriteLine($"Error loading grass sprite texture '{grassSpritePath}': {ex.Message}");
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error loading grass sprite texture '{grassSpritePath}': {ex.Message}");
-            }
 
-            _grassEffect = GraphicsManager.Instance.AlphaTestEffect3D;
+                _grassEffect = GraphicsManager.Instance.AlphaTestEffect3D;
+            }
 
             await base.Load();
         }
@@ -236,6 +248,8 @@ namespace Client.Main.Controls
 
             if (Status != Models.GameControlStatus.Ready)
                 return;
+
+            UpdateVisibleBlocks(new Vector2(Camera.Instance.Position.X, Camera.Instance.Position.Y));
 
             InitTerrainWind(time);
 
@@ -347,12 +361,51 @@ namespace Client.Main.Controls
                             break;
                     }
                 }
-
                 output[i] = MathHelper.Lerp(left, right, xd);
             }
 
-            return new Vector3(output[0], output[1], output[2]);
+            // Calculate base light (static + ambient)
+            Vector3 result = new(output[0], output[1], output[2]);
+            result += new Vector3(AmbientLight * 255f);
+
+            // Add influence of active dynamic lights
+            result += EvaluateDynamicLight(new Vector2(xf * Constants.TERRAIN_SCALE, yf * Constants.TERRAIN_SCALE));
+
+            // Clamp and return
+            result = Vector3.Clamp(result, Vector3.Zero, new Vector3(255f));
+            return result / 255f;
         }
+
+        private Vector3 EvaluateDynamicLight(Vector2 position)
+        {
+            Vector3 result = Vector3.Zero;
+            int activeCount = _activeLights.Count;
+
+            // Using a standard for-loop which is slightly faster in critical paths.
+            for (int i = 0; i < activeCount; i++)
+            {
+                var light = _activeLights[i];
+                float radiusSq = light.Radius * light.Radius;
+
+                Vector2 diff = new(light.Position.X - position.X, light.Position.Y - position.Y);
+                float distSq = diff.LengthSquared();
+
+                // Compare squared distances to avoid costly Sqrt
+                if (distSq > radiusSq)
+                    continue;
+
+                // Sqrt is now only calculated for lights that are actually in range.
+                float dist = MathF.Sqrt(distSq);
+                float factor = 1f - dist / light.Radius;
+                result += light.Color * (255f * light.Intensity * factor);
+            }
+
+            return result;
+        }
+
+        public void AddDynamicLight(DynamicLight light) => _dynamicLights.Add(light);
+
+        public void RemoveDynamicLight(DynamicLight light) => _dynamicLights.Remove(light);
 
         public float GetWindValue(int x, int y)
         {
@@ -489,13 +542,12 @@ namespace Client.Main.Controls
             });
         }
 
-
         private void RenderTerrain(bool isAfter)
         {
             if (_backTerrainHeight == null) return;
 
-            UpdateVisibleBlocks(new Vector2(Camera.Instance.Position.X,
-                                            Camera.Instance.Position.Y));
+            // Update the list of active lights once per frame.
+            UpdateActiveLights();
 
             var effect = GraphicsManager.Instance.BasicEffect3D;
             effect.Projection = Camera.Instance.Projection;
@@ -513,6 +565,29 @@ namespace Client.Main.Controls
             }
 
             FlushGrassBatch();
+        }
+
+        private void UpdateActiveLights()
+        {
+            _activeLights.Clear();
+            if (_dynamicLights.Count == 0 || World == null) return;
+
+            foreach (var light in _dynamicLights)
+            {
+                // Skip lights that are turned off.
+                if (light.Intensity <= 0.001f)
+                {
+                    continue;
+                }
+
+                // Use the new, efficient method from WorldControl to check if the light's
+                // bounding sphere intersects the camera's view. This provides the
+                // visual buffer you need without the performance cost.
+                if (World.IsLightInView(light))
+                {
+                    _activeLights.Add(light);
+                }
+            }
         }
 
         private int GetLODLevel(float distance)
@@ -701,7 +776,7 @@ namespace Client.Main.Controls
         /// <summary>Renders the buffered grass tufts and restores GPU states.</summary>
         private void FlushGrassBatch()
         {
-            if (_grassBatchCount == 0 || _grassSpriteTexture == null)
+            if (!Constants.DRAW_GRASS || _grassBatchCount == 0 || _grassSpriteTexture == null)
                 return;
 
             //--------------------------------------------------------------------
@@ -795,7 +870,7 @@ namespace Client.Main.Controls
             }
 
             byte baseTex = (a1 < 255) ? _mapping.Layer1[idx1] : _mapping.Layer2[idx1];
-            if (baseTex != BASE_GRASS_TEXTURE_INDEX || _grassSpriteTexture == null)
+            if (!Constants.DRAW_GRASS || baseTex != BASE_GRASS_TEXTURE_INDEX || _grassSpriteTexture == null)
                 return;
 
             // Calculate distance to the center of the tile
@@ -862,7 +937,7 @@ namespace Client.Main.Controls
             float u0,
             float u1)
         {
-            if (_grassSpriteTexture == null) return;
+            if (!Constants.DRAW_GRASS || _grassSpriteTexture == null) return;
 
             const float BASE_W = 130f, BASE_H = 30f;
             float w = BASE_W * (u1 - u0) * lodFactor;
@@ -947,10 +1022,30 @@ namespace Client.Main.Controls
 
         private void PrepareTileLights(int idx1, int idx2, int idx3, int idx4)
         {
-            _tempTerrainLights[0] = idx1 < _backTerrainLight.Length ? _backTerrainLight[idx1] : Color.Black;
-            _tempTerrainLights[1] = idx2 < _backTerrainLight.Length ? _backTerrainLight[idx2] : Color.Black;
-            _tempTerrainLights[2] = idx3 < _backTerrainLight.Length ? _backTerrainLight[idx3] : Color.Black;
-            _tempTerrainLights[3] = idx4 < _backTerrainLight.Length ? _backTerrainLight[idx4] : Color.Black;
+            _tempTerrainLights[0] = BuildVertexLight(idx1, _tempTerrainVertex[0]);
+            _tempTerrainLights[1] = BuildVertexLight(idx2, _tempTerrainVertex[1]);
+            _tempTerrainLights[2] = BuildVertexLight(idx3, _tempTerrainVertex[2]);
+            _tempTerrainLights[3] = BuildVertexLight(idx4, _tempTerrainVertex[3]);
+        }
+
+        private Color BuildVertexLight(int index, Vector3 position)
+        {
+            // Get static lighting from lightmap
+            Vector3 baseColor = index < _backTerrainLight.Length
+                ? new Vector3(_backTerrainLight[index].R,
+                              _backTerrainLight[index].G,
+                              _backTerrainLight[index].B)
+                : Vector3.Zero;
+
+            // Add ambient light
+            baseColor += new Vector3(AmbientLight * 255f);
+
+            // Add influence of ACTIVE dynamic lights
+            baseColor += EvaluateDynamicLight(new Vector2(position.X, position.Y));
+
+            // Clamp and return color
+            baseColor = Vector3.Clamp(baseColor, Vector3.Zero, new Vector3(255f));
+            return new Color((int)baseColor.X, (int)baseColor.Y, (int)baseColor.Z);
         }
 
         private void ApplyAlphaToLights(byte alpha1, byte alpha2, byte alpha3, byte alpha4)

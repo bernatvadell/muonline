@@ -72,7 +72,7 @@ public class CursorControl : SpriteControl
                 TexturePath = "Interface/CursorPush.ozt";
                 CurrentAnimation = DefaultAnimation;
             }
-            else if (hoveredObject is MonsterObject)
+            else if (hoveredObject is MonsterObject monster && !monster.IsDead)
             {
                 TexturePath = "Interface/CursorAttack.ozt";
                 CurrentAnimation = DefaultAnimation;
@@ -113,7 +113,7 @@ public class CursorControl : SpriteControl
                     npc.OnClick();
                 }
             }
-            else if (hoveredObject is MonsterObject)
+            else if (hoveredObject is MonsterObject monster && !monster.IsDead)
             {
                 TexturePath = "Interface/CursorAttack.ozt";
                 CurrentAnimation = DefaultAnimation;

@@ -5,33 +5,33 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(TargetFramework)'=='net9.0-android'">
-    <PackageReference Include="MonoGame.Framework.Android" Version="3.8.3" />
+    <PackageReference Include="MonoGame.Framework.Android" Version="3.8.4" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)'=='net9.0-windows'">
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.3">
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)'=='net9.0'">
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.3">
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="MUnique.OpenMU.Network" Version="0.9.4" />
-    <PackageReference Include="MUnique.OpenMU.Network.Packets" Version="0.9.4" />
+    <PackageReference Include="MUnique.OpenMU.Network" Version="0.9.6" />
+    <PackageReference Include="MUnique.OpenMU.Network.Packets" Version="0.9.6" />
     <PackageReference Include="NLayer" Version="1.16.0" />
-    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="2.2.8" />
+    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="2.2.16" />
 
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.4" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.4" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.4" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.4" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.4" />
-    <PackageReference Include="System.IO.Pipelines" Version="9.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.5" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.5" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.5" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.5" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.5" />
+    <PackageReference Include="System.IO.Pipelines" Version="9.0.5" />
   </ItemGroup>
 
   <ItemGroup>

@@ -125,6 +125,7 @@ namespace Client.Main.Core.Models
         /// Gets or sets the type number of the NPC, identifying its specific kind.
         /// </summary>
         public ushort TypeNumber { get; set; }
+        public byte Direction { get; set; }
 
         /// <inheritdoc />
         public override ScopeObjectType ObjectType => ScopeObjectType.Npc; // Could differentiate based on TypeNumber range if needed (e.g., for monsters vs NPCs)
@@ -145,6 +146,7 @@ namespace Client.Main.Core.Models
         {
             TypeNumber = typeNumber;
             Name = name;
+            Direction = 0; // Domyślna wartość
         }
 
         // Methods

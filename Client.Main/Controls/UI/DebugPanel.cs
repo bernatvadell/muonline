@@ -13,6 +13,7 @@ namespace Client.Main.Controls.UI
         private LabelControl _mapTileLabel;
         private LabelControl _effectsStatusLabel;
         private LabelControl _objectCursorLabel;
+        private LabelControl _tileFlagsLabel;
 
         private double _updateTimer = 0;
         private const double UPDATE_INTERVAL_MS = 100; // 100ms
@@ -25,7 +26,7 @@ namespace Client.Main.Controls.UI
 
             Padding = new Margin { Top = 15, Left = 15 };
 
-            ControlSize = new Point(210, 140);
+            ControlSize = new Point(210, 160);
             BackgroundColor = Color.Black * 0.6f;
             BorderColor = Color.White * 0.3f;
             BorderThickness = 2;
@@ -81,6 +82,14 @@ namespace Client.Main.Controls.UI
                 X = posX,
                 Y = posY += labelHeight
             });
+
+            Controls.Add(_tileFlagsLabel = new LabelControl
+            {
+                Text = "Tile Flags: {0}    ",
+                TextColor = Color.Lime,
+                X = posX,
+                Y = posY += labelHeight
+            });
         }
 
         public override void Update(GameTime gameTime)
@@ -117,6 +126,7 @@ namespace Client.Main.Controls.UI
                 {
                     _playerCordsLabel.Visible = true;
                     _mapTileLabel.Visible = true;
+                    _tileFlagsLabel.Visible = true;
 
                     // Player Coords
                     _sb.Clear().Append("Player Cords - X: ").Append(walkableWorld.Walker.Location.X)
@@ -127,11 +137,18 @@ namespace Client.Main.Controls.UI
                     _sb.Clear().Append("MAP Tile - X: ").Append(walkableWorld.MouseTileX)
                        .Append(", Y:").Append(walkableWorld.MouseTileY);
                     _mapTileLabel.Text = _sb.ToString();
+
+                    // Tile Flags
+                    var flags = walkableWorld.Terrain.RequestTerrainFlag((int)walkableWorld.Walker.Location.X,
+                                                                         (int)walkableWorld.Walker.Location.Y);
+                    _sb.Clear().Append("Tile Flags: ").Append(flags);
+                    _tileFlagsLabel.Text = _sb.ToString();
                 }
                 else
                 {
                     _playerCordsLabel.Visible = false;
                     _mapTileLabel.Visible = false;
+                    _tileFlagsLabel.Visible = false;
                 }
             }
         }

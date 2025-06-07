@@ -1,4 +1,5 @@
 ﻿using Client.Main.Content;
+using Client.Main.Controls;
 using Client.Main.Objects.Effects;
 using Microsoft.Xna.Framework;
 using System;
@@ -9,31 +10,32 @@ namespace Client.Main.Objects.Worlds.Lorencia
 {
     public class DungeonGateObject : ModelObject
     {
+        // A single, static Random instance shared by all DungeonGateObject instances.
+        private static readonly Random _random = new Random();
+
         private class FlameSet
         {
-            public List<FireHik01Effect> TopFlames { get; set; }
-            public List<FireHik02Effect> MiddleFlames { get; set; }
-            public List<FireHik03Effect> BaseFlames { get; set; }
-            public List<float> IndividualWindTimes { get; set; }
-            public List<float> IndividualWindStrengths { get; set; }
-            public List<float> ScaleOffsets { get; set; }
+            public List<FireHik01Effect> TopFlames { get; } = new();
+            public List<FireHik02Effect> MiddleFlames { get; } = new();
+            public List<FireHik03Effect> BaseFlames { get; } = new();
+            public List<float> IndividualWindTimes { get; } = new();
+            public List<float> IndividualWindStrengths { get; } = new();
+            public List<float> ScaleOffsets { get; } = new();
             public Vector3 BasePosition { get; set; }
 
-            public FlameSet()
+            // Each flame set gets its own light and unique time offset.
+            public float TimeOffset { get; set; }
+            public DynamicLight Light { get; } = new DynamicLight
             {
-                TopFlames = new List<FireHik01Effect>();
-                MiddleFlames = new List<FireHik02Effect>();
-                BaseFlames = new List<FireHik03Effect>();
-                IndividualWindTimes = new List<float>();
-                IndividualWindStrengths = new List<float>();
-                ScaleOffsets = new List<float>();
-            }
+                Color = new Vector3(1.0f, 0.7f, 0.4f), // Warm fire color
+                Radius = 400f,
+                Intensity = 1.0f
+            };
         }
 
         private FlameSet _firstFlameSet;
         private FlameSet _secondFlameSet;
         private float _baseHeight = 40f;
-        private Random _random;
 
         private const float MIN_ALPHA = 0.6f;
         private const float MAX_ALPHA = 0.8f;
@@ -50,21 +52,26 @@ namespace Client.Main.Objects.Worlds.Lorencia
         public DungeonGateObject()
         {
             LightEnabled = true;
-            _random = new Random();
 
             _firstFlameSet = CreateFlameSet();
             _secondFlameSet = CreateFlameSet();
+
+            // Assign a unique, random time offset to each flame set.
+            _firstFlameSet.TimeOffset = (float)_random.NextDouble() * 1000f;
+            _secondFlameSet.TimeOffset = (float)_random.NextDouble() * 1000f;
         }
 
         private FlameSet CreateFlameSet()
         {
             var flameSet = new FlameSet();
 
+            flameSet.Light.Owner = this;
+
             for (int i = 0; i < FLAME_COUNT; i++)
             {
-                var topFlame = new FireHik01Effect { };
-                var middleFlame = new FireHik02Effect { };
-                var baseFlame = new FireHik03Effect { };
+                var topFlame = new FireHik01Effect();
+                var middleFlame = new FireHik02Effect();
+                var baseFlame = new FireHik03Effect();
 
                 Children.Add(topFlame);
                 Children.Add(middleFlame);
@@ -78,14 +85,20 @@ namespace Client.Main.Objects.Worlds.Lorencia
                 flameSet.IndividualWindStrengths.Add((float)_random.NextDouble() * MAX_WIND_STRENGTH);
                 flameSet.ScaleOffsets.Add((float)_random.NextDouble() * MathHelper.TwoPi);
             }
-
             return flameSet;
         }
 
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare($"Object1/DoungeonGate01.bmd");
+            Model = await BMDLoader.Instance.Prepare("Object1/DoungeonGate01.bmd");
             await base.Load();
+
+            // Add the dynamic lights to the world when the object is loaded.
+            if (World != null)
+            {
+                World.Terrain.AddDynamicLight(_firstFlameSet.Light);
+                World.Terrain.AddDynamicLight(_secondFlameSet.Light);
+            }
         }
 
         public override void Update(GameTime gameTime)
@@ -99,16 +112,28 @@ namespace Client.Main.Objects.Worlds.Lorencia
                 _firstFlameSet.BasePosition = BoneTransform[4].Translation;
                 _secondFlameSet.BasePosition = BoneTransform[1].Translation;
 
-                UpdateFlameSet(_firstFlameSet, time);
-                UpdateFlameSet(_secondFlameSet, time);
+                // Use the unique time offset for each flame set.
+                UpdateFlameSet(_firstFlameSet, time + _firstFlameSet.TimeOffset);
+                UpdateFlameSet(_secondFlameSet, time + _secondFlameSet.TimeOffset);
             }
         }
 
+        // --- THE FIX: STEP 5 ---
+        // Update now handles the dynamic light as well.
         private void UpdateFlameSet(FlameSet flameSet, float time)
         {
             UpdateIndividualWindEffects(flameSet, time);
             var baseLuminosity = CalculateBaseLuminosity(time);
+
+            UpdateDynamicLight(flameSet, baseLuminosity);
             UpdateFireEffects(flameSet, time, baseLuminosity);
+        }
+
+        private void UpdateDynamicLight(FlameSet set, float intensity)
+        {
+            // The light's position is the gate's world position + the local bone offset.
+            set.Light.Position = WorldPosition.Translation + set.BasePosition + new Vector3(0, -5f, _baseHeight);
+            set.Light.Intensity = intensity;
         }
 
         private void UpdateIndividualWindEffects(FlameSet flameSet, float time)
@@ -149,11 +174,9 @@ namespace Client.Main.Objects.Worlds.Lorencia
         private void UpdateFireEffects(FlameSet flameSet, float time, float baseLuminosity)
         {
             var turbulence = CalculateTurbulence(time);
-
             for (int i = 0; i < FLAME_COUNT; i++)
             {
                 flameSet.ScaleOffsets[i] += SCALE_CHANGE_SPEED * 0.016f;
-
                 UpdateBaseFlame(flameSet, i, time, baseLuminosity, turbulence);
                 UpdateMiddleFlame(flameSet, i, time, baseLuminosity, turbulence);
                 UpdateTopFlame(flameSet, i, time, baseLuminosity, turbulence);
@@ -162,78 +185,74 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
         private float CalculateTurbulence(float time)
         {
-            return (float)(
+            return 1.0f + (float)(
                 Math.Sin(time * 4.0f) * 0.12f +
                 Math.Sin(time * 9.0f) * 0.06f +
                 Math.Sin(time * 15.0f) * 0.03f
-            ) + 1.0f;
+            );
         }
 
         private float CalculateFlameScale(FlameSet flameSet, int index, float baseScale, float turbulence, float time)
         {
             float smoothRandomFactor = (float)Math.Sin(flameSet.ScaleOffsets[index]) * RANDOM_SCALE_INFLUENCE;
-            float turbulenceInfluence = (turbulence - 1.0f) * 0.2f;
-            return baseScale + turbulenceInfluence + smoothRandomFactor;
+            return baseScale + (turbulence - 1.0f) * 0.2f + smoothRandomFactor;
         }
 
         private void UpdateBaseFlame(FlameSet flameSet, int index, float time, float baseLuminosity, float turbulence)
         {
             var flame = flameSet.BaseFlames[index];
-            float individualIntensity = 0.8f + (float)Math.Sin(flameSet.ScaleOffsets[index]) * 0.1f;
-            var flameIntensity = ClampAlpha(baseLuminosity * turbulence * individualIntensity);
+            var flameIntensity = ClampAlpha(baseLuminosity * turbulence * (0.8f + (float)Math.Sin(flameSet.ScaleOffsets[index]) * 0.1f));
             flame.Alpha = flameIntensity;
 
             var offset = CalculateIndividualFlameOffset(flameSet, index, time, 1.8f, 7.0f);
             flame.Position = flameSet.BasePosition + offset + new Vector3(0f, -5f, _baseHeight);
 
-            var colorIntensity = 0.85f + turbulence * 0.15f;
-            flame.Light = BaseFlameColor * flameIntensity * colorIntensity;
-
+            flame.Light = BaseFlameColor * flameIntensity * (0.85f + turbulence * 0.15f);
             flame.Scale = CalculateFlameScale(flameSet, index, 1.5f, turbulence, time);
         }
 
         private void UpdateMiddleFlame(FlameSet flameSet, int index, float time, float baseLuminosity, float turbulence)
         {
             var flame = flameSet.MiddleFlames[index];
-            float individualIntensity = 0.75f + (float)Math.Sin(flameSet.ScaleOffsets[index]) * 0.15f;
-            var flameIntensity = ClampAlpha(baseLuminosity * turbulence * individualIntensity);
+            var flameIntensity = ClampAlpha(baseLuminosity * turbulence * (0.75f + (float)Math.Sin(flameSet.ScaleOffsets[index]) * 0.15f));
             flame.Alpha = flameIntensity;
 
             var offset = CalculateIndividualFlameOffset(flameSet, index, time, 2.2f, 6.0f);
             flame.Position = flameSet.BasePosition + offset + new Vector3(0f, -5f, _baseHeight + 18f);
 
-            var colorIntensity = 0.9f + turbulence * 0.1f;
-            flame.Light = MiddleFlameColor * flameIntensity * colorIntensity;
-
+            flame.Light = MiddleFlameColor * flameIntensity * (0.9f + turbulence * 0.1f);
             flame.Scale = CalculateFlameScale(flameSet, index, 2.0f, turbulence, time);
         }
 
         private void UpdateTopFlame(FlameSet flameSet, int index, float time, float baseLuminosity, float turbulence)
         {
             var flame = flameSet.TopFlames[index];
-            float individualIntensity = 0.7f + (float)Math.Sin(flameSet.ScaleOffsets[index]) * 0.2f;
-            var flameIntensity = ClampAlpha(baseLuminosity * turbulence * individualIntensity);
+            var flameIntensity = ClampAlpha(baseLuminosity * turbulence * (0.7f + (float)Math.Sin(flameSet.ScaleOffsets[index]) * 0.2f));
             flame.Alpha = flameIntensity;
 
             var offset = CalculateIndividualFlameOffset(flameSet, index, time, 2.5f, 5.0f);
-            var heightVariation = (float)Math.Sin(time * 2.0f + flameSet.IndividualWindTimes[index]) * 12.0f +
-                                flameSet.IndividualWindStrengths[index] * 10.0f;
-
+            var heightVariation = (float)Math.Sin(time * 2.0f + flameSet.IndividualWindTimes[index]) * 12.0f + flameSet.IndividualWindStrengths[index] * 10.0f;
             flame.Position = flameSet.BasePosition + offset + new Vector3(
-                flameSet.IndividualWindStrengths[index] * 4.0f,
-                -5f,
-                _baseHeight + 35f + heightVariation
+                flameSet.IndividualWindStrengths[index] * 4.0f, -5f, _baseHeight + 35f + heightVariation
             );
 
-            var colorIntensity = 0.95f + turbulence * 0.1f;
-            flame.Light = TopFlameColor * flameIntensity * colorIntensity;
-
+            flame.Light = TopFlameColor * flameIntensity * (0.95f + turbulence * 0.1f);
             flame.Scale = CalculateFlameScale(flameSet, index, 2.2f, turbulence, time);
         }
 
         private float ClampAlpha(float alpha)
         {
             return Math.Max(MIN_ALPHA, Math.Min(MAX_ALPHA, alpha));
+        }
+
+        public override void Dispose()
+        {
+            if (World != null)
+            {
+                World.Terrain.RemoveDynamicLight(_firstFlameSet.Light);
+                World.Terrain.RemoveDynamicLight(_secondFlameSet.Light);
+            }
+            base.Dispose();
         }
     }
 }
