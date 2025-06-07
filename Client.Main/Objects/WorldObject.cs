@@ -1,4 +1,4 @@
-﻿// Client.Main/Objects/WorldObject.cs
+// Client.Main/Objects/WorldObject.cs
 
 using Client.Main.Controllers;
 using Client.Main.Controls;

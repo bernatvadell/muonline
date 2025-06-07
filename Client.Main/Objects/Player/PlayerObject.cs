@@ -1,4 +1,4 @@
-﻿using Client.Main.Content;
+using Client.Main.Content;
 using Client.Main.Controls;
 using Client.Main.Models;
 using Client.Main.Objects.Wings;
