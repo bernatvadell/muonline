@@ -200,7 +200,7 @@ namespace Client.Main.Scenes
                 _characterInfo.Name,
                 _characterInfo.Class,
                 _characterInfo.Level,
-                charState.PositionX, 
+                charState.PositionX,
                 charState.PositionY,
                 charState.MapId
             );
@@ -502,6 +502,7 @@ namespace Client.Main.Scenes
                 {
                     npcMonster.NetworkId = s.Id;
                     npcMonster.Location = new Vector2(s.PositionX, s.PositionY);
+                    npcMonster.Direction = (Models.Direction)s.Direction;
                     w.Objects.Add(npcMonster);
                     await npcMonster.Load();
                 }

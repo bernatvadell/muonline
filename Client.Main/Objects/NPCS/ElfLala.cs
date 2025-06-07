@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 namespace Client.Main.Objects.NPCS
 {
 
+    [NpcInfo(242, "Elf Lala")]
     public class ElfLala : NPCObject
     {
         public override async Task Load()
@@ -34,10 +35,10 @@ namespace Client.Main.Objects.NPCS
                 CurrentAction = CurrentAction == 0 ? 1 : 0;
             }
         }
-        protected override void  HandleClick()
+        protected override void HandleClick()
         {
             NpcShopControl.Instance.Visible = true;
-        }   
+        }
 
     }
 }
