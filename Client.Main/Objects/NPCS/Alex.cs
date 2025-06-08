@@ -1,4 +1,5 @@
 using Client.Main.Content;
+using Client.Main.Controls.UI.Game;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.NPCS
@@ -12,6 +13,9 @@ namespace Client.Main.Objects.NPCS
             await SetBodyPartsAsync("Npc/", "ManHead", "ManUpper", "ManPant", "ManGlove", "ManBoots", 2);
             await base.Load();
         }
-        protected override void HandleClick() { }
+        protected override void HandleClick()
+        {
+            NpcShopControl.Instance.Visible = true;
+        }
     }
 }

@@ -423,6 +423,14 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     uint newSd = (uint)Math.Max(0, (int)_characterState.CurrentShield - (int)shieldDmg);
                     _characterState.UpdateCurrentHealthShield(newHp, newSd);
 
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        if (MuGame.Instance.ActiveScene is GameScene gs && gs.Hero != null)
+                        {
+                            gs.Hero.OnPlayerTookDamage();
+                        }
+                    });
+
                     if (newHp == 0 && currentHpBeforeHit > 0)
                     {
                         _logger.LogWarning("💀 Local player (ID: {Id:X4}) died!", maskedId);

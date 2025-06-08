@@ -43,7 +43,7 @@ namespace Client.Main.Objects
         public WorldObject Parent { get => _parent; set { var prev = _parent; _parent = value; OnParentChanged(value, prev); } }
 
         public BoundingBox BoundingBoxLocal { get => _boundingBoxLocal; set { _boundingBoxLocal = value; OnBoundingBoxLocalChanged(); } }
-        public BoundingBox BoundingBoxWorld { get; private set; }
+        public BoundingBox BoundingBoxWorld { get; protected set; }
 
         public GameControlStatus Status { get; protected set; } = GameControlStatus.NonInitialized;
         public bool Hidden { get; set; }
@@ -227,7 +227,7 @@ namespace Client.Main.Objects
 
             Vector3 anchor = new((BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) * 0.5f,
                 (BoundingBoxWorld.Min.Y + BoundingBoxWorld.Max.Y) * 0.5f,
-                BoundingBoxWorld.Max.Z + 80f);
+                BoundingBoxWorld.Max.Z + 20f);
 
             Vector3 screen = GraphicsDevice.Viewport.Project(
                 anchor,
@@ -475,7 +475,7 @@ namespace Client.Main.Objects
             spriteBatch.Draw(_whiteTexture, borderRect, borderColor);
         }
 
-        private void UpdateWorldBoundingBox()
+        protected virtual void UpdateWorldBoundingBox()
         {
             Vector3[] boundingBoxCorners = BoundingBoxLocal.GetCorners();
             Matrix worldPos = WorldPosition;

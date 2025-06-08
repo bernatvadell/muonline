@@ -77,7 +77,7 @@ public class CursorControl : SpriteControl
                 TexturePath = "Interface/CursorAttack.ozt";
                 CurrentAnimation = DefaultAnimation;
             }
-            else if (hoveredObject is NPCObject)
+            else if (hoveredObject is NPCObject || hoveredObject is CompositeNPCObject)
             {
                 TexturePath = "Interface/CursorTalk.ozt";
                 CurrentAnimation = TalkAnimation;
@@ -118,7 +118,7 @@ public class CursorControl : SpriteControl
                 TexturePath = "Interface/CursorAttack.ozt";
                 CurrentAnimation = DefaultAnimation;
             }
-            else if (hoveredObject is NPCObject)
+            else if (hoveredObject is NPCObject || hoveredObject is CompositeNPCObject)
             {
                 TexturePath = "Interface/CursorTalk.ozt";
                 CurrentAnimation = TalkAnimation;

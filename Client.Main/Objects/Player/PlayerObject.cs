@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 using Client.Main.Core.Utilities;
 using Client.Main.Networking.Services;
 using Client.Main.Networking;
-using System.Collections.Generic; // Required for IConnection if CharacterService needs it directly
+using System;
 
 namespace Client.Main.Objects.Player
 {
@@ -25,10 +25,11 @@ namespace Client.Main.Objects.Player
 
         public string Name { get; set; } = "Character";
         public override string DisplayName => Name;
-        private ushort _networkId; // Private backing field
 
         private CharacterService _characterService;
         private NetworkManager _networkManager;
+        public event EventHandler PlayerMoved;
+        public event EventHandler PlayerTookDamage;
 
         public PlayerEquipment Equipment { get; private set; } = new PlayerEquipment();
 
@@ -99,6 +100,16 @@ namespace Client.Main.Objects.Player
             SetActionSpeed(PlayerAction.StopMale, 0.5f);
             SetActionSpeed(PlayerAction.StopFemale, 0.5f);
             SetActionSpeed(PlayerAction.StopFlying, 0.5f);
+        }
+
+        public void OnPlayerMoved()
+        {
+            PlayerMoved?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void OnPlayerTookDamage()
+        {
+            PlayerTookDamage?.Invoke(this, EventArgs.Empty);
         }
 
         private void SetActionSpeed(PlayerAction action, float speed)

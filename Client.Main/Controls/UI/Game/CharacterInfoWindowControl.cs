@@ -71,7 +71,7 @@ namespace Client.Main.Controls.UI.Game
             { _logger.LogWarning("NetworkManager is null in CharacterInfoWindowControl constructor. Stat increase functionality may not work."); }
         }
 
-        public override Task Load()
+        public override async Task Load()
         {
             _characterState = MuGame.Network.GetCharacterState();
             _networkManager = MuGame.Network;
@@ -82,45 +82,20 @@ namespace Client.Main.Controls.UI.Game
             // Load Textures
             var tl = TextureLoader.Instance;
             _background = new TextureControl { TexturePath = "Interface/newui_msgbox_back.jpg", ViewSize = new Point(WINDOW_WIDTH, WINDOW_HEIGHT), AutoViewSize = false, BlendState = BlendState.Opaque };
-            _topFrame = new TextureControl { TexturePath = "Interface/newui_item_back04.tga", ViewSize = new Point(WINDOW_WIDTH, 64), AutoViewSize = false, BlendState = BlendState.AlphaBlend }; // Should be 190x64
+            _topFrame = new TextureControl { TexturePath = "Interface/newui_item_back04.tga", ViewSize = new Point(WINDOW_WIDTH, 64), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
             _leftFrame = new TextureControl { TexturePath = "Interface/newui_item_back02-L.tga", ViewSize = new Point(21, 320), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
             _rightFrame = new TextureControl { TexturePath = "Interface/newui_item_back02-R.tga", ViewSize = new Point(21, 320), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
-            _bottomFrame = new TextureControl { TexturePath = "Interface/newui_item_back03.tga", ViewSize = new Point(WINDOW_WIDTH, 45), AutoViewSize = false, BlendState = BlendState.AlphaBlend }; // Should be 190x45
+            _bottomFrame = new TextureControl { TexturePath = "Interface/newui_item_back03.tga", ViewSize = new Point(WINDOW_WIDTH, 45), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
 
-            // Capture the current synchronization context (main thread)
-            var context = SynchronizationContext.Current;
-            if (context == null)
-            {
-                // Fallback to thread pool if there's no context (shouldn't happen in game)
-                context = new SynchronizationContext();
-            }
-
-            // Start a task to load the textures in the background
-            Task.Run(async () =>
-            {
-                // Load each texture asynchronously
-                var texTableTopLeft = await tl.PrepareAndGetTexture("Interface/newui_item_table01(L).tga");
-                var texTableTopRight = await tl.PrepareAndGetTexture("Interface/newui_item_table01(R).tga");
-                var texTableBottomLeft = await tl.PrepareAndGetTexture("Interface/newui_item_table02(L).tga");
-                var texTableBottomRight = await tl.PrepareAndGetTexture("Interface/newui_item_table02(R).tga");
-                var texTableTopHorizontalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(Up).tga");
-                var texTableBottomHorizontalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(Dw).tga");
-                var texTableLeftVerticalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(L).tga");
-                var texTableRightVerticalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(R).tga");
-
-                // Post the results to the main thread
-                context.Post(_ =>
-                {
-                    _texTableTopLeft = texTableTopLeft;
-                    _texTableTopRight = texTableTopRight;
-                    _texTableBottomLeft = texTableBottomLeft;
-                    _texTableBottomRight = texTableBottomRight;
-                    _texTableTopHorizontalLinePixel = texTableTopHorizontalLinePixel;
-                    _texTableBottomHorizontalLinePixel = texTableBottomHorizontalLinePixel;
-                    _texTableLeftVerticalLinePixel = texTableLeftVerticalLinePixel;
-                    _texTableRightVerticalLinePixel = texTableRightVerticalLinePixel;
-                }, null);
-            });
+            // Usuń blok Task.Run i ładuj tekstury bezpośrednio z await
+            _texTableTopLeft = await tl.PrepareAndGetTexture("Interface/newui_item_table01(L).tga");
+            _texTableTopRight = await tl.PrepareAndGetTexture("Interface/newui_item_table01(R).tga");
+            _texTableBottomLeft = await tl.PrepareAndGetTexture("Interface/newui_item_table02(L).tga");
+            _texTableBottomRight = await tl.PrepareAndGetTexture("Interface/newui_item_table02(R).tga");
+            _texTableTopHorizontalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(Up).tga");
+            _texTableBottomHorizontalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(Dw).tga");
+            _texTableLeftVerticalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(L).tga");
+            _texTableRightVerticalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(R).tga");
 
             Controls.Add(_background);
             Controls.Add(_topFrame);
@@ -215,7 +190,8 @@ namespace Client.Main.Controls.UI.Game
             Controls.Add(_masterLevelButton);
 
             SetupLayout();
-            return base.Load();
+
+            await base.Load();
         }
 
         private ButtonControl CreateBottomButton(int xOffset, string texturePath, string tooltip)

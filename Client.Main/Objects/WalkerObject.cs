@@ -2,6 +2,7 @@ using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Models;
 using Client.Main.Objects.Monsters;
+using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using System;
@@ -278,6 +279,11 @@ namespace Client.Main.Objects
         public void MoveTo(Vector2 targetLocation, bool sendToServer = true)
         {
             if (World == null) return;
+
+            if (this is PlayerObject player)
+            {
+                player.OnPlayerMoved(); // Użyjemy metody pomocniczej
+            }
 
             Vector2 startPos = new Vector2((int)Location.X, (int)Location.Y);
             WorldControl currentWorld = World;

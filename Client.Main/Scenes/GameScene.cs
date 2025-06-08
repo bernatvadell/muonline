@@ -218,6 +218,8 @@ namespace Client.Main.Scenes
             _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: _hero.NetworkId set to {charState.Id:X4}, Location set to ({charState.PositionX}, {charState.PositionY}).");
 
             UpdateLoadProgress("Hero info applied.", 0.1f);
+            _hero.PlayerMoved += OnHeroAction;
+            _hero.PlayerTookDamage += OnHeroAction;
 
             // 2. Determine Initial World (Quick)
             UpdateLoadProgress("Determining initial world...", 0.15f);
@@ -380,6 +382,14 @@ namespace Client.Main.Scenes
             }
         }
 
+        private void OnHeroAction(object sender, EventArgs e)
+        {
+            if (NpcShopControl.Instance.Visible)
+            {
+                _logger.LogInformation("Hero action detected, closing NPC shop window.");
+                NpcShopControl.Instance.Visible = false;
+            }
+        }
 
         // ─────────────────── Map Change Logic (Remains largely the same) ───────────────────
         public async Task ChangeMap(Type worldType)
@@ -745,12 +755,14 @@ namespace Client.Main.Scenes
             if (_inventoryControl != null)
             {
                 await _inventoryControl.Initialize();
+                await _inventoryControl.PreloadAssetsAsync();
                 _inventoryControl.Preload();
             }
 
             if (_characterInfoWindow != null)
             {
                 await _characterInfoWindow.Initialize();
+                await _characterInfoWindow.PreloadAssetsAsync();
             }
         }
 
@@ -769,6 +781,16 @@ namespace Client.Main.Scenes
             {
                 _ = MuGame.Network.SendPublicChatMessageAsync(e.Message);
             }
+        }
+
+        public override void Dispose()
+        {
+            if (_hero != null)
+            {
+                _hero.PlayerMoved -= OnHeroAction;
+                _hero.PlayerTookDamage -= OnHeroAction;
+            }
+            base.Dispose();
         }
     }
 }

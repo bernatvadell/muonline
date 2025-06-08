@@ -1,4 +1,5 @@
 using Client.Main.Content;
+using Client.Main.Controls.UI.Game;
 using Client.Main.Objects;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
@@ -16,6 +17,9 @@ namespace Client.Main.Objects.NPCS
                 2);
             await base.Load();
         }
-        protected override void HandleClick() { }
+        protected override void HandleClick()
+        {
+            NpcShopControl.Instance.Visible = true;
+        }
     }
 }
