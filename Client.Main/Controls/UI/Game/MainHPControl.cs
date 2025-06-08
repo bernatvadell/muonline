@@ -56,7 +56,7 @@ namespace Client.Main.Controls.UI.Game
                 FontSize = 10,
                 IsBold = true,
                 ShadowOpacity = 0.3f,
-                BoldWeight = 1
+                BoldStrength = 0.5f
             };
 
             _targetPercentage = _progress.Percentage;

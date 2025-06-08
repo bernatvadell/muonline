@@ -97,9 +97,13 @@ namespace Client.Main.Objects
 
         public bool IsOneShotPlaying => _animationController?.IsOneShotPlaying ?? false;
 
-        public override async Task Load()
+        protected WalkerObject()
         {
             _animationController = new AnimationController(this);
+        }
+
+        public override async Task Load()
+        {
             MoveTargetPosition = Vector3.Zero;
             _previousScrollValue = MuGame.Instance.Mouse.ScrollWheelValue;
             _cameraYaw = _defaultCameraYaw;

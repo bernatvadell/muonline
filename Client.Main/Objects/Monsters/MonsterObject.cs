@@ -29,7 +29,7 @@ namespace Client.Main.Objects.Monsters
         }
 
         // --- Constructors ---
-        public MonsterObject()
+        public MonsterObject() : base()
         {
             Interactive = true;
             AnimationSpeed = 4f;

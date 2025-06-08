@@ -25,6 +25,7 @@ namespace Client.Main.Objects.Player
 
         public string Name { get; set; } = "Character";
         public override string DisplayName => Name;
+        private ushort _networkId; // Private backing field
 
         private CharacterService _characterService;
         private NetworkManager _networkManager;

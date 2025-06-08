@@ -728,7 +728,7 @@ namespace Client.Main.Scenes
                 for (int i = 0; i < Controls.Count; i++)
                 {
                     var ctrl = Controls[i];
-                    if (ctrl != World && ctrl != _inventoryControl?._pickedItemRenderer && ctrl.Visible)
+                    if (ctrl != World && ctrl.Visible)
                         ctrl.Draw(gameTime);
                 }
 

@@ -46,7 +46,7 @@ namespace Client.Main.Objects
             ScopeObject scope,
             ushort mainPlayerId,
             CharacterService charSvc,
-            ILogger<DroppedItemObject>? logger = null)
+            ILogger<DroppedItemObject> logger = null)
         {
             _scope        = scope  ?? throw new ArgumentNullException(nameof(scope));
             _mainPlayerId = mainPlayerId;
@@ -72,17 +72,26 @@ namespace Client.Main.Objects
 
             _label = new LabelControl
             {
-                Text            = DisplayName,
-                FontSize        = 12f,
-                TextColor       = GetLabelColor(scope),
-                HasShadow       = true,
-                ShadowColor     = Color.Black,
-                ShadowOpacity   = 0.7f,
+                Text = DisplayName,
+                FontSize = 12f,
+                TextColor = GetLabelColor(scope),
+                HasShadow = true,
+                ShadowColor = Color.Black,
+                ShadowOpacity = 0.8f,
                 UseManualPosition = true,
-                Visible         = false,
-                Interactive     = true
+                Visible = false,
+                Interactive = true,
+
+                // --- POPRAWIONA KONFIGURACJA ---
+                // Ustawiamy kolor tła z przezroczystością.
+                BackgroundColor = new Color(0, 0, 0, 160), // Czarne tło z przezroczystością ~63% (160/255)
+
+                // Główna przezroczystość kontrolki (wpływająca na tekst i tło) ustawiona na 1.0 (pełna widoczność).
+                Alpha = 1.0f,
+
+                // Ustawiamy padding, aby tło było nieco większe niż tekst.
+                Padding = new Margin { Left = 4, Right = 4, Top = 2, Bottom = 2 }
             };
-            // ‼  NIE dodajemy do Children – to nie WorldObject
         }
 
         // =====================================================================

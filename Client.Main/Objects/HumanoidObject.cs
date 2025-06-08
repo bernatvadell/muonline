@@ -23,7 +23,7 @@ namespace Client.Main.Objects
         public WeaponObject Weapon2 { get; private set; }
         public WingObject Wings { get; private set; }
 
-        protected HumanoidObject()
+        protected HumanoidObject() : base()
         {
             _logger = AppLoggerFactory?.CreateLogger(GetType());
 
