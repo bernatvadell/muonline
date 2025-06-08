@@ -81,6 +81,8 @@ namespace Client.Main.Objects
             MatrixChanged += (_s, _e) => UpdateWorldPosition();
         }
 
+        private Vector3 _lastFrameLight = Vector3.Zero;
+
         public override async Task LoadContent()
         {
             await base.LoadContent();
@@ -124,6 +126,11 @@ namespace Client.Main.Objects
 
             _blendMeshIndicesScratch = new int[meshCount];
 
+            // Initialize lighting cache for static objects
+            _lastFrameLight = LightEnabled && World?.Terrain != null
+                ? World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y) + Light
+                : Light;
+
             _invalidatedBuffers = true;
             _contentLoaded = true;
             GenerateBoneMatrix(0, 0, 0, 0);
@@ -135,6 +142,22 @@ namespace Client.Main.Objects
             base.Update(gameTime);
 
             if (!Visible) return;
+
+            // Cache current light for comparison
+            Vector3 currentLight = LightEnabled && World?.Terrain != null
+                ? World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y) + Light
+                : Light;
+
+            // Check if lighting has changed significantly (for static objects)
+            if (!LinkParentAnimation && _contentLoaded)
+            {
+                bool lightChanged = Vector3.DistanceSquared(currentLight, _lastFrameLight) > 0.0001f;
+                if (lightChanged)
+                {
+                    _invalidatedBuffers = true;
+                    _lastFrameLight = currentLight;
+                }
+            }
 
             Animation(gameTime);
 
@@ -861,6 +884,7 @@ namespace Client.Main.Objects
                     return;
                 }
 
+                // Always recalculate current lighting (not cached)
                 Vector3 bodyLight = LightEnabled && World?.Terrain != null
                     ? World.Terrain.RequestTerrainLight(WorldPosition.Translation.X,
                                                         WorldPosition.Translation.Y) + Light
@@ -883,7 +907,6 @@ namespace Client.Main.Objects
                             Model, meshIndex, bodyColor, bones,
                             ref _boneVertexBuffers[meshIndex],
                             ref _boneIndexBuffers[meshIndex]);
-
 
                         if (_boneTextures[meshIndex] == null)
                         {
