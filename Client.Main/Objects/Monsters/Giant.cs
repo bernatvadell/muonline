@@ -11,7 +11,7 @@ namespace Client.Main.Objects.Monsters
     [NpcInfo(7, "Giant")]
     public class Giant : MonsterObject
     {
-        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<MonsterObject>();
+        private new ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<MonsterObject>();
 
         public Giant()
         {
@@ -106,7 +106,7 @@ namespace Client.Main.Objects.Monsters
         }
 
         // --- Helper method for setting speed (same as in BudgeDragon) ---
-        private bool IsValidAction(int actionIndex)
+        private new bool IsValidAction(int actionIndex)
         {
             return Model != null
                 && Model.Actions != null
@@ -115,7 +115,7 @@ namespace Client.Main.Objects.Monsters
                 && Model.Actions[actionIndex] != null;
         }
 
-        private void SetActionSpeed(MonsterActionType actionType, float speed)
+        private new void SetActionSpeed(MonsterActionType actionType, float speed)
         {
             int actionIndex = (int)actionType;
             if (IsValidAction(actionIndex))

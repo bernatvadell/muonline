@@ -110,7 +110,7 @@ namespace Client.Main.Objects.Effects
             base.Draw(gameTime);
         }
 
-        private void DrawBoundingBox2D()
+        private new void DrawBoundingBox2D()
         {
             // Use the public Font instead of the private `_font`
             var font = GraphicsManager.Instance.Font;

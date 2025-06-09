@@ -149,6 +149,21 @@ namespace Client.Main.Core.Client
         private byte[] _pendingPickedItem;
 
         /// <summary>
+        /// Gets the raw ID of the item currently being picked up, if any.
+        /// </summary>
+        public ushort? PendingPickupRawId { get; private set; }
+
+        /// <summary>
+        /// Sets the raw ID of the item currently being picked up.
+        /// </summary>
+        public void SetPendingPickupRawId(ushort rawId) => PendingPickupRawId = rawId;
+
+        /// <summary>
+        /// Clears the stored raw ID of the item pickup attempt.
+        /// </summary>
+        public void ClearPendingPickupRawId() => PendingPickupRawId = null;
+
+        /// <summary>
         /// Stores item data temporarily before a pickup attempt.
         /// </summary>
         public void StashPickedItem(byte[] rawItemData)

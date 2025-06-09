@@ -13,6 +13,7 @@ namespace Client.Main.Objects.Effects
             BlendState = BlendState.Additive;
             LightEnabled = true;
             Light = Vector3.One;
+            DepthState = DepthStencilState.DepthRead;
         }
 
         public override void Update(GameTime gameTime)

@@ -38,6 +38,13 @@ namespace Client.Main.Objects.Monsters
                     Model.Actions[ATTACK2_INDEX].PlaySpeed = 0.15f;
                 if (DIE_INDEX < Model.Actions.Length && Model.Actions[DIE_INDEX] != null)
                     Model.Actions[DIE_INDEX].PlaySpeed = 0.2f;
+
+                SetActionSpeed(MonsterActionType.Attack1, 0.15f);
+                SetActionSpeed(MonsterActionType.Attack2, 0.15f);
+                SetActionSpeed(MonsterActionType.Die, 0.2f);
+                SetActionSpeed(MonsterActionType.Stop1, 0.25f * 0.4f);
+                SetActionSpeed(MonsterActionType.Walk, 0.34f * 0.4f);
+                SetActionSpeed(MonsterActionType.Shock, 0.5f * 0.4f);
             }
         }
 

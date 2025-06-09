@@ -21,16 +21,7 @@ namespace Client.Main.Objects.Monsters
             // Model Loading Type: 20 -> File Number: 20 + 1 = 21
             Model = await BMDLoader.Instance.Prepare($"Monster/Monster21.bmd");
             await base.Load();
-
-            // Specific PlaySpeed adjustment from C++ OpenMonsterModel
-            if (Model?.Actions != null)
-            {
-                const int MONSTER_ACTION_WALK = (int)MonsterActionType.Walk;
-                if (MONSTER_ACTION_WALK < Model.Actions.Length && Model.Actions[MONSTER_ACTION_WALK] != null)
-                {
-                    Model.Actions[MONSTER_ACTION_WALK].PlaySpeed = 0.4f;
-                }
-            }
+            SetActionSpeed(MonsterActionType.Walk, 0.4f);
         }
 
         // Sound mapping based on C++ SetMonsterSound(MODEL_MONSTER01 + Type, 77, 78, 79, 80, 81);

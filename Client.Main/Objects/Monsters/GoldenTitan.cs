@@ -25,7 +25,7 @@ namespace Client.Main.Objects.Monsters
         }
 
         // Sounds are like Dark Knight according to C++ comment (which might be an error?)
-        // Using Dark Knight sounds for now, adjust if needed based on actual game files.
+        // Using Dark Knight sounds as per C++ comment
         protected override void OnIdle() { base.OnIdle(); SoundController.Instance.PlayBufferWithAttenuation("Sound/mDarkKnight1.wav", Position, ((WalkableWorldControl)World).Walker.Position); }
         public override void OnPerformAttack(int attackType = 1) { base.OnPerformAttack(attackType); SoundController.Instance.PlayBufferWithAttenuation("Sound/mDarkKnightAttack1.wav", Position, ((WalkableWorldControl)World).Walker.Position); }
         public override void OnDeathAnimationStart() { base.OnDeathAnimationStart(); SoundController.Instance.PlayBufferWithAttenuation("Sound/mDarkKnightDie.wav", Position, ((WalkableWorldControl)World).Walker.Position); }

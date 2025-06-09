@@ -87,10 +87,9 @@ namespace Client.Main.Objects
         public Vector3 MoveTargetPosition { get; set; }
         public float MoveSpeed { get; set; } = Constants.MOVE_SPEED;
         public bool IsMoving => Vector3.Distance(MoveTargetPosition, TargetPosition) > 0f;
-        public ushort NetworkId { get; set; }
+        public new ushort NetworkId { get; set; }
 
         public ushort idanim = 0;
-        private KeyboardState _previousKeyboardState_WalkerTest;
 
         // Public Methods
         protected AnimationController _animationController;
@@ -304,8 +303,6 @@ namespace Client.Main.Objects
                 {
                     if (MuGame.Instance.ActiveScene?.World == currentWorld && this.Status != GameControlStatus.Disposed)
                     {
-                        _animationController?.PlayAnimation((ushort)PlayerAction.WalkMale); // Or appropriate walk animation
-
                         _currentPath = path;
 
                         if (sendToServer && IsMainWalker)
@@ -349,7 +346,7 @@ namespace Client.Main.Objects
 
             List<byte> clientDirs = new(path.Count);
             Vector2 currentPos = Location;
-            foreach (var step in path)
+            foreach (var step in path.ToArray())
             {
                 byte dirCode = GetClientDirectionCode(currentPos, step);
                 if (dirCode > 7) break;

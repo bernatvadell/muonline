@@ -8,6 +8,8 @@ using Client.Main.Controllers;
 using System.Linq;
 using Client.Main.Controls.UI;
 using Client.Main.Models;
+using Client.Main.Controls;
+using Client.Main.Objects;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
@@ -114,6 +116,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     _logger.LogWarning("ItemPickupFailed-like packet (0x22) too short: {Length}", packet.Length);
                     _characterState.ClearPendingPickedItem(); // Clean up just in case
+                    ResetPendingPickupObject();
                     return Task.CompletedTask;
                 }
 
@@ -123,20 +126,19 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                 string messageToUser = string.Empty;
                 MessageType uiMessageType = MessageType.System;
-                bool actionHandled = false;
 
                 if (failReasonEnum == ItemPickUpRequestFailed.ItemPickUpFailReason.ItemStacked) // 0xFD
                 {
                     _logger.LogInformation("Item pick-up reported as 'Stacked'. Item should be updated by another packet (e.g., durability or inventory list).");
                     _characterState.ClearPendingPickedItem();
+                    ResetPendingPickupObject();
                     SoundController.Instance.PlayBuffer("Sound/pGetItem.wav");
-                    actionHandled = true;
                 }
                 else if (failReasonEnum == ItemPickUpRequestFailed.ItemPickUpFailReason.General) // 0xFF
                 {
                     messageToUser = "Item pick-up failed.";
                     _characterState.ClearPendingPickedItem();
-                    actionHandled = true;
+                    ResetPendingPickupObject();
                 }
                 else if (failReasonEnum == ItemPickUpRequestFailed.ItemPickUpFailReason.__MaximumInventoryMoneyReached) // 0xFE
                 {
@@ -144,7 +146,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     // If it comes here, it's likely an error or an old server behavior.
                     messageToUser = "Your inventory is full (money limit reached).";
                     _characterState.ClearPendingPickedItem();
-                    actionHandled = true;
+                    ResetPendingPickupObject();
                 }
                 else // The byte is NOT a known FailReason enum value, assume it's a slot index for SUCCESS.
                 {
@@ -158,6 +160,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         _logger.LogWarning("Item pickup 'success' (0x22, Slot: {Slot}) received, but item data is empty.", targetSlot);
                         messageToUser = "Item pick-up error (missing item data).";
                         _characterState.ClearPendingPickedItem();
+                        ResetPendingPickupObject();
                     }
                     // Attempt to commit the stashed item.
                     else if (_characterState.CommitStashedItem(targetSlot))
@@ -172,6 +175,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         _logger.LogInformation("Item '{ItemName}' picked up successfully into slot {Slot} (via 0x22, SubCode={SubCode:X2} interpreted as slot).", itemName, targetSlot, targetSlot);
                         SoundController.Instance.PlayBuffer("Sound/pGetItem.wav");
                         messageToUser = $"Item '{itemName}' picked up successfully into slot {targetSlot}";
+                        ResetPendingPickupObject();
                     }
                     else
                     {
@@ -181,8 +185,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         // _pendingPickedItem is already null or was never set, so ClearPendingPickedItem is effectively done.
                         // We still call it to ensure the state is clean if it somehow wasn't null.
                         _characterState.ClearPendingPickedItem();
+                        ResetPendingPickupObject();
                     }
-                    actionHandled = true; // This path is considered handled, whether commit succeeded or logged an error.
                 }
 
                 // If an error message was set, display it.
@@ -200,8 +204,27 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             {
                 _logger.LogError(ex, "Error processing ItemPickupFailed-like packet (0x22).");
                 _characterState.ClearPendingPickedItem(); // Ensure cleanup on any exception.
+                ResetPendingPickupObject();
             }
             return Task.CompletedTask;
+        }
+
+        private void ResetPendingPickupObject()
+        {
+            ushort? rawId = _characterState.PendingPickupRawId;
+            _characterState.ClearPendingPickupRawId();
+            if (!rawId.HasValue)
+                return;
+
+            MuGame.ScheduleOnMainThread(() =>
+            {
+                if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl world)
+                    return;
+
+                ushort masked = (ushort)(rawId.Value & 0x7FFF);
+                var obj = world.Objects.OfType<DroppedItemObject>().FirstOrDefault(d => d.NetworkId == masked);
+                obj?.ResetPickupState();
+            });
         }
 
         [PacketHandler(0x28, PacketRouter.NoSubCode)]  // ItemRemoved

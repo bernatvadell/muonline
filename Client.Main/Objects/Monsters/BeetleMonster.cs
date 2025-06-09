@@ -21,16 +21,7 @@ namespace Client.Main.Objects.Monsters
             // Model Loading Type: 21 -> File Number: 21 + 1 = 22
             Model = await BMDLoader.Instance.Prepare($"Monster/Monster22.bmd");
             await base.Load();
-
-            // Specific PlaySpeed adjustment from C++ OpenMonsterModel
-            if (Model?.Actions != null)
-            {
-                const int MONSTER_ACTION_WALK = (int)MonsterActionType.Walk;
-                if (MONSTER_ACTION_WALK < Model.Actions.Length && Model.Actions[MONSTER_ACTION_WALK] != null)
-                {
-                    Model.Actions[MONSTER_ACTION_WALK].PlaySpeed = 0.5f;
-                }
-            }
+            SetActionSpeed(MonsterActionType.Walk, 0.5f);
             // C++: Models[MODEL_MONSTER01+Type].BoneHead = 5;
         }
 
@@ -39,16 +30,16 @@ namespace Client.Main.Objects.Monsters
         {
             base.OnIdle();
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
-            SoundController.Instance.PlayBufferWithAttenuation("Sound/mBeetle1.wav", Position, listenerPosition); // Index 0 -> Sound 82
-                                                                                                                  // Index 1 -> Sound 82
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/mBeetle1.wav", Position, listenerPosition);
+            // Index 1 -> Sound 82
         }
 
         public override void OnPerformAttack(int attackType = 1)
         {
             base.OnPerformAttack(attackType);
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
-            SoundController.Instance.PlayBufferWithAttenuation("Sound/mBeetleAttack1.wav", Position, listenerPosition); // Index 2 -> Sound 83
-                                                                                                                        // Index 3 -> Sound 83
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/mBeetleAttack1.wav", Position, listenerPosition);
+            // Index 3 -> Sound 83
         }
 
         public override void OnDeathAnimationStart()

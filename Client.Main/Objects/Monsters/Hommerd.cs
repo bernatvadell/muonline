@@ -24,28 +24,28 @@ namespace Client.Main.Objects.Monsters
             // No specific PlaySpeed adjustments mentioned
         }
 
-        // Sound mapping based on C++ SetMonsterSound(MODEL_MONSTER01 + Type, 56, 57, 58, 58, 59);
+        // Sound mapping based on C++ SetMonsterSound(MODEL_MONSTER01 + Type, 56, 57, 58, 58, 59)
         protected override void OnIdle()
         {
             base.OnIdle();
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
-            SoundController.Instance.PlayBufferWithAttenuation("Sound/mHomord1.wav", Position, listenerPosition); // Index 0 -> Sound 56
-                                                                                                                  // SoundController.Instance.PlayBufferWithAttenuation("Sound/mHomord2.wav", Position, listenerPosition); // Index 1 -> Sound 57
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/mHomord1.wav", Position, listenerPosition);
+            // SoundController.Instance.PlayBufferWithAttenuation("Sound/mHomord2.wav", Position, listenerPosition);
         }
 
         public override void OnPerformAttack(int attackType = 1)
         {
             base.OnPerformAttack(attackType);
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
-            SoundController.Instance.PlayBufferWithAttenuation("Sound/mHomordAttack1.wav", Position, listenerPosition); // Index 2 -> Sound 58
-                                                                                                                        // Index 3 -> Sound 58
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/mHomordAttack1.wav", Position, listenerPosition);
+            // Index 3 -> Sound 58
         }
 
         public override void OnDeathAnimationStart()
         {
             base.OnDeathAnimationStart();
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
-            SoundController.Instance.PlayBufferWithAttenuation("Sound/mHomordDie.wav", Position, listenerPosition); // Index 4 -> Sound 59
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/mHomordDie.wav", Position, listenerPosition);
         }
     }
 }

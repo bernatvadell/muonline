@@ -21,8 +21,6 @@ namespace Client.Main.Objects.Monsters
             // Model Loading Type: 0 -> File Number: 0 + 1 = 1
             Model = await BMDLoader.Instance.Prepare($"Monster/Monster01.bmd");
             await base.Load();
-
-            // No specific PlaySpeed adjustments mentioned for this monster in OpenMonsterModel's switch
         }
 
         // Sound mapping based on C++ SetMonsterSound(MODEL_MONSTER01 + Type, 0, 1, 2, 3, 4);

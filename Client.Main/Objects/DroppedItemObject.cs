@@ -39,7 +39,7 @@ namespace Client.Main.Objects
 
         // ─────────────────── public helpers
         public ushort RawId       => _scope.RawId;
-        public string DisplayName { get; }
+        public new string DisplayName { get; }
 
         // =====================================================================
         public DroppedItemObject(
@@ -48,14 +48,14 @@ namespace Client.Main.Objects
             CharacterService charSvc,
             ILogger<DroppedItemObject> logger = null)
         {
-            _scope        = scope  ?? throw new ArgumentNullException(nameof(scope));
+            _scope = scope ?? throw new ArgumentNullException(nameof(scope));
             _mainPlayerId = mainPlayerId;
-            _charSvc      = charSvc ?? throw new ArgumentNullException(nameof(charSvc));
-            _log          = logger
+            _charSvc = charSvc ?? throw new ArgumentNullException(nameof(charSvc));
+            _log = logger
                             ?? ModelObject.AppLoggerFactory?.CreateLogger<DroppedItemObject>()
                             ?? NullLogger<DroppedItemObject>.Instance;
 
-            NetworkId   = scope.Id;
+            NetworkId = scope.Id;
             Interactive = true;
 
             Position = new(
@@ -65,9 +65,9 @@ namespace Client.Main.Objects
 
             DisplayName = scope switch
             {
-                ItemScopeObject   it  => it.ItemDescription,
-                MoneyScopeObject  mn  => $"{mn.Amount} Zen",
-                _                     => "Unknown Drop"
+                ItemScopeObject it => it.ItemDescription,
+                MoneyScopeObject mn => $"{mn.Amount} Zen",
+                _ => "Unknown Drop"
             };
 
             _label = new LabelControl
@@ -82,16 +82,16 @@ namespace Client.Main.Objects
                 Visible = false,
                 Interactive = true,
 
-                // --- POPRAWIONA KONFIGURACJA ---
-                // Ustawiamy kolor tła z przezroczystością.
-                BackgroundColor = new Color(0, 0, 0, 160), // Czarne tło z przezroczystością ~63% (160/255)
+                BackgroundColor = new Color(0, 0, 0, 160),
 
-                // Główna przezroczystość kontrolki (wpływająca na tekst i tło) ustawiona na 1.0 (pełna widoczność).
                 Alpha = 1.0f,
 
-                // Ustawiamy padding, aby tło było nieco większe niż tekst.
                 Padding = new Margin { Left = 4, Right = 4, Top = 2, Bottom = 2 }
             };
+
+            // Link the label back to this DroppedItemObject so cursor logic can
+            // recognize it when hovered.
+            _label.Tag = this;
         }
 
         // =====================================================================
@@ -107,7 +107,6 @@ namespace Client.Main.Objects
 
             _font = GraphicsManager.Instance.Font;
 
-            // Dołącz etykietę do UI sceny
             if (World?.Scene != null)
             {
                 World.Scene.Controls.Add(_label);
@@ -153,6 +152,8 @@ namespace Client.Main.Objects
                 _log.LogError("OnClick: CharacterState is null, cannot stash item for pickup.");
                 return;
             }
+
+            charState.SetPendingPickupRawId(RawId);
 
             if (_scope is ItemScopeObject itemScope)
             {
@@ -226,8 +227,17 @@ namespace Client.Main.Objects
                 _                  => Color.White
             };
 
+        /// <summary>
+        /// Resets the pickup state so the item can be clicked again.
+        /// </summary>
+        public void ResetPickupState()
+        {
+            _pickedUp = false;
+            _label.Interactive = _label.Visible;
+        }
+
         // =====================================================================
-        private void OnLabelClicked(object? sender, EventArgs e) => OnClick();
+        private void OnLabelClicked(object sender, EventArgs e) => OnClick();
 
         // =====================================================================
         public override void Dispose()

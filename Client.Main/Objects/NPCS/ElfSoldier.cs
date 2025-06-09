@@ -13,7 +13,7 @@ namespace Client.Main.Objects.NPCS
     [NpcInfo(257, "Elf Soldier")]
     public class ElfSoldier : CompositeNPCObject
     {
-        private readonly ILogger<ElfSoldier> _logger;
+        private new readonly ILogger<ElfSoldier> _logger;
 
         public ElfSoldier()
         {

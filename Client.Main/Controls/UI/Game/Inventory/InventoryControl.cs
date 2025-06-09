@@ -434,11 +434,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void DrawFrame(SpriteBatch spriteBatch, Rectangle frameRect)
         {
-            int topEdge = WND_TOP_EDGE;
-            int leftEdge = WND_LEFT_EDGE;
-            int bottomEdge = WND_BOTTOM_EDGE;
-            int rightEdge = WND_RIGHT_EDGE;
-
             int cornerSize = 14;
 
             // Corners

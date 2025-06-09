@@ -11,6 +11,8 @@ namespace Client.Main.Objects.Wings
 
         public Wing403()
         {
+            Type = 403;
+            
             _effects.Add(new CustomEffect { BoneID = 9, EffectID = Effects.EffectType.Light, Angle = Vector3.One, Position = Vector3.Zero, Color = new Vector3(1f, 0.7f, 0.2f), Scale = 2f, });
             _effects.Add(new CustomEffect { BoneID = 23, EffectID = Effects.EffectType.Light, Angle = Vector3.One, Position = Vector3.Zero, Color = new Vector3(1f, 0.7f, 0.2f), Scale = 2f, });
             _effects.Add(new CustomEffect { BoneID = 65, EffectID = Effects.EffectType.Light, Angle = Vector3.One, Position = Vector3.Zero, Color = new Vector3(1f, 0.7f, 0.2f), Scale = 2f, });

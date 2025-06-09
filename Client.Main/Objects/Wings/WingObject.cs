@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Client.Main.Models;
+
 namespace Client.Main.Objects.Wings
 {
     public class CustomEffect
@@ -42,7 +43,7 @@ namespace Client.Main.Objects.Wings
         {
             RenderShadow = true;
             IsTransparent = true;
-            AffectedByTransparency = false;
+            AffectedByTransparency = true;
             BlendState = BlendState.AlphaBlend;
             BlendMesh = -1;
             BlendMeshState = BlendState.Additive;
@@ -96,6 +97,8 @@ namespace Client.Main.Objects.Wings
 
         public override void Update(GameTime gameTime)
         {
+            base.Update(gameTime);
+
             if (_effects.Count > 0 && BoneTransform != null)
             {
                 foreach (var effect in _effects)
@@ -104,7 +107,24 @@ namespace Client.Main.Objects.Wings
                     effect.Effect.Angle = effect.Angle + Angle;
                 }
             }
-            base.Update(gameTime);
+        }
+
+        public override void Draw(GameTime gameTime)
+        {
+            base.Draw(gameTime);
+            foreach (var child in Children)
+            {
+                child.Draw(gameTime);
+            }
+        }
+
+        public override void DrawAfter(GameTime gameTime)
+        {
+            base.DrawAfter(gameTime); 
+            foreach (var child in Children)
+            {
+                child.DrawAfter(gameTime);
+            }
         }
     }
 }

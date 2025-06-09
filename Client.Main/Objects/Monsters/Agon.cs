@@ -31,7 +31,7 @@ namespace Client.Main.Objects.Monsters
             base.OnIdle();
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
             SoundController.Instance.PlayBufferWithAttenuation("Sound/mArgon1.wav", Position, listenerPosition); // Index 0 -> Sound 95
-                                                                                                                 // SoundController.Instance.PlayBufferWithAttenuation("Sound/mArgon2.wav", Position, listenerPosition); // Index 1 -> Sound 96
+            // SoundController.Instance.PlayBufferWithAttenuation("Sound/mArgon2.wav", Position, listenerPosition); // Index 1 -> Sound 96
         }
 
         public override void OnPerformAttack(int attackType = 1)
@@ -39,7 +39,7 @@ namespace Client.Main.Objects.Monsters
             base.OnPerformAttack(attackType);
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
             SoundController.Instance.PlayBufferWithAttenuation("Sound/mArgonAttack1.wav", Position, listenerPosition); // Index 2 -> Sound 97
-                                                                                                                       // SoundController.Instance.PlayBufferWithAttenuation("Sound/mArgonAttack2.wav", Position, listenerPosition); // Index 3 -> Sound 98
+            // SoundController.Instance.PlayBufferWithAttenuation("Sound/mArgonAttack2.wav", Position, listenerPosition); // Index 3 -> Sound 98
         }
 
         public override void OnDeathAnimationStart()

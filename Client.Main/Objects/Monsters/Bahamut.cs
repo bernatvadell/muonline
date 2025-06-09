@@ -24,26 +24,26 @@ namespace Client.Main.Objects.Monsters
             // No specific PlaySpeed adjustments mentioned
         }
 
-        // Sound mapping based on C++ SetMonsterSound(MODEL_MONSTER01 + Type, 130, 130, 131, 131, 130); (Uses Yeti sound)
+        // Sound mapping based on C++ SetMonsterSound(MODEL_MONSTER01 + Type, 130, 130, 131, 131, 130);
         protected override void OnIdle()
         {
             base.OnIdle();
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
-            SoundController.Instance.PlayBufferWithAttenuation("Sound/mBahamut1.wav", Position, listenerPosition); // Index 0 -> Sound 130
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/mYeti1.wav", Position, listenerPosition); // Index 0 -> Sound 130
         }
 
         public override void OnPerformAttack(int attackType = 1)
         {
             base.OnPerformAttack(attackType);
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
-            SoundController.Instance.PlayBufferWithAttenuation("Sound/mYeti1.wav", Position, listenerPosition); // Index 2 -> Sound 131
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/mYetiAttack1.wav", Position, listenerPosition); // Index 2 -> Sound 131
         }
 
         public override void OnDeathAnimationStart()
         {
             base.OnDeathAnimationStart();
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
-            SoundController.Instance.PlayBufferWithAttenuation("Sound/mBahamut1.wav", Position, listenerPosition); // Index 4 -> Sound 130
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/mYeti1.wav", Position, listenerPosition); // Index 4 -> Sound 130
         }
     }
 }

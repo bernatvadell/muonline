@@ -28,7 +28,7 @@ namespace Client.Main.Objects.Monsters
                 const int MONSTER_ACTION_WALK = (int)MonsterActionType.Walk;
                 if (MONSTER_ACTION_WALK < Model.Actions.Length && Model.Actions[MONSTER_ACTION_WALK] != null)
                 {
-                    Model.Actions[MONSTER_ACTION_WALK].PlaySpeed = 0.3f;
+                    SetActionSpeed(MonsterActionType.Walk, 0.3f);
                 }
             }
             // C++: Models[MODEL_YETI].BoneHead = 20; (Additional info)

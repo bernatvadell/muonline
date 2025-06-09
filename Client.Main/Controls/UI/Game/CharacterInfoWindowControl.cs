@@ -40,7 +40,7 @@ namespace Client.Main.Controls.UI.Game
         private ButtonControl[] _statButtons = new ButtonControl[BTN_STAT_COUNT];
         private ButtonControl _exitButton, _questButton, _petButton, _masterLevelButton;
 
-        private LabelControl _nameLabel, _classLabel, _serverLabel;
+        private LabelControl _nameLabel, _classLabel;
         private LabelControl _levelLabel, _expLabel, _fruitPointsProbLabel, _fruitPointsStatsLabel, _statPointsLabel;
         private LabelControl[] _statNameLabels = new LabelControl[BTN_STAT_COUNT];
         private LabelControl[] _statValueLabels = new LabelControl[BTN_STAT_COUNT];
@@ -63,7 +63,7 @@ namespace Client.Main.Controls.UI.Game
             AutoViewSize = false;
             Interactive = true;
             Visible = false; // Start hidden
-            VisibilityChanged += (s, e) => { if (Visible) OpenningProcess(); };
+            // VisibilityChanged += (s, e) => { if (Visible) OpenningProcess(); }; // Removed: event does not exist
 
             // Initialize NetworkManager here. Ensure it's globally available in MuGame.
             _networkManager = MuGame.Network;
@@ -106,7 +106,6 @@ namespace Client.Main.Controls.UI.Game
             // Labels for top info
             _nameLabel = new LabelControl { Y = 12 - 7, TextAlign = HorizontalAlign.Center, IsBold = true, FontSize = 12f, TextColor = Color.White, ViewSize = new Point(WINDOW_WIDTH, 20), X = 0 };
             _classLabel = new LabelControl { Y = 27 - 7, TextAlign = HorizontalAlign.Center, FontSize = 11f, TextColor = Color.LightGray, ViewSize = new Point(WINDOW_WIDTH, 15), X = 0 };
-            //_serverLabel = new LabelControl { Y = 27 - 7, TextAlign = HorizontalAlign.Center, FontSize = 11f, TextColor = Color.LightSkyBlue, ViewSize = new Point(WINDOW_WIDTH, 15), X = 0, Visible = false };
             Controls.Add(_nameLabel);
             Controls.Add(_classLabel);
 

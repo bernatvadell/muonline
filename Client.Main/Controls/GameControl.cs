@@ -72,7 +72,6 @@ namespace Client.Main.Controls
         public event EventHandler SizeChanged;
         public event EventHandler Focus;
         public event EventHandler Blur;
-        public event EventHandler VisibilityChanged; // Optional event for visibility changes
 
         // Constructors
         protected GameControl()
