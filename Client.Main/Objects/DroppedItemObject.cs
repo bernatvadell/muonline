@@ -23,22 +23,22 @@ namespace Client.Main.Objects
     {
         // ─────────────────── constants
         private const float HeightOffset = 50f;
-        private const float PickupRange  = 300f;
-        private const float LabelScale   = 0.6f;
+        private const float PickupRange = 300f;
+        private const float LabelScale = 0.6f;
         private const float LabelOffsetZ = 10f;
 
         // ─────────────────── deps / state
         private readonly ScopeObject _scope;
-        private readonly ushort      _mainPlayerId;
+        private readonly ushort _mainPlayerId;
         private readonly CharacterService _charSvc;
         private readonly ILogger<DroppedItemObject> _log;
 
-        private SpriteFont   _font;
+        private SpriteFont _font;
         private LabelControl _label;
-        private bool         _pickedUp;
+        private bool _pickedUp;
 
         // ─────────────────── public helpers
-        public ushort RawId       => _scope.RawId;
+        public ushort RawId => _scope.RawId;
         public new string DisplayName { get; }
 
         // =====================================================================
@@ -191,12 +191,12 @@ namespace Client.Main.Objects
         private void UpdateLabelVisibility()
         {
             bool ready = !Hidden && Status == GameControlStatus.Ready;
-            bool near  = false;
+            bool near = false;
 
             if (World is Controls.WalkableWorldControl w && w.Walker != null)
                 near = Vector3.Distance(w.Walker.Position, Position) <= 2000f;
 
-            _label.Visible     = ready && near && !OutOfView
+            _label.Visible = ready && near && !OutOfView
                               && World?.Scene?.Status == GameControlStatus.Ready;
             _label.Interactive = _label.Visible && !_pickedUp;
         }
@@ -224,7 +224,7 @@ namespace Client.Main.Objects
             {
                 ItemScopeObject item when item.ItemDescription.StartsWith("Jewel", StringComparison.OrdinalIgnoreCase) => Color.Yellow,
                 MoneyScopeObject _ => Color.Gold,
-                _                  => Color.White
+                _ => Color.White
             };
 
         /// <summary>

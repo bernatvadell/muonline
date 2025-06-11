@@ -18,7 +18,7 @@ namespace Client.Main.Objects
         private Vector3 _targetAngle;
         private Direction _direction;
         private Vector2 _location;
-        protected List<Vector2> _currentPath;
+        protected Queue<Vector2> _currentPath;   // FIFO – cheaper removal than List.RemoveAt(0)
 
         // Camera control
         private float _currentCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
@@ -161,9 +161,8 @@ namespace Client.Main.Objects
 
             if (_currentPath != null && _currentPath.Count > 0 && !IsMoving)
             {
-                var next = _currentPath[0];
+                var next = _currentPath.Dequeue();
                 MoveTowards(next, gameTime);
-                _currentPath.RemoveAt(0);
             }
 
             if (CurrentAction != _previousActionForSound)
@@ -303,7 +302,7 @@ namespace Client.Main.Objects
                 {
                     if (MuGame.Instance.ActiveScene?.World == currentWorld && this.Status != GameControlStatus.Disposed)
                     {
-                        _currentPath = path;
+                        _currentPath = new Queue<Vector2>(path);
 
                         if (sendToServer && IsMainWalker)
                         {
@@ -344,35 +343,29 @@ namespace Client.Main.Objects
                 };
             }
 
-            List<byte> clientDirs = new(path.Count);
+            // stackalloc: no GC pressure for  ≤15-step MU packet
+            Span<byte> clientDirs = stackalloc byte[15];
+            int dirLen = 0;
             Vector2 currentPos = Location;
-            foreach (var step in path.ToArray())
+            foreach (var step in path)
             {
                 byte dirCode = GetClientDirectionCode(currentPos, step);
                 if (dirCode > 7) break;
-                clientDirs.Add(dirCode);
+                clientDirs[dirLen++] = dirCode;
                 currentPos = step;
-                if (clientDirs.Count == 15) break;
+                if (dirLen == 15) break;
             }
-            if (clientDirs.Count == 0) return;
+            if (dirLen == 0) return;
 
             var directionMap = MuGame.Network?.GetDirectionMap();
-            List<byte> serverDirs = new(clientDirs.Count);
-            if (directionMap != null)
+            Span<byte> serverDirs = stackalloc byte[dirLen];
+            for (int i = 0; i < dirLen; i++)
             {
-                foreach (byte clientDir in clientDirs)
-                {
-                    if (directionMap.TryGetValue(clientDir, out byte serverDir))
-                        serverDirs.Add(serverDir);
-                    else
-                        serverDirs.Add(clientDir);
-                }
-            }
-            else
-            {
-                serverDirs.AddRange(clientDirs);
+                byte cd = clientDirs[i];
+                serverDirs[i] = directionMap != null && directionMap.TryGetValue(cd, out byte sd) ? sd : cd;
             }
 
+            // Network API requires array – copy once, still cheaper than per-step List allocations
             await net.SendWalkRequestAsync(startX, startY, serverDirs.ToArray());
         }
 
@@ -390,14 +383,10 @@ namespace Client.Main.Objects
             var newX = newLocation.X;
             var newY = newLocation.Y;
 
-            if (newX < oldX && newY < oldY) Direction = Direction.West;
-            else if (newX == oldX && newY < oldY) Direction = Direction.SouthWest;
-            else if (newX > oldX && newY < oldY) Direction = Direction.South;
-            else if (newX < oldX && newY == oldY) Direction = Direction.NorthWest;
-            else if (newX > oldX && newY == oldY) Direction = Direction.SouthEast;
-            else if (newX < oldX && newY > oldY) Direction = Direction.North;
-            else if (newX == oldX && newY > oldY) Direction = Direction.NorthEast;
-            else if (newX > oldX && newY > oldY) Direction = Direction.East;
+            // Use helper that already maps delta → Direction enum
+            Direction = DirectionExtensions.GetDirectionFromMovementDelta(
+                            (int)(newLocation.X - oldLocation.X),
+                            (int)(newLocation.Y - oldLocation.Y));
         }
 
         private void UpdatePosition(GameTime gameTime)

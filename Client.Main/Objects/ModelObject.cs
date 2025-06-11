@@ -261,6 +261,31 @@ namespace Client.Main.Objects
             return BlendMesh == mesh || BlendMesh == -2 || _meshBlendByScript[mesh];
         }
 
+        /// <summary>
+        /// Preloads textures for this model and all child models so that the first
+        /// render does not trigger loading stalls.
+        /// </summary>
+        public virtual async Task PreloadTexturesAsync()
+        {
+            if (Model?.Meshes != null)
+            {
+                foreach (var mesh in Model.Meshes)
+                {
+                    string texturePath = BMDLoader.Instance.GetTexturePath(Model, mesh.TexturePath);
+                    if (!string.IsNullOrEmpty(texturePath))
+                        await TextureLoader.Instance.PrepareAndGetTexture(texturePath);
+                }
+            }
+
+            foreach (var child in Children)
+            {
+                if (child is ModelObject mo)
+                    await mo.PreloadTexturesAsync();
+                else if (child is SpriteObject so)
+                    await so.PreloadTexturesAsync();
+            }
+        }
+
         public virtual void DrawMesh(int mesh)
         {
             if (_boneVertexBuffers?[mesh] == null ||

@@ -27,6 +27,8 @@ namespace Client.Main.Objects.Player
     public class PlayerObject : HumanoidObject
     {
         private CharacterClassNumber _characterClass;
+        // Cached gender flag – avoids evaluating gender every frame
+        private bool _isFemale;
 
         // ───────────────────────────────── PROPERTIES ─────────────────────────────────
         public bool IsResting { get; set; }
@@ -49,8 +51,10 @@ namespace Client.Main.Objects.Player
             {
                 if (_characterClass != value)
                 {
-                    _logger?.LogDebug($"PlayerObject {Name}: class {_characterClass} → {value}");
+                    if (_logger?.IsEnabled(LogLevel.Debug) == true)
+                        _logger.LogDebug($"PlayerObject {Name}: class {_characterClass} → {value}");
                     _characterClass = value;
+                    _isFemale = PlayerActionMapper.IsCharacterFemale(value);
                 }
             }
         }
@@ -83,6 +87,7 @@ namespace Client.Main.Objects.Player
             AnimationSpeed = 5f;
             CurrentAction = PlayerAction.StopMale;
             _characterClass = CharacterClassNumber.DarkWizard;
+            _isFemale = PlayerActionMapper.IsCharacterFemale(_characterClass);
 
             // Wings = new Wing403 { LinkParentAnimation = false, Hidden = false };
             // Children.Add(Wings);
@@ -148,30 +153,29 @@ namespace Client.Main.Objects.Player
             return MovementMode.Walk;
         }
 
-        /// <summary>Action that should play while moving.</summary>
-        private PlayerAction GetMovementAction(WalkableWorldControl world)
-        {
-            return GetCurrentMovementMode(world) switch
+        /// <summary>Action that should play while moving (gender already cached).</summary>
+        private PlayerAction GetMovementAction(MovementMode mode) =>
+            mode switch
             {
                 MovementMode.Swim => PlayerAction.RunSwim,
-                MovementMode.Fly => PlayerAction.Fly,
-                _ => PlayerActionMapper.IsCharacterFemale(CharacterClass)
-                                              ? PlayerAction.WalkFemale
-                                              : PlayerAction.WalkMale
+                MovementMode.Fly  => PlayerAction.Fly,
+                _                 => _isFemale ? PlayerAction.WalkFemale : PlayerAction.WalkMale
             };
-        }
 
-        /// <summary>Action that should play while standing.</summary>
-        private PlayerAction GetIdleAction(WalkableWorldControl world)
-        {
-            return GetCurrentMovementMode(world) switch
+        // Back-compat overload used in older call-sites
+        private PlayerAction GetMovementAction(WalkableWorldControl world) =>
+            GetMovementAction(GetCurrentMovementMode(world));
+
+        /// <summary>Action that should play while standing (gender already cached).</summary>
+        private PlayerAction GetIdleAction(MovementMode mode) =>
+            mode switch
             {
                 MovementMode.Fly or MovementMode.Swim => PlayerAction.StopFlying,
-                _ => PlayerActionMapper.IsCharacterFemale(CharacterClass)
-                                              ? PlayerAction.StopFemale
-                                              : PlayerAction.StopMale
+                _                                     => _isFemale ? PlayerAction.StopFemale : PlayerAction.StopMale
             };
-        }
+
+        private PlayerAction GetIdleAction(WalkableWorldControl world) =>
+            GetIdleAction(GetCurrentMovementMode(world));
 
         // --------------- LOCAL PLAYER (the one we control) ----------------
         private void UpdateLocalPlayer(WalkableWorldControl world)
@@ -181,32 +185,34 @@ namespace Client.Main.Objects.Player
                 return;
 
             // Movement / idle logic
+            var mode = GetCurrentMovementMode(world);
             if (IsMoving)
             {
                 ResetRestSitStates();
-                var desired = GetMovementAction(world);
+                var desired = GetMovementAction(mode);
                 if (!IsOneShotPlaying && CurrentAction != desired)
                     PlayAction((ushort)desired);
             }
-            else if (!IsOneShotPlaying && CurrentAction != GetIdleAction(world))
+            else if (!IsOneShotPlaying && CurrentAction != GetIdleAction(mode))
             {
-                PlayAction((ushort)GetIdleAction(world));
+                PlayAction((ushort)GetIdleAction(mode));
             }
         }
 
         // --------------- REMOTE PLAYERS ----------------
         private void UpdateRemotePlayer(WalkableWorldControl world)
         {
+            var mode = GetCurrentMovementMode(world);
             if (IsMoving)
             {
                 ResetRestSitStates();
-                var desired = GetMovementAction(world);
+                var desired = GetMovementAction(mode);
                 if (!IsOneShotPlaying && CurrentAction != desired)
                     PlayAction((ushort)desired);
             }
-            else if (!IsOneShotPlaying && CurrentAction != GetIdleAction(world))
+            else if (!IsOneShotPlaying && CurrentAction != GetIdleAction(mode))
             {
-                PlayAction((ushort)GetIdleAction(world));
+                PlayAction((ushort)GetIdleAction(mode));
             }
         }
 
@@ -284,8 +290,7 @@ namespace Client.Main.Objects.Player
         public ushort GetCorrectIdleAction()
         {
             if (World is not WalkableWorldControl world)
-                return (ushort)(PlayerActionMapper.IsCharacterFemale(CharacterClass)
-                                ? PlayerAction.StopFemale : PlayerAction.StopMale);
+                return (ushort)(_isFemale ? PlayerAction.StopFemale : PlayerAction.StopMale);
 
             return (ushort)GetIdleAction(world);
         }

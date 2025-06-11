@@ -204,6 +204,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 }
 
                 await p.Load();
+                await p.PreloadTexturesAsync();
             });
         }
 
@@ -324,6 +325,10 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                                     {
                                         _logger.LogWarning($"ScopeHandler: NPC/Monster {maskedId} ({obj.GetType().Name}) loaded but status is {obj.Status}.");
                                     }
+
+                                    // Preload model textures to avoid stall on first render
+                                    if (obj is ModelObject modelObj)
+                                        await modelObj.PreloadTexturesAsync();
                                 }
                                 catch (Exception ex)
                                 {

@@ -64,6 +64,7 @@ namespace Client.Main.Networking
             => _characterService.SendClientReadyAfterMapChangeAsync();
 
         public CharacterService GetCharacterService() => _characterService;
+        public ScopeManager GetScopeManager() => _scopeManager;
         public TargetProtocolVersion TargetVersion => _packetRouter.TargetVersion;
 
         // Constructors

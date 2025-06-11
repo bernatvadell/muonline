@@ -22,6 +22,7 @@ using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Helpers;
 using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Networking;
+using Client.Main.Core.Models;
 
 namespace Client.Main.Scenes
 {
@@ -306,6 +307,7 @@ namespace Client.Main.Scenes
             {
                 await ImportPendingRemotePlayers();
                 await ImportPendingNpcsMonsters();
+                await ImportPendingDroppedItems();
             }
             else
             {
@@ -316,12 +318,17 @@ namespace Client.Main.Scenes
             // Preload sounds for dropped items
             UpdateLoadProgress("Preloading sounds...", 0.96f);
             PreloadSounds();
-            UpdateLoadProgress("Sounds preloaded.", 0.97f);
+            UpdateLoadProgress("Sounds preloaded.", 0.965f);
+
+            // Preload NPC and monster textures
+            UpdateLoadProgress("Preloading NPC textures...", 0.97f);
+            await PreloadNpcTextures();
+            UpdateLoadProgress("NPC textures preloaded.", 0.975f);
 
             // Preload UI textures so opening windows doesn't cause stalls
-            UpdateLoadProgress("Preloading UI textures...", 0.975f);
+            UpdateLoadProgress("Preloading UI textures...", 0.98f);
             await PreloadUITextures();
-            UpdateLoadProgress("UI textures preloaded.", 0.985f);
+            UpdateLoadProgress("UI textures preloaded.", 0.99f);
 
             if (World is WalkableWorldControl finalWalkable)
             {
@@ -450,6 +457,7 @@ namespace Client.Main.Scenes
                 _logger?.LogDebug("GameScene.ChangeMap: World is Ready. Importing pending objects...");
                 await ImportPendingRemotePlayers();
                 await ImportPendingNpcsMonsters();
+                await ImportPendingDroppedItems();
             }
             else
             {
@@ -546,6 +554,35 @@ namespace Client.Main.Scenes
                 };
                 w.Objects.Add(remote);
                 await remote.Load();
+            }
+        }
+
+        // ─────────────────── Import Dropped Items ───────────────────
+        private async Task ImportPendingDroppedItems()
+        {
+            if (World is not WalkableWorldControl w) return;
+
+            var scopeManager = MuGame.Network?.GetScopeManager();
+            if (scopeManager == null) return;
+
+            var allDrops = scopeManager.GetScopeItems(ScopeObjectType.Item)
+                                       .Concat(scopeManager.GetScopeItems(ScopeObjectType.Money))
+                                       .Cast<ScopeObject>();
+
+            foreach (var s in allDrops)
+            {
+                if (w.Objects.OfType<DroppedItemObject>().Any(d => d.NetworkId == s.Id))
+                    continue;
+
+                var obj = new DroppedItemObject(
+                    s,
+                    MuGame.Network.GetCharacterState().Id,
+                    MuGame.Network.GetCharacterService(),
+                    MuGame.AppLoggerFactory.CreateLogger<DroppedItemObject>());
+
+                w.Objects.Add(obj);
+                await obj.Load();
+                obj.Hidden = !w.IsObjectInView(obj);
             }
         }
 
@@ -738,6 +775,21 @@ namespace Client.Main.Scenes
 
             base.Draw(gameTime);
             _characterInfoWindow?.BringToFront();
+        }
+
+        /// <summary>
+        /// Preloads textures for NPCs and monsters currently present in the world.
+        /// </summary>
+        private async Task PreloadNpcTextures()
+        {
+            if (World is not WalkableWorldControl world) return;
+
+            foreach (var walker in world.Objects.OfType<WalkerObject>())
+            {
+                if (walker is Objects.Player.PlayerObject) continue;
+                if (walker is ModelObject modelObject)
+                    await modelObject.PreloadTexturesAsync();
+            }
         }
 
         private void PreloadSounds()

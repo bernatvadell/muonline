@@ -14,19 +14,18 @@ namespace Client.Main.Controls.UI
         private LabelControl _effectsStatusLabel;
         private LabelControl _objectCursorLabel;
         private LabelControl _tileFlagsLabel;
-
+        private LabelControl _performanceMetricsLabel;
+        private LabelControl _objectMetricsLabel; // New label for object metrics
         private double _updateTimer = 0;
         private const double UPDATE_INTERVAL_MS = 100; // 100ms
-        private StringBuilder _sb = new StringBuilder(100);
+        private StringBuilder _sb = new StringBuilder(250); // Increased capacity
 
         public DebugPanel()
         {
             Align = ControlAlign.Top | ControlAlign.Right;
             Margin = new Margin { Top = 10, Right = 10 };
-
             Padding = new Margin { Top = 15, Left = 15 };
-
-            ControlSize = new Point(210, 160);
+            ControlSize = new Point(280, 200); // Increased size for new labels
             BackgroundColor = Color.Black * 0.6f;
             BorderColor = Color.White * 0.3f;
             BorderThickness = 2;
@@ -35,61 +34,15 @@ namespace Client.Main.Controls.UI
             var posY = Padding.Top;
             var labelHeight = 20;
 
-            Controls.Add(_fpsLabel = new LabelControl
-            {
-                Text = "FPS: {0}    ",
-                TextColor = Color.LightGreen,
-                X = posX,
-                Y = posY
-            });
-
-            Controls.Add(_mousePosLabel = new LabelControl
-            {
-                Text = "Mouse Position - X: {0}, Y:{1}    ",
-                TextColor = Color.LightBlue,
-                X = posX,
-                Y = posY += labelHeight
-            });
-
-            Controls.Add(_playerCordsLabel = new LabelControl
-            {
-                Text = "Player Cords - X: {0}, Y:{1}    ",
-                TextColor = Color.LightCoral,
-                X = posX,
-                Y = posY += labelHeight
-            });
-
-            Controls.Add(_mapTileLabel = new LabelControl
-            {
-                Text = "MAP Tile - X: {0}, Y:{1}    ",
-                TextColor = Color.LightYellow,
-                X = posX,
-                Y = posY += labelHeight
-            });
-
-            Controls.Add(_effectsStatusLabel = new LabelControl
-            {
-                Text = "FXAA: {0} - AlphaRGB:{1}    ",
-                TextColor = Color.Yellow,
-                X = posX,
-                Y = posY += labelHeight
-            });
-
-            Controls.Add(_objectCursorLabel = new LabelControl
-            {
-                Text = "Cursor Object: {0}    ",
-                TextColor = Color.CadetBlue,
-                X = posX,
-                Y = posY += labelHeight
-            });
-
-            Controls.Add(_tileFlagsLabel = new LabelControl
-            {
-                Text = "Tile Flags: {0}    ",
-                TextColor = Color.Lime,
-                X = posX,
-                Y = posY += labelHeight
-            });
+            Controls.Add(_fpsLabel = new LabelControl { Text = "FPS: {0}", TextColor = Color.LightGreen, X = posX, Y = posY });
+            Controls.Add(_mousePosLabel = new LabelControl { Text = "Mouse Position - X: {0}, Y:{1}", TextColor = Color.LightBlue, X = posX, Y = posY += labelHeight });
+            Controls.Add(_playerCordsLabel = new LabelControl { Text = "Player Cords - X: {0}, Y:{1}", TextColor = Color.LightCoral, X = posX, Y = posY += labelHeight });
+            Controls.Add(_mapTileLabel = new LabelControl { Text = "MAP Tile - X: {0}, Y:{1}", TextColor = Color.LightYellow, X = posX, Y = posY += labelHeight });
+            Controls.Add(_effectsStatusLabel = new LabelControl { Text = "FXAA: {0} - AlphaRGB:{1}", TextColor = Color.Yellow, X = posX, Y = posY += labelHeight });
+            Controls.Add(_objectCursorLabel = new LabelControl { Text = "Cursor Object: {0}", TextColor = Color.CadetBlue, X = posX, Y = posY += labelHeight });
+            Controls.Add(_tileFlagsLabel = new LabelControl { Text = "Tile Flags: {0}", TextColor = Color.Lime, X = posX, Y = posY += labelHeight });
+            Controls.Add(_performanceMetricsLabel = new LabelControl { Text = "Perf: {0}", TextColor = Color.OrangeRed, X = posX, Y = posY += labelHeight });
+            Controls.Add(_objectMetricsLabel = new LabelControl { Text = "Objects: {0}", TextColor = Color.LightCyan, X = posX, Y = posY += labelHeight });
         }
 
         public override void Update(GameTime gameTime)
@@ -107,48 +60,59 @@ namespace Client.Main.Controls.UI
                 _sb.Clear().Append("FPS: ").Append((int)FPSCounter.Instance.FPS_AVG);
                 _fpsLabel.Text = _sb.ToString();
 
-                // Mouse Position
                 _sb.Clear().Append("Mouse Position - X: ").Append(MuGame.Instance.Mouse.Position.X)
                    .Append(", Y:").Append(MuGame.Instance.Mouse.Position.Y);
                 _mousePosLabel.Text = _sb.ToString();
 
-                // Effects Status
                 _sb.Clear().Append("FXAA: ").Append(GraphicsManager.Instance.IsFXAAEnabled ? "ON" : "OFF")
                    .Append(" - AlphaRGB:").Append(GraphicsManager.Instance.IsAlphaRGBEnabled ? "ON" : "OFF");
                 _effectsStatusLabel.Text = _sb.ToString();
 
-                // Cursor Object
                 _sb.Clear().Append("Cursor Object: ").Append(World?.Scene?.MouseHoverObject != null ? World.Scene.MouseHoverObject.GetType().Name : "N/A");
                 _objectCursorLabel.Text = _sb.ToString();
-
 
                 if (World is WalkableWorldControl walkableWorld && walkableWorld.Walker != null)
                 {
                     _playerCordsLabel.Visible = true;
                     _mapTileLabel.Visible = true;
                     _tileFlagsLabel.Visible = true;
+                    _performanceMetricsLabel.Visible = true;
+                    _objectMetricsLabel.Visible = true; // Show object metrics label
 
-                    // Player Coords
                     _sb.Clear().Append("Player Cords - X: ").Append(walkableWorld.Walker.Location.X)
                        .Append(", Y:").Append(walkableWorld.Walker.Location.Y);
                     _playerCordsLabel.Text = _sb.ToString();
 
-                    // Map Tile
                     _sb.Clear().Append("MAP Tile - X: ").Append(walkableWorld.MouseTileX)
                        .Append(", Y:").Append(walkableWorld.MouseTileY);
                     _mapTileLabel.Text = _sb.ToString();
 
-                    // Tile Flags
                     var flags = walkableWorld.Terrain.RequestTerrainFlag((int)walkableWorld.Walker.Location.X,
                                                                          (int)walkableWorld.Walker.Location.Y);
                     _sb.Clear().Append("Tile Flags: ").Append(flags);
                     _tileFlagsLabel.Text = _sb.ToString();
+
+                    // Update terrain performance metrics display
+                    var terrainMetrics = walkableWorld.Terrain.FrameMetrics;
+                    _sb.Clear()
+                       .Append($"Terrain: Drw:{terrainMetrics.DrawCalls} ")
+                       .Append($"Tri:{terrainMetrics.DrawnTriangles} ")
+                       .Append($"Blk:{terrainMetrics.DrawnBlocks} ")
+                       .Append($"Cel:{terrainMetrics.DrawnCells}");
+                    _performanceMetricsLabel.Text = _sb.ToString();
+
+                    // Update object performance metrics display
+                    var objectMetrics = walkableWorld.ObjectMetrics;
+                    _sb.Clear().Append($"Objects: Drw:{objectMetrics.DrawnTotal}/{objectMetrics.TotalObjects} (Culled:{objectMetrics.CulledByFrustum})");
+                    _objectMetricsLabel.Text = _sb.ToString();
                 }
                 else
                 {
                     _playerCordsLabel.Visible = false;
                     _mapTileLabel.Visible = false;
                     _tileFlagsLabel.Visible = false;
+                    _performanceMetricsLabel.Visible = false;
+                    _objectMetricsLabel.Visible = false; // Hide object metrics label
                 }
             }
         }

@@ -36,6 +36,21 @@ namespace Client.Main.Controls
     /// </summary>
     public abstract class WorldControl : GameControl
     {
+
+        #region Performance Metrics for Objects
+        public struct ObjectPerformanceMetrics
+        {
+            public int TotalObjects;
+            public int ConsideredForRender;
+            public int CulledByFrustum;
+            public int DrawnSolid;
+            public int DrawnTransparent;
+            public int DrawnTotal => DrawnSolid + DrawnTransparent;
+        }
+
+        public ObjectPerformanceMetrics ObjectMetrics { get; private set; }
+        #endregion
+
         // --- Fields & Constants ---
 
         private const float CullingOffset = 800f;
@@ -300,19 +315,38 @@ namespace Client.Main.Controls
             _transparentObjects.Clear();
             _solidInFront.Clear();
 
+            var metrics = new ObjectPerformanceMetrics { TotalObjects = Objects.Count };
+
             // Classify objects
             foreach (var obj in Objects.ToArray())
             {
                 if (obj.Status == GameControlStatus.Disposed || !obj.Visible) continue;
-                if (!IsObjectInView(obj)) continue;
+                metrics.ConsideredForRender++;
+
+                if (!IsObjectInView(obj))
+                {
+                    metrics.CulledByFrustum++;
+                    continue;
+                }
 
                 if (obj.IsTransparent)
+                {
                     _transparentObjects.Add(obj);
+                    metrics.DrawnTransparent++;
+                }
                 else if (obj.AffectedByTransparency)
+                {
                     _solidBehind.Add(obj);
+                    metrics.DrawnSolid++;
+                }
                 else
+                {
                     _solidInFront.Add(obj);
+                    metrics.DrawnSolid++;
+                }
             }
+
+            ObjectMetrics = metrics;
 
             // Draw solid behind objects
             if (_solidBehind.Count > 1) _solidBehind.Sort(_cmpAsc);
