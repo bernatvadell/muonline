@@ -160,6 +160,8 @@ namespace Client.Main.Controls
                                    : Vector2.Normalize(value);
         }
 
+        public Texture2D HeightMapTexture { get; private set; }
+
         public TerrainControl()
         {
             AutoViewSize = false;
@@ -251,6 +253,7 @@ namespace Client.Main.Controls
             PrecomputeBlockHeights();
             CreateTerrainNormal();
             CreateTerrainLight();
+            CreateHeightMapTexture();
 
             if (Constants.DRAW_GRASS)
             {
@@ -346,6 +349,27 @@ namespace Client.Main.Controls
                  + xd * (1 - yd) * h2
                  + xd * yd * h3
                  + (1 - xd) * yd * h4;
+        }
+
+        private void CreateHeightMapTexture()
+        {
+            if (_backTerrainHeight == null || GraphicsDevice == null) return;
+
+            HeightMapTexture = new Texture2D(GraphicsDevice, Constants.TERRAIN_SIZE, Constants.TERRAIN_SIZE, false, SurfaceFormat.Single);
+
+            float[] heightData = ArrayPool<float>.Shared.Rent(Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE);
+            try
+            {
+                for (int i = 0; i < heightData.Length; i++)
+                {
+                    heightData[i] = _backTerrainHeight[i].B / 255.0f;
+                }
+                HeightMapTexture.SetData(heightData);
+            }
+            finally
+            {
+                ArrayPool<float>.Shared.Return(heightData);
+            }
         }
 
         public Vector3 RequestTerrainLight(float xf, float yf)

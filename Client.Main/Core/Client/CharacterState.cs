@@ -515,8 +515,18 @@ namespace Client.Main.Core.Client
                     byte slot = kvp.Key;
                     byte[] itemData = kvp.Value;
                     string itemName = ItemDatabase.GetItemName(itemData) ?? "Unknown Item";
-                    string itemDetails = ParseItemDetails(itemData);
-                    sb.AppendLine($"  Slot {slot,3}: {itemName}{itemDetails}");
+
+                    // Użycie nowej logiki do wyświetlania
+                    var details = ItemDatabase.ParseItemDetails(itemData);
+                    var sbDetails = new StringBuilder();
+                    if (details.Level > 0) sbDetails.Append($" +{details.Level}");
+                    if (details.HasSkill) sbDetails.Append(" +Skill");
+                    if (details.HasLuck) sbDetails.Append(" +Luck");
+                    if (details.OptionLevel > 0) sbDetails.Append($" +{details.OptionLevel * 4} Opt");
+                    if (details.IsExcellent) sbDetails.Append(" +Exc");
+                    if (details.IsAncient) sbDetails.Append(" +Anc");
+
+                    sb.AppendLine($"  Slot {slot,3}: {itemName}{sbDetails}");
                 }
             }
             sb.AppendLine($"  Expansion State: {InventoryExpansionState}");

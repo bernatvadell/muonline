@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Linq; // Required for OrderBy, ThenBy, ToList
+using System.Linq;
+using System.Text; // Required for OrderBy, ThenBy, ToList
 
 namespace Client.Main.Core.Utilities
 {
@@ -765,6 +766,18 @@ namespace Client.Main.Core.Utilities
             return data;
         }
 
+        public struct ItemDetails
+        {
+            public int Level;
+            public bool HasSkill;
+            public bool HasLuck;
+            public int OptionLevel;
+            public bool IsExcellent;
+            public bool IsAncient;
+
+            public bool HasBlueOptions => HasSkill || HasLuck || OptionLevel > 0;
+        }
+
         /// <summary>
         /// Gets the item name based on its group and ID (number).
         /// </summary>
@@ -814,6 +827,59 @@ namespace Client.Main.Core.Utilities
                 // Console.WriteLine($"[GetItemName] Error: Index out of range accessing ItemData (Length: {itemData.Length}).");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Parses the detailed attributes of an item from its raw data into a structured format.
+        /// </summary>
+        /// <param name="itemData">The raw byte data of the item.</param>
+        /// <returns>An ItemDetails struct containing the parsed attributes.</returns>
+        public static ItemDetails ParseItemDetails(ReadOnlySpan<byte> itemData)
+        {
+            var details = new ItemDetails();
+            if (itemData.IsEmpty || itemData.Length < 3) return details;
+
+            byte optionLevelByte = itemData[1];
+            byte excByte = itemData.Length > 3 ? itemData[3] : (byte)0;
+            byte ancientByte = itemData.Length > 4 ? itemData[4] : (byte)0;
+
+            details.Level = (optionLevelByte & 0x78) >> 3;
+            details.HasSkill = (optionLevelByte & 0x80) != 0;
+            details.HasLuck = (optionLevelByte & 0x04) != 0;
+
+            int optionLevel = (optionLevelByte & 0x03);
+            if ((excByte & 0x40) != 0) optionLevel |= 0b100;
+            details.OptionLevel = optionLevel;
+
+            // Sprawdź, czy są jakiekolwiek bity doskonałych opcji ustawione
+            details.IsExcellent = (excByte & 0x3F) != 0;
+            details.IsAncient = (ancientByte & 0x0F) > 0;
+
+            return details; // Zwraca strukturę, a nie string
+        }
+
+        /// <summary>
+        /// Parses the excellent options byte to extract enabled excellent options flags.
+        /// </summary>
+        public static List<string> ParseExcellentOptions(byte excByte)
+        {
+            var options = new List<string>();
+            if ((excByte & 0b0000_0001) != 0) options.Add("MP/8");
+            if ((excByte & 0b0000_0010) != 0) options.Add("HP/8");
+            if ((excByte & 0b0000_1000) != 0) options.Add("Speed");
+            if ((excByte & 0b0000_0100) != 0) options.Add("Dmg%");
+            if ((excByte & 0b0001_0000) != 0) options.Add("Rate");
+            if ((excByte & 0b0010_0000) != 0) options.Add("Zen");
+            return options;
+        }
+
+        /// <summary>
+        /// Parses a socket option byte into a readable string (placeholder).
+        /// </summary>
+        public static string ParseSocketOption(byte socketByte)
+        {
+            // TODO: Implement mapping from socketByte value to actual Seed Sphere name/effect
+            return $"S:{socketByte}"; // Placeholder
         }
     }
 }

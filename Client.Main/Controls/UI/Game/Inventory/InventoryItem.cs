@@ -1,27 +1,36 @@
+using System;
+using Client.Main.Controls.UI.Game.Inventory;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 
-namespace Client.Main.Controls.UI.Game.Inventory
+public class InventoryItem
 {
-    public class InventoryItem
+    public ItemDefinition Definition { get; }
+    public Point GridPosition { get; set; }
+    public int Durability { get; set; }
+    public int Level { get; set; }
+
+    //  ▼▼ NOWE ▼▼
+    public byte[] RawData { get; }
+    public ItemDatabase.ItemDetails Details { get; }
+
+    public InventoryItem(ItemDefinition def, Point pos,
+                         int durability = 255, int level = 0)
+        : this(def, pos, Array.Empty<byte>(), durability, level) { }
+
+    public InventoryItem(ItemDefinition def, Point pos,
+                         byte[] rawData,
+                         int durability = 255, int level = 0)
     {
-        public ItemDefinition Definition { get; private set; }
-        public Point  GridPosition { get; set; }
-        public int    Durability   { get; set; }
-        public int    Level        { get; set; }
+        Definition = def;
+        GridPosition = pos;
+        Durability = durability;
+        Level = level;
 
-        public InventoryItem(ItemDefinition definition, Point gridPosition,
-                             int durability = 255, int level = 0)
-        {
-            Definition   = definition;
-            GridPosition = gridPosition;
-            Durability   = durability;
-            Level        = level;
-        }
-
-        public Rectangle GetBounds()
-        {
-            return new Rectangle(GridPosition.X, GridPosition.Y,
-                                 Definition.Width, Definition.Height);
-        }
+        RawData = rawData ?? Array.Empty<byte>();
+        Details = ItemDatabase.ParseItemDetails(RawData);
     }
+
+    public Rectangle GetBounds() => new(GridPosition.X, GridPosition.Y,
+                                        Definition.Width, Definition.Height);
 }

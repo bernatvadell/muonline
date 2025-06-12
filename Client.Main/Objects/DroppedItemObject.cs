@@ -12,6 +12,8 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Client.Main.Core.Client;
+using Client.Main.Core.Utilities;
+using System.Text;
 
 namespace Client.Main.Objects
 {
@@ -43,17 +45,15 @@ namespace Client.Main.Objects
 
         // =====================================================================
         public DroppedItemObject(
-            ScopeObject scope,
-            ushort mainPlayerId,
-            CharacterService charSvc,
-            ILogger<DroppedItemObject> logger = null)
+              ScopeObject scope,
+              ushort mainPlayerId,
+              CharacterService charSvc,
+              ILogger<DroppedItemObject> logger = null)
         {
             _scope = scope ?? throw new ArgumentNullException(nameof(scope));
             _mainPlayerId = mainPlayerId;
             _charSvc = charSvc ?? throw new ArgumentNullException(nameof(charSvc));
-            _log = logger
-                            ?? ModelObject.AppLoggerFactory?.CreateLogger<DroppedItemObject>()
-                            ?? NullLogger<DroppedItemObject>.Instance;
+            _log = logger ?? ModelObject.AppLoggerFactory?.CreateLogger<DroppedItemObject>() ?? NullLogger<DroppedItemObject>.Instance;
 
             NetworkId = scope.Id;
             Interactive = true;
@@ -63,34 +63,39 @@ namespace Client.Main.Objects
                 scope.PositionY * Constants.TERRAIN_SCALE + Constants.TERRAIN_SCALE / 2f,
                 0f);
 
-            DisplayName = scope switch
+            string baseName = "Unknown Drop";
+            ItemDatabase.ItemDetails itemDetails = default;
+            _ = ReadOnlySpan<byte>.Empty;
+
+            if (scope is ItemScopeObject itemScope)
             {
-                ItemScopeObject it => it.ItemDescription,
-                MoneyScopeObject mn => $"{mn.Amount} Zen",
-                _ => "Unknown Drop"
-            };
+                ReadOnlySpan<byte> itemData = itemScope.ItemData.Span;
+                baseName = itemScope.ItemDescription;
+                itemDetails = ItemDatabase.ParseItemDetails(itemData);
+            }
+            else if (scope is MoneyScopeObject moneyScope)
+            {
+                baseName = $"{moneyScope.Amount} Zen";
+            }
+
+            DisplayName = FormatItemDisplayName(baseName, itemDetails);
 
             _label = new LabelControl
             {
                 Text = DisplayName,
-                FontSize = 12f,
-                TextColor = GetLabelColor(scope),
+                FontSize = 10f,
+                TextColor = GetLabelColor(scope, itemDetails),
                 HasShadow = true,
                 ShadowColor = Color.Black,
                 ShadowOpacity = 0.8f,
                 UseManualPosition = true,
                 Visible = false,
                 Interactive = true,
-
                 BackgroundColor = new Color(0, 0, 0, 160),
-
                 Alpha = 1.0f,
-
                 Padding = new Margin { Left = 4, Right = 4, Top = 2, Bottom = 2 }
             };
 
-            // Link the label back to this DroppedItemObject so cursor logic can
-            // recognize it when hovered.
             _label.Tag = this;
         }
 
@@ -188,6 +193,46 @@ namespace Client.Main.Objects
         }
 
         // ─────────────────── label helpers
+
+        private string FormatItemDisplayName(string baseName, ItemDatabase.ItemDetails details)
+        {
+            var sb = new StringBuilder();
+
+            if (details.IsExcellent) sb.Append("Excellent ");
+            sb.Append(baseName);
+
+            if (details.Level > 0) sb.Append($" +{details.Level}");
+            if (details.OptionLevel > 0) sb.Append($" +Options{details.OptionLevel * 4}");
+            if (details.HasLuck) sb.Append(" +Luck");
+            if (details.HasSkill) sb.Append(" +Skill");
+
+            return sb.ToString();
+        }
+
+        private Color GetLabelColor(ScopeObject s, ItemDatabase.ItemDetails details)
+        {
+            // Ancient/Excellent
+            if (details.IsAncient) return new Color(0, 255, 128);
+            if (details.IsExcellent) return new Color(128, 255, 128);
+
+            // +7 up
+            if (details.Level >= 7) return Color.Gold;
+
+            // (Luck, Skill, Add)
+            if (details.HasBlueOptions) return new Color(130, 180, 255);
+
+            // +3 +4 +5 +6
+            if (details.Level >= 3) return new Color(255, 165, 0);
+
+            //  +1, +2
+            if (details.Level >= 1) return Color.White;
+
+            // ZEN
+            if (s is MoneyScopeObject) return Color.Gold;
+
+            return Color.Gray; // +0
+        }
+
         private void UpdateLabelVisibility()
         {
             bool ready = !Hidden && Status == GameControlStatus.Ready;

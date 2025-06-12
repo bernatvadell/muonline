@@ -230,7 +230,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 int itemVisualHeight = 1;
 
                 ItemDefinition itemDef = new ItemDefinition(0, itemNameFinal, itemVisualWidth, itemVisualHeight, defaultItemIconTexturePath);
-                InventoryItem newItem = new InventoryItem(itemDef, new Point(gridX, gridY));
+                InventoryItem newItem = new InventoryItem(itemDef,
+                                          new Point(gridX, gridY),
+                                          itemData);
 
                 if (!AddItem(newItem))
                 {
@@ -622,7 +624,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 }
                 else
                 {
-                    // Fallback: rysuj szary kwadrat, jeśli tekstura nie jest dostępna (np. jeszcze się ładuje)
                     spriteBatch.Draw(GraphicsManager.Instance.Pixel, itemRect, Color.DarkSlateGray);
                 }
 
@@ -644,28 +645,81 @@ namespace Client.Main.Controls.UI.Game.Inventory
             }
         }
 
-        private void DrawTooltip(SpriteBatch spriteBatch, Rectangle frameRect)
+        private static List<(string txt, Color col)> BuildTooltipLines(InventoryItem it)
         {
-            if (_hoveredItem != null && _pickedItemRenderer.Item == null && _font != null)
+            var d = it.Details;
+            var li = new List<(string, Color)>();
+
+            // ── nazwa ─────────────────────────────────────────────────────────────
+            string name = d.IsExcellent ? $"Excellent {it.Definition.Name}"
+                       : d.IsAncient ? $"Ancient {it.Definition.Name}"
+                       : it.Definition.Name;
+            li.Add((name, Color.White));
+
+            // ── level + durability ────────────────────────────────────────────────
+            li.Add(($"Level      : +{d.Level}", Color.SkyBlue));
+            li.Add(($"Durability : {it.Durability}", Color.Silver));
+
+            // ── opt (+4/+8/+12) ────────────────────────────────────────
+            if (d.OptionLevel > 0)
+                li.Add(($"Additional Option : +{d.OptionLevel * 4}", new Color(80, 255, 80)));
+
+            // ── luck / skill ─────────────────────────────────────────────────────
+            if (d.HasLuck) li.Add(("+Luck  (Crit +5 %, Jewel +25 %)", Color.CornflowerBlue));
+            if (d.HasSkill) li.Add(("+Skill (Right mouse click – skill)", Color.CornflowerBlue));
+
+            // ── excellent ──────────────────────────────────────────────────
+            if (d.IsExcellent)
             {
-                string text = $"{_hoveredItem.Definition.Name}\nLvl: {_hoveredItem.Level} Dur: {_hoveredItem.Durability}";
-                Vector2 textSize = _font.MeasureString(text) * 0.6f;
-                Point mousePos = MuGame.Instance.Mouse.Position;
+                byte excByte = it.RawData.Length > 3 ? it.RawData[3] : (byte)0;
+                foreach (var s in ItemDatabase.ParseExcellentOptions(excByte))
+                    li.Add(($"+{s}", new Color(128, 255, 128)));
+            }
 
-                Rectangle tooltipRect = new Rectangle(
-                    mousePos.X + 15,
-                    mousePos.Y + 15,
-                    (int)textSize.X + 10,
-                    (int)textSize.Y + 6);
+            // ── ancient flag ────────────────────────
+            if (d.IsAncient)
+                li.Add(("Ancient Option", new Color(0, 255, 128)));
 
-                // Adjust position so the tooltip does not go off-screen
-                if (tooltipRect.Right > frameRect.Right - 10)
-                    tooltipRect.X = frameRect.Right - 10 - tooltipRect.Width;
-                if (tooltipRect.Bottom > frameRect.Bottom - 10)
-                    tooltipRect.Y = frameRect.Bottom - 10 - tooltipRect.Height;
+            return li;
+        }
 
-                spriteBatch.Draw(GraphicsManager.Instance.Pixel, tooltipRect, Color.Black * 0.85f);
-                spriteBatch.DrawString(_font, text, new Vector2(tooltipRect.X + 5, tooltipRect.Y + 3), Color.White, 0, Vector2.Zero, 0.6f, SpriteEffects.None, 0f);
+        private void DrawTooltip(SpriteBatch sb, Rectangle frameRect)
+        {
+            if (_hoveredItem == null || _pickedItemRenderer.Item != null || _font == null)
+                return;
+
+            var lines = BuildTooltipLines(_hoveredItem);
+            const float scale = 0.6f;
+
+            int w = 0, h = 0;
+            foreach (var (t, _) in lines)
+            {
+                Vector2 sz = _font.MeasureString(t) * scale;
+                w = Math.Max(w, (int)sz.X);
+                h += (int)sz.Y + 2;
+            }
+            w += 12; h += 8;
+
+            Point m = MuGame.Instance.Mouse.Position;
+            Rectangle r = new(m.X + 15, m.Y + 15, w, h);
+
+            if (r.Right > frameRect.Right - 10) r.X = frameRect.Right - 10 - r.Width;
+            if (r.Bottom > frameRect.Bottom - 10) r.Y = frameRect.Bottom - 10 - r.Height;
+
+            sb.Draw(GraphicsManager.Instance.Pixel, r, Color.Black * 0.85f);
+            sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(r.X, r.Y, r.Width, 1), Color.White);
+            sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(r.X, r.Bottom - 1, r.Width, 1), Color.White);
+            sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(r.X, r.Y, 1, r.Height), Color.White);
+            sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(r.Right - 1, r.Y, 1, r.Height), Color.White);
+
+            int y = r.Y + 4;
+            foreach (var (t, col) in lines)
+            {
+                sb.DrawString(_font, t,
+                              new Vector2(r.X + 6, y),
+                              col, 0f, Vector2.Zero, scale,
+                              SpriteEffects.None, 0f);
+                y += (int)(_font.MeasureString(t).Y * scale) + 2;
             }
         }
     }

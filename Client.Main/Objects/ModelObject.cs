@@ -419,71 +419,58 @@ namespace Client.Main.Objects
 
                 if (!ValidateWorldMatrix(WorldPosition))
                 {
-                    _logger?.LogDebug("Invalid WorldPosition matrix detected - skipping shadow rendering");
+                    _logger?.LogDebug("Invalid WorldPosition matrix detected – skipping shadow rendering");
                     return;
                 }
 
                 VertexBuffer vertexBuffer = _boneVertexBuffers[mesh];
                 IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
-
                 if (vertexBuffer == null || indexBuffer == null)
                     return;
-
-                var originalWorld = GraphicsManager.Instance.BasicEffect3D.World;
-                var originalProjection = GraphicsManager.Instance.BasicEffect3D.Projection;
-                var originalView = GraphicsManager.Instance.BasicEffect3D.View;
 
                 int primitiveCount = indexBuffer.IndexCount / 3;
 
                 Matrix shadowWorld;
-                const float shadowBias = 0.1f; // Constant bias to offset the shadow and prevent z-fighting
-
-                float heightAboveTerrain = 0f;
+                const float shadowBias = 0.1f;
                 try
                 {
                     Vector3 position = WorldPosition.Translation;
+                    float terrainH = World.Terrain.RequestTerrainHeight(position.X, position.Y);
+                    terrainH += terrainH * 0.5f;
 
-                    float terrainHeight = World.Terrain.RequestTerrainHeight(position.X, position.Y);
-                    terrainHeight += terrainHeight * 0.5f;
-
-                    float shadowHeightOffset = position.Z;
-                    float relativeHeightOverTerrain = shadowHeightOffset - terrainHeight;
-
-                    // Calculate shadow position
-                    Vector3 shadowPosition = new Vector3(
-                        position.X - (relativeHeightOverTerrain / 2),
-                        position.Y - (relativeHeightOverTerrain / 4.5f),
-                        terrainHeight + 1f
-                    );
-
-                    heightAboveTerrain = position.Z - terrainHeight;
-                    float sampleDistance = heightAboveTerrain + 10f;
+                    float heightAboveTerrain = position.Z - terrainH;
+                    float sampleDist = heightAboveTerrain + 10f;
                     float angleRad = MathHelper.ToRadians(45);
 
-                    float offsetX = sampleDistance * (float)Math.Cos(angleRad);
-                    float offsetY = sampleDistance * (float)Math.Sin(angleRad);
+                    float offX = sampleDist * (float)Math.Cos(angleRad);
+                    float offY = sampleDist * (float)Math.Sin(angleRad);
 
-                    float heightX1 = World.Terrain.RequestTerrainHeight(position.X - offsetX, position.Y - offsetY);
-                    float heightX2 = World.Terrain.RequestTerrainHeight(position.X + offsetX, position.Y + offsetY);
-                    float heightZ1 = World.Terrain.RequestTerrainHeight(position.X - offsetY, position.Y + offsetX);
-                    float heightZ2 = World.Terrain.RequestTerrainHeight(position.X + offsetY, position.Y - offsetX);
+                    float hX1 = World.Terrain.RequestTerrainHeight(position.X - offX, position.Y - offY);
+                    float hX2 = World.Terrain.RequestTerrainHeight(position.X + offX, position.Y + offY);
+                    float hZ1 = World.Terrain.RequestTerrainHeight(position.X - offY, position.Y + offX);
+                    float hZ2 = World.Terrain.RequestTerrainHeight(position.X + offY, position.Y - offX);
 
-                    float terrainSlopeX = (float)Math.Atan2(heightX2 - heightX1, sampleDistance * 0.4f);
-                    float terrainSlopeZ = (float)Math.Atan2(heightZ2 - heightZ1, sampleDistance * 0.4f);
+                    float slopeX = (float)Math.Atan2(hX2 - hX1, sampleDist * 0.4f);
+                    float slopeZ = (float)Math.Atan2(hZ2 - hZ1, sampleDist * 0.4f);
 
-                    float adjustedYaw = TotalAngle.Y + MathHelper.ToRadians(110) - terrainSlopeX / 2;
-                    float adjustedPitch = TotalAngle.X + MathHelper.ToRadians(120);
-                    float adjustedRoll = TotalAngle.Z + MathHelper.ToRadians(90);
+                    Vector3 shadowPos = new Vector3(
+                        position.X - (heightAboveTerrain / 2),
+                        position.Y - (heightAboveTerrain / 4.5f),
+                        terrainH + 1f
+                    );
 
-                    Quaternion rotationQuat = Quaternion.CreateFromYawPitchRoll(adjustedYaw, adjustedPitch, adjustedRoll);
-                    Matrix rotationMatrix = Matrix.CreateFromQuaternion(rotationQuat);
+                    float yaw = TotalAngle.Y + MathHelper.ToRadians(110) - slopeX / 2;
+                    float pitch = TotalAngle.X + MathHelper.ToRadians(120);
+                    float roll = TotalAngle.Z + MathHelper.ToRadians(90);
 
-                    shadowWorld = rotationMatrix
+                    Quaternion rotQ = Quaternion.CreateFromYawPitchRoll(yaw, pitch, roll);
+
+                    shadowWorld =
+                          Matrix.CreateFromQuaternion(rotQ)
                         * Matrix.CreateScale(1.0f * TotalScale, 0.01f * TotalScale, 1.0f * TotalScale)
-                        * Matrix.CreateRotationX(Math.Max(-MathHelper.PiOver2, -MathHelper.PiOver2 - terrainSlopeX))
+                        * Matrix.CreateRotationX(Math.Max(-MathHelper.PiOver2, -MathHelper.PiOver2 - slopeX))
                         * Matrix.CreateRotationZ(angleRad)
-                        // Add a small bias to the shadow position to prevent z-fighting
-                        * Matrix.CreateTranslation(shadowPosition + new Vector3(0f, 0f, shadowBias));
+                        * Matrix.CreateTranslation(shadowPos + new Vector3(0f, 0f, shadowBias));
                 }
                 catch (Exception ex)
                 {
@@ -491,20 +478,23 @@ namespace Client.Main.Objects
                     return;
                 }
 
-                var previousBlendState = GraphicsDevice.BlendState;
-                var previousDepthStencilState = GraphicsDevice.DepthStencilState;
+                var prevBlendState = GraphicsDevice.BlendState;
+                var prevDepthStencilState = GraphicsDevice.DepthStencilState;
+
+                GraphicsDevice.BlendState = Blendings.ShadowBlend;
+                GraphicsDevice.DepthStencilState = DepthStencilState.DepthRead;
 
                 try
                 {
-                    GraphicsDevice.BlendState = Blendings.ShadowBlend;
-                    GraphicsDevice.DepthStencilState = DepthStencilState.DepthRead;
+                    var effect = GraphicsManager.Instance.ShadowEffect;
+                    if (effect == null || _boneTextures?[mesh] == null)
+                        return;
 
-                    var effect = GraphicsManager.Instance.BasicEffect3D;
-                    effect.World = shadowWorld;
-                    effect.View = view;
-                    effect.Projection = projection;
-                    effect.Texture = _boneTextures[mesh];
-                    effect.DiffuseColor = Vector3.Zero;
+                    effect.Parameters["World"]?.SetValue(shadowWorld);
+                    effect.Parameters["ViewProjection"]?.SetValue(view * projection);
+                    effect.Parameters["ShadowTint"]?.SetValue(
+                        new Vector4(0f, 0f, 0f, 1f * ShadowOpacity));       // pół-przezroczyste czarne
+                    effect.Parameters["ShadowTexture"]?.SetValue(_boneTextures[mesh]);
 
                     foreach (EffectPass pass in effect.CurrentTechnique.Passes)
                     {
@@ -513,21 +503,15 @@ namespace Client.Main.Objects
                         GraphicsDevice.Indices = indexBuffer;
                         GraphicsDevice.DrawIndexedPrimitives(
                             PrimitiveType.TriangleList,
-                            0,
-                            0,
-                            primitiveCount
-                        );
+                            baseVertex: 0,
+                            startIndex: 0,
+                            primitiveCount: primitiveCount);
                     }
-
-                    effect.DiffuseColor = Vector3.One;
                 }
                 finally
                 {
-                    GraphicsDevice.BlendState = previousBlendState;
-                    GraphicsDevice.DepthStencilState = previousDepthStencilState;
-                    GraphicsManager.Instance.BasicEffect3D.World = originalWorld;
-                    GraphicsManager.Instance.BasicEffect3D.View = originalView;
-                    GraphicsManager.Instance.BasicEffect3D.Projection = originalProjection;
+                    GraphicsDevice.BlendState = prevBlendState;
+                    GraphicsDevice.DepthStencilState = prevDepthStencilState;
                 }
             }
             catch (Exception ex)
@@ -542,7 +526,6 @@ namespace Client.Main.Objects
 
             var gd = GraphicsDevice;
             var prevCull = gd.RasterizerState;
-            // ZMIANA: Użyj CullCounterClockwise
             gd.RasterizerState = RasterizerState.CullCounterClockwise;
 
             GraphicsManager.Instance.AlphaTestEffect3D.View = Camera.Instance.View;
