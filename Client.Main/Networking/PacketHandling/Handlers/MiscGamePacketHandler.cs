@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using MUnique.OpenMU.Network.Packets;
 using MUnique.OpenMU.Network.Packets.ServerToClient;
 using Client.Main.Core.Utilities;
-using Client.Main.Networking.Services;     // For CharacterService
+using Client.Main.Networking.Services;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -37,11 +37,115 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             _networkManager = networkManager;
             _characterService = characterService;
             _characterState = characterState;
-            _targetVersion = targetVersion;
             _scopeManager = scopeManager;
+            _targetVersion = targetVersion;
         }
 
         // ─────────────────────── Packet Handlers ────────────────────────
+
+        [PacketHandler(0x50, PacketRouter.NoSubCode)] // GuildJoinRequest
+        public Task HandleGuildJoinRequestAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var request = new GuildJoinRequest(packet);
+                ushort requesterId = request.RequesterId;
+                if (!_scopeManager.TryGetScopeObjectName(requesterId, out string requesterName))
+                {
+                    requesterName = $"Player (ID: {requesterId & 0x7FFF})";
+                }
+                _logger.LogInformation("Received guild join request from {Name} ({Id}).", requesterName, requesterId);
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    RequestDialog.Show(
+                        $"{requesterName} wants to join your guild.",
+                        onAccept: () =>
+                        {
+                            // _ = _characterService.SendGuildJoinResponseAsync(true, requesterId);
+                            _logger.LogInformation("Accepted guild join invite from {Name} ({Id}).", requesterName, requesterId);
+                        },
+                        onReject: () =>
+                        {
+                            // _ = _characterService.SendGuildJoinResponseAsync(false, requesterId);
+                            _logger.LogInformation("Rejected guild join invite from {Name} ({Id}).", requesterName, requesterId);
+                        }
+                    );
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing GuildJoinRequest packet.");
+            }
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0x36, PacketRouter.NoSubCode)] // TradeRequest
+        public Task HandleTradeRequestAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var request = new TradeRequest(packet);
+                string requesterName = request.Name;
+                _logger.LogInformation("Received trade request from {Name}.", requesterName);
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    RequestDialog.Show(
+                        $"{requesterName} has requested a trade.",
+                        onAccept: () =>
+                        {
+                            // _ = _characterService.SendTradeResponseAsync(true);
+                            _logger.LogInformation("Accepted trade request from {Name}.", requesterName);
+                        },
+                        onReject: () =>
+                        {
+                            // _ = _characterService.SendTradeResponseAsync(false);
+                            _logger.LogInformation("Rejected trade request from {Name}.", requesterName);
+                        }
+                    );
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing TradeRequest packet.");
+            }
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0xAA, 0x02)] // DuelStartRequest
+        public Task HandleDuelStartRequestAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var request = new DuelStartRequest(packet);
+                ushort requesterId = request.RequesterId;
+                string requesterName = request.RequesterName;
+                _logger.LogInformation("Received duel request from {Name} ({Id}).", requesterName, requesterId);
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    RequestDialog.Show(
+                        $"{requesterName} has challenged you to a duel.",
+                        onAccept: () =>
+                        {
+                            // _ = _characterService.SendDuelResponseAsync(true, requesterId, requesterName);
+                            _logger.LogInformation("Accepted duel challenge from {Name} ({Id}).", requesterName, requesterId);
+                        },
+                        onReject: () =>
+                        {
+                            // _ = _characterService.SendDuelResponseAsync(false, requesterId, requesterName);
+                            _logger.LogInformation("Rejected duel challenge from {Name} ({Id}).", requesterName, requesterId);
+                        }
+                    );
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing DuelStartRequest packet.");
+            }
+            return Task.CompletedTask;
+        }
 
         [PacketHandler(0x40, PacketRouter.NoSubCode)]
         public Task HandlePartyRequestAsync(Memory<byte> packet)
