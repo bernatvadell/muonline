@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Client.Main.Core.Client;
+using Client.Main.Controls.UI;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
@@ -21,6 +22,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         private readonly CharacterService _characterService;
         private readonly CharacterState _characterState;
         private readonly TargetProtocolVersion _targetVersion;
+        private readonly ScopeManager _scopeManager;
 
         // ───────────────────────── Constructors ─────────────────────────
         public MiscGamePacketHandler(
@@ -28,6 +30,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             NetworkManager networkManager,
             CharacterService characterService,
             CharacterState characterState,
+            ScopeManager scopeManager,
             TargetProtocolVersion targetVersion)
         {
             _logger = loggerFactory.CreateLogger<MiscGamePacketHandler>();
@@ -35,9 +38,47 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             _characterService = characterService;
             _characterState = characterState;
             _targetVersion = targetVersion;
+            _scopeManager = scopeManager;
         }
 
         // ─────────────────────── Packet Handlers ────────────────────────
+
+        [PacketHandler(0x40, PacketRouter.NoSubCode)]
+        public Task HandlePartyRequestAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var request = new PartyRequest(packet);
+                ushort requesterId = request.RequesterId;
+                if (!_scopeManager.TryGetScopeObjectName(requesterId, out string requesterName))
+                {
+                    requesterName = $"Player (ID: {requesterId & 0x7FFF})";
+                }
+                _logger.LogInformation("Received party request from {Name} ({Id}).", requesterName, requesterId);
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    RequestDialog.Show(
+                        $"{requesterName} has invited you to a party.",
+                        onAccept: () =>
+                        {
+                            _ = _characterService.SendPartyResponseAsync(true, requesterId);
+                            _logger.LogInformation("Accepted party invite from {Name} ({Id}).", requesterName, requesterId);
+                        },
+                        onReject: () =>
+                        {
+                            _ = _characterService.SendPartyResponseAsync(false, requesterId);
+                            _logger.LogInformation("Rejected party invite from {Name} ({Id}).", requesterName, requesterId);
+                        }
+                    );
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing PartyRequest packet.");
+            }
+            return Task.CompletedTask;
+        }
 
         [PacketHandler(0xF1, 0x00)]  // GameServerEntered
         public Task HandleGameServerEnteredAsync(Memory<byte> packet)

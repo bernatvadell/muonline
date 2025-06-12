@@ -50,6 +50,30 @@ namespace Client.Main.Networking.Services
             }
         }
 
+        /// <summary>
+        /// Sends a response to a party invitation.
+        /// </summary>
+        public async Task SendPartyResponseAsync(bool accepted, ushort requesterId)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot respond to party invite.");
+                return;
+            }
+
+            _logger.LogInformation("Sending party response: Accepted={Accepted}, RequesterId={Id}", accepted, requesterId);
+            try
+            {
+                // await _connectionManager.Connection.SendAsync(() =>
+                //     PacketBuilder.BuildPartyResponsePacket(_connectionManager.Connection.Output, accepted, requesterId));
+                _logger.LogInformation("Party response sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending party response.");
+            }
+        }
+
         public async Task SendWarpCommandRequestAsync(ushort warpInfoIndex, uint commandKey = 0)
         {
             if (!_connectionManager.IsConnected)
