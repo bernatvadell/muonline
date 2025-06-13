@@ -80,6 +80,35 @@ namespace Client.Main.Networking.Services
         }
 
         /// <summary>
+        /// Sends a request to kick a player from party (or leave party yourself).
+        /// </summary>
+        /// <param name="playerIndex">Index of player to kick (or your own index to leave party)</param>
+        public async Task SendPartyKickRequestAsync(byte playerIndex)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send party kick request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending party kick request for player index {PlayerIndex}", playerIndex);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new PartyPlayerKickRequest(_connectionManager.Connection.Output.GetMemory(PartyPlayerKickRequest.Length).Slice(0, PartyPlayerKickRequest.Length));
+                    packet.PlayerIndex = playerIndex;
+                    return PartyPlayerKickRequest.Length;
+                });
+                _logger.LogInformation("Party kick request sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending party kick request.");
+            }
+        }
+
+        /// <summary>
         /// Sends a request for the current party list.
         /// </summary>
         public async Task RequestPartyListAsync()
@@ -418,13 +447,13 @@ namespace Client.Main.Networking.Services
                 switch (version)
                 {
                     case TargetProtocolVersion.Season6:
-                                        case TargetProtocolVersion.Version097:
-                    await _connectionManager.Connection.SendPickupItemRequestAsync(itemIdMasked);
-                                            break;
-                                        case TargetProtocolVersion.Version075:
-                    await _connectionManager.Connection.SendPickupItemRequest075Async(itemIdMasked);
-                                            break;
-                                    }
+                    case TargetProtocolVersion.Version097:
+                        await _connectionManager.Connection.SendPickupItemRequestAsync(itemIdMasked);
+                        break;
+                    case TargetProtocolVersion.Version075:
+                        await _connectionManager.Connection.SendPickupItemRequest075Async(itemIdMasked);
+                        break;
+                }
                 _logger.LogInformation("Pickup item request sent for itemId: {ItemId}.", itemIdMasked);
             }
             catch (Exception ex)

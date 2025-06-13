@@ -14,6 +14,7 @@ namespace Client.Main.Controls.UI.Game
 
         private PartyManager _partyManager;
         private readonly ILogger<PartyPanelControl> _logger;
+        private CharacterState _characterState;
 
         private double _timeSinceLastUpdate = 0; // Timer
 
@@ -28,6 +29,8 @@ namespace Client.Main.Controls.UI.Game
         public override async Task Load()
         {
             _partyManager = MuGame.Network.GetPartyManager();
+            _characterState = MuGame.Network.GetCharacterState();
+
             if (_partyManager != null)
             {
                 _partyManager.PartyUpdated += OnPartyUpdated;
@@ -64,12 +67,33 @@ namespace Client.Main.Controls.UI.Game
                 {
                     Y = currentY
                 };
-                memberControl.UpdateData(member);
+
+                bool isCurrentPlayer = IsCurrentPlayer(member);
+
+                memberControl.UpdateData(member, isCurrentPlayer);
                 Controls.Add(memberControl);
                 // Initialize is needed so child controls (labels, etc.) can load their resources.
                 _ = memberControl.Initialize();
                 currentY += memberControl.ViewSize.Y + VerticalSpacing;
             }
+        }
+
+        private bool IsCurrentPlayer(PartyMemberInfo member)
+        {
+            if (_characterState == null)
+                return false;
+
+            if (!string.IsNullOrEmpty(member.Name) && !string.IsNullOrEmpty(_characterState.Name))
+            {
+                return string.Equals(member.Name, _characterState.Name, System.StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (member.Id != 0 && _characterState.Id != 0)
+            {
+                return member.Id == _characterState.Id;
+            }
+
+            return false;
         }
 
         public override void Update(GameTime gameTime)

@@ -1,4 +1,3 @@
-// Plik: Client.Main/Controls/UI/Game/PartyMemberControl.cs
 using Client.Main.Controls.UI.Common;
 using Client.Main.Core.Client;
 using Client.Main.Core.Utilities;
@@ -12,9 +11,12 @@ namespace Client.Main.Controls.UI.Game
         private readonly LabelControl _infoLabel;
         private readonly ColorBarControl _healthBar;
         private readonly LabelControl _healthPercentLabel;
-
+        private readonly ButtonControl _leaveButton;
 
         private readonly ColorBarControl[] _healthSegments;
+
+        public PartyMemberInfo MemberInfo { get; private set; }
+        public bool IsCurrentPlayer { get; private set; }
 
         public PartyMemberControl()
         {
@@ -52,7 +54,7 @@ namespace Client.Main.Controls.UI.Game
                     FillColor = GetHealthSegmentColor(i),
                     BorderColor = Color.Black * 0.8f,
                     BorderThickness = 1
-                }; 
+                };
                 Controls.Add(_healthSegments[i]);
             }
 
@@ -81,9 +83,25 @@ namespace Client.Main.Controls.UI.Game
                 ShadowOpacity = 0.7f
             };
 
+            _leaveButton = new ButtonControl
+            {
+                X = ViewSize.X - 18,
+                Y = 3,
+                ViewSize = new Point(15, 15),
+                Text = "×",
+                FontSize = 12f,
+                TextColor = Color.White,
+                BackgroundColor = new Color(150, 50, 50) * 0.8f,
+                BorderColor = new Color(200, 100, 100),
+                BorderThickness = 1,
+                Visible = false,
+            };
+            _leaveButton.Click += OnLeaveButtonClick;
+
             Controls.Add(_nameLabel);
             Controls.Add(_infoLabel);
             Controls.Add(_healthPercentLabel);
+            Controls.Add(_leaveButton);
         }
 
         private Color GetHealthSegmentColor(int segmentIndex)
@@ -98,8 +116,11 @@ namespace Client.Main.Controls.UI.Game
             }
         }
 
-        public void UpdateData(PartyMemberInfo memberInfo)
+        public void UpdateData(PartyMemberInfo memberInfo, bool isCurrentPlayer = false)
         {
+            MemberInfo = memberInfo;
+            IsCurrentPlayer = isCurrentPlayer;
+
             _nameLabel.Text = memberInfo.Name;
 
             _healthPercentLabel.Text = $"{(int)(memberInfo.HealthPercentage * 100)}%";
@@ -122,6 +143,19 @@ namespace Client.Main.Controls.UI.Game
 
             string mapName = MapDatabase.GetMapName(memberInfo.MapId);
             _infoLabel.Text = $"{mapName} ({memberInfo.PositionX}, {memberInfo.PositionY})";
+
+            _leaveButton.Visible = isCurrentPlayer;
+
+            if (isCurrentPlayer)
+            {
+                BorderColor = new Color(150, 200, 100) * 0.9f; // Zielona ramka
+                BackgroundColor = new Color(15, 25, 15) * 0.9f; // Lekko zielone tło
+            }
+            else
+            {
+                BorderColor = new Color(100, 150, 200) * 0.8f; // Standardowa ramka
+                BackgroundColor = new Color(15, 15, 25) * 0.9f; // Standardowe tło
+            }
         }
 
         private void UpdateHealthSegments(float healthPercentage)
@@ -155,6 +189,15 @@ namespace Client.Main.Controls.UI.Game
                 {
                     _healthSegments[i].Alpha = 1f;
                 }
+            }
+        }
+
+        private void OnLeaveButtonClick(object sender, System.EventArgs e)
+        {
+            if (IsCurrentPlayer && MemberInfo != null)
+            {
+                var characterService = MuGame.Network?.GetCharacterService();
+                _ = characterService?.SendPartyKickRequestAsync(MemberInfo.Index);
             }
         }
     }
