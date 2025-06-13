@@ -64,13 +64,105 @@ namespace Client.Main.Networking.Services
             _logger.LogInformation("Sending party response: Accepted={Accepted}, RequesterId={Id}", accepted, requesterId);
             try
             {
-                // await _connectionManager.Connection.SendAsync(() =>
-                //     PacketBuilder.BuildPartyResponsePacket(_connectionManager.Connection.Output, accepted, requesterId));
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new PartyInviteResponse(_connectionManager.Connection.Output.GetMemory(PartyInviteResponse.Length).Slice(0, PartyInviteResponse.Length));
+                    packet.Accepted = accepted;
+                    packet.RequesterId = requesterId;
+                    return PartyInviteResponse.Length;
+                });
                 _logger.LogInformation("Party response sent.");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending party response.");
+            }
+        }
+
+        /// <summary>
+        /// Sends a response to a guild join invitation.
+        /// </summary>
+        public async Task SendGuildJoinResponseAsync(bool accepted, ushort requesterId)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot respond to guild invite.");
+                return;
+            }
+
+            _logger.LogInformation("Sending guild join response: Accepted={Accepted}, RequesterId={Id}", accepted, requesterId);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new GuildJoinResponse(_connectionManager.Connection.Output.GetMemory(GuildJoinResponse.Length).Slice(0, GuildJoinResponse.Length));
+                    packet.Accepted = accepted;
+                    packet.RequesterId = requesterId;
+                    return GuildJoinResponse.Length;
+                });
+                _logger.LogInformation("Guild join response sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending guild join response.");
+            }
+        }
+
+        /// <summary>
+        /// Sends a response to a trade request.
+        /// </summary>
+        public async Task SendTradeResponseAsync(bool accepted)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot respond to trade request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending trade response: Accepted={Accepted}", accepted);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new TradeRequestResponse(_connectionManager.Connection.Output.GetMemory(TradeRequestResponse.Length).Slice(0, TradeRequestResponse.Length));
+                    packet.TradeAccepted = accepted;
+                    return TradeRequestResponse.Length;
+                });
+                _logger.LogInformation("Trade response sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending trade response.");
+            }
+        }
+
+        /// <summary>
+        /// Sends a response to a duel request.
+        /// </summary>
+        public async Task SendDuelResponseAsync(bool accepted, ushort requesterId, string requesterName)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot respond to duel request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending duel response: Accepted={Accepted}, RequesterId={Id}", accepted, requesterId);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new DuelStartResponse(_connectionManager.Connection.Output.GetMemory(DuelStartResponse.Length).Slice(0, DuelStartResponse.Length));
+                    packet.Response = accepted;
+                    packet.PlayerId = requesterId;
+                    packet.PlayerName = requesterName;
+                    return DuelStartResponse.Length;
+                });
+                _logger.LogInformation("Duel response sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending duel response.");
             }
         }
 

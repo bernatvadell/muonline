@@ -43,12 +43,12 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
         // ─────────────────────── Packet Handlers ────────────────────────
 
-        [PacketHandler(0x50, PacketRouter.NoSubCode)] // GuildJoinRequest
+        [PacketHandler(0x50, PacketRouter.NoSubCode)] // GuildJoinRequest (S2C)
         public Task HandleGuildJoinRequestAsync(Memory<byte> packet)
         {
             try
             {
-                var request = new GuildJoinRequest(packet);
+                var request = new MUnique.OpenMU.Network.Packets.ServerToClient.GuildJoinRequest(packet);
                 ushort requesterId = request.RequesterId;
                 if (!_scopeManager.TryGetScopeObjectName(requesterId, out string requesterName))
                 {
@@ -59,15 +59,15 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 MuGame.ScheduleOnMainThread(() =>
                 {
                     RequestDialog.Show(
-                        $"{requesterName} wants to join your guild.",
+                        $"{requesterName} has invited you to their guild.",
                         onAccept: () =>
                         {
-                            // _ = _characterService.SendGuildJoinResponseAsync(true, requesterId);
+                            _ = _characterService.SendGuildJoinResponseAsync(true, requesterId);
                             _logger.LogInformation("Accepted guild join invite from {Name} ({Id}).", requesterName, requesterId);
                         },
                         onReject: () =>
                         {
-                            // _ = _characterService.SendGuildJoinResponseAsync(false, requesterId);
+                            _ = _characterService.SendGuildJoinResponseAsync(false, requesterId);
                             _logger.LogInformation("Rejected guild join invite from {Name} ({Id}).", requesterName, requesterId);
                         }
                     );
@@ -80,12 +80,12 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
-        [PacketHandler(0x36, PacketRouter.NoSubCode)] // TradeRequest
+        [PacketHandler(0x36, PacketRouter.NoSubCode)] // TradeRequested (S2C)
         public Task HandleTradeRequestAsync(Memory<byte> packet)
         {
             try
             {
-                var request = new TradeRequest(packet);
+                var request = new TradeRequest(packet); // fallback to TradeRequest if TradeRequested does not exist
                 string requesterName = request.Name;
                 _logger.LogInformation("Received trade request from {Name}.", requesterName);
 
@@ -95,12 +95,12 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         $"{requesterName} has requested a trade.",
                         onAccept: () =>
                         {
-                            // _ = _characterService.SendTradeResponseAsync(true);
+                            _ = _characterService.SendTradeResponseAsync(true);
                             _logger.LogInformation("Accepted trade request from {Name}.", requesterName);
                         },
                         onReject: () =>
                         {
-                            // _ = _characterService.SendTradeResponseAsync(false);
+                            _ = _characterService.SendTradeResponseAsync(false);
                             _logger.LogInformation("Rejected trade request from {Name}.", requesterName);
                         }
                     );
@@ -113,7 +113,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
-        [PacketHandler(0xAA, 0x02)] // DuelStartRequest
+        [PacketHandler(0xAA, 0x01)] // DuelRequested (S2C) - Corrected from 0x02
         public Task HandleDuelStartRequestAsync(Memory<byte> packet)
         {
             try
@@ -129,12 +129,12 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         $"{requesterName} has challenged you to a duel.",
                         onAccept: () =>
                         {
-                            // _ = _characterService.SendDuelResponseAsync(true, requesterId, requesterName);
+                            _ = _characterService.SendDuelResponseAsync(true, requesterId, requesterName);
                             _logger.LogInformation("Accepted duel challenge from {Name} ({Id}).", requesterName, requesterId);
                         },
                         onReject: () =>
                         {
-                            // _ = _characterService.SendDuelResponseAsync(false, requesterId, requesterName);
+                            _ = _characterService.SendDuelResponseAsync(false, requesterId, requesterName);
                             _logger.LogInformation("Rejected duel challenge from {Name} ({Id}).", requesterName, requesterId);
                         }
                     );
@@ -142,7 +142,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error parsing DuelStartRequest packet.");
+                _logger.LogError(ex, "Error parsing DuelRequested packet.");
             }
             return Task.CompletedTask;
         }
