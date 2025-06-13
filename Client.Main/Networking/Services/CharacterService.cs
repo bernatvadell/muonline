@@ -80,6 +80,32 @@ namespace Client.Main.Networking.Services
         }
 
         /// <summary>
+        /// Sends a request for the current party list.
+        /// </summary>
+        public async Task RequestPartyListAsync()
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogWarning("Not connected — cannot request party list.");
+                return;
+            }
+
+            _logger.LogTrace("Sending PartyListRequest..."); // Użyj LogTrace, aby nie zaśmiecać logów
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new PartyListRequest(_connectionManager.Connection.Output.GetMemory(PartyListRequest.Length).Slice(0, PartyListRequest.Length));
+                    return PartyListRequest.Length;
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending PartyListRequest packet.");
+            }
+        }
+
+        /// <summary>
         /// Sends a response to a guild join invitation.
         /// </summary>
         public async Task SendGuildJoinResponseAsync(bool accepted, ushort requesterId)

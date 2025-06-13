@@ -39,6 +39,7 @@ namespace Client.Main.Networking
         private readonly CharacterService _characterService;
         private readonly ConnectServerService _connectServerService;
         private readonly CharacterState _characterState;
+        private readonly PartyManager _partyManager;
         private readonly ScopeManager _scopeManager;
         private readonly Dictionary<byte, byte> _serverDirectionMap;
         private string _selectedCharacterNameForLogin = string.Empty;
@@ -65,6 +66,7 @@ namespace Client.Main.Networking
 
         public CharacterService GetCharacterService() => _characterService;
         public ScopeManager GetScopeManager() => _scopeManager;
+        public PartyManager GetPartyManager() => _partyManager;
         public TargetProtocolVersion TargetVersion => _packetRouter.TargetVersion;
 
         // Constructors
@@ -75,6 +77,7 @@ namespace Client.Main.Networking
             _settings = settings;
             _characterState = characterState;
             _scopeManager = scopeManager;
+            _partyManager = new PartyManager(_loggerFactory);
 
             var clientVersionBytes = Encoding.ASCII.GetBytes(settings.ClientVersion);
             var clientSerialBytes = Encoding.ASCII.GetBytes(settings.ClientSerial);
@@ -86,7 +89,7 @@ namespace Client.Main.Networking
             _characterService = new CharacterService(_connectionManager, _loggerFactory.CreateLogger<CharacterService>());
             _connectServerService = new ConnectServerService(_connectionManager, _loggerFactory.CreateLogger<ConnectServerService>());
 
-            _packetRouter = new PacketRouter(loggerFactory, _characterService, _loginService, targetVersion, this, _characterState, _scopeManager, _settings);
+            _packetRouter = new PacketRouter(loggerFactory, _characterService, _loginService, targetVersion, this, _characterState, _scopeManager, _partyManager, _settings);
 
             _managerCts = new CancellationTokenSource();
 

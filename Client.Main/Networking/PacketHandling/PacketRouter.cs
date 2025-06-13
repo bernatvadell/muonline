@@ -36,6 +36,7 @@ namespace Client.Main.Networking.PacketHandling
         private readonly ChatMessageHandler _chatMessageHandler;
         private readonly ConnectServerHandler _connectServerHandler;
         private readonly MiscGamePacketHandler _miscGamePacketHandler;
+        private readonly PartyHandler _partyHandler;
 
         private readonly Dictionary<(byte MainCode, byte SubCode), Func<Memory<byte>, Task>> _packetHandlers
             = new();
@@ -54,6 +55,7 @@ namespace Client.Main.Networking.PacketHandling
             NetworkManager networkManager,
             CharacterState characterState,
             ScopeManager scopeManager,
+            PartyManager partyManager,
             MuOnlineSettings settings)
         {
             _logger = loggerFactory.CreateLogger<PacketRouter>();
@@ -64,10 +66,11 @@ namespace Client.Main.Networking.PacketHandling
             // Instantiate handlers
             _characterDataHandler = new CharacterDataHandler(loggerFactory, characterState, networkManager, targetVersion);
             _inventoryHandler = new InventoryHandler(loggerFactory, characterState, networkManager, targetVersion);
-            _scopeHandler = new ScopeHandler(loggerFactory, scopeManager, characterState, networkManager, targetVersion);
+            _scopeHandler = new ScopeHandler(loggerFactory, scopeManager, characterState, networkManager, partyManager, targetVersion);
             _chatMessageHandler = new ChatMessageHandler(loggerFactory);
             _connectServerHandler = new ConnectServerHandler(loggerFactory, networkManager);
             _miscGamePacketHandler = new MiscGamePacketHandler(loggerFactory, networkManager, characterService, characterState, scopeManager, targetVersion);
+            _partyHandler = new PartyHandler(loggerFactory, partyManager, characterService, scopeManager, characterState);
 
             RegisterAttributeBasedHandlers();
             RegisterConnectServerHandlers();
@@ -205,7 +208,8 @@ namespace Client.Main.Networking.PacketHandling
                 _inventoryHandler,
                 _scopeHandler,
                 _chatMessageHandler,
-                _miscGamePacketHandler
+                _miscGamePacketHandler,
+                _partyHandler
             };
 
             int registered = 0;

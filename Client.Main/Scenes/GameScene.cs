@@ -39,6 +39,7 @@ namespace Client.Main.Scenes
         private ChatInputBoxControl _chatInput;
         private InventoryControl _inventoryControl; // Dodaj to pole
         private NotificationManager _notificationManager;
+        private PartyPanelControl _partyPanel;
         private readonly (string Name, CharacterClassNumber Class, ushort Level) _characterInfo;
         private KeyboardState _previousKeyboardState;
         private bool _isChangingWorld = false;
@@ -147,6 +148,9 @@ namespace Client.Main.Scenes
 
             _characterInfoWindow = new CharacterInfoWindowControl { X = 20, Y = 50, Visible = false };
             Controls.Add(_characterInfoWindow);
+
+            _partyPanel = new PartyPanelControl();
+            Controls.Add(_partyPanel);
 
             _chatInput.BringToFront();
             DebugPanel.BringToFront();

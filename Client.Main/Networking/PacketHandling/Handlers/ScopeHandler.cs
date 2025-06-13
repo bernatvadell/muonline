@@ -31,6 +31,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         private readonly ScopeManager _scopeManager;
         private readonly CharacterState _characterState;
         private readonly NetworkManager _networkManager;
+        private readonly PartyManager _partyManager;
         private readonly TargetProtocolVersion _targetVersion;
         private readonly ILoggerFactory _loggerFactory;
 
@@ -43,12 +44,14 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             ScopeManager scopeManager,
             CharacterState characterState,
             NetworkManager networkManager,
+            PartyManager partyManager,
             TargetProtocolVersion targetVersion)
         {
             _logger = loggerFactory.CreateLogger<ScopeHandler>();
             _scopeManager = scopeManager;
             _characterState = characterState;
             _networkManager = networkManager;
+            _partyManager = partyManager;
             _targetVersion = targetVersion;
             _loggerFactory = loggerFactory;
         }

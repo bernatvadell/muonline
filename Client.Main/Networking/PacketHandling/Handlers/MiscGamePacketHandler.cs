@@ -147,43 +147,6 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
-        [PacketHandler(0x40, PacketRouter.NoSubCode)]
-        public Task HandlePartyRequestAsync(Memory<byte> packet)
-        {
-            try
-            {
-                var request = new PartyRequest(packet);
-                ushort requesterId = request.RequesterId;
-                if (!_scopeManager.TryGetScopeObjectName(requesterId, out string requesterName))
-                {
-                    requesterName = $"Player (ID: {requesterId & 0x7FFF})";
-                }
-                _logger.LogInformation("Received party request from {Name} ({Id}).", requesterName, requesterId);
-
-                MuGame.ScheduleOnMainThread(() =>
-                {
-                    RequestDialog.Show(
-                        $"{requesterName} has invited you to a party.",
-                        onAccept: () =>
-                        {
-                            _ = _characterService.SendPartyResponseAsync(true, requesterId);
-                            _logger.LogInformation("Accepted party invite from {Name} ({Id}).", requesterName, requesterId);
-                        },
-                        onReject: () =>
-                        {
-                            _ = _characterService.SendPartyResponseAsync(false, requesterId);
-                            _logger.LogInformation("Rejected party invite from {Name} ({Id}).", requesterName, requesterId);
-                        }
-                    );
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error parsing PartyRequest packet.");
-            }
-            return Task.CompletedTask;
-        }
-
         [PacketHandler(0xF1, 0x00)]  // GameServerEntered
         public Task HandleGameServerEnteredAsync(Memory<byte> packet)
         {
