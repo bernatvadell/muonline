@@ -76,6 +76,10 @@ namespace Client.Main.Objects
         private float _blendElapsed = 0f;
         private float _blendDuration = 0.25f;
 
+        // Bounding box update optimization
+        private int _boundingFrameCounter = BoundingUpdateInterval;
+        private const int BoundingUpdateInterval = 5;
+
         public ModelObject()
         {
             MatrixChanged += (_s, _e) => UpdateWorldPosition();
@@ -134,6 +138,7 @@ namespace Client.Main.Objects
             _invalidatedBuffers = true;
             _contentLoaded = true;
             GenerateBoneMatrix(0, 0, 0, 0);
+            UpdateBoundings();
         }
 
         public override void Update(GameTime gameTime)
@@ -184,29 +189,54 @@ namespace Client.Main.Objects
 
         public virtual void DrawModel(bool isAfterDraw)
         {
-            if (Model?.Meshes == null || _boneVertexBuffers == null) return;
+            if (Model?.Meshes == null || _boneVertexBuffers == null)
+                return;
 
             int meshCount = Model.Meshes.Length;
-            var camPos = Camera.Instance.Position; // Cache camera position
+
+            // Cache commonly used values
+            var view = Camera.Instance.View;
+            var projection = Camera.Instance.Projection;
+
+            bool doShadow = false;
+            Matrix shadowMatrix = Matrix.Identity;
+            if (!isAfterDraw && RenderShadow)
+                doShadow = TryGetShadowMatrix(out shadowMatrix);
+
+            bool highlightAllowed = false;
+            Matrix highlightMatrix = Matrix.Identity;
+            Vector3 highlightColor = Vector3.One;
+            if (!isAfterDraw)
+            {
+                highlightAllowed = IsMouseHover && !(this is Monsters.MonsterObject m && m.IsDead);
+                if (highlightAllowed)
+                {
+                    float scaleHighlight = 0.015f;
+                    float scaleFactor = 1f + scaleHighlight;
+                    highlightMatrix = Matrix.CreateScale(scaleFactor) *
+                        Matrix.CreateTranslation(-scaleHighlight, -scaleHighlight, -scaleHighlight) *
+                        WorldPosition;
+                    highlightColor = this is Monsters.MonsterObject ? new Vector3(1, 0, 0) : new Vector3(0, 1, 0);
+                }
+            }
 
             // First pass - draw non-blend meshes
             for (int i = 0; i < meshCount; i++)
             {
-                if (IsHiddenMesh(i) || IsBlendMesh(i)) continue;
+                if (IsHiddenMesh(i) || IsBlendMesh(i))
+                    continue;
 
                 bool isRGBA = _meshIsRGBA[i];
                 bool draw = isAfterDraw ? isRGBA : !isRGBA;
-                if (!draw) continue;
+                if (!draw)
+                    continue;
 
-                // Batch shadow and highlight rendering with main mesh
                 if (!isAfterDraw)
                 {
-                    if (RenderShadow)
-                        DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, MuGame.Instance.GameTime);
-
-                    bool highlightAllowed = !(this is Monsters.MonsterObject m && m.IsDead);
-                    if (IsMouseHover && highlightAllowed)
-                        DrawMeshHighlight(i);
+                    if (doShadow)
+                        DrawShadowMesh(i, view, projection, shadowMatrix);
+                    if (highlightAllowed)
+                        DrawMeshHighlight(i, highlightMatrix, highlightColor);
                 }
 
                 DrawMesh(i);
@@ -220,10 +250,8 @@ namespace Client.Main.Objects
                     _blendMeshIndicesScratch[blendCount++] = i;
             }
 
-            if (blendCount == 0) return;
-
-            // Simplified sorting - distance sorting removed as it was ineffective
-            // The original comparison always returned 0, so we skip expensive sorting
+            if (blendCount == 0)
+                return;
 
             for (int n = 0; n < blendCount; n++)
             {
@@ -233,15 +261,14 @@ namespace Client.Main.Objects
 
                 if (!isAfterDraw)
                 {
-                    if (RenderShadow)
-                        DrawShadowMesh(i, Camera.Instance.View, Camera.Instance.Projection, MuGame.Instance.GameTime);
-
-                    bool highlightAllowed = !(this is Monsters.MonsterObject m && m.IsDead);
-                    if (IsMouseHover && highlightAllowed)
-                        DrawMeshHighlight(i);
+                    if (doShadow)
+                        DrawShadowMesh(i, view, projection, shadowMatrix);
+                    if (highlightAllowed)
+                        DrawMeshHighlight(i, highlightMatrix, highlightColor);
                 }
 
-                if (draw) DrawMesh(i);
+                if (draw)
+                    DrawMesh(i);
             }
         }
 
@@ -337,7 +364,7 @@ namespace Client.Main.Objects
             }
         }
 
-        public virtual void DrawMeshHighlight(int mesh)
+        public virtual void DrawMeshHighlight(int mesh, Matrix highlightMatrix, Vector3 highlightColor)
         {
             if (IsHiddenMesh(mesh) || _boneVertexBuffers == null)
                 return;
@@ -346,16 +373,6 @@ namespace Client.Main.Objects
             IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
             int primitiveCount = indexBuffer.IndexCount / 3;
 
-            // Define a small highlight offset
-            float scaleHighlight = 0.015f;
-            // Use fixed multiplier independent of the object's Scale, since WorldPosition already includes it
-            float scaleFactor = 1f + scaleHighlight;
-
-            // Create the highlight transformation matrix
-            var highlightMatrix = Matrix.CreateScale(scaleFactor)
-                * Matrix.CreateTranslation(-scaleHighlight, -scaleHighlight, -scaleHighlight)
-                * WorldPosition;
-
             // Save previous graphics states
             var previousDepthState = GraphicsDevice.DepthStencilState;
             var previousBlendState = GraphicsDevice.BlendState;
@@ -363,13 +380,6 @@ namespace Client.Main.Objects
 
             GraphicsManager.Instance.AlphaTestEffect3D.World = highlightMatrix;
             GraphicsManager.Instance.AlphaTestEffect3D.Texture = _boneTextures[mesh];
-
-            // Set highlight color: red for Monster objects, green for others
-            Vector3 highlightColor = new Vector3(0, 1, 0); // default green
-            if (this is Monsters.MonsterObject)
-            {
-                highlightColor = new Vector3(1, 0, 0); // red for monster
-            }
             GraphicsManager.Instance.AlphaTestEffect3D.DiffuseColor = highlightColor;
             GraphicsManager.Instance.AlphaTestEffect3D.Alpha = 1f;
 
@@ -410,7 +420,57 @@ namespace Client.Main.Objects
             return true;
         }
 
-        public virtual void DrawShadowMesh(int mesh, Matrix view, Matrix projection, GameTime gameTime)
+        private bool TryGetShadowMatrix(out Matrix shadowWorld)
+        {
+            shadowWorld = Matrix.Identity;
+
+            try
+            {
+                Vector3 position = WorldPosition.Translation;
+                float terrainH = World.Terrain.RequestTerrainHeight(position.X, position.Y);
+                terrainH += terrainH * 0.5f;
+
+                float heightAboveTerrain = position.Z - terrainH;
+                float sampleDist = heightAboveTerrain + 10f;
+                float angleRad = MathHelper.ToRadians(45);
+
+                float offX = sampleDist * (float)Math.Cos(angleRad);
+                float offY = sampleDist * (float)Math.Sin(angleRad);
+
+                float hX1 = World.Terrain.RequestTerrainHeight(position.X - offX, position.Y - offY);
+                float hX2 = World.Terrain.RequestTerrainHeight(position.X + offX, position.Y + offY);
+
+                float slopeX = (float)Math.Atan2(hX2 - hX1, sampleDist * 0.4f);
+
+                Vector3 shadowPos = new(
+                    position.X - (heightAboveTerrain / 2),
+                    position.Y - (heightAboveTerrain / 4.5f),
+                    terrainH + 1f);
+
+                float yaw = TotalAngle.Y + MathHelper.ToRadians(110) - slopeX / 2;
+                float pitch = TotalAngle.X + MathHelper.ToRadians(120);
+                float roll = TotalAngle.Z + MathHelper.ToRadians(90);
+
+                Quaternion rotQ = Quaternion.CreateFromYawPitchRoll(yaw, pitch, roll);
+
+                const float shadowBias = 0.1f;
+                shadowWorld =
+                      Matrix.CreateFromQuaternion(rotQ)
+                    * Matrix.CreateScale(1.0f * TotalScale, 0.01f * TotalScale, 1.0f * TotalScale)
+                    * Matrix.CreateRotationX(Math.Max(-MathHelper.PiOver2, -MathHelper.PiOver2 - slopeX))
+                    * Matrix.CreateRotationZ(angleRad)
+                    * Matrix.CreateTranslation(shadowPos + new Vector3(0f, 0f, shadowBias));
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug($"Error creating shadow matrix: {ex.Message}");
+                return false;
+            }
+        }
+
+        public virtual void DrawShadowMesh(int mesh, Matrix view, Matrix projection, Matrix shadowWorld)
         {
             try
             {
@@ -430,54 +490,6 @@ namespace Client.Main.Objects
 
                 int primitiveCount = indexBuffer.IndexCount / 3;
 
-                Matrix shadowWorld;
-                const float shadowBias = 0.1f;
-                try
-                {
-                    Vector3 position = WorldPosition.Translation;
-                    float terrainH = World.Terrain.RequestTerrainHeight(position.X, position.Y);
-                    terrainH += terrainH * 0.5f;
-
-                    float heightAboveTerrain = position.Z - terrainH;
-                    float sampleDist = heightAboveTerrain + 10f;
-                    float angleRad = MathHelper.ToRadians(45);
-
-                    float offX = sampleDist * (float)Math.Cos(angleRad);
-                    float offY = sampleDist * (float)Math.Sin(angleRad);
-
-                    float hX1 = World.Terrain.RequestTerrainHeight(position.X - offX, position.Y - offY);
-                    float hX2 = World.Terrain.RequestTerrainHeight(position.X + offX, position.Y + offY);
-                    float hZ1 = World.Terrain.RequestTerrainHeight(position.X - offY, position.Y + offX);
-                    float hZ2 = World.Terrain.RequestTerrainHeight(position.X + offY, position.Y - offX);
-
-                    float slopeX = (float)Math.Atan2(hX2 - hX1, sampleDist * 0.4f);
-                    float slopeZ = (float)Math.Atan2(hZ2 - hZ1, sampleDist * 0.4f);
-
-                    Vector3 shadowPos = new Vector3(
-                        position.X - (heightAboveTerrain / 2),
-                        position.Y - (heightAboveTerrain / 4.5f),
-                        terrainH + 1f
-                    );
-
-                    float yaw = TotalAngle.Y + MathHelper.ToRadians(110) - slopeX / 2;
-                    float pitch = TotalAngle.X + MathHelper.ToRadians(120);
-                    float roll = TotalAngle.Z + MathHelper.ToRadians(90);
-
-                    Quaternion rotQ = Quaternion.CreateFromYawPitchRoll(yaw, pitch, roll);
-
-                    shadowWorld =
-                          Matrix.CreateFromQuaternion(rotQ)
-                        * Matrix.CreateScale(1.0f * TotalScale, 0.01f * TotalScale, 1.0f * TotalScale)
-                        * Matrix.CreateRotationX(Math.Max(-MathHelper.PiOver2, -MathHelper.PiOver2 - slopeX))
-                        * Matrix.CreateRotationZ(angleRad)
-                        * Matrix.CreateTranslation(shadowPos + new Vector3(0f, 0f, shadowBias));
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogDebug($"Error creating shadow matrix: {ex.Message}");
-                    return;
-                }
-
                 var prevBlendState = GraphicsDevice.BlendState;
                 var prevDepthStencilState = GraphicsDevice.DepthStencilState;
 
@@ -493,7 +505,7 @@ namespace Client.Main.Objects
                     effect.Parameters["World"]?.SetValue(shadowWorld);
                     effect.Parameters["ViewProjection"]?.SetValue(view * projection);
                     effect.Parameters["ShadowTint"]?.SetValue(
-                        new Vector4(0f, 0f, 0f, 1f * ShadowOpacity));       // pół-przezroczyste czarne
+                        new Vector4(0f, 0f, 0f, 1f * ShadowOpacity));
                     effect.Parameters["ShadowTexture"]?.SetValue(_boneTextures[mesh]);
 
                     foreach (EffectPass pass in effect.CurrentTechnique.Passes)
@@ -558,11 +570,18 @@ namespace Client.Main.Objects
 
         private void UpdateWorldPosition()
         {
-            _invalidatedBuffers = true;
+            // World transformation changes no longer force buffer rebuilds.
+            // Lighting updates will trigger invalidation when needed.
         }
 
         private void UpdateBoundings()
         {
+            // Recalculate bounding box only every few frames
+            if (_boundingFrameCounter++ < BoundingUpdateInterval)
+                return;
+
+            _boundingFrameCounter = 0;
+
             if (Model?.Meshes == null || Model.Meshes.Length == 0 || BoneTransform == null) return;
 
             Vector3 min = new Vector3(float.MaxValue);
@@ -875,16 +894,16 @@ namespace Client.Main.Objects
                 if (meshCount == 0) return;
 
                 // Ensure arrays only once
-                EnsureArray(ref _boneVertexBuffers, meshCount);
-                EnsureArray(ref _boneIndexBuffers, meshCount);
-                EnsureArray(ref _boneTextures, meshCount);
-                EnsureArray(ref _scriptTextures, meshCount);
-                EnsureArray(ref _dataTextures, meshCount);
-                EnsureArray(ref _meshIsRGBA, meshCount, false);
-                EnsureArray(ref _meshHiddenByScript, meshCount, false);
-                EnsureArray(ref _meshBlendByScript, meshCount, false);
-                EnsureArray(ref _meshTexturePath, meshCount, string.Empty);
-                EnsureArray(ref _blendMeshIndicesScratch, meshCount, 0);
+                EnsureArraySize(ref _boneVertexBuffers, meshCount);
+                EnsureArraySize(ref _boneIndexBuffers, meshCount);
+                EnsureArraySize(ref _boneTextures, meshCount);
+                EnsureArraySize(ref _scriptTextures, meshCount);
+                EnsureArraySize(ref _dataTextures, meshCount);
+                EnsureArraySize(ref _meshIsRGBA, meshCount);
+                EnsureArraySize(ref _meshHiddenByScript, meshCount);
+                EnsureArraySize(ref _meshBlendByScript, meshCount);
+                EnsureArraySize(ref _meshTexturePath, meshCount);
+                EnsureArraySize(ref _blendMeshIndicesScratch, meshCount);
 
                 Matrix[] bones = (LinkParentAnimation && Parent is ModelObject parentModel && parentModel.BoneTransform != null)
                     ? parentModel.BoneTransform
@@ -969,6 +988,13 @@ namespace Client.Main.Objects
             for (int i = 0; i < size; i++)
                 if (array[i] == null || array[i].Equals(default(T)))
                     array[i] = defaultValue;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void EnsureArraySize<T>(ref T[] array, int size)
+        {
+            if (array is null || array.Length != size)
+                array = new T[size];
         }
 
         public void InvalidateBuffers()

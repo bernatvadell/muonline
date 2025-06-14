@@ -115,5 +115,21 @@ namespace Client.Main.Core.Client
             _logger.LogTrace("Invoking PartyUpdated event.");
             MuGame.ScheduleOnMainThread(() => PartyUpdated?.Invoke());
         }
+
+        public bool IsPartyActive()
+        {
+            return _partyMembers.Count > 1;
+        }
+
+        public bool IsMember(ushort id)
+        {
+            return _partyMembers.Values.Any(m => m.Id == id);
+        }
+
+        public float GetHealthPercentage(ushort id)
+        {
+            var member = _partyMembers.Values.FirstOrDefault(m => m.Id == id);
+            return member?.HealthPercentage ?? 0f;
+        }
     }
 }

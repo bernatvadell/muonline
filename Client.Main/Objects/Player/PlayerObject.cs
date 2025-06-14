@@ -13,6 +13,10 @@ using Client.Main.Networking;
 using System;
 using Client.Data.ATT;
 using System.Collections.Generic;
+using Microsoft.Xna.Framework.Graphics;
+using Client.Main.Controllers;
+using System.Linq;
+using Client.Main.Helpers;
 
 namespace Client.Main.Objects.Player
 {
@@ -158,8 +162,8 @@ namespace Client.Main.Objects.Player
             mode switch
             {
                 MovementMode.Swim => PlayerAction.RunSwim,
-                MovementMode.Fly  => PlayerAction.Fly,
-                _                 => _isFemale ? PlayerAction.WalkFemale : PlayerAction.WalkMale
+                MovementMode.Fly => PlayerAction.Fly,
+                _ => _isFemale ? PlayerAction.WalkFemale : PlayerAction.WalkMale
             };
 
         // Back-compat overload used in older call-sites
@@ -171,7 +175,7 @@ namespace Client.Main.Objects.Player
             mode switch
             {
                 MovementMode.Fly or MovementMode.Swim => PlayerAction.StopFlying,
-                _                                     => _isFemale ? PlayerAction.StopFemale : PlayerAction.StopMale
+                _ => _isFemale ? PlayerAction.StopFemale : PlayerAction.StopMale
             };
 
         private PlayerAction GetIdleAction(WalkableWorldControl world) =>
@@ -417,5 +421,77 @@ namespace Client.Main.Objects.Player
         // ────────────────────────────── EVENTS ──────────────────────────────
         public void OnPlayerMoved() => PlayerMoved?.Invoke(this, EventArgs.Empty);
         public void OnPlayerTookDamage() => PlayerTookDamage?.Invoke(this, EventArgs.Empty);
+
+        public override void DrawAfter(GameTime gameTime)
+        {
+            base.DrawAfter(gameTime);
+            DrawPartyHealthBar();
+        }
+
+        private void DrawPartyHealthBar()
+        {
+            var partyManager = MuGame.Network?.GetPartyManager();
+            if (partyManager == null || !partyManager.IsPartyActive())
+                return;
+
+            if (!partyManager.IsMember(NetworkId))
+                return;
+
+            float hpPercent = partyManager.GetHealthPercentage(NetworkId);
+
+            Vector3 anchor = new(
+                (BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) * 0.5f,
+                (BoundingBoxWorld.Min.Y + BoundingBoxWorld.Max.Y) * 0.5f,
+                BoundingBoxWorld.Max.Z + 20f);
+
+            Vector3 screen = GraphicsDevice.Viewport.Project(
+                anchor,
+                Camera.Instance.Projection,
+                Camera.Instance.View,
+                Matrix.Identity);
+
+            if (screen.Z < 0f || screen.Z > 1f)
+                return;
+
+            const int width = 50;
+            const int height = 5;
+
+            Rectangle bgRect = new(
+                (int)screen.X - width / 2,
+                (int)screen.Y - height - 2,
+                width,
+                height);
+
+            Rectangle fillRect = new(
+                bgRect.X + 1,
+                bgRect.Y + 1,
+                (int)((width - 2) * Math.Clamp(hpPercent, 0f, 1f)),
+                height - 2);
+
+            float segmentWidth = (width - 2) / 8f;
+
+            var sb = GraphicsManager.Instance.Sprite;
+            var pixel = GraphicsManager.Instance.Pixel;
+            using (new SpriteBatchScope(
+                       sb,
+                       SpriteSortMode.BackToFront,
+                       BlendState.NonPremultiplied,
+                       SamplerState.PointClamp,
+                       DepthStencilState.DepthRead))
+            {
+                sb.Draw(pixel, bgRect, Color.Black * 0.6f);
+                sb.Draw(pixel, fillRect, Color.Red);
+                for (int i = 1; i < 8; i++)
+                {
+                    int x = bgRect.X + 1 + (int)(segmentWidth * i);
+                    sb.Draw(pixel,
+                            new Rectangle(x, bgRect.Y + 1, 1, height - 2),
+                            Color.Black * 0.4f);
+                }
+                sb.Draw(pixel,
+                        new Rectangle(bgRect.X - 1, bgRect.Y - 1, bgRect.Width + 2, bgRect.Height + 2),
+                        Color.White * 0.3f);
+            }
+        }
     }
 }
