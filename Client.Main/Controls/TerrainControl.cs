@@ -590,6 +590,11 @@ namespace Client.Main.Controls
             foreach (var light in _dynamicLights)
             {
                 if (light.Intensity <= 0.001f) continue;
+                var camPos = Camera.Instance.Position;
+                var lightPos = new Vector2(light.Position.X, light.Position.Y);
+                var cam2 = new Vector2(camPos.X, camPos.Y);
+                if (Vector2.DistanceSquared(cam2, lightPos) > Constants.LOW_QUALITY_DISTANCE * Constants.LOW_QUALITY_DISTANCE)
+                    continue;
                 if (World.IsLightInView(light))
                     _activeLights.Add(light);
             }

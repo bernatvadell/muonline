@@ -200,13 +200,13 @@ namespace Client.Main.Objects
 
             bool doShadow = false;
             Matrix shadowMatrix = Matrix.Identity;
-            if (!isAfterDraw && RenderShadow)
+            if (!isAfterDraw && RenderShadow && !LowQuality)
                 doShadow = TryGetShadowMatrix(out shadowMatrix);
 
             bool highlightAllowed = false;
             Matrix highlightMatrix = Matrix.Identity;
             Vector3 highlightColor = Vector3.One;
-            if (!isAfterDraw)
+            if (!isAfterDraw && !LowQuality)
             {
                 highlightAllowed = IsMouseHover && !(this is Monsters.MonsterObject m && m.IsDead);
                 if (highlightAllowed)
@@ -223,7 +223,7 @@ namespace Client.Main.Objects
             // First pass - draw non-blend meshes
             for (int i = 0; i < meshCount; i++)
             {
-                if (IsHiddenMesh(i) || IsBlendMesh(i))
+                if (IsHiddenMesh(i) || IsBlendMesh(i) || (LowQuality && IsBlendMesh(i)))
                     continue;
 
                 bool isRGBA = _meshIsRGBA[i];
@@ -244,10 +244,13 @@ namespace Client.Main.Objects
 
             // Second pass - blend meshes (only count once)
             int blendCount = 0;
-            for (int i = 0; i < meshCount; i++)
+            if (!LowQuality)
             {
-                if (!IsHiddenMesh(i) && IsBlendMesh(i))
-                    _blendMeshIndicesScratch[blendCount++] = i;
+                for (int i = 0; i < meshCount; i++)
+                {
+                    if (!IsHiddenMesh(i) && IsBlendMesh(i))
+                        _blendMeshIndicesScratch[blendCount++] = i;
+                }
             }
 
             if (blendCount == 0)
@@ -300,7 +303,10 @@ namespace Client.Main.Objects
                 {
                     string texturePath = BMDLoader.Instance.GetTexturePath(Model, mesh.TexturePath);
                     if (!string.IsNullOrEmpty(texturePath))
+                    {
                         await TextureLoader.Instance.PrepareAndGetTexture(texturePath);
+                        await Task.Yield();
+                    }
                 }
             }
 

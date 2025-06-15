@@ -62,6 +62,10 @@ namespace Client.Main.Objects
         public bool Interactive { get => _interactive || (Parent?.Interactive ?? false); set { _interactive = value; } }
         public Vector3 Light { get; set; } = new Vector3(0f, 0f, 0f);
         public bool LightEnabled { get; set; } = true;
+        /// <summary>
+        /// Indicates that the object is far from the camera and should be rendered in lower quality.
+        /// </summary>
+        public bool LowQuality { get; private set; }
         public bool Visible => Status == GameControlStatus.Ready && !OutOfView && !Hidden;
         public WorldControl World { get => _world; set { _world = value; OnChangeWorld(); } }
         public short Type { get; set; }
@@ -155,6 +159,17 @@ namespace Client.Main.Objects
 
             // OPTIMIZATION: Early exit if the object is not in the camera's view.
             if (OutOfView) return;
+
+            // Determine whether the object should be rendered in low quality based on distance to the camera
+            if (World != null)
+            {
+                float dist = Vector3.Distance(Camera.Instance.Position, WorldPosition.Translation);
+                LowQuality = dist > Constants.LOW_QUALITY_DISTANCE;
+            }
+            else
+            {
+                LowQuality = false;
+            }
 
             // Cache parent's mouse hover state
             bool parentIsMouseHover = Parent?.IsMouseHover ?? false;
