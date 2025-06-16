@@ -29,12 +29,15 @@ namespace Client.Main.Controls
         private const float WindScale = 10f;
         private const int UpdateIntervalMs = 32;
         private const float CameraMoveThreshold = 32f;
-        private const byte BaseGrassTextureIndex = 0;
+        /// <summary>
+        /// Texture indices that should spawn grass tufts.
+        /// </summary>
+        public HashSet<byte> GrassTextureIndices { get; } = new() { 0, 1, 30, 31, 32 };
 
         // Grass density distances (squared)
-        private const float GrassNearSq = 2000f * 2000f;   // full density
-        private const float GrassMidSq = 3000f * 3000f;   // two tufts
-        private const float GrassFarSq = 4000f * 4000f;   // one tuft
+        private const float GrassNearSq = 3000f * 3000f;   // full density
+        private const float GrassMidSq = 4000f * 4000f;   // two tufts
+        private const float GrassFarSq = 5000f * 5000f;   // one tuft
         private const int GrassBatchQuads = 16384;       // 4096 tufts per batch
         private const int GrassBatchVerts = GrassBatchQuads * 6;
 
@@ -876,11 +879,12 @@ namespace Client.Main.Controls
                 }
             }
 
-            // Draw grass if enabled and this tile uses the base grass texture
+            // Draw grass if enabled and this tile uses a registered grass texture            byte baseTex = isOpaque ? _mapping.Layer2[i1] : _mapping.Layer1[i1];
             byte baseTex = isOpaque ? _mapping.Layer2[i1] : _mapping.Layer1[i1];
             if (!Constants.DRAW_GRASS
-                || baseTex != BaseGrassTextureIndex
-                || _grassSpriteTexture == null)
+                || WorldIndex == 11
+                || _grassSpriteTexture == null
+                || !GrassTextureIndices.Contains(baseTex))
                 return;
 
             var camPos = Camera.Instance.Position;

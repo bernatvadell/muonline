@@ -377,10 +377,10 @@ namespace Client.Main.Scenes
             }
         }
 
-        private async void OnMapWarpRequested(int mapIndex)
+        private async void OnMapWarpRequested(int mapIndex, string mapDisplayName)
         {
             _logger?.LogDebug($"Player requested warp to map index: {mapIndex}");
-            var mapName = MapDatabase.GetMapName((ushort)mapIndex);
+            var mapName = mapDisplayName;
             _chatLog.AddMessage("System", $"Warping to {mapName} (ID {mapIndex})...", MessageType.System);
 
             try

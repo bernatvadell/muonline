@@ -58,7 +58,11 @@ namespace Client.Main.Controls.UI.Game
         private readonly ILogger<MoveCommandWindow> _logger;
         private readonly NetworkManager _networkManager;
 
-        public event Action<int> MapWarpRequested;
+        /// <summary>
+        /// Raised when the player selects a map to warp to.
+        /// Provides the target map index and its display name.
+        /// </summary>
+        public event Action<int, string> MapWarpRequested;
 
         public MoveCommandWindow(ILoggerFactory loggerFactory, NetworkManager networkManager)
         {
@@ -268,7 +272,8 @@ namespace Client.Main.Controls.UI.Game
                 if (mapInfo.CanMove)
                 {
                     _logger.LogInformation($"Warp to map index: {mapInfo.Index} ({mapInfo.DisplayName}) requested by player.");
-                    MapWarpRequested?.Invoke(mapInfo.Index);
+                    // Pass both index and display name so listeners know the exact map
+                    MapWarpRequested?.Invoke(mapInfo.Index, mapInfo.DisplayName);
                     Visible = false;
                 }
                 else
