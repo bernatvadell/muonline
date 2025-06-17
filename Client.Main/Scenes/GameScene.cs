@@ -37,7 +37,7 @@ namespace Client.Main.Scenes
         private ChatLogWindow _chatLog;
         private MoveCommandWindow _moveCommandWindow;
         private ChatInputBoxControl _chatInput;
-        private InventoryControl _inventoryControl; // Dodaj to pole
+        private InventoryControl _inventoryControl;
         private NotificationManager _notificationManager;
         private PartyPanelControl _partyPanel;
         private readonly (string Name, CharacterClassNumber Class, ushort Level) _characterInfo;
