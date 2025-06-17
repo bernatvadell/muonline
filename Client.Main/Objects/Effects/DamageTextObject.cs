@@ -1,43 +1,102 @@
+using System;
+using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System.Threading.Tasks;
-using Client.Main.Controllers;  // For GraphicsManager
-using Client.Main.Models;
+using Client.Main.Controllers;
 using Client.Main.Helpers;
-using Client.Main.Objects.Player; // Required for PlayerObject check
-using Client.Main.Scenes;      // For GameScene
+using Client.Main.Models;
+using Client.Main.Objects.Player;
+using Client.Main.Scenes;
 
 namespace Client.Main.Objects.Effects
 {
+    /// <summary>
+    /// Floating damage / crit text above a target.
+    /// </summary>
     public class DamageTextObject : WorldObject
     {
+        // Public readonly data -------------------------------------------------
         public string Text { get; }
         public Color TextColor { get; }
         public ushort TargetId { get; }
-        private float _currentVerticalOffset = 0f;
 
-        private const float Lifetime = 1.2f;          // Total lifetime in seconds
-        private float _elapsedTime = 0f;
-        private Vector2 _screenPosition; // Calculated screen position for drawing
-        private const float VerticalSpeed = -40f;     // Pixels per second (negative for upward screen movement)
+        // Animation state ------------------------------------------------------
+        private float _currentVerticalOffset;
+        private float _currentHorizontalOffset;
+        private float _verticalVelocity;
+        private float _horizontalVelocity;
+        private float _currentScale = StartScale;
+        private bool _falling;
+        private float _elapsedTime;
+        private Vector2 _screenPosition;
 
-        // Z-offset constants for positioning text above the target's anchor point
-        private const float PlayerHeadBoneTextOffsetZ = 50f;   // Offset above the player's head bone.
-        private const float PlayerModelTopTextOffsetZ = 30f;   // Offset above the calculated top of the player model (fallback).
-        private const float MonsterBBoxTopTextOffsetZ = 30f;   // Offset above a monster's bounding box top.
+        // Visual-effect helpers ------------------------------------------------
+        private readonly bool _isCritical;
+        private readonly float _wobbleAmplitude;
+        private readonly float _wobbleFrequency;
+        private readonly Vector2 _shadowOffset;
+        private readonly float _glowIntensity;
+        private float _pulsePhase;
+        private readonly Color _originalColor;
+
+        // Tunables (already toned down vs. stock) ------------------------------
+        private const float MaxVerticalOffset = 60f;
+        private const float StartScale = 0.4f;
+        private const float MaxScale = 1.5f;
+        private const float EndScale = 0.2f;
+        private const float Lifetime = 2.0f;
+
+        private const float InitialVerticalSpeed = -120f;
+        private const float HorizontalSpeedRange = 150f;
+        private const float Gravity = 200f;
+
+        // Z offsets for anchor placement
+        private const float PlayerHeadBoneTextOffsetZ = 50f;
+        private const float PlayerModelTopTextOffsetZ = 30f;
+        private const float MonsterBBoxTopTextOffsetZ = 30f;
+
+        // Boldness (glow / shadow / highlight) cut 50 %
+        private const float ShadowAlpha = 0.125f; // was 0.25
+        private const float GlowAlphaMul = 0.15f;  // was 0.30–0.60
+        private const float HighlightAlphaMul = 0.075f; // was 0.15
+
+        // ---------------------------------------------------------------------
 
         public DamageTextObject(string text, ushort targetId, Color color)
         {
             Text = text;
             TargetId = targetId;
             TextColor = color;
-            Alpha = 1.0f;
-            Scale = 1.0f; // This scale is for the text itself if SpriteFont supports it
+            _originalColor = color;
+
+            Alpha = 1f;
+            Scale = 1f;
             IsTransparent = true;
-            AffectedByTransparency = false; // Damage text should always be visible on top
+            AffectedByTransparency = false;
             Status = GameControlStatus.Ready;
-            // Position will be set in Update based on the target.
+
+            // Critical hit detection
+            _isCritical = text.Contains("!") || text.Contains("CRIT") ||
+                          (int.TryParse(text, out int dmg) && dmg > 500);
+
+            // Randomised motion -------------------------------------------------
+            float speedFactor = _isCritical ? 1.5f : 1f;
+            _verticalVelocity = (InitialVerticalSpeed +
+                                  MathHelper.Lerp(-30f, 30f, (float)MuGame.Random.NextDouble())) * speedFactor;
+            _horizontalVelocity = MathHelper.Lerp(-HorizontalSpeedRange,
+                                                  HorizontalSpeedRange,
+                                                  (float)MuGame.Random.NextDouble());
+
+            _wobbleAmplitude = MathHelper.Lerp(2f, 6f, (float)MuGame.Random.NextDouble());
+            _wobbleFrequency = MathHelper.Lerp(4f, 6f, (float)MuGame.Random.NextDouble());
+            _pulsePhase = (float)MuGame.Random.NextDouble() * MathHelper.TwoPi;
+            _shadowOffset = new Vector2(1f, 1f);
+            _glowIntensity = _isCritical ? 0.2f : 0.05f;   // halved
         }
+
+        // ---------------------------------------------------------------------
+        //  Core pipeline
+        // ---------------------------------------------------------------------
 
         public override Task Load()
         {
@@ -52,129 +111,131 @@ namespace Client.Main.Objects.Effects
             float delta = (float)gameTime.ElapsedGameTime.TotalSeconds;
             _elapsedTime += delta;
 
-            if (_elapsedTime >= Lifetime || Alpha <= 0.01f) // Also remove if fully faded
+            if (_elapsedTime >= Lifetime || Alpha <= 0.01f)
             {
-                this.Hidden = true; // Mark as hidden to stop drawing
+                Hidden = true;
                 World?.RemoveObject(this);
                 Dispose();
                 return;
             }
 
-            float fadeStart = Lifetime * 0.6f; // Start fading a bit later
+            #region fade-out
+            float fadeStart = Lifetime * 0.5f;
             if (_elapsedTime > fadeStart)
             {
-                Alpha = MathHelper.Clamp(1.0f - (_elapsedTime - fadeStart) / (Lifetime - fadeStart), 0f, 1f);
+                float p = (_elapsedTime - fadeStart) / (Lifetime - fadeStart);
+                Alpha = MathHelper.Clamp(1f - p * p, 0f, 1f);   // quadratic fade
             }
+            #endregion
 
-            _currentVerticalOffset += VerticalSpeed * delta;
-
-            WalkerObject target = null;
-            var gameScene = MuGame.Instance?.ActiveScene as GameScene; // Get the GameScene instance
-
-            if (World != null && gameScene != null)
+            #region motion
+            if (!_falling)
             {
-                var localPlayerId = MuGame.Network.GetCharacterState().Id;
-                if (TargetId == localPlayerId)
+                _currentVerticalOffset += _verticalVelocity * delta;
+                if (-_currentVerticalOffset >= MaxVerticalOffset)
                 {
-                    target = gameScene.Hero;
-                }
-                else
-                {
-                    if (!World.TryGetWalkerById(TargetId, out target))
-                    {
-                        // Target might have been removed from world or is not a WalkerObject; handled by null check below.
-                    }
+                    _falling = true;
+                    _verticalVelocity = 0f;
                 }
             }
-
-            if (target == null || target.Status == GameControlStatus.Disposed || target.Status == GameControlStatus.Error || target.Hidden ||
-                (target.Status == GameControlStatus.Ready && target.OutOfView)) // Added Status.Ready check for OutOfView
+            else
             {
-                this.Hidden = true;
-                // If target is gone, or not ready for display, we don't need to update our 3D position.
-                // The lifetime check above will handle removal.
+                _verticalVelocity += Gravity * delta;
+                _currentVerticalOffset += _verticalVelocity * delta;
+            }
+
+            _currentHorizontalOffset += _horizontalVelocity * delta;
+            _horizontalVelocity *= 0.95f;
+            #endregion
+
+            _pulsePhase += delta * _wobbleFrequency;
+            float wobble = (float)Math.Sin(_pulsePhase) * _wobbleAmplitude * (_currentScale / MaxScale);
+
+            #region scaling
+            float progress = _elapsedTime / Lifetime;
+            if (!_falling)
+            {
+                float rise = MathHelper.Clamp(-_currentVerticalOffset / MaxVerticalOffset, 0f, 1f);
+                _currentScale = MathHelper.SmoothStep(StartScale, MaxScale, rise);
+            }
+            else
+            {
+                float fall = MathHelper.Clamp(progress, 0.5f, 1f);
+                fall = (fall - 0.5f) * 2f;
+                _currentScale = MathHelper.Lerp(MaxScale, EndScale, fall * fall * fall);
+            }
+            #endregion
+
+            // ------------------------------------------------ target + projection
+            WalkerObject target = ResolveTarget();
+            if (target == null || target.Hidden || target.Status == GameControlStatus.Disposed || target.OutOfView)
+            {
+                Hidden = true;
                 return;
             }
 
             Position = CalculateAnchorPoint(target);
 
-            // The base.Update() call below is important.
-            // This WorldObject's Position is set by CalculateAnchorPoint.
-            // The Position setter calls RecalculateWorldPosition(), which computes WorldPosition matrix.
-            // The base.Update() then computes BoundingBoxWorld from BoundingBoxLocal and WorldPosition.
-            // It also updates OutOfView based on the new BoundingBoxWorld.
-            // This is standard WorldObject lifecycle. For a screen-space effect like this,
-            // the 3D bounding box and OutOfView are less critical but maintain consistency.
-
-            // Project to screen coordinates using the final world position of the text
-            Vector3 projectedPos = GraphicsDevice.Viewport.Project(
-                this.Position, // Use the 3D anchor point
+            Vector3 proj = GraphicsDevice.Viewport.Project(
+                Position,
                 Camera.Instance.Projection,
                 Camera.Instance.View,
                 Matrix.Identity);
 
-            _screenPosition = new Vector2(projectedPos.X, projectedPos.Y + _currentVerticalOffset);
+            // final screen coordinates
+            _screenPosition = new Vector2(
+                proj.X + _currentHorizontalOffset + wobble,
+                proj.Y + _currentVerticalOffset);
+
+            Hidden = (proj.Z < 0f || proj.Z > 1f);
             base.Update(gameTime);
-            // Update Hidden based on Z-clipping for drawing purposes
-            this.Hidden = (projectedPos.Z < 0f || projectedPos.Z > 1f);
-        }
-
-        private Vector3 CalculateAnchorPoint(WalkerObject target)
-        {
-            const int PLAYER_HEAD_BONE_INDEX = 20; // Assumed head bone index for Player.bmd (used for player head attachment)
-            const float PLAYER_LOCAL_HEAD_HEIGHT_APPROX = 130f; // Approximate Z height of player's head from their local origin (feet)
-
-            if (target is PlayerObject playerTarget)
-            {
-                var boneTransforms = playerTarget.GetBoneTransforms();
-                if (boneTransforms != null && boneTransforms.Length > PLAYER_HEAD_BONE_INDEX && boneTransforms[PLAYER_HEAD_BONE_INDEX] != default)
-                {
-                    // Preferred method: Attach to head bone if available.
-                    // BoneTransform[X].Translation is the local-to-model-origin position of the bone.
-                    Vector3 headBoneLocalPosition = boneTransforms[PLAYER_HEAD_BONE_INDEX].Translation;
-                    Vector3 headBoneWorldPosition = Vector3.Transform(headBoneLocalPosition, playerTarget.WorldPosition);
-                    return headBoneWorldPosition + Vector3.UnitZ * PlayerHeadBoneTextOffsetZ;
-                }
-                else
-                {
-                    // Fallback for Player: Use an estimated head height.
-                    // Player's `Position.Z` is at their feet. Add scaled local head height and an additional offset.
-                    float worldHeadHeight = playerTarget.Position.Z + (PLAYER_LOCAL_HEAD_HEIGHT_APPROX * playerTarget.TotalScale);
-                    return new Vector3(playerTarget.Position.X, playerTarget.Position.Y, worldHeadHeight + PlayerModelTopTextOffsetZ);
-                }
-            }
-            else // For MonsterObject or other non-PlayerObject WalkerObjects
-            {
-                // Use the top-center of the monster's world bounding box.
-                return new Vector3(
-                    (target.BoundingBoxWorld.Min.X + target.BoundingBoxWorld.Max.X) * 0.5f,
-                    (target.BoundingBoxWorld.Min.Y + target.BoundingBoxWorld.Max.Y) * 0.5f,
-                    target.BoundingBoxWorld.Max.Z + MonsterBBoxTopTextOffsetZ);
-            }
         }
 
         public override void Draw(GameTime gameTime)
         {
-            // DamageTextObject is a 2D screen effect, so it doesn't have a 3D model to draw in the main Draw pass.
+            /* 3-D part intentionally left empty. */
         }
 
         public override void DrawAfter(GameTime gameTime)
         {
-            if (!Visible || Alpha <= 0.01f)
-                return;
+            if (!Visible || Alpha <= 0.01f) return;
 
             var spriteBatch = GraphicsManager.Instance.Sprite;
             var font = GraphicsManager.Instance.Font;
-            if (spriteBatch == null || font == null)
-                return;
+            if (spriteBatch == null || font == null) return;
 
-            float fontSize = 14f;
-            // Ensure text is not too small by clamping scaleFactor
-            float scaleFactorClamped = System.Math.Max(0.5f, fontSize / Constants.BASE_FONT_SIZE);
-            float scaleFactor = fontSize / Constants.BASE_FONT_SIZE;
+            const float fontSize = 12f;
+            float baseScale = fontSize / Constants.BASE_FONT_SIZE;
+            float scale = Math.Max(0.1f, baseScale * _currentScale);
             Vector2 origin = font.MeasureString(Text) * 0.5f;
-            Color color = TextColor * Alpha;
 
+            // colour ------------------------------------------------------------------
+            Color baseColor, glowColor;
+            if (!_falling)
+            {
+                float bright = 1f + (_currentScale - StartScale) / (MaxScale - StartScale) * 0.2f;
+                float pulse = (float)Math.Sin(_pulsePhase * 2) * 0.1f + 1f;
+
+                baseColor = new Color(
+                    (int)MathHelper.Clamp(_originalColor.R * bright * pulse, 0, 255),
+                    (int)MathHelper.Clamp(_originalColor.G * bright * pulse, 0, 255),
+                    (int)MathHelper.Clamp(_originalColor.B * bright * pulse, 0, 255),
+                    _originalColor.A) * Alpha;
+
+                glowColor = new Color(
+                    Math.Min(255, baseColor.R + 20),
+                    Math.Min(255, baseColor.G + 15),
+                    Math.Min(255, baseColor.B + 15),
+                    (int)(baseColor.A * _glowIntensity * GlowAlphaMul));
+            }
+            else
+            {
+                baseColor = TextColor * Alpha;
+                glowColor = new Color(baseColor.R, baseColor.G, baseColor.B,
+                                      (int)(baseColor.A * GlowAlphaMul));
+            }
+
+            // --------------------------------------------------------------------------
             using (new SpriteBatchScope(
                 spriteBatch,
                 SpriteSortMode.Deferred,
@@ -183,18 +244,89 @@ namespace Client.Main.Objects.Effects
                 DepthStencilState.None,
                 RasterizerState.CullNone))
             {
+                // Shadow (only for bigger text)
+                if (scale > 0.8f)
+                {
+                    spriteBatch.DrawString(
+                        font, Text,
+                        _screenPosition + _shadowOffset,
+                        Color.Black * (Alpha * ShadowAlpha),
+                        0f, origin, scale, SpriteEffects.None, 0f);
+                }
+
+                // Soft glow
+                if (_glowIntensity > 0.05f)
+                {
+                    spriteBatch.DrawString(
+                        font, Text,
+                        _screenPosition + new Vector2(1f, 1f),
+                        glowColor,
+                        0f, origin, scale, SpriteEffects.None, 0f);
+                }
+
+                // Main text
                 spriteBatch.DrawString(
-                    font,
-                    Text,
-                    _screenPosition, // _screenPosition is already calculated with _currentVerticalOffset
-                    color,
-                    0f,
-                    origin,
-                    scaleFactorClamped,
-                    SpriteEffects.None,
-                    0f);
+                    font, Text,
+                    _screenPosition,
+                    baseColor,
+                    0f, origin, scale, SpriteEffects.None, 0f);
+
+                // Highlight for big crits
+                if (_isCritical && !_falling && _currentScale > MaxScale * 0.8f)
+                {
+                    Color hi = Color.White * (Alpha * HighlightAlphaMul *
+                                              (float)Math.Sin(_pulsePhase * 3));
+                    if (hi.A > 5)
+                    {
+                        spriteBatch.DrawString(
+                            font, Text,
+                            _screenPosition,
+                            hi,
+                            0f, origin, scale * 1.02f, SpriteEffects.None, 0f);
+                    }
+                }
             }
         }
 
+        // ---------------------------------------------------------------------
+        //  Helpers
+        // ---------------------------------------------------------------------
+
+        private WalkerObject ResolveTarget()
+        {
+            var scene = MuGame.Instance?.ActiveScene as GameScene;
+            if (scene == null || World == null) return null;
+
+            ushort localId = MuGame.Network.GetCharacterState().Id;
+            if (TargetId == localId) return scene.Hero;
+
+            return World.TryGetWalkerById(TargetId, out WalkerObject obj) ? obj : null;
+        }
+
+        private Vector3 CalculateAnchorPoint(WalkerObject target)
+        {
+            const int PlayerHeadBoneIndex = 20;
+            const float ApproxHeadHeight = 130f;
+
+            if (target is PlayerObject player)
+            {
+                var bones = player.GetBoneTransforms();
+                if (bones != null &&
+                    bones.Length > PlayerHeadBoneIndex &&
+                    bones[PlayerHeadBoneIndex] != default)
+                {
+                    Vector3 local = bones[PlayerHeadBoneIndex].Translation;
+                    Vector3 world = Vector3.Transform(local, player.WorldPosition);
+                    return world + Vector3.UnitZ * PlayerHeadBoneTextOffsetZ;
+                }
+                return player.Position + Vector3.UnitZ *
+                       (ApproxHeadHeight + PlayerModelTopTextOffsetZ);
+            }
+
+            return new Vector3(
+                (target.BoundingBoxWorld.Min.X + target.BoundingBoxWorld.Max.X) * 0.5f,
+                (target.BoundingBoxWorld.Min.Y + target.BoundingBoxWorld.Max.Y) * 0.5f,
+                target.BoundingBoxWorld.Max.Z + MonsterBBoxTopTextOffsetZ);
+        }
     }
 }

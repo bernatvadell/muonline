@@ -260,7 +260,7 @@ namespace Client.Main
                     action.Invoke();
                     //queueLogger?.LogTrace("Action #{Count} executed successfully.", actionCount);
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     //queueLogger?.LogError(ex, "Error executing action #{Count} scheduled on main thread.", actionCount);
                 }

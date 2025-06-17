@@ -50,6 +50,177 @@ namespace Client.Main.Networking.Services
             }
         }
 
+        /// <summary>
+        /// Sends a response to a party invitation.
+        /// </summary>
+        public async Task SendPartyResponseAsync(bool accepted, ushort requesterId)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot respond to party invite.");
+                return;
+            }
+
+            _logger.LogInformation("Sending party response: Accepted={Accepted}, RequesterId={Id}", accepted, requesterId);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new PartyInviteResponse(_connectionManager.Connection.Output.GetMemory(PartyInviteResponse.Length).Slice(0, PartyInviteResponse.Length));
+                    packet.Accepted = accepted;
+                    packet.RequesterId = requesterId;
+                    return PartyInviteResponse.Length;
+                });
+                _logger.LogInformation("Party response sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending party response.");
+            }
+        }
+
+        /// <summary>
+        /// Sends a request to kick a player from party (or leave party yourself).
+        /// </summary>
+        /// <param name="playerIndex">Index of player to kick (or your own index to leave party)</param>
+        public async Task SendPartyKickRequestAsync(byte playerIndex)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send party kick request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending party kick request for player index {PlayerIndex}", playerIndex);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new PartyPlayerKickRequest(_connectionManager.Connection.Output.GetMemory(PartyPlayerKickRequest.Length).Slice(0, PartyPlayerKickRequest.Length));
+                    packet.PlayerIndex = playerIndex;
+                    return PartyPlayerKickRequest.Length;
+                });
+                _logger.LogInformation("Party kick request sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending party kick request.");
+            }
+        }
+
+        /// <summary>
+        /// Sends a request for the current party list.
+        /// </summary>
+        public async Task RequestPartyListAsync()
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogWarning("Not connected — cannot request party list.");
+                return;
+            }
+
+            _logger.LogTrace("Sending PartyListRequest..."); // Użyj LogTrace, aby nie zaśmiecać logów
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new PartyListRequest(_connectionManager.Connection.Output.GetMemory(PartyListRequest.Length).Slice(0, PartyListRequest.Length));
+                    return PartyListRequest.Length;
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending PartyListRequest packet.");
+            }
+        }
+
+        /// <summary>
+        /// Sends a response to a guild join invitation.
+        /// </summary>
+        public async Task SendGuildJoinResponseAsync(bool accepted, ushort requesterId)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot respond to guild invite.");
+                return;
+            }
+
+            _logger.LogInformation("Sending guild join response: Accepted={Accepted}, RequesterId={Id}", accepted, requesterId);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new GuildJoinResponse(_connectionManager.Connection.Output.GetMemory(GuildJoinResponse.Length).Slice(0, GuildJoinResponse.Length));
+                    packet.Accepted = accepted;
+                    packet.RequesterId = requesterId;
+                    return GuildJoinResponse.Length;
+                });
+                _logger.LogInformation("Guild join response sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending guild join response.");
+            }
+        }
+
+        /// <summary>
+        /// Sends a response to a trade request.
+        /// </summary>
+        public async Task SendTradeResponseAsync(bool accepted)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot respond to trade request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending trade response: Accepted={Accepted}", accepted);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new TradeRequestResponse(_connectionManager.Connection.Output.GetMemory(TradeRequestResponse.Length).Slice(0, TradeRequestResponse.Length));
+                    packet.TradeAccepted = accepted;
+                    return TradeRequestResponse.Length;
+                });
+                _logger.LogInformation("Trade response sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending trade response.");
+            }
+        }
+
+        /// <summary>
+        /// Sends a response to a duel request.
+        /// </summary>
+        public async Task SendDuelResponseAsync(bool accepted, ushort requesterId, string requesterName)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot respond to duel request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending duel response: Accepted={Accepted}, RequesterId={Id}", accepted, requesterId);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new DuelStartResponse(_connectionManager.Connection.Output.GetMemory(DuelStartResponse.Length).Slice(0, DuelStartResponse.Length));
+                    packet.Response = accepted;
+                    packet.PlayerId = requesterId;
+                    packet.PlayerName = requesterName;
+                    return DuelStartResponse.Length;
+                });
+                _logger.LogInformation("Duel response sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending duel response.");
+            }
+        }
+
         public async Task SendWarpCommandRequestAsync(ushort warpInfoIndex, uint commandKey = 0)
         {
             if (!_connectionManager.IsConnected)
@@ -276,13 +447,13 @@ namespace Client.Main.Networking.Services
                 switch (version)
                 {
                     case TargetProtocolVersion.Season6:
-                                        case TargetProtocolVersion.Version097:
-                    await _connectionManager.Connection.SendPickupItemRequestAsync(itemIdMasked);
-                                            break;
-                                        case TargetProtocolVersion.Version075:
-                    await _connectionManager.Connection.SendPickupItemRequest075Async(itemIdMasked);
-                                            break;
-                                    }
+                    case TargetProtocolVersion.Version097:
+                        await _connectionManager.Connection.SendPickupItemRequestAsync(itemIdMasked);
+                        break;
+                    case TargetProtocolVersion.Version075:
+                        await _connectionManager.Connection.SendPickupItemRequest075Async(itemIdMasked);
+                        break;
+                }
                 _logger.LogInformation("Pickup item request sent for itemId: {ItemId}.", itemIdMasked);
             }
             catch (Exception ex)

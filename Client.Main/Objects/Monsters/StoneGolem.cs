@@ -23,6 +23,12 @@ namespace Client.Main.Objects.Monsters
             await base.Load();
             // C++: PlaySpeed *= 0.7f for actions Stop1 to Die (except Die itself) if Type == 25
             // Apply if needed based on action indices
+            SetActionSpeed(MonsterActionType.Stop1, 0.25f * 0.7f);
+            SetActionSpeed(MonsterActionType.Stop2, 0.20f * 0.7f);
+            SetActionSpeed(MonsterActionType.Walk, 0.34f * 0.7f);
+            SetActionSpeed(MonsterActionType.Attack1, 0.33f * 0.7f);
+            SetActionSpeed(MonsterActionType.Attack2, 0.33f * 0.7f);
+            SetActionSpeed(MonsterActionType.Shock, 0.5f * 0.7f);
             // C++: Models[MODEL_MONSTER01+Type].BoneHead = 5;
         }
 

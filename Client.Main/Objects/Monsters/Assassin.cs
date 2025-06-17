@@ -21,8 +21,8 @@ namespace Client.Main.Objects.Monsters
             // Model Loading Type: 14 -> File Number: 14 + 1 = 15
             Model = await BMDLoader.Instance.Prepare($"Monster/Monster15.bmd");
             await base.Load();
+            SetActionSpeed(MonsterActionType.Stop2, 0.35f);
             // C++: Models[MODEL_MONSTER01+Type].BoneHead = 20; (Additional info)
-            // C++: b->Actions[MONSTER01_STOP2].PlaySpeed = 0.35f; (Requires mapping MonsterActionType)
         }
 
         // Sound mapping based on C++ SetMonsterSound(MODEL_MONSTER01 + Type, -1, -1, 65, 66, 67);
@@ -33,7 +33,7 @@ namespace Client.Main.Objects.Monsters
             base.OnPerformAttack(attackType);
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
             SoundController.Instance.PlayBufferWithAttenuation("Sound/mAssassinAttack1.wav", Position, listenerPosition); // Index 2 -> Sound 65
-                                                                                                                          // SoundController.Instance.PlayBufferWithAttenuation("Sound/mAssassinAttack2.wav", Position, listenerPosition); // Index 3 -> Sound 66
+            // SoundController.Instance.PlayBufferWithAttenuation("Sound/mAssassinAttack2.wav", Position, listenerPosition); // Index 3 -> Sound 66
         }
 
         public override void OnDeathAnimationStart()

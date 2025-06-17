@@ -10,7 +10,7 @@ namespace Client.Main.Objects.NPCS
     {
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare("NPC/Snow_Smith.bmd");
+            Model = await BMDLoader.Instance.Prepare("NPC/SnowSmith01.bmd");
             await base.Load();
         }
         protected override void HandleClick() { }

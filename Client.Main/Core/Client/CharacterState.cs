@@ -149,6 +149,21 @@ namespace Client.Main.Core.Client
         private byte[] _pendingPickedItem;
 
         /// <summary>
+        /// Gets the raw ID of the item currently being picked up, if any.
+        /// </summary>
+        public ushort? PendingPickupRawId { get; private set; }
+
+        /// <summary>
+        /// Sets the raw ID of the item currently being picked up.
+        /// </summary>
+        public void SetPendingPickupRawId(ushort rawId) => PendingPickupRawId = rawId;
+
+        /// <summary>
+        /// Clears the stored raw ID of the item pickup attempt.
+        /// </summary>
+        public void ClearPendingPickupRawId() => PendingPickupRawId = null;
+
+        /// <summary>
         /// Stores item data temporarily before a pickup attempt.
         /// </summary>
         public void StashPickedItem(byte[] rawItemData)
@@ -500,8 +515,18 @@ namespace Client.Main.Core.Client
                     byte slot = kvp.Key;
                     byte[] itemData = kvp.Value;
                     string itemName = ItemDatabase.GetItemName(itemData) ?? "Unknown Item";
-                    string itemDetails = ParseItemDetails(itemData);
-                    sb.AppendLine($"  Slot {slot,3}: {itemName}{itemDetails}");
+
+                    // Użycie nowej logiki do wyświetlania
+                    var details = ItemDatabase.ParseItemDetails(itemData);
+                    var sbDetails = new StringBuilder();
+                    if (details.Level > 0) sbDetails.Append($" +{details.Level}");
+                    if (details.HasSkill) sbDetails.Append(" +Skill");
+                    if (details.HasLuck) sbDetails.Append(" +Luck");
+                    if (details.OptionLevel > 0) sbDetails.Append($" +{details.OptionLevel * 4} Opt");
+                    if (details.IsExcellent) sbDetails.Append(" +Exc");
+                    if (details.IsAncient) sbDetails.Append(" +Anc");
+
+                    sb.AppendLine($"  Slot {slot,3}: {itemName}{sbDetails}");
                 }
             }
             sb.AppendLine($"  Expansion State: {InventoryExpansionState}");

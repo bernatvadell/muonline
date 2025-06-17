@@ -182,41 +182,52 @@ namespace Client.Main.Content
 
             string normalizedKey = path.ToLowerInvariant();
 
-            if (!_textures.TryGetValue(normalizedKey, out ClientTexture textureData))
+            if (!_textures.TryGetValue(normalizedKey, out ClientTexture clientTexture))
                 return null;
 
-            if (textureData.Texture != null)
-                return textureData.Texture;
+            if (clientTexture.Texture != null)
+                return clientTexture.Texture;
 
-            if (textureData.Info?.Width == 0 || textureData.Info?.Height == 0 || textureData.Info.Data == null)
+            var textureInfo = clientTexture.Info;
+            if (textureInfo?.Width == 0 || textureInfo?.Height == 0 || textureInfo.Data == null)
                 return null;
 
-            var texture = new Texture2D(_graphicsDevice, (int)textureData.Info.Width, (int)textureData.Info.Height);
-            textureData.Texture = texture;
+            Texture2D texture;
 
-            int pixelCount = texture.Width * texture.Height;
-            int components = textureData.Info.Components;
-
-            if (components != 3 && components != 4)
+            if (textureInfo.IsCompressed)
             {
-                _logger?.LogDebug($"Unsupported texture components: {components} for texture {path}");
-                return null;
+                texture = new Texture2D(_graphicsDevice, textureInfo.Width, textureInfo.Height, false, textureInfo.Format);
+                texture.SetData(textureInfo.Data);
+            }
+            else
+            {
+                texture = new Texture2D(_graphicsDevice, textureInfo.Width, textureInfo.Height);
+                int pixelCount = texture.Width * texture.Height;
+                int components = textureInfo.Components;
+
+                if (components != 3 && components != 4)
+                {
+                    _logger?.LogDebug($"Unsupported texture components: {components} for texture {path}");
+                    return null;
+                }
+
+                Color[] pixelData = new Color[pixelCount];
+                byte[] data = textureInfo.Data;
+
+                for (int i = 0; i < pixelData.Length; i++)
+                {
+                    int dataIndex = i * components;
+                    byte r = data[dataIndex];
+                    byte g = data[dataIndex + 1];
+                    byte b = data[dataIndex + 2];
+                    byte a = components == 4 ? data[dataIndex + 3] : (byte)255;
+                    pixelData[i] = new Color(r, g, b, a);
+                }
+
+                texture.SetData(pixelData);
             }
 
-            Color[] pixelData = new Color[pixelCount];
-            byte[] data = textureData.Info.Data;
-
-            for (int i = 0; i < pixelData.Length; i++)
-            {
-                int dataIndex = i * components;
-                byte r = data[dataIndex];
-                byte g = data[dataIndex + 1];
-                byte b = data[dataIndex + 2];
-                byte a = components == 4 ? data[dataIndex + 3] : (byte)255;
-                pixelData[i] = new Color(r, g, b, a);
-            }
-
-            texture.SetData(pixelData);
+            clientTexture.Texture = texture;
             return texture;
         }
     }

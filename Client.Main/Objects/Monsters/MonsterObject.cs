@@ -1,4 +1,5 @@
 ﻿using Client.Main.Models;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using System.Linq;
 
@@ -15,6 +16,11 @@ namespace Client.Main.Objects.Monsters
         private const float SinkDistance = 20f;
 
         /// <summary>
+        /// Determines whether a blood stain should be spawned when the monster dies.
+        /// </summary>
+        public bool Blood { get; set; } = true;
+
+        /// <summary>
         /// Gets the monster's display name defined by <see cref="NpcInfoAttribute"/>.
         /// </summary>
         public override string DisplayName
@@ -29,7 +35,7 @@ namespace Client.Main.Objects.Monsters
         }
 
         // --- Constructors ---
-        public MonsterObject()
+        public MonsterObject() : base()
         {
             Interactive = true;
             AnimationSpeed = 4f;
@@ -42,6 +48,17 @@ namespace Client.Main.Objects.Monsters
             _fadeDuration = duration;
             _fadeTimer = 0f;
             _startZ = Position.Z;
+
+            if (Blood && World != null)
+            {
+                var stain = new Effects.BloodStainEffect
+                {
+                    Position = new Vector3(Position.X, Position.Y,
+                        World.Terrain.RequestTerrainHeight(Position.X, Position.Y))
+                };
+                World.Objects.Add(stain);
+                _ = stain.Load(); //TODO: BLOOD
+            }
         }
 
         /// <summary>
@@ -162,5 +179,31 @@ namespace Client.Main.Objects.Monsters
             _lastActionForIdleSound = -1;
             // Override to play death sound.
         }
+
+        // --- Helper method for setting speed ---
+        protected bool IsValidAction(int actionIndex)
+        {
+            return Model != null
+                && Model.Actions != null
+                && actionIndex >= 0
+                && actionIndex < Model.Actions.Length
+                && Model.Actions[actionIndex] != null;
+        }
+
+        protected void SetActionSpeed(MonsterActionType actionType, float speed)
+        {
+            int actionIndex = (int)actionType;
+            if (IsValidAction(actionIndex))
+            {
+                var action = Model.Actions[actionIndex];
+                action.PlaySpeed = speed * 2;
+            }
+            else
+            {
+                _logger?.LogDebug($"Warning: Cannot set PlaySpeed for action {(MonsterActionType)actionType} ({actionIndex}). Action does not exist or is null.");
+            }
+        }
+
+        protected ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<MonsterObject>();
     }
 }

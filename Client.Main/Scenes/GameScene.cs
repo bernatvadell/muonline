@@ -22,6 +22,7 @@ using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Helpers;
 using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Networking;
+using Client.Main.Core.Models;
 
 namespace Client.Main.Scenes
 {
@@ -36,8 +37,9 @@ namespace Client.Main.Scenes
         private ChatLogWindow _chatLog;
         private MoveCommandWindow _moveCommandWindow;
         private ChatInputBoxControl _chatInput;
-        private InventoryControl _inventoryControl; // Dodaj to pole
+        private InventoryControl _inventoryControl;
         private NotificationManager _notificationManager;
+        private PartyPanelControl _partyPanel;
         private readonly (string Name, CharacterClassNumber Class, ushort Level) _characterInfo;
         private KeyboardState _previousKeyboardState;
         private bool _isChangingWorld = false;
@@ -147,6 +149,9 @@ namespace Client.Main.Scenes
             _characterInfoWindow = new CharacterInfoWindowControl { X = 20, Y = 50, Visible = false };
             Controls.Add(_characterInfoWindow);
 
+            _partyPanel = new PartyPanelControl();
+            Controls.Add(_partyPanel);
+
             _chatInput.BringToFront();
             DebugPanel.BringToFront();
             Cursor.BringToFront();
@@ -218,6 +223,8 @@ namespace Client.Main.Scenes
             _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: _hero.NetworkId set to {charState.Id:X4}, Location set to ({charState.PositionX}, {charState.PositionY}).");
 
             UpdateLoadProgress("Hero info applied.", 0.1f);
+            _hero.PlayerMoved += OnHeroAction;
+            _hero.PlayerTookDamage += OnHeroAction;
 
             // 2. Determine Initial World (Quick)
             UpdateLoadProgress("Determining initial world...", 0.15f);
@@ -304,6 +311,7 @@ namespace Client.Main.Scenes
             {
                 await ImportPendingRemotePlayers();
                 await ImportPendingNpcsMonsters();
+                await ImportPendingDroppedItems();
             }
             else
             {
@@ -314,12 +322,17 @@ namespace Client.Main.Scenes
             // Preload sounds for dropped items
             UpdateLoadProgress("Preloading sounds...", 0.96f);
             PreloadSounds();
-            UpdateLoadProgress("Sounds preloaded.", 0.97f);
+            UpdateLoadProgress("Sounds preloaded.", 0.965f);
+
+            // Preload NPC and monster textures
+            UpdateLoadProgress("Preloading NPC textures...", 0.97f);
+            await PreloadNpcTextures();
+            UpdateLoadProgress("NPC textures preloaded.", 0.975f);
 
             // Preload UI textures so opening windows doesn't cause stalls
-            UpdateLoadProgress("Preloading UI textures...", 0.975f);
+            UpdateLoadProgress("Preloading UI textures...", 0.98f);
             await PreloadUITextures();
-            UpdateLoadProgress("UI textures preloaded.", 0.985f);
+            UpdateLoadProgress("UI textures preloaded.", 0.99f);
 
             if (World is WalkableWorldControl finalWalkable)
             {
@@ -364,10 +377,11 @@ namespace Client.Main.Scenes
             }
         }
 
-        private async void OnMapWarpRequested(int mapIndex)
+        private async void OnMapWarpRequested(int mapIndex, string mapDisplayName)
         {
             _logger?.LogDebug($"Player requested warp to map index: {mapIndex}");
-            _chatLog.AddMessage("System", $"Warping to map index {mapIndex} requested.", MessageType.System);
+            var mapName = mapDisplayName;
+            _chatLog.AddMessage("System", $"Warping to {mapName} (ID {mapIndex})...", MessageType.System);
 
             try
             {
@@ -380,6 +394,14 @@ namespace Client.Main.Scenes
             }
         }
 
+        private void OnHeroAction(object sender, EventArgs e)
+        {
+            if (NpcShopControl.Instance.Visible)
+            {
+                _logger.LogInformation("Hero action detected, closing NPC shop window.");
+                NpcShopControl.Instance.Visible = false;
+            }
+        }
 
         // ─────────────────── Map Change Logic (Remains largely the same) ───────────────────
         public async Task ChangeMap(Type worldType)
@@ -439,6 +461,7 @@ namespace Client.Main.Scenes
                 _logger?.LogDebug("GameScene.ChangeMap: World is Ready. Importing pending objects...");
                 await ImportPendingRemotePlayers();
                 await ImportPendingNpcsMonsters();
+                await ImportPendingDroppedItems();
             }
             else
             {
@@ -535,6 +558,35 @@ namespace Client.Main.Scenes
                 };
                 w.Objects.Add(remote);
                 await remote.Load();
+            }
+        }
+
+        // ─────────────────── Import Dropped Items ───────────────────
+        private async Task ImportPendingDroppedItems()
+        {
+            if (World is not WalkableWorldControl w) return;
+
+            var scopeManager = MuGame.Network?.GetScopeManager();
+            if (scopeManager == null) return;
+
+            var allDrops = scopeManager.GetScopeItems(ScopeObjectType.Item)
+                                       .Concat(scopeManager.GetScopeItems(ScopeObjectType.Money))
+                                       .Cast<ScopeObject>();
+
+            foreach (var s in allDrops)
+            {
+                if (w.Objects.OfType<DroppedItemObject>().Any(d => d.NetworkId == s.Id))
+                    continue;
+
+                var obj = new DroppedItemObject(
+                    s,
+                    MuGame.Network.GetCharacterState().Id,
+                    MuGame.Network.GetCharacterService(),
+                    MuGame.AppLoggerFactory.CreateLogger<DroppedItemObject>());
+
+                w.Objects.Add(obj);
+                await obj.Load();
+                obj.Hidden = !w.IsObjectInView(obj);
             }
         }
 
@@ -718,7 +770,7 @@ namespace Client.Main.Scenes
                 for (int i = 0; i < Controls.Count; i++)
                 {
                     var ctrl = Controls[i];
-                    if (ctrl != World && ctrl != _inventoryControl?._pickedItemRenderer && ctrl.Visible)
+                    if (ctrl != World && ctrl.Visible)
                         ctrl.Draw(gameTime);
                 }
 
@@ -727,6 +779,21 @@ namespace Client.Main.Scenes
 
             base.Draw(gameTime);
             _characterInfoWindow?.BringToFront();
+        }
+
+        /// <summary>
+        /// Preloads textures for NPCs and monsters currently present in the world.
+        /// </summary>
+        private async Task PreloadNpcTextures()
+        {
+            if (World is not WalkableWorldControl world) return;
+
+            foreach (var walker in world.Objects.OfType<WalkerObject>())
+            {
+                if (walker is Objects.Player.PlayerObject) continue;
+                if (walker is ModelObject modelObject)
+                    await modelObject.PreloadTexturesAsync();
+            }
         }
 
         private void PreloadSounds()
@@ -745,12 +812,14 @@ namespace Client.Main.Scenes
             if (_inventoryControl != null)
             {
                 await _inventoryControl.Initialize();
+                await _inventoryControl.PreloadAssetsAsync();
                 _inventoryControl.Preload();
             }
 
             if (_characterInfoWindow != null)
             {
                 await _characterInfoWindow.Initialize();
+                await _characterInfoWindow.PreloadAssetsAsync();
             }
         }
 
@@ -769,6 +838,16 @@ namespace Client.Main.Scenes
             {
                 _ = MuGame.Network.SendPublicChatMessageAsync(e.Message);
             }
+        }
+
+        public override void Dispose()
+        {
+            if (_hero != null)
+            {
+                _hero.PlayerMoved -= OnHeroAction;
+                _hero.PlayerTookDamage -= OnHeroAction;
+            }
+            base.Dispose();
         }
     }
 }

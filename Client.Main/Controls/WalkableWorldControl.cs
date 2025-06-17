@@ -21,8 +21,6 @@ namespace Client.Main.Controls
         private float _cursorNextMoveTime;
         private int _previousScrollValue;
         private float _targetCameraDistance;
-        private float _minCameraDistance;
-        private float _maxCameraDistance;
 
         // --- Properties ---
 
@@ -141,8 +139,8 @@ namespace Client.Main.Controls
                 float zoomChange = scrollDiff / 100f * 100f;
                 _targetCameraDistance = MathHelper.Clamp(
                     _targetCameraDistance - zoomChange,
-                    _minCameraDistance,
-                    _maxCameraDistance);
+                    100f, // Assuming 100f as the minimum camera distance
+                    500f); // Assuming 500f as the maximum camera distance
             }
             _previousScrollValue = currentScroll;
 

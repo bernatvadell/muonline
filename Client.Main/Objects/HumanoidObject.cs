@@ -23,7 +23,7 @@ namespace Client.Main.Objects
         public WeaponObject Weapon2 { get; private set; }
         public WingObject Wings { get; private set; }
 
-        protected HumanoidObject()
+        protected HumanoidObject() : base()
         {
             _logger = AppLoggerFactory?.CreateLogger(GetType());
 
@@ -84,7 +84,7 @@ namespace Client.Main.Objects
             }
         }
 
-       
+
         public override void Draw(GameTime gameTime)
         {
             base.Draw(gameTime);
@@ -95,12 +95,46 @@ namespace Client.Main.Objects
             bool wasMoving = IsMoving;
             base.Update(gameTime);
 
+            if (Status == GameControlStatus.Ready)
+            {
+                UpdateWorldBoundingBox();
+            }
+
             if (wasMoving && !IsMoving && !IsOneShotPlaying)
             {
                 if (CurrentAction == (int)PlayerAction.WalkMale || CurrentAction == (int)PlayerAction.WalkFemale)
                 {
                     PlayAction((ushort)PlayerAction.StopMale);
                 }
+            }
+        }
+
+        protected override void UpdateWorldBoundingBox()
+        {
+            // 1. Wywołaj bazową implementację, aby obliczyć BoundingBox dla samego szkieletu.
+            // To jest ważne, bo inicjalizuje BoundingBoxWorld.
+            base.UpdateWorldBoundingBox();
+
+            // 2. Utwórz listę, która będzie przechowywać wszystkie punkty narożne (rogu) 
+            //    zarówno obiektu-rodzica, jak i wszystkich jego dzieci.
+            var allCorners = new List<Vector3>(BoundingBoxWorld.GetCorners());
+
+            // 3. Przejdź przez wszystkie obiekty-dzieci (zbroja, broń, skrzydła).
+            foreach (var child in Children)
+            {
+                // Interesują nas tylko widoczne obiekty z modelem, które mają poprawny BoundingBox.
+                if (child is ModelObject modelChild && modelChild.Visible && modelChild.Model != null)
+                {
+                    // 4. Dodaj punkty narożne BoundingBoxu dziecka do naszej listy.
+                    allCorners.AddRange(modelChild.BoundingBoxWorld.GetCorners());
+                }
+            }
+
+            // 5. Na podstawie wszystkich zebranych punktów, utwórz nowy, obejmujący wszystko BoundingBox.
+            //    To jest jedyne miejsce, gdzie przypisujemy nową wartość do BoundingBoxWorld.
+            if (allCorners.Count > 0)
+            {
+                BoundingBoxWorld = BoundingBox.CreateFromPoints(allCorners);
             }
         }
     }

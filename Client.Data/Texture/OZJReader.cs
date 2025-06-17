@@ -1,12 +1,8 @@
-﻿using System;
-using System.IO;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Text;
 
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace Client.Data.Texture
 {
@@ -66,7 +62,9 @@ namespace Client.Data.Texture
                 Width = jpegWidth,
                 Height = jpegHeight,
                 Components = 3,
-                Data = data
+                Data = data,
+                IsCompressed = false,
+                Format = SurfaceFormat.Color
             };
         }
     }

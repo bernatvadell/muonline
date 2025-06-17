@@ -26,28 +26,28 @@ namespace Client.Main.Objects.Monsters
             // C++: Models[MODEL_MONSTER01+Type].BoneHead = 16;
         }
 
-        // Sound mapping based on C++ SetMonsterSound(MODEL_MONSTER01 + Type, 60, 61, 62, 63, 64);
+        // Sound mapping based on C++ SetMonsterSound(MODEL_MONSTER01 + Type, 60, 61, 62, 63, 64)
         protected override void OnIdle()
         {
             base.OnIdle();
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
-            SoundController.Instance.PlayBufferWithAttenuation("Sound/mIceQueen1.wav", Position, listenerPosition); // Index 0 -> Sound 60
-            // SoundController.Instance.PlayBufferWithAttenuation("Sound/mIceQueen2.wav", Position, listenerPosition); // Index 1 -> Sound 61
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/mIceQueen1.wav", Position, listenerPosition);
+            // SoundController.Instance.PlayBufferWithAttenuation("Sound/mIceQueen2.wav", Position, listenerPosition);
         }
 
         public override void OnPerformAttack(int attackType = 1)
         {
             base.OnPerformAttack(attackType);
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
-            SoundController.Instance.PlayBufferWithAttenuation("Sound/mIceQueenAttack1.wav", Position, listenerPosition); // Index 2 -> Sound 62
-            // SoundController.Instance.PlayBufferWithAttenuation("Sound/mIceQueenAttack2.wav", Position, listenerPosition); // Index 3 -> Sound 63
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/mIceQueenAttack1.wav", Position, listenerPosition);
+            // SoundController.Instance.PlayBufferWithAttenuation("Sound/mIceQueenAttack2.wav", Position, listenerPosition);
         }
 
         public override void OnDeathAnimationStart()
         {
             base.OnDeathAnimationStart();
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
-            SoundController.Instance.PlayBufferWithAttenuation("Sound/mIceQueenDie.wav", Position, listenerPosition); // Index 4 -> Sound 64
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/mIceQueenDie.wav", Position, listenerPosition);
         }
     }
 }

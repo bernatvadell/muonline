@@ -17,5 +17,6 @@ namespace Client.Main.Objects.Monsters
         }
 
         // Load() and sound methods inherited from ShadowMonster
+        // Sounds are inherited from ShadowMonster
     }
 }

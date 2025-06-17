@@ -43,7 +43,7 @@ namespace Client.Main.Objects
         public WorldObject Parent { get => _parent; set { var prev = _parent; _parent = value; OnParentChanged(value, prev); } }
 
         public BoundingBox BoundingBoxLocal { get => _boundingBoxLocal; set { _boundingBoxLocal = value; OnBoundingBoxLocalChanged(); } }
-        public BoundingBox BoundingBoxWorld { get; private set; }
+        public BoundingBox BoundingBoxWorld { get; protected set; }
 
         public GameControlStatus Status { get; protected set; } = GameControlStatus.NonInitialized;
         public bool Hidden { get; set; }
@@ -62,6 +62,10 @@ namespace Client.Main.Objects
         public bool Interactive { get => _interactive || (Parent?.Interactive ?? false); set { _interactive = value; } }
         public Vector3 Light { get; set; } = new Vector3(0f, 0f, 0f);
         public bool LightEnabled { get; set; } = true;
+        /// <summary>
+        /// Indicates that the object is far from the camera and should be rendered in lower quality.
+        /// </summary>
+        public bool LowQuality { get; private set; }
         public bool Visible => Status == GameControlStatus.Ready && !OutOfView && !Hidden;
         public WorldControl World { get => _world; set { _world = value; OnChangeWorld(); } }
         public short Type { get; set; }
@@ -156,6 +160,17 @@ namespace Client.Main.Objects
             // OPTIMIZATION: Early exit if the object is not in the camera's view.
             if (OutOfView) return;
 
+            // Determine whether the object should be rendered in low quality based on distance to the camera
+            if (World != null)
+            {
+                float dist = Vector3.Distance(Camera.Instance.Position, WorldPosition.Translation);
+                LowQuality = dist > Constants.LOW_QUALITY_DISTANCE;
+            }
+            else
+            {
+                LowQuality = false;
+            }
+
             // Cache parent's mouse hover state
             bool parentIsMouseHover = Parent?.IsMouseHover ?? false;
 
@@ -227,7 +242,7 @@ namespace Client.Main.Objects
 
             Vector3 anchor = new((BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) * 0.5f,
                 (BoundingBoxWorld.Min.Y + BoundingBoxWorld.Max.Y) * 0.5f,
-                BoundingBoxWorld.Max.Z + 80f);
+                BoundingBoxWorld.Max.Z + 20f);
 
             Vector3 screen = GraphicsDevice.Viewport.Project(
                 anchor,
@@ -475,7 +490,7 @@ namespace Client.Main.Objects
             spriteBatch.Draw(_whiteTexture, borderRect, borderColor);
         }
 
-        private void UpdateWorldBoundingBox()
+        protected virtual void UpdateWorldBoundingBox()
         {
             Vector3[] boundingBoxCorners = BoundingBoxLocal.GetCorners();
             Matrix worldPos = WorldPosition;

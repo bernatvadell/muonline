@@ -23,6 +23,12 @@ namespace Client.Main.Objects.Effects
         // Constructor.
         public WaterMistParticle(Vector3 position, Vector3 velocity, float maxLife, Color color, float baseScale, float rotation, float rotationSpeed)
         {
+            Reset(position, velocity, maxLife, color, baseScale, rotation, rotationSpeed);
+        }
+
+        // Allows reusing the same instance without new allocations.
+        public void Reset(Vector3 position, Vector3 velocity, float maxLife, Color color, float baseScale, float rotation, float rotationSpeed)
+        {
             Position = position;
             Velocity = velocity;
             MaxLife = maxLife;
@@ -59,8 +65,11 @@ namespace Client.Main.Objects.Effects
     // System to manage water mist particles with customizable properties.
     public class WaterMistParticleSystem : WorldObject
     {
-        private List<WaterMistParticle> particles;
+        private readonly List<WaterMistParticle> particles;
+        // Pool for recycling particle instances to reduce allocations.
+        private readonly Queue<WaterMistParticle> particlePool = new();
         private Texture2D texture;
+        private readonly Vector2 textureCenter;
         private Random random;
         private float emissionAccumulator = 0f;
 
@@ -90,6 +99,7 @@ namespace Client.Main.Objects.Effects
         public WaterMistParticleSystem(Texture2D texture)
         {
             this.texture = texture;
+            textureCenter = new Vector2(texture.Width / 2f, texture.Height / 2f);
             particles = new List<WaterMistParticle>();
             random = new Random();
         }
@@ -101,12 +111,12 @@ namespace Client.Main.Objects.Effects
             {
                 float offsetX = (float)(random.NextDouble() * 2 * ParticlePositionOffsetRange.X - ParticlePositionOffsetRange.X);
                 float offsetY = (float)(random.NextDouble() * 2 * ParticlePositionOffsetRange.Y - ParticlePositionOffsetRange.Y);
-                Vector3 pos = new Vector3(position.X + offsetX, position.Y + offsetY, position.Z);
+                Vector3 pos = new(position.X + offsetX, position.Y + offsetY, position.Z);
 
                 float vx = (float)(random.NextDouble() * (ParticleHorizontalVelocityRange.Y - ParticleHorizontalVelocityRange.X) + ParticleHorizontalVelocityRange.X);
                 float vy = (float)(random.NextDouble() * (ParticleHorizontalVelocityRange.Y - ParticleHorizontalVelocityRange.X) + ParticleHorizontalVelocityRange.X);
                 float vz = (float)(random.NextDouble() * (ParticleUpwardVelocityRange.Y - ParticleUpwardVelocityRange.X) + ParticleUpwardVelocityRange.X);
-                Vector3 velocity = new Vector3(vx, vy, vz);
+                Vector3 velocity = new(vx, vy, vz);
 
                 float life = (float)(random.NextDouble() * (ParticleLifetimeRange.Y - ParticleLifetimeRange.X) + ParticleLifetimeRange.X);
                 float baseScale = (float)(random.NextDouble() * (ParticleScaleRange.Y - ParticleScaleRange.X) + ParticleScaleRange.X);
@@ -115,7 +125,18 @@ namespace Client.Main.Objects.Effects
                     ? (float)(random.NextDouble() * (ParticleRotationSpeedRange.Y - ParticleRotationSpeedRange.X) + ParticleRotationSpeedRange.X)
                     : 0f;
 
-                particles.Add(new WaterMistParticle(pos, velocity, life, ParticleColor, baseScale, rotation, rotationSpeed));
+                WaterMistParticle particle;
+                if (particlePool.Count > 0)
+                {
+                    particle = particlePool.Dequeue();
+                    particle.Reset(pos, velocity, life, ParticleColor, baseScale, rotation, rotationSpeed);
+                }
+                else
+                {
+                    particle = new WaterMistParticle(pos, velocity, life, ParticleColor, baseScale, rotation, rotationSpeed);
+                }
+
+                particles.Add(particle);
             }
         }
 
@@ -126,9 +147,13 @@ namespace Client.Main.Objects.Effects
             // Update existing particles.
             for (int i = particles.Count - 1; i >= 0; i--)
             {
-                particles[i].Update(gameTime, UpwardAcceleration, ScaleGrowthFactor, Wind);
-                if (particles[i].Life <= 0)
+                var p = particles[i];
+                p.Update(gameTime, UpwardAcceleration, ScaleGrowthFactor, Wind);
+                if (p.Life <= 0f)
+                {
                     particles.RemoveAt(i);
+                    particlePool.Enqueue(p);
+                }
             }
             // Continuous emission.
             emissionAccumulator += EmissionRate * delta;
@@ -160,13 +185,17 @@ namespace Client.Main.Objects.Effects
                 DepthStencilState.DepthRead,
                 RasterizerState.CullNone))
             {
-                foreach (var particle in particles)
+                var view = Camera.Instance.View;
+                var proj = Camera.Instance.Projection;
+                for (int i = 0; i < particles.Count; i++)
                 {
+                    var particle = particles[i];
+
                     // Project to screen
                     Vector3 screenPos = graphicsDevice.Viewport.Project(
                         particle.Position,
-                        Camera.Instance.Projection,
-                        Camera.Instance.View,
+                        proj,
+                        view,
                         Matrix.Identity);
                     if (screenPos.Z < 0f || screenPos.Z > 1f)
                         continue;
@@ -187,7 +216,7 @@ namespace Client.Main.Objects.Effects
                         null,
                         drawColor,
                         particle.Rotation,
-                        new Vector2(texture.Width / 2f, texture.Height / 2f),
+                        textureCenter,
                         effectiveScale,
                         SpriteEffects.None,
                         screenPos.Z);

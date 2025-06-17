@@ -35,21 +35,21 @@ namespace Client.Main.Objects.Monsters
             // C++: b->BoneHead = 20;//인어
         }
 
-        // Sound mapping based on C++ SetMonsterSound(MODEL_MONSTER01 + Type, 132, 133, 104, 104, 133); (Uses Golem/Idle sounds)
+        // Sound mapping based on C++ SetMonsterSound(MODEL_MONSTER01 + Type, 132, 133, 104, 104, 133)
         protected override void OnIdle()
         {
             base.OnIdle();
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
-            SoundController.Instance.PlayBufferWithAttenuation("Sound/mBepar1.wav", Position, listenerPosition); // Index 0 -> Sound 132
-                                                                                                                 // SoundController.Instance.PlayBufferWithAttenuation("Sound/mBepar2.wav", Position, listenerPosition); // Index 1 -> Sound 133
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/mBepar1.wav", Position, listenerPosition);
+            // SoundController.Instance.PlayBufferWithAttenuation("Sound/mBepar2.wav", Position, listenerPosition);
         }
 
         public override void OnPerformAttack(int attackType = 1)
         {
             base.OnPerformAttack(attackType);
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
-            SoundController.Instance.PlayBufferWithAttenuation("Sound/mGolemAttack1.wav", Position, listenerPosition); // Index 2 -> Sound 104 (Uses Golem)
-                                                                                                                       // Index 3 -> Sound 104
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/mGolemAttack1.wav", Position, listenerPosition);
+            // Index 3 -> Sound 104
         }
 
         public override void OnDeathAnimationStart()

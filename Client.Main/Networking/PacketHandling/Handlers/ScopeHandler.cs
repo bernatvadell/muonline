@@ -17,6 +17,7 @@ using Client.Main.Objects.Effects;
 using Client.Main.Core.Client;
 using Client.Main.Scenes;
 using Client.Main.Controllers;
+using Client.Data.ATT;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
@@ -30,6 +31,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         private readonly ScopeManager _scopeManager;
         private readonly CharacterState _characterState;
         private readonly NetworkManager _networkManager;
+        private readonly PartyManager _partyManager;
         private readonly TargetProtocolVersion _targetVersion;
         private readonly ILoggerFactory _loggerFactory;
 
@@ -42,12 +44,14 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             ScopeManager scopeManager,
             CharacterState characterState,
             NetworkManager networkManager,
+            PartyManager partyManager,
             TargetProtocolVersion targetVersion)
         {
             _logger = loggerFactory.CreateLogger<ScopeHandler>();
             _scopeManager = scopeManager;
             _characterState = characterState;
             _networkManager = networkManager;
+            _partyManager = partyManager;
             _targetVersion = targetVersion;
             _loggerFactory = loggerFactory;
         }
@@ -203,6 +207,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 }
 
                 await p.Load();
+                await p.PreloadTexturesAsync();
             });
         }
 
@@ -323,6 +328,10 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                                     {
                                         _logger.LogWarning($"ScopeHandler: NPC/Monster {maskedId} ({obj.GetType().Name}) loaded but status is {obj.Status}.");
                                     }
+
+                                    // Preload model textures to avoid stall on first render
+                                    if (obj is ModelObject modelObj)
+                                        await modelObj.PreloadTexturesAsync();
                                 }
                                 catch (Exception ex)
                                 {
@@ -422,6 +431,14 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     uint newHp = (uint)Math.Max(0, (int)_characterState.CurrentHealth - (int)healthDmg);
                     uint newSd = (uint)Math.Max(0, (int)_characterState.CurrentShield - (int)shieldDmg);
                     _characterState.UpdateCurrentHealthShield(newHp, newSd);
+
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        if (MuGame.Instance.ActiveScene is GameScene gs && gs.Hero != null)
+                        {
+                            gs.Hero.OnPlayerTookDamage();
+                        }
+                    });
 
                     if (newHp == 0 && currentHpBeforeHit > 0)
                     {
@@ -893,65 +910,49 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl world)
                     return;
 
-                bool isLocalPlayer = maskedId == _characterState.Id;
-
-                // Local player movement
-                var player = world.Objects.OfType<PlayerObject>()
-                                   .FirstOrDefault(p => p.NetworkId == maskedId);
-                if (player != null)
+                if (!world.TryGetWalkerById(maskedId, out var walker) || walker == null)
                 {
-                    bool wasResting = player.IsResting;
-                    bool wasSitting = player.IsSitting;
+                    _logger.LogTrace("HandleObjectWalked: Walker {Id:X4} not found.", maskedId);
+                    return;
+                }
 
-                    if (wasResting || wasSitting)
-                    {
-                        player.IsResting = false;
-                        player.IsSitting = false;
-                        player.RestPlaceTarget = null;
-                        player.SitPlaceTarget = null;
-                        _logger.LogDebug("Reset rest/sit state for player {Id:X4} due to movement", maskedId);
-                    }
+                walker.MoveTo(new Vector2(x, y), sendToServer: false);
 
-                    player.MoveTo(new Vector2(x, y), sendToServer: false);
-
+                if (walker is PlayerObject player)
+                {
+                    bool isFemale = PlayerActionMapper.IsCharacterFemale(player.CharacterClass);
                     PlayerAction walkAction;
-                    if (world.WorldIndex == 8) // Swimming world
+
+                    if (world.WorldIndex == 8) // Atlans
                     {
-                        walkAction = PlayerAction.RunSwim;
+                        var flags = world.Terrain.RequestTerrainFlag(x, y);
+                        walkAction = flags.HasFlag(TWFlags.SafeZone)
+                            ? (isFemale ? PlayerAction.WalkFemale : PlayerAction.WalkMale)
+                            : PlayerAction.RunSwim;
                     }
-                    else if (world.WorldIndex == 11) // Flying world
+                    else if (world.WorldIndex == 11 || (world.WorldIndex == 1 && player.HasEquippedWings && !world.Terrain.RequestTerrainFlag(x, y).HasFlag(TWFlags.SafeZone)))
                     {
                         walkAction = PlayerAction.Fly;
                     }
                     else
                     {
-                        walkAction = PlayerActionMapper.IsCharacterFemale(player.CharacterClass)
-                            ? PlayerAction.WalkFemale
-                            : PlayerAction.WalkMale;
+                        walkAction = isFemale ? PlayerAction.WalkFemale : PlayerAction.WalkMale;
                     }
 
                     if (player.CurrentAction != walkAction)
                     {
-                        player.PlayAction((ushort)walkAction);
-                        // _logger.LogDebug("Set walk animation {WalkAction} for player {Id:X4}", walkAction, maskedId);
+                        player.PlayAction((ushort)walkAction, fromServer: true);
                     }
-
-                    return;
                 }
-
-                // NPC/monster movement
-                var walker = world.Objects.OfType<WalkerObject>()
-                                 .FirstOrDefault(w => w.NetworkId == maskedId);
-                if (walker != null)
+                else if (walker is MonsterObject)
                 {
-                    walker.MoveTo(new Vector2(x, y), sendToServer: false);
-
-                    const byte walkActionNpc = (byte)MonsterActionType.Walk;
-                    if (walker.Model?.Actions?.Length > walkActionNpc)
-                    {
-                        walker.PlayAction(walkActionNpc);
-                        // _logger.LogDebug("Set walk animation for NPC/monster {Id:X4}", maskedId);
-                    }
+                    walker.PlayAction((ushort)MonsterActionType.Walk, fromServer: true);
+                }
+                else if (walker is HumanoidObject)           // ③ Humanoid NPCs (guards, priests, etc.)
+                {
+                    const PlayerAction walkAction = PlayerAction.WalkMale;
+                    if (walker.CurrentAction != (int)walkAction)
+                    walker.PlayAction((ushort)walkAction, fromServer: true);
                 }
             });
 

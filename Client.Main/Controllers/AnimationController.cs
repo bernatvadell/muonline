@@ -1,9 +1,6 @@
 using System;
-using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using Client.Main.Controls;
-using Client.Main.Core.Utilities;
 using Client.Main.Models;
 using Client.Main.Objects;
 using Client.Main.Objects.Player;
@@ -151,7 +148,7 @@ namespace Client.Main.Controllers
 
             ushort idle = _owner switch
             {
-                PlayerObject p => p.GetIdleAction(),
+                PlayerObject p => p.GetCorrectIdleAction(),
                 _ => (ushort)MonsterActionType.Stop1
             };
 
@@ -248,10 +245,7 @@ namespace Client.Main.Controllers
 
         public static ushort GetIdleAction(this PlayerObject p)
         {
-            bool female = PlayerActionMapper.IsCharacterFemale(p.CharacterClass);
-            bool fly = p.World is WalkableWorldControl ww && (ww.WorldIndex == 8 || ww.WorldIndex == 11);
-            return (ushort)(fly ? PlayerAction.StopFlying :
-                            female ? PlayerAction.StopFemale : PlayerAction.StopMale);
+            return p.GetCorrectIdleAction();
         }
     }
 }

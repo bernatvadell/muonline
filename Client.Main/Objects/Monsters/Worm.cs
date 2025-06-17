@@ -23,14 +23,7 @@ namespace Client.Main.Objects.Monsters
             await base.Load();
 
             // Specific PlaySpeed adjustment from C++ OpenMonsterModel
-            if (Model?.Actions != null)
-            {
-                const int MONSTER_ACTION_WALK = (int)MonsterActionType.Walk;
-                if (MONSTER_ACTION_WALK < Model.Actions.Length && Model.Actions[MONSTER_ACTION_WALK] != null)
-                {
-                    Model.Actions[MONSTER_ACTION_WALK].PlaySpeed = 0.5f;
-                }
-            }
+            SetActionSpeed(MonsterActionType.Walk, 0.5f);
         }
 
         // Sound mapping based on C++ SetMonsterSound(MODEL_MONSTER01 + Type, 53, 53, 55, 55, 55);

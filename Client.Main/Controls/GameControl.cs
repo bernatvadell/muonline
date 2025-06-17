@@ -9,6 +9,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using Client.Main.Controls.UI;
+using Client.Main.Content;
 
 namespace Client.Main.Controls
 {
@@ -70,7 +72,6 @@ namespace Client.Main.Controls
         public event EventHandler SizeChanged;
         public event EventHandler Focus;
         public event EventHandler Blur;
-        public event EventHandler VisibilityChanged; // Optional event for visibility changes
 
         // Constructors
         protected GameControl()
@@ -258,6 +259,23 @@ namespace Client.Main.Controls
             // Most specific controls (like scrollbars) will override this.
             // For container controls, they might iterate their children.
             return false;
+        }
+
+        public virtual async Task PreloadAssetsAsync()
+        {
+            // Jeśli sama kontrolka jest typu TextureControl i ma zdefiniowaną ścieżkę, załaduj jej teksturę
+            if (this is TextureControl tc && !string.IsNullOrEmpty(tc.TexturePath))
+            {
+                // Ta metoda załaduje dane ORAZ stworzy obiekt Texture2D, umieszczając go w cache'u
+                await TextureLoader.Instance.PrepareAndGetTexture(tc.TexturePath);
+            }
+
+            // Rekurencyjnie załaduj zasoby dla wszystkich dzieci
+            var childControls = Controls.ToArray(); // Kopiujemy, aby uniknąć problemów z modyfikacją kolekcji
+            foreach (var child in childControls)
+            {
+                await child.PreloadAssetsAsync();
+            }
         }
 
         public virtual void Draw(GameTime gameTime)

@@ -1,57 +1,52 @@
 #if OPENGL
-#define VS_SHADERMODEL vs_3_0
-#define PS_SHADERMODEL ps_3_0
+    // DesktopGL → SM 3.0
+    #define VS_SHADERMODEL vs_3_0
+    #define PS_SHADERMODEL ps_3_0
 #else
-#define VS_SHADERMODEL vs_4_0_level_9_1
-#define PS_SHADERMODEL ps_4_0_level_9_1
+    // DX
+    #define VS_SHADERMODEL vs_4_0_level_9_1
+    #define PS_SHADERMODEL ps_4_0_level_9_1
 #endif
 
-matrix WorldViewProj;        
-float4 ShadowColor;         
-float ShadowOpacity;        
-float HeightAboveTerrain;   
 
-struct VertexShaderInput
+float4x4 World;
+float4x4 ViewProjection;
+float4   ShadowTint;
+texture  ShadowTexture;
+
+sampler2D ShadowSampler = sampler_state
 {
-    float4 Position : POSITION0;
-    float2 TexCoord : TEXCOORD0;
+    Texture   = <ShadowTexture>;
+    MinFilter = Linear;
+    MagFilter = Linear;
+    MipFilter = Linear;
 };
 
-struct VertexShaderOutput
-{
-    float4 Position : SV_POSITION;
-    float2 TexCoord : TEXCOORD0;
-    float4 WorldPos : TEXCOORD1;
-};
+//---------------- VS -------------------------
+struct VS_IN  { float4 Position : POSITION0; float2 Tex : TEXCOORD0; };
+struct VS_OUT { float4 Position : SV_POSITION; float2 Tex : TEXCOORD0; };
 
-VertexShaderOutput MainVS(VertexShaderInput input)
+VS_OUT ShadowVS(VS_IN vin)
 {
-    VertexShaderOutput output;
-    output.Position = mul(input.Position, WorldViewProj);
-    output.TexCoord = input.TexCoord;
-    output.WorldPos = output.Position;
-    return output;
+    VS_OUT vout;
+    vout.Position = mul(vin.Position, World);
+    vout.Position = mul(vout.Position, ViewProjection);
+    vout.Tex      = vin.Tex;
+    return vout;
 }
 
-float4 MainPS(VertexShaderOutput input) : COLOR0
+//---------------- PS -------------------------
+float4 ShadowPS(VS_OUT pin) : SV_TARGET
 {
-    float2 center = float2(0.5, 0.5);
-    float dist = length(input.TexCoord - center);
-
-    float shadow = dist < 0.5 ? 1.0 : 0.0;
-
-    float heightFactor = saturate(1.0 - HeightAboveTerrain / 100.0);
-
-    float finalOpacity = 1.0;;
-
-    return float4(0, 0, 0, finalOpacity);
+    float alphaMask = tex2D(ShadowSampler, pin.Tex).a;
+    return float4(0,0,0, alphaMask * ShadowTint.a);
 }
 
 technique Shadow
 {
     pass P0
     {
-        VertexShader = compile VS_SHADERMODEL MainVS();
-        PixelShader = compile PS_SHADERMODEL MainPS();
+        VertexShader = compile VS_SHADERMODEL ShadowVS();
+        PixelShader  = compile PS_SHADERMODEL ShadowPS();
     }
 }

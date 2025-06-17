@@ -3,15 +3,14 @@ using Client.Main.Helpers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Effects
 {
     public class BubbleParticleSystem : WorldObject
     {
-        // Each bubble info
-        private class Bubble
+        // Each bubble info. Using a struct avoids heap allocations
+        private struct Bubble
         {
             public Vector3 BasePosition;  // Original spawn position (used for oscillation)
             public Vector3 Position;      // Current position
@@ -20,14 +19,14 @@ namespace Client.Main.Objects.Effects
             public float Life;            // How long the bubble has existed
             public float MaxLife;         // Max lifetime before reset
 
-            // New fields for horizontal oscillation
+            // Horizontal oscillation parameters
             public float SwayAmplitude;   // Maximum offset in the horizontal axis
             public float SwayFrequency;   // Frequency of oscillation
             public float SwayPhase;       // Phase offset for oscillation
         }
 
-        private List<Bubble> _bubbles = new List<Bubble>();
-        private Random _rnd = new Random();
+        private readonly Bubble[] _bubbles = new Bubble[MAX_BUBBLES];
+        private readonly Random _rnd = new Random();
 
         // Texture for the bubble (PNG with transparency)
         private Texture2D _bubbleTexture;
@@ -48,7 +47,7 @@ namespace Client.Main.Objects.Effects
 
             // Generate initial bubbles
             for (int i = 0; i < MAX_BUBBLES; i++)
-                _bubbles.Add(CreateBubble());
+                _bubbles[i] = CreateBubble();
 
             await base.Load();
         }
@@ -58,7 +57,7 @@ namespace Client.Main.Objects.Effects
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
             // Update each bubble
-            for (int i = 0; i < _bubbles.Count; i++)
+            for (int i = 0; i < _bubbles.Length; i++)
             {
                 var b = _bubbles[i];
                 b.Life += dt;
@@ -101,8 +100,8 @@ namespace Client.Main.Objects.Effects
                        DepthStencilState.DepthRead,
                        RasterizerState.CullNone))
             {
-                foreach (var b in _bubbles)
-                    DrawBubbleBillboard(b);
+                for (int i = 0; i < _bubbles.Length; i++)
+                    DrawBubbleBillboard(_bubbles[i]);
             }
 
             DrawBoundingBox2D();
@@ -110,7 +109,7 @@ namespace Client.Main.Objects.Effects
             base.Draw(gameTime);
         }
 
-        private void DrawBoundingBox2D()
+        private new void DrawBoundingBox2D()
         {
             // Use the public Font instead of the private `_font`
             var font = GraphicsManager.Instance.Font;

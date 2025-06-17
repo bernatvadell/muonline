@@ -14,5 +14,6 @@ namespace Client.Main.Objects.Monsters
             Scale = 1.1f; // Set according to C++ Setting_Monster
         }
         // Load() and sound methods inherited
+        // Sounds are inherited from Lich
     }
 }

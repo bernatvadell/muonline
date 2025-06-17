@@ -1,4 +1,5 @@
 using Client.Main.Content;
+using Client.Main.Controls.UI.Game;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.NPCS
@@ -11,6 +12,9 @@ namespace Client.Main.Objects.NPCS
             Model = await BMDLoader.Instance.Prepare("NPC/Smith01.bmd");
             await base.Load();
         }
-        protected override void HandleClick() { }
+        protected override void HandleClick()
+        {
+            NpcShopControl.Instance.Visible = true;
+        }
     }
 }

@@ -13,6 +13,6 @@ namespace Client.Main.Objects.Monsters
         {
             Scale = 1.4f; // Set according to C++ Setting_Monster
         }
-        // Load() and sounds inherited
+        // Sounds are inherited from Valkyrie
     }
 }

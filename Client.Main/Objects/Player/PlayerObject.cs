@@ -5,32 +5,48 @@ using Client.Main.Objects.Wings;
 using Client.Main.Objects.Monsters;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
-using MUnique.OpenMU.Network.Packets; // For CharacterClassNumber
+using MUnique.OpenMU.Network.Packets; // CharacterClassNumber enum
 using System.Threading.Tasks;
 using Client.Main.Core.Utilities;
 using Client.Main.Networking.Services;
 using Client.Main.Networking;
-using System.Collections.Generic; // Required for IConnection if CharacterService needs it directly
+using System;
+using Client.Data.ATT;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework.Graphics;
+using Client.Main.Controllers;
+using System.Linq;
+using Client.Main.Helpers;
 
 namespace Client.Main.Objects.Player
 {
+    /// <summary>High-level movement states.</summary>
+    public enum MovementMode
+    {
+        Walk,
+        Fly,
+        Swim
+    }
+
     public class PlayerObject : HumanoidObject
     {
         private CharacterClassNumber _characterClass;
+        // Cached gender flag – avoids evaluating gender every frame
+        private bool _isFemale;
 
-        public bool IsResting { get; set; } = false;
-        public bool IsSitting { get; set; } = false;
+        // ───────────────────────────────── PROPERTIES ─────────────────────────────────
+        public bool IsResting { get; set; }
+        public bool IsSitting { get; set; }
         public Vector2? RestPlaceTarget { get; set; }
         public Vector2? SitPlaceTarget { get; set; }
 
         public string Name { get; set; } = "Character";
         public override string DisplayName => Name;
-        private ushort _networkId; // Private backing field
 
-        private CharacterService _characterService;
-        private NetworkManager _networkManager;
+        private readonly CharacterService _characterService;
+        private readonly NetworkManager _networkManager;
 
-        public PlayerEquipment Equipment { get; private set; } = new PlayerEquipment();
+        public PlayerEquipment Equipment { get; } = new PlayerEquipment();
 
         public CharacterClassNumber CharacterClass
         {
@@ -39,13 +55,18 @@ namespace Client.Main.Objects.Player
             {
                 if (_characterClass != value)
                 {
-                    _logger?.LogDebug($"PlayerObject {Name}: Setting CharacterClass from {_characterClass} to {value}");
+                    if (_logger?.IsEnabled(LogLevel.Debug) == true)
+                        _logger.LogDebug($"PlayerObject {Name}: class {_characterClass} → {value}");
                     _characterClass = value;
+                    _isFemale = PlayerActionMapper.IsCharacterFemale(value);
                 }
             }
         }
 
-        public WingObject Wings { get; private set; }
+        public new WingObject Wings { get; }
+
+        /// <summary>True if wings are equipped and visible.</summary>
+        public bool HasEquippedWings => Wings is { Hidden: false, Type: > 0 };
 
         public new PlayerAction CurrentAction
         {
@@ -55,47 +76,38 @@ namespace Client.Main.Objects.Player
 
         public PlayerAction SelectedAttackAction { get; set; } = PlayerAction.BlowSkill;
 
+        // Events
+        public event EventHandler PlayerMoved;
+        public event EventHandler PlayerTookDamage;
+
+        // ───────────────────────────────── CONSTRUCTOR ─────────────────────────────────
         public PlayerObject()
         {
-            _networkId = 0x0000;
-
             // Enable mouse hover interactions so the name is shown
             Interactive = true;
-
-            BoundingBoxLocal = new BoundingBox(
-                new Vector3(-40, -40, 0),
-                new Vector3(40, 40, 120));
+            BoundingBoxLocal = new BoundingBox(new Vector3(-40, -40, 0), new Vector3(40, 40, 120));
 
             Scale = 0.85f;
             AnimationSpeed = 5f;
             CurrentAction = PlayerAction.StopMale;
             _characterClass = CharacterClassNumber.DarkWizard;
+            _isFemale = PlayerActionMapper.IsCharacterFemale(_characterClass);
 
-            Wings = new Wing403 { LinkParentAnimation = false, Hidden = true };
-
-            Children.Add(Wings);
+            // Wings = new Wing403 { LinkParentAnimation = false, Hidden = false };
+            // Children.Add(Wings);
 
             _networkManager = MuGame.Network;
-            if (_networkManager != null && MuGame.AppLoggerFactory != null)
-            {
-                _characterService = _networkManager.GetCharacterService();
-                if (_characterService == null)
-                {
-                    _logger?.LogError("PlayerObject: Could not obtain CharacterService from NetworkManager.");
-                }
-            }
-            else
-            {
-                _logger?.LogWarning("PlayerObject: NetworkManager or AppLoggerFactory is null during construction.");
-            }
+            _characterService = _networkManager?.GetCharacterService();
         }
 
+        // ───────────────────────────────── LOADING ─────────────────────────────────
         public override async Task Load()
         {
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
             await UpdateBodyPartClassesAsync();
             await base.Load();
 
+            // Idle actions play at half speed so the character breathes naturally
             SetActionSpeed(PlayerAction.StopMale, 0.5f);
             SetActionSpeed(PlayerAction.StopFemale, 0.5f);
             SetActionSpeed(PlayerAction.StopFlying, 0.5f);
@@ -103,99 +115,118 @@ namespace Client.Main.Objects.Player
 
         private void SetActionSpeed(PlayerAction action, float speed)
         {
-            var actionIndex = (int)action;
-            if (Model?.Actions != null && actionIndex >= 0 && actionIndex < Model.Actions.Length)
-            {
-                Model.Actions[actionIndex].PlaySpeed = speed;
-                _logger?.LogDebug($"Set PlaySpeed for action '{action}' to {speed}");
-            }
-            else
-            {
-                _logger?.LogWarning($"Could not set PlaySpeed for action '{action}' - model or action not loaded.");
-            }
+            int idx = (int)action;
+            if (Model?.Actions is { Length: > 0 } actions && idx < actions.Length)
+                actions[idx].PlaySpeed = speed;
         }
 
+        // ───────────────────────────────── UPDATE LOOP ─────────────────────────────────
         public override void Update(GameTime gameTime)
         {
-            base.Update(gameTime); // Handles movement, camera for main walker, base object updates
+            base.Update(gameTime); // movement, camera for main walker, etc.
 
-            if (World is not WalkableWorldControl worldControl)
+            if (World is not WalkableWorldControl world)
                 return;
 
-            if (!IsMainWalker)
-            {
-                UpdateRemotePlayer(worldControl);
-                return;
-            }
-
-            UpdateLocalPlayer(worldControl);
+            if (IsMainWalker)
+                UpdateLocalPlayer(world);
+            else
+                UpdateRemotePlayer(world);
         }
 
-        /// <summary>
-        /// Gets the appropriate attack animation based on equipped weapon
-        /// </summary>
-        public PlayerAction GetAttackAnimation()
+        // --------------- Helpers for correct animation selection ----------------
+        private MovementMode GetCurrentMovementMode(WalkableWorldControl world)
         {
-            // Temporary: use class-based weapon until we have real equipment system
-            var weaponType = Equipment.GetWeaponTypeForClass(CharacterClass);
-
-            return weaponType switch
+            var flags = world.Terrain.RequestTerrainFlag((int)Location.X, (int)Location.Y);
+            // Atlans (index 8) is the only place where flying is forbidden.
+            if (world.WorldIndex == 8)
             {
-                WeaponType.Sword => PlayerAction.AttackFist, //PlayerAttackSwordRight1
-                WeaponType.TwoHandSword => PlayerAction.PlayerAttackTwoHandSword1,
-                WeaponType.Spear => PlayerAction.PlayerAttackSpear1,
-                WeaponType.Bow => PlayerAction.PlayerAttackBow,
-                WeaponType.Crossbow => PlayerAction.PlayerAttackCrossbow,
-                WeaponType.Staff => PlayerAction.PlayerSkillHand1, // Magic attack
-                WeaponType.Scepter => PlayerAction.PlayerAttackStrike, // Dark Lord
-                WeaponType.Scythe => PlayerAction.PlayerAttackScythe1,
-                WeaponType.Book => PlayerAction.PlayerSkillSummon, // Summoner
-                WeaponType.Fist => PlayerAction.AttackFist,
-                WeaponType.None => PlayerAction.AttackFist, // Default unarmed
-                _ => PlayerAction.AttackFist
+
+                return flags.HasFlag(TWFlags.SafeZone) ? MovementMode.Walk : MovementMode.Swim;
+            }
+
+            // Icarus (index 11) is a pure-flight map.
+            if (world.WorldIndex == 11)
+                return MovementMode.Fly;
+
+            // On every other map we may fly whenever wings are equipped.
+            if (HasEquippedWings && !flags.HasFlag(TWFlags.SafeZone))
+            {
+                return MovementMode.Fly;
+            }
+            return MovementMode.Walk;
+        }
+
+        /// <summary>Action that should play while moving (gender already cached).</summary>
+        private PlayerAction GetMovementAction(MovementMode mode) =>
+            mode switch
+            {
+                MovementMode.Swim => PlayerAction.RunSwim,
+                MovementMode.Fly => PlayerAction.Fly,
+                _ => _isFemale ? PlayerAction.WalkFemale : PlayerAction.WalkMale
             };
-        }
-        private void UpdateRemotePlayer(WalkableWorldControl world)
-        {
-            // Remote players: ensure movement animations are correct
-            if (IsMoving && !IsMovementAnimation((ushort)CurrentAction))
-            {
-                ResetRestSitStates();
-                PlayMovementAnimation(world);
-            }
-            else if (!IsMoving && IsMovementAnimation((ushort)CurrentAction))
-            {
-                PlayIdleAnimation(world);
-            }
-        }
 
+        // Back-compat overload used in older call-sites
+        private PlayerAction GetMovementAction(WalkableWorldControl world) =>
+            GetMovementAction(GetCurrentMovementMode(world));
+
+        /// <summary>Action that should play while standing (gender already cached).</summary>
+        private PlayerAction GetIdleAction(MovementMode mode) =>
+            mode switch
+            {
+                MovementMode.Fly or MovementMode.Swim => PlayerAction.StopFlying,
+                _ => _isFemale ? PlayerAction.StopFemale : PlayerAction.StopMale
+            };
+
+        private PlayerAction GetIdleAction(WalkableWorldControl world) =>
+            GetIdleAction(GetCurrentMovementMode(world));
+
+        // --------------- LOCAL PLAYER (the one we control) ----------------
         private void UpdateLocalPlayer(WalkableWorldControl world)
         {
-            // Handle rest/sit targets first
+            // Rest / sit handling first
             if (HandleRestTarget(world) || HandleSitTarget())
-                return; // If resting/sitting, don't change animation
+                return;
 
-            // Handle movement animations
+            // Movement / idle logic
+            var mode = GetCurrentMovementMode(world);
             if (IsMoving)
             {
                 ResetRestSitStates();
-                if (!IsOneShotPlaying && !IsMovementAnimation((ushort)CurrentAction))
-                {
-                    PlayMovementAnimation(world);
-                }
+                var desired = GetMovementAction(mode);
+                if (!IsOneShotPlaying && CurrentAction != desired)
+                    PlayAction((ushort)desired);
             }
-            else if (!IsOneShotPlaying && IsMovementAnimation((ushort)CurrentAction))
+            else if (!IsOneShotPlaying && CurrentAction != GetIdleAction(mode))
             {
-                PlayIdleAnimation(world);
+                PlayAction((ushort)GetIdleAction(mode));
             }
         }
 
+        // --------------- REMOTE PLAYERS ----------------
+        private void UpdateRemotePlayer(WalkableWorldControl world)
+        {
+            var mode = GetCurrentMovementMode(world);
+            if (IsMoving)
+            {
+                ResetRestSitStates();
+                var desired = GetMovementAction(mode);
+                if (!IsOneShotPlaying && CurrentAction != desired)
+                    PlayAction((ushort)desired);
+            }
+            else if (!IsOneShotPlaying && CurrentAction != GetIdleAction(mode))
+            {
+                PlayAction((ushort)GetIdleAction(mode));
+            }
+        }
+
+        // --------------- REST / SIT LOGIC ----------------
         private bool HandleRestTarget(WalkableWorldControl world)
         {
             if (!RestPlaceTarget.HasValue) return false;
 
-            float distance = Vector2.Distance(Location, RestPlaceTarget.Value);
-            if (distance < 0.1f && !IsMoving && !IsOneShotPlaying)
+            float dist = Vector2.Distance(Location, RestPlaceTarget.Value);
+            if (dist < 0.1f && !IsMoving && !IsOneShotPlaying)
             {
                 var restAction = world.WorldIndex == 4
                     ? PlayerAction.PlayerFlyingRest
@@ -206,13 +237,12 @@ namespace Client.Main.Objects.Player
                     PlayAction((ushort)restAction);
                     IsResting = true;
                     if (IsMainWalker)
-                    {
                         SendActionToServer(PlayerActionMapper.GetServerActionType(restAction, CharacterClass));
-                    }
                 }
                 return true;
             }
-            else if (distance > 1.0f)
+
+            if (dist > 1.0f)
             {
                 RestPlaceTarget = null;
                 IsResting = false;
@@ -224,8 +254,8 @@ namespace Client.Main.Objects.Player
         {
             if (!SitPlaceTarget.HasValue) return false;
 
-            float distance = Vector2.Distance(Location, SitPlaceTarget.Value);
-            if (distance < 0.1f && !IsOneShotPlaying)
+            float dist = Vector2.Distance(Location, SitPlaceTarget.Value);
+            if (dist < 0.1f && !IsOneShotPlaying)
             {
                 var sitAction = PlayerActionMapper.IsCharacterFemale(CharacterClass)
                     ? PlayerAction.PlayerSitFemale1
@@ -236,13 +266,12 @@ namespace Client.Main.Objects.Player
                     PlayAction((ushort)sitAction);
                     IsSitting = true;
                     if (IsMainWalker)
-                    {
                         SendActionToServer(ServerPlayerActionType.Sit);
-                    }
                 }
                 return true;
             }
-            else if (distance > 1.0f)
+
+            if (dist > 1.0f)
             {
                 SitPlaceTarget = null;
                 IsSitting = false;
@@ -261,73 +290,41 @@ namespace Client.Main.Objects.Player
             }
         }
 
+        // --------------- UTILITIES ----------------
+        public ushort GetCorrectIdleAction()
+        {
+            if (World is not WalkableWorldControl world)
+                return (ushort)(_isFemale ? PlayerAction.StopFemale : PlayerAction.StopMale);
+
+            return (ushort)GetIdleAction(world);
+        }
+
         private bool IsMovementAnimation(ushort action)
         {
-            var playerAction = (PlayerAction)action;
-            return playerAction is PlayerAction.WalkMale or PlayerAction.WalkFemale or
-                                 PlayerAction.RunSwim or PlayerAction.Fly;
+            var a = (PlayerAction)action;
+            return a is PlayerAction.WalkMale or PlayerAction.WalkFemale
+                       or PlayerAction.RunSwim or PlayerAction.Fly;
         }
 
-        private void PlayMovementAnimation(WalkableWorldControl world)
+        // ────────────────────────────── ATTACKS (unchanged) ──────────────────────────────
+        public PlayerAction GetAttackAnimation()
         {
-            PlayerAction moveAction = world.WorldIndex switch
+            // For now choose by class; replace with real equipment logic later
+            WeaponType weapon = Equipment.GetWeaponTypeForClass(CharacterClass);
+            return weapon switch
             {
-                8 => PlayerAction.RunSwim,
-                11 => PlayerAction.Fly,
-                _ => PlayerActionMapper.IsCharacterFemale(CharacterClass)
-                    ? PlayerAction.WalkFemale
-                    : PlayerAction.WalkMale
+                WeaponType.Sword => PlayerAction.AttackFist,
+                WeaponType.TwoHandSword => PlayerAction.PlayerAttackTwoHandSword1,
+                WeaponType.Spear => PlayerAction.PlayerAttackSpear1,
+                WeaponType.Bow => PlayerAction.PlayerAttackBow,
+                WeaponType.Crossbow => PlayerAction.PlayerAttackCrossbow,
+                WeaponType.Staff => PlayerAction.PlayerSkillHand1,
+                WeaponType.Scepter => PlayerAction.PlayerAttackStrike,
+                WeaponType.Scythe => PlayerAction.PlayerAttackScythe1,
+                WeaponType.Book => PlayerAction.PlayerSkillSummon,
+                WeaponType.Fist or WeaponType.None => PlayerAction.AttackFist,
+                _ => PlayerAction.AttackFist
             };
-
-            PlayAction((ushort)moveAction);
-        }
-
-        private void PlayIdleAnimation(WalkableWorldControl world)
-        {
-            bool isFlying = world.WorldIndex == 8 || world.WorldIndex == 11;
-
-            PlayerAction idleAction = isFlying
-                ? PlayerAction.StopFlying
-                : PlayerActionMapper.IsCharacterFemale(CharacterClass)
-                    ? PlayerAction.StopFemale
-                    : PlayerAction.StopMale;
-
-            PlayAction((ushort)idleAction);
-        }
-
-        private void SendActionToServer(ServerPlayerActionType serverAction)
-        {
-            if (_characterService == null)
-            {
-                _logger?.LogWarning("CharacterService not initialized. Cannot send action to server.");
-                return;
-            }
-            if (!_networkManager.IsConnected)
-            {
-                _logger?.LogWarning("Not connected to server. Cannot send action.");
-                return;
-            }
-
-            float angleDegrees = MathHelper.ToDegrees(this.Angle.Z);
-            angleDegrees = (angleDegrees % 360 + 360) % 360;
-            byte playerRotationForPacket = (byte)(((MathHelper.ToDegrees(this.Angle.Z) + 22.5f) / 360.0f * 8.0f + 1.0f) % 8);
-
-
-            byte serverActionIdByte = (byte)serverAction;
-
-            _logger?.LogInformation($"[PlayerObject] Sending action to server: {serverAction} (ID: {serverActionIdByte}), Direction: {playerRotationForPacket} for player {this.Name}");
-
-            _ = _characterService.SendAnimationRequestAsync(playerRotationForPacket, serverActionIdByte);
-        }
-
-        public override void Draw(GameTime gameTime)
-        {
-            base.Draw(gameTime);
-        }
-
-        public override void OnClick()
-        {
-            base.OnClick();
         }
 
         public void Attack(MonsterObject target)
@@ -343,48 +340,27 @@ namespace Client.Main.Objects.Player
 
             _currentPath?.Clear();
 
-            // Calculate tile-based delta for direction
-            int dx = (int)(target.Location.X - this.Location.X);
-            int dy = (int)(target.Location.Y - this.Location.Y);
-
-            if (dx != 0 || dy != 0) // Only change direction if target is not on the same tile
-            {
-                // Use the GetDirectionFromMovementDelta which mirrors OnLocationChanged logic
-                this.Direction = DirectionExtensions.GetDirectionFromMovementDelta(dx, dy);
-            }
-            // If on the same tile, player's current Direction is maintained.
-            // OnDirectionChanged() is called implicitly by the Direction setter, updating this.Angle for visuals.
+            // Rotate to face the target
+            int dx = (int)(target.Location.X - Location.X);
+            int dy = (int)(target.Location.Y - Location.Y);
+            if (dx != 0 || dy != 0)
+                Direction = DirectionExtensions.GetDirectionFromMovementDelta(dx, dy);
 
             PlayAction((ushort)GetAttackAnimation());
 
-            // Map the client's visual direction (this.Direction) to the server's expected byte value
-            byte clientDirEnumByte = (byte)this.Direction;
-            byte serverLookingDirection = clientDirEnumByte; // Default if no map or NetworkManager
-
-            if (_networkManager != null)
-            {
-                var directionMap = _networkManager.GetDirectionMap();
-                if (directionMap != null && directionMap.TryGetValue(clientDirEnumByte, out byte mappedDir))
-                {
-                    serverLookingDirection = mappedDir;
-                }
-            }
-            else
-            {
-                _logger?.LogWarning("NetworkManager is null in PlayerObject.Attack. Cannot map direction for server.");
-            }
-
-            _logger?.LogDebug($"Attack: PlayerLoc={this.Location}, TargetLoc={target.Location}, dx={dx}, dy={dy}, ClientDirEnum={this.Direction} ({(byte)this.Direction}), ServerDirByte={serverLookingDirection}, TargetId={target.NetworkId}");
+            // Map client dir → server dir
+            byte clientDir = (byte)Direction;
+            byte serverDir = _networkManager?.GetDirectionMap()?.GetValueOrDefault(clientDir, clientDir) ?? clientDir;
 
             _characterService?.SendHitRequestAsync(
                 target.NetworkId,
                 (byte)GetAttackAnimation(),
-                serverLookingDirection); // Send the server-mapped direction
+                serverDir);
         }
 
         public float GetAttackRangeTiles() => GetAttackRangeForAction(GetAttackAnimation());
 
-        private static float GetAttackRangeForAction(PlayerAction action) => action switch
+        private static float GetAttackRangeForAction(PlayerAction a) => a switch
         {
             PlayerAction.AttackFist => 3f,
             PlayerAction.PlayerAttackBow => 8f,
@@ -397,38 +373,125 @@ namespace Client.Main.Objects.Player
             _ => 3f
         };
 
-        private PlayerClass MapNetworkClassToModelClass(CharacterClassNumber networkClass)
+        // ────────────────────────────── CLASS → MODEL MAP ──────────────────────────────
+        private PlayerClass MapNetworkClassToModelClass(CharacterClassNumber n) => n switch
         {
-            return networkClass switch
-            {
-                CharacterClassNumber.DarkWizard => PlayerClass.DarkWizard,
-                CharacterClassNumber.SoulMaster => PlayerClass.SoulMaster,
-                CharacterClassNumber.GrandMaster => PlayerClass.GrandMaster,
-                CharacterClassNumber.DarkKnight => PlayerClass.DarkKnight,
-                CharacterClassNumber.BladeKnight => PlayerClass.BladeKnight,
-                CharacterClassNumber.BladeMaster => PlayerClass.BladeMaster,
-                CharacterClassNumber.FairyElf => PlayerClass.FairyElf,
-                CharacterClassNumber.MuseElf => PlayerClass.MuseElf,
-                CharacterClassNumber.HighElf => PlayerClass.HighElf,
-                CharacterClassNumber.MagicGladiator => PlayerClass.MagicGladiator,
-                CharacterClassNumber.DuelMaster => PlayerClass.DuelMaster,
-                CharacterClassNumber.DarkLord => PlayerClass.DarkLord,
-                CharacterClassNumber.LordEmperor => PlayerClass.LordEmperor,
-                CharacterClassNumber.Summoner => PlayerClass.Summoner,
-                CharacterClassNumber.BloodySummoner => PlayerClass.BloodySummoner,
-                CharacterClassNumber.DimensionMaster => PlayerClass.DimensionMaster,
-                CharacterClassNumber.RageFighter => PlayerClass.RageFighter,
-                CharacterClassNumber.FistMaster => PlayerClass.FistMaster,
-                _ => PlayerClass.DarkWizard
-            };
-        }
+            CharacterClassNumber.DarkWizard => PlayerClass.DarkWizard,
+            CharacterClassNumber.SoulMaster => PlayerClass.SoulMaster,
+            CharacterClassNumber.GrandMaster => PlayerClass.GrandMaster,
+            CharacterClassNumber.DarkKnight => PlayerClass.DarkKnight,
+            CharacterClassNumber.BladeKnight => PlayerClass.BladeKnight,
+            CharacterClassNumber.BladeMaster => PlayerClass.BladeMaster,
+            CharacterClassNumber.FairyElf => PlayerClass.FairyElf,
+            CharacterClassNumber.MuseElf => PlayerClass.MuseElf,
+            CharacterClassNumber.HighElf => PlayerClass.HighElf,
+            CharacterClassNumber.MagicGladiator => PlayerClass.MagicGladiator,
+            CharacterClassNumber.DuelMaster => PlayerClass.DuelMaster,
+            CharacterClassNumber.DarkLord => PlayerClass.DarkLord,
+            CharacterClassNumber.LordEmperor => PlayerClass.LordEmperor,
+            CharacterClassNumber.Summoner => PlayerClass.Summoner,
+            CharacterClassNumber.BloodySummoner => PlayerClass.BloodySummoner,
+            CharacterClassNumber.DimensionMaster => PlayerClass.DimensionMaster,
+            CharacterClassNumber.RageFighter => PlayerClass.RageFighter,
+            CharacterClassNumber.FistMaster => PlayerClass.FistMaster,
+            _ => PlayerClass.DarkWizard
+        };
 
         public async Task UpdateBodyPartClassesAsync()
         {
-            PlayerClass mappedClass = MapNetworkClassToModelClass(_characterClass);
-            // Use the new helper from HumanoidObject with an integer index
+            PlayerClass mapped = MapNetworkClassToModelClass(_characterClass);
             await SetBodyPartsAsync("Player/",
-                "HelmClass", "ArmorClass", "PantClass", "GloveClass", "BootClass", (int)mappedClass);
+                "HelmClass", "ArmorClass", "PantClass", "GloveClass", "BootClass",
+                (int)mapped);
+        }
+
+        // ────────────────────────────── SERVER COMMUNICATION ──────────────────────────────
+        private void SendActionToServer(ServerPlayerActionType serverAction)
+        {
+            if (_characterService == null || !_networkManager.IsConnected) return;
+
+            float angleDegrees = MathHelper.ToDegrees(Angle.Z);
+            byte clientDirEnum = (byte)Direction;
+            byte serverDirection = _networkManager.GetDirectionMap()
+                                        ?.GetValueOrDefault(clientDirEnum, clientDirEnum) ?? clientDirEnum;
+
+            _ = _characterService.SendAnimationRequestAsync(serverDirection, (byte)serverAction);
+        }
+
+        // ────────────────────────────── EVENTS ──────────────────────────────
+        public void OnPlayerMoved() => PlayerMoved?.Invoke(this, EventArgs.Empty);
+        public void OnPlayerTookDamage() => PlayerTookDamage?.Invoke(this, EventArgs.Empty);
+
+        public override void DrawAfter(GameTime gameTime)
+        {
+            base.DrawAfter(gameTime);
+            DrawPartyHealthBar();
+        }
+
+        private void DrawPartyHealthBar()
+        {
+            var partyManager = MuGame.Network?.GetPartyManager();
+            if (partyManager == null || !partyManager.IsPartyActive())
+                return;
+
+            if (!partyManager.IsMember(NetworkId))
+                return;
+
+            float hpPercent = partyManager.GetHealthPercentage(NetworkId);
+
+            Vector3 anchor = new(
+                (BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) * 0.5f,
+                (BoundingBoxWorld.Min.Y + BoundingBoxWorld.Max.Y) * 0.5f,
+                BoundingBoxWorld.Max.Z + 20f);
+
+            Vector3 screen = GraphicsDevice.Viewport.Project(
+                anchor,
+                Camera.Instance.Projection,
+                Camera.Instance.View,
+                Matrix.Identity);
+
+            if (screen.Z < 0f || screen.Z > 1f)
+                return;
+
+            const int width = 50;
+            const int height = 5;
+
+            Rectangle bgRect = new(
+                (int)screen.X - width / 2,
+                (int)screen.Y - height - 2,
+                width,
+                height);
+
+            Rectangle fillRect = new(
+                bgRect.X + 1,
+                bgRect.Y + 1,
+                (int)((width - 2) * Math.Clamp(hpPercent, 0f, 1f)),
+                height - 2);
+
+            float segmentWidth = (width - 2) / 8f;
+
+            var sb = GraphicsManager.Instance.Sprite;
+            var pixel = GraphicsManager.Instance.Pixel;
+            using (new SpriteBatchScope(
+                       sb,
+                       SpriteSortMode.BackToFront,
+                       BlendState.NonPremultiplied,
+                       SamplerState.PointClamp,
+                       DepthStencilState.DepthRead))
+            {
+                sb.Draw(pixel, bgRect, Color.Black * 0.6f);
+                sb.Draw(pixel, fillRect, Color.Red);
+                for (int i = 1; i < 8; i++)
+                {
+                    int x = bgRect.X + 1 + (int)(segmentWidth * i);
+                    sb.Draw(pixel,
+                            new Rectangle(x, bgRect.Y + 1, 1, height - 2),
+                            Color.Black * 0.4f);
+                }
+                sb.Draw(pixel,
+                        new Rectangle(bgRect.X - 1, bgRect.Y - 1, bgRect.Width + 2, bgRect.Height + 2),
+                        Color.White * 0.3f);
+            }
         }
     }
 }

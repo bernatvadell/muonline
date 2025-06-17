@@ -2,14 +2,12 @@ using Client.Main.Controllers;
 using Client.Main.Models; // For GameControlStatus
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System.Threading.Tasks; // For Task
 
 namespace Client.Main.Controls.UI.Game.Inventory
 {
     public class PickedItemRenderer : UIControl // Inherits from UIControl for consistency, although it won't be in the hierarchy
     {
         public InventoryItem Item { get; private set; }
-        private Texture2D _itemTexture;
         private SpriteFont _font;
 
         // Slot dimensions for scaling the item "icon"
@@ -38,7 +36,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
         {
             Item = null;
             Visible = false;
-            _itemTexture = null;
         }
 
         public override void Update(GameTime gameTime)

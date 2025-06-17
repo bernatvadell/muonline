@@ -1,6 +1,4 @@
-﻿// SelectWorld.cs
-
-using Client.Main.Controllers;
+﻿using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Controls.UI; // Added for LabelControl
 using Client.Main.Models; // Added for LabelControl
@@ -14,7 +12,6 @@ using Microsoft.Xna.Framework.Input;
 using MUnique.OpenMU.Network.Packets;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework.Graphics;
@@ -24,11 +21,9 @@ namespace Client.Main.Worlds
 
     public class SelectWorld : WorldControl
     {
-        // Keep existing fields
         private List<PlayerObject> _characterObjects = new List<PlayerObject>();
         private ILogger<SelectWorld> _logger;
 
-        // *** ADD A DICTIONARY TO STORE LABELS ***
         private Dictionary<PlayerObject, LabelControl> _characterLabels = new();
 
         public SelectWorld() : base(worldIndex: 94)
@@ -39,7 +34,6 @@ namespace Client.Main.Worlds
 
         protected override void CreateMapTileObjects()
         {
-            // ... (existing CreateMapTileObjects logic) ...
             base.CreateMapTileObjects();
             MapTileObjects[14] = null;
             MapTileObjects[71] = typeof(BlendedObjects);
@@ -71,23 +65,20 @@ namespace Client.Main.Worlds
             Camera.Instance.FOV = 29;
         }
 
-        // **** CHANGE METHOD SIGNATURE ****
         public async Task CreateCharacterObjects(List<(string Name, CharacterClassNumber Class, ushort Level)> characters)
         {
             _logger.LogInformation("Creating {Count} character objects…", characters.Count);
 
-            /* 1) czyścimy stare postaci i labele */
             foreach (var old in _characterObjects) { Objects.Remove(old); old.Dispose(); }
             _characterObjects.Clear();
 
             foreach (var lbl in _characterLabels.Values)
             {
-                Scene?.Controls.Remove(lbl);   //  <-- z kolekcji sceny
+                Scene?.Controls.Remove(lbl);
                 lbl.Dispose();
             }
             _characterLabels.Clear();
 
-            /* 2) pozycje startowe */
             Vector3[] pos =
             {
                 new Vector3(14000, 11995, 250),
@@ -97,7 +88,6 @@ namespace Client.Main.Worlds
 
             var loading = new List<Task>();
 
-            /* 3) tworzenie postaci i etykiet */
             for (int i = 0; i < characters.Count && i < pos.Length; i++)
             {
                 var (name, cls, lvl) = characters[i];
@@ -118,7 +108,6 @@ namespace Client.Main.Worlds
                 Objects.Add(player);
                 loading.Add(player.Load());
 
-                /* ----- LABEL (dodajemy do Scene.Controls !) ----- */
                 var label = new LabelControl
                 {
                     Text = $"Lv.{lvl}  {name}",
@@ -131,7 +120,7 @@ namespace Client.Main.Worlds
                 };
 
                 _characterLabels.Add(player, label);
-                Scene?.Controls.Add(label);        //  <-- TU!
+                Scene?.Controls.Add(label);
                 label.BringToFront();
             }
 
@@ -168,7 +157,6 @@ namespace Client.Main.Worlds
             base.Update(time);
             if (!Visible) return;
 
-            /* pozycjonowanie etykiet */
             if (Status == GameControlStatus.Ready && _characterLabels.Count > 0)
             {
                 foreach (var (player, label) in _characterLabels)
@@ -182,7 +170,7 @@ namespace Client.Main.Worlds
                     var head = new Vector3(
                         player.WorldPosition.Translation.X,
                         player.WorldPosition.Translation.Y,
-                        player.BoundingBoxWorld.Max.Z - 140);
+                        player.BoundingBoxWorld.Min.Z - 20);
 
                     var sp = GraphicsDevice.Viewport.Project(
                                  head,
@@ -196,19 +184,17 @@ namespace Client.Main.Worlds
                         continue;
                     }
 
-                    /* faktyczny rozmiar tekstu */
                     var font = GraphicsManager.Instance.Font;
                     float k = label.FontSize / Constants.BASE_FONT_SIZE;
                     Vector2 s = font.MeasureString(label.Text) * k;
 
                     label.X = (int)(sp.X - s.X / 2f);
                     label.Y = (int)(sp.Y - s.Y - 4);
-                    label.ControlSize = new Point((int)s.X, (int)s.Y);   // dla GUI
+                    label.ControlSize = new Point((int)s.X, (int)s.Y);
                     label.Visible = true;
                 }
             }
 
-            /* debug-keys bez zmian */
             if (MuGame.Instance.PrevKeyboard.IsKeyDown(Keys.Delete) && MuGame.Instance.Keyboard.IsKeyUp(Keys.Delete))
             {
                 if (Objects.Count > 0)

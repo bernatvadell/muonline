@@ -16,10 +16,10 @@ namespace Client.Main.Objects.Monsters
         public override async Task Load()
         {
             // Uses player model with a specific appearance subtype
-            // Model = await BMDLoader.Instance.Prepare($"Player/Player.bmd");
+            Model = await BMDLoader.Instance.Prepare($"Skill/Skeleton02.bmd");
             // TODO: Implement SubType handling in C# to apply MODEL_SKELETON2 appearance
             await base.Load();
+            // No specific sounds assigned in C++ for this SubType
         }
-        // No specific sounds assigned in C++ for this SubType
     }
 }

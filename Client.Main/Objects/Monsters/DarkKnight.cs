@@ -22,17 +22,12 @@ namespace Client.Main.Objects.Monsters
             // Model Loading Type: 3 -> File Number: 3 + 1 = 4
             Model = await BMDLoader.Instance.Prepare($"Monster/Monster04.bmd");
             await base.Load();
-            // C++: PlaySpeed *= 1.2f for actions Stop1 to Die (except Die itself) if Type == 3
-            if (Model?.Actions != null)
-            {
-                // Apply speed adjustment to relevant actions if needed
-                // Example for Walk:
-                // const int MONSTER_ACTION_WALK = (int)MonsterActionType.Walk;
-                // if (MONSTER_ACTION_WALK < Model.Actions.Length && Model.Actions[MONSTER_ACTION_WALK] != null)
-                // {
-                //     Model.Actions[MONSTER_ACTION_WALK].PlaySpeed *= 1.2f;
-                // }
-            }
+            SetActionSpeed(MonsterActionType.Stop1, 0.25f * 1.2f);
+            SetActionSpeed(MonsterActionType.Stop2, 0.20f * 1.2f);
+            SetActionSpeed(MonsterActionType.Walk, 0.34f * 1.2f);
+            SetActionSpeed(MonsterActionType.Attack1, 0.33f * 1.2f);
+            SetActionSpeed(MonsterActionType.Attack2, 0.33f * 1.2f);
+            SetActionSpeed(MonsterActionType.Shock, 0.5f * 1.2f);
         }
 
         // Sound mapping based on C++ SetMonsterSound(MODEL_MONSTER01 + Type, 15, 16, 17, 18, 19);

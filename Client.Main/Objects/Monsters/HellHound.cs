@@ -16,5 +16,6 @@ namespace Client.Main.Objects.Monsters
         }
 
         // Load() and sound methods are inherited from Hound
+        // Sounds are inherited from Hound
     }
 }

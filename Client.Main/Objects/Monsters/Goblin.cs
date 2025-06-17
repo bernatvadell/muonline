@@ -28,10 +28,10 @@ namespace Client.Main.Objects.Monsters
                 const int MONSTER_ACTION_WALK = (int)MonsterActionType.Walk;
                 if (MONSTER_ACTION_WALK < Model.Actions.Length && Model.Actions[MONSTER_ACTION_WALK] != null)
                 {
-                    Model.Actions[MONSTER_ACTION_WALK].PlaySpeed = 0.6f;
+                    SetActionSpeed(MonsterActionType.Walk, 0.6f);
+                    // C++: Models[MODEL_MONSTER01+Type].BoneHead = 6;
                 }
             }
-            // C++: Models[MODEL_MONSTER01+Type].BoneHead = 6;
         }
 
         // Sound mapping based on C++ SetMonsterSound(MODEL_MONSTER01 + Type, 72, 73, 74, 75, 76);

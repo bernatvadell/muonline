@@ -41,8 +41,8 @@ namespace Client.Main.Controls.UI
         public Vector2 ShadowOffset { get; set; } = new Vector2(1, 1);
         public Color ShadowColor { get; set; } = Color.Black;
 
-        // Bold settings (simulated)
-        public int BoldWeight { get; set; } = 1; // How many pixels offset for bold simulation
+        // Improved bold settings
+        public float BoldStrength { get; set; } = 0.5f; // Subpixel offset for smoother bold effect
 
         public bool UseManualPosition { get; set; } = false;
 
@@ -102,153 +102,79 @@ namespace Client.Main.Controls.UI
         // Methods
         public override void Draw(GameTime gameTime)
         {
-            if (!Visible || string.IsNullOrEmpty(_renderedText))
+            if (!Visible || string.IsNullOrEmpty(_renderedText) || GraphicsManager.Instance.Font == null)
                 return;
 
             var sb = GraphicsManager.Instance.Sprite;
             var font = GraphicsManager.Instance.Font;
 
-            sb.End();
+            Vector2 textPosition = DisplayRectangle.Location.ToVector2();
 
-            Vector2 origin;
-            if (UseManualPosition)
+            var baseTextSize = font.MeasureString(_renderedText) * _scaleFactor;
+            var totalTextWidth = (int)Math.Ceiling(baseTextSize.X);
+            var totalTextHeight = (int)Math.Ceiling(baseTextSize.Y);
+
+            if (HasShadow)
             {
-                origin = new Vector2(X, Y);
-            }
-            else
-            {
-                origin = DisplayRectangle.Location.ToVector2();
-                if (TextAlign == HorizontalAlign.Center)
-                    origin.X += (ViewSize.X - ControlSize.X) * 0.5f;
-                else if (TextAlign == HorizontalAlign.Right)
-                    origin.X += (ViewSize.X - ControlSize.X);
-                origin.Y += (ViewSize.Y - ControlSize.Y) * 0.5f;
+                totalTextWidth += (int)Math.Ceiling(Math.Abs(ShadowOffset.X));
+                totalTextHeight += (int)Math.Ceiling(Math.Abs(ShadowOffset.Y));
             }
 
-            // Create a transformation matrix for italic text that doesn't affect Y positioning
+            if (IsBold)
+            {
+                totalTextWidth += (int)Math.Ceiling(BoldStrength * 2);
+                totalTextHeight += (int)Math.Ceiling(BoldStrength * 2);
+            }
+
+            if (BackgroundColor.A > 0)
+            {
+                var backgroundRect = new Rectangle(
+                    (int)(textPosition.X - Padding.Left),
+                    (int)(textPosition.Y - Padding.Top),
+                    totalTextWidth + Padding.Left + Padding.Right,
+                    totalTextHeight + Padding.Top + Padding.Bottom
+                );
+                sb.Draw(GraphicsManager.Instance.Pixel, backgroundRect, BackgroundColor * Alpha);
+            }
+
             Matrix italicTransform = Matrix.Identity;
             if (IsItalic)
             {
                 const float skew = 0.2f;
-                italicTransform =
-                    Matrix.CreateTranslation(-origin.X, -origin.Y, 0f) *
-                    MatrixExtensions.CreateSkew(-skew, 0f) *
-                    Matrix.CreateTranslation(origin.X, origin.Y, 0f);
+                italicTransform = Matrix.CreateTranslation(-textPosition.X, -textPosition.Y, 0f) *
+                                  MatrixExtensions.CreateSkew(-skew, 0f) *
+                                  Matrix.CreateTranslation(textPosition.X, textPosition.Y, 0f);
             }
 
-            // Draw shadow
+            sb.End();
+            sb.Begin(SpriteSortMode.Deferred, BlendState.NonPremultiplied, null, null, null, null, italicTransform);
+
             if (HasShadow)
             {
-                sb.Begin(
-                    SpriteSortMode.Deferred,
-                    BlendState.NonPremultiplied,
-                    null, null, null, null,
-                    italicTransform);
-
-                var shadowA = (byte)(255 * ShadowOpacity * Alpha);
-                var shadowCol = new Color(ShadowColor.R, ShadowColor.G, ShadowColor.B, shadowA);
-                var shadowPos = origin + ShadowOffset;
+                var shadowColor = new Color(ShadowColor, ShadowOpacity * Alpha);
+                var shadowPosition = textPosition + ShadowOffset;
 
                 if (IsBold)
                 {
-                    byte layerA = (byte)(shadowA / (2 * BoldWeight + 1));
-                    var layerCol = new Color(ShadowColor.R, ShadowColor.G, ShadowColor.B, layerA);
-                    for (int dx = -BoldWeight; dx <= BoldWeight; dx++)
-                        for (int dy = -BoldWeight; dy <= BoldWeight; dy++)
-                        {
-                            if (dx == 0 && dy == 0) continue;
-                            sb.DrawString(
-                                font,
-                                _renderedText,
-                                shadowPos + new Vector2(dx, dy) * 0.5f,
-                                layerCol,
-                                0f, Vector2.Zero,
-                                _scaleFactor,
-                                SpriteEffects.None,
-                                0f);
-                        }
+                    sb.DrawString(font, _renderedText, shadowPosition, shadowColor, 0f, Vector2.Zero, _scaleFactor, SpriteEffects.None, 0f);
+                    sb.DrawString(font, _renderedText, shadowPosition + new Vector2(BoldStrength, 0), shadowColor, 0f, Vector2.Zero, _scaleFactor, SpriteEffects.None, 0f);
                 }
                 else
                 {
-                    sb.DrawString(
-                        font,
-                        _renderedText,
-                        shadowPos,
-                        shadowCol,
-                        0f, Vector2.Zero,
-                        _scaleFactor,
-                        SpriteEffects.None,
-                        0f);
+                    sb.DrawString(font, _renderedText, shadowPosition, shadowColor, 0f, Vector2.Zero, _scaleFactor, SpriteEffects.None, 0f);
                 }
-
-                sb.End();
             }
 
-            // Draw main text
-            sb.Begin(
-                SpriteSortMode.Deferred,
-                BlendState.NonPremultiplied,
-                null, null, null, null,
-                italicTransform);
+            var textColor = new Color(TextColor, Alpha);
 
             if (IsBold)
             {
-                byte layerA = (byte)(255 * Alpha / (2 * BoldWeight + 1));
-                var layerCol = new Color(TextColor.R, TextColor.G, TextColor.B, layerA);
-                for (int dx = -BoldWeight; dx <= BoldWeight; dx++)
-                    for (int dy = -BoldWeight; dy <= BoldWeight; dy++)
-                    {
-                        if (dx == 0 && dy == 0) continue;
-                        sb.DrawString(
-                            font,
-                            _renderedText,
-                            origin + new Vector2(dx, dy) * 0.5f,
-                            layerCol,
-                            0f, Vector2.Zero,
-                            _scaleFactor,
-                            SpriteEffects.None,
-                            0f);
-                    }
+                sb.DrawString(font, _renderedText, textPosition, textColor, 0f, Vector2.Zero, _scaleFactor, SpriteEffects.None, 0f);
+                sb.DrawString(font, _renderedText, textPosition + new Vector2(BoldStrength, 0), textColor, 0f, Vector2.Zero, _scaleFactor, SpriteEffects.None, 0f);
             }
-
-            var mainCol = new Color(TextColor.R, TextColor.G, TextColor.B, (byte)(255 * Alpha));
-            sb.DrawString(
-                font,
-                _renderedText,
-                origin,
-                mainCol,
-                0f, Vector2.Zero,
-                _scaleFactor,
-                SpriteEffects.None,
-                0f);
-
-            // Draw underline if enabled
-            if (HasUnderline)
+            else
             {
-                var textSize = font.MeasureString(_renderedText) * _scaleFactor;
-                float thick = Math.Max(1, _fontSize / 15f);
-                Vector2 start = origin + new Vector2(0, textSize.Y * 0.9f);
-                Vector2 end = start + new Vector2(
-                    textSize.X + (IsItalic ? textSize.Y * 0.2f : 0f),
-                    0f);
-
-                var pixel = GraphicsManager.Instance.GetPixelTexture();
-                if (pixel != null)
-                {
-                    var delta = end - start;
-                    float angle = (float)Math.Atan2(delta.Y, delta.X);
-                    float len = delta.Length();
-                    sb.Draw(
-                        pixel,
-                        start,
-                        null,
-                        mainCol,
-                        angle,
-                        Vector2.Zero,
-                        new Vector2(len, thick),
-                        SpriteEffects.None,
-                        0f);
-                }
+                sb.DrawString(font, _renderedText, textPosition, textColor, 0f, Vector2.Zero, _scaleFactor, SpriteEffects.None, 0f);
             }
 
             sb.End();
@@ -257,14 +183,13 @@ namespace Client.Main.Controls.UI
                 SpriteSortMode.Deferred,
                 BlendState.AlphaBlend,
                 SamplerState.PointClamp);
-
-            base.Draw(gameTime);
         }
 
         private void OnChangeText()
         {
-            if (string.IsNullOrEmpty(Text))
+            if (string.IsNullOrEmpty(Text) || GraphicsManager.Instance?.Font == null)
             {
+                _renderedText = string.Empty;
                 ControlSize = Point.Zero;
                 return;
             }
@@ -272,21 +197,25 @@ namespace Client.Main.Controls.UI
             _renderedText = SafeFormat(Text, TextArgs);
             _scaleFactor = FontSize / Constants.BASE_FONT_SIZE;
 
-            var textSize = GraphicsManager.Instance.Font.MeasureString(_renderedText);
+            var baseTextSize = GraphicsManager.Instance.Font.MeasureString(_renderedText) * _scaleFactor;
+            var totalWidth = baseTextSize.X;
+            var totalHeight = baseTextSize.Y;
 
-            // Adjust control size considering formatting effects
-            float widthMultiplier = 1.0f;
-            float heightMultiplier = 1.0f;
-
-            if (IsBold) widthMultiplier += BoldWeight * 0.1f;
-            if (IsItalic)
+            if (HasShadow)
             {
-                widthMultiplier += 0.1f;
+                totalWidth += Math.Abs(ShadowOffset.X);
+                totalHeight += Math.Abs(ShadowOffset.Y);
+            }
+
+            if (IsBold)
+            {
+                totalWidth += BoldStrength;
+                totalHeight += BoldStrength * 0.2f;
             }
 
             ControlSize = new Point(
-                (int)(textSize.X * _scaleFactor * widthMultiplier),
-                (int)(textSize.Y * _scaleFactor * heightMultiplier)
+                (int)Math.Ceiling(totalWidth),
+                (int)Math.Ceiling(totalHeight)
             );
         }
 

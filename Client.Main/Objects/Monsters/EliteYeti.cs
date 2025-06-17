@@ -14,6 +14,7 @@ namespace Client.Main.Objects.Monsters
         {
             RenderShadow = true;
             Scale = 1.4f; // Set according to C++ Setting_Monster
+            Blood = true;
         }
 
         public override async Task Load()

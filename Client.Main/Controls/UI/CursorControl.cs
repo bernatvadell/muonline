@@ -7,6 +7,7 @@ using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Input.Touch;
 using System;
 using System.Linq;
+using Client.Main.Objects;
 
 public class CursorControl : SpriteControl
 {
@@ -57,6 +58,14 @@ public class CursorControl : SpriteControl
     public override void Update(GameTime gameTime)
     {
         var hoveredObject = Scene.MouseHoverObject;
+
+        if (hoveredObject == null &&
+            Scene.MouseHoverControl is LabelControl lbl &&
+            lbl.Tag is DroppedItemObject dropItem)
+        {
+            hoveredObject = dropItem;
+        }
+
         bool sitPlace = IsSitPlace(hoveredObject);
 
         // If touches are available, we use them - standard input on Android
@@ -77,7 +86,12 @@ public class CursorControl : SpriteControl
                 TexturePath = "Interface/CursorAttack.ozt";
                 CurrentAnimation = DefaultAnimation;
             }
-            else if (hoveredObject is NPCObject)
+            else if (hoveredObject is DroppedItemObject)
+            {
+                TexturePath = "Interface/CursorGet.ozt";
+                CurrentAnimation = DefaultAnimation;
+            }
+            else if (hoveredObject is NPCObject || hoveredObject is CompositeNPCObject)
             {
                 TexturePath = "Interface/CursorTalk.ozt";
                 CurrentAnimation = TalkAnimation;
@@ -118,7 +132,12 @@ public class CursorControl : SpriteControl
                 TexturePath = "Interface/CursorAttack.ozt";
                 CurrentAnimation = DefaultAnimation;
             }
-            else if (hoveredObject is NPCObject)
+            else if (hoveredObject is DroppedItemObject)
+            {
+                TexturePath = "Interface/CursorGet.ozt";
+                CurrentAnimation = DefaultAnimation;
+            }
+            else if (hoveredObject is NPCObject || hoveredObject is CompositeNPCObject)
             {
                 TexturePath = "Interface/CursorTalk.ozt";
                 CurrentAnimation = TalkAnimation;

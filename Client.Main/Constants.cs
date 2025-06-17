@@ -65,6 +65,12 @@ namespace Client.Main
                 public const float BASE_FONT_SIZE = 25f;
 
                 /// <summary>
+                /// Distance after which objects are rendered in lower quality and
+                /// dynamic lighting is disabled.
+                /// </summary>
+                public const float LOW_QUALITY_DISTANCE = 3500f;
+
+                /// <summary>
                 /// Enables drawing of object names when hovered with the mouse.
                 /// </summary>
                 public const bool SHOW_NAMES_ON_HOVER = true;
