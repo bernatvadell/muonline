@@ -1,8 +1,10 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(8, "Tarkan")]
     public class TarkanWorld : WalkableWorldControl
     {
         public TarkanWorld() : base(worldIndex: 9) // TARKAN

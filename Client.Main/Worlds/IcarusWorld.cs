@@ -1,10 +1,12 @@
 using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Client.Main.Objects.Worlds.Icarus;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(10, "Icarus")]
     public class IcarusWorld : WalkableWorldControl
     {
         private static readonly Color CLEAR_COLOR = new Color(3f / 256f, 25f / 256f, 44f / 256f, 1f);

@@ -1,8 +1,10 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(9, "Devil Square")]
     public class DevilSquareWorld : WalkableWorldControl
     {
         public DevilSquareWorld() : base(worldIndex: 10) // DEVIL SQUARE

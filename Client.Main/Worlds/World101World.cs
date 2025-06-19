@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(100, "Uruk Mountain")]
     public class World101World : WalkableWorldControl
     {
         public World101World() : base(worldIndex: 101) // URUK MOUNTAIN (AKERON PART)

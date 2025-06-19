@@ -23,6 +23,7 @@ using Client.Main.Helpers;
 using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Networking;
 using Client.Main.Core.Models;
+using System.Reflection;
 
 namespace Client.Main.Scenes
 {
@@ -51,50 +52,27 @@ namespace Client.Main.Scenes
         // ───────────────────────── Properties ─────────────────────────
         public PlayerObject Hero => _hero;
 
-        public static readonly IReadOnlyDictionary<byte, Type> MapWorldRegistry = new Dictionary<byte, Type>
+        public static readonly IReadOnlyDictionary<byte, Type> MapWorldRegistry = DiscoverWorlds();
+
+        private static IReadOnlyDictionary<byte, Type> DiscoverWorlds()
         {
-            { 0, typeof(LorenciaWorld) },
-            { 1, typeof(DungeonWorld) },
-            { 2, typeof(DeviasWorld) },
-            { 3, typeof(NoriaWorld) },
-            { 51, typeof(ElvelandWorld) },
-            { 4, typeof(LostTowerWorld) },
-            // { 5, typeof(Exile) },
-            { 6, typeof(StadiumWorld) },
-            { 7, typeof(AtlansWorld) },
-            { 8, typeof(TarkanWorld) },
-            { 9, typeof(DevilSquareWorld) },
-            { 10, typeof(IcarusWorld) },
-            // { 11, typeof(BloodCastleWorld) },
-            // { 12, "Blood Castle 2" },
-            // { 13, "Blood Castle 3" },
-            // { 14, "Blood Castle 4" },
-            // { 15, "Blood Castle 5" },
-            // { 16, "Blood Castle 6" },
-            // { 17, "Blood Castle 7" },
-            // { 18, "Chaos Castle 1" },
-            // { 19, "Chaos Castle 2" },
-            // { 20, "Chaos Castle 3" },
-            // { 21, "Chaos Castle 4" },
-            // { 22, "Chaos Castle 5" },
-            // { 23, "Chaos Castle 6" },
-            // { 24, "Kalima 1" },
-            // { 25, "Kalima 2" },
-            // { 26, "Kalima 3" },
-            // { 27, "Kalima 4" },
-            // { 28, "Kalima 5" },
-            // { 29, "Kalima 6" },
-            { 30, typeof(World031World) },
-            { 31, typeof(World032World) },
-            // { 32, typeof(World033World)},
-            { 33, typeof(World034World) },
-            { 34, typeof(World035World) },
-            // { 36, typeof(World036World) },
-            // { 37, "Kantru1" },
-            // { 38, "Kantru2" },
-            // { 39, "Kantru3" },
-            // Add additional maps according to mapId
-        };
+            var registry = new Dictionary<byte, Type>();
+            var worldTypes = Assembly.GetExecutingAssembly().GetTypes()
+                .Where(t => t.IsClass && !t.IsAbstract && typeof(WalkableWorldControl).IsAssignableFrom(t));
+
+            foreach (var type in worldTypes)
+            {
+                var attr = type.GetCustomAttribute<WorldInfoAttribute>();
+                if (attr != null)
+                {
+                    if (!registry.TryAdd((byte)attr.MapId, type))
+                    {
+                        // Optionally log a warning about duplicate MapId
+                    }
+                }
+            }
+            return registry;
+        }
 
         private static readonly Dictionary<ServerMessage.MessageType, Color> NotificationColors = new Dictionary<ServerMessage.MessageType, Color>
         {

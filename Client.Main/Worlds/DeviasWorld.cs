@@ -1,9 +1,11 @@
 using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Client.Main.Objects.Worlds.Devias;
 using Microsoft.Xna.Framework;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(2, "Devias")]
     public class DeviasWorld : WalkableWorldControl
     {
         public DeviasWorld() : base(worldIndex: 3)

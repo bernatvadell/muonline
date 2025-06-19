@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(37, "Kanturu")]
     public class World038World : WalkableWorldControl
     {
         public World038World() : base(worldIndex: 38) // KANTURU (RUINS)

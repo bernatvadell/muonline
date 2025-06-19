@@ -1,8 +1,10 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(50, "Elbeland 2")]
     public class World051World : WalkableWorldControl
     {
         public World051World() : base(worldIndex: 51)

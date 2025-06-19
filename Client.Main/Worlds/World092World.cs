@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(91, "Acheron")]
     public class World092World : WalkableWorldControl
     {
         public World092World() : base(worldIndex: 92) // AKERON (ALKMAR, UBAID & ARKA WAR)

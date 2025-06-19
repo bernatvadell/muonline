@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(136, "Blaze Kethotum")]
     public class World137World : WalkableWorldControl
     {
         public World137World() : base(worldIndex: 137) // BLAZE KETHOTUM (BURNING KETHOTUM)

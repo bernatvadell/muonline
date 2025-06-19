@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(128, "Abyss of Atlans")]
     public class World129World : WalkableWorldControl
     {
         public World129World() : base(worldIndex: 129) // ABYSS OF ATLANS 01

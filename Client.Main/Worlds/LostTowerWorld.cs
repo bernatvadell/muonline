@@ -1,8 +1,10 @@
 using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(4, "Lost Tower")]
     public class LostTowerWorld : WalkableWorldControl
     {
         public LostTowerWorld() : base(worldIndex: 5)

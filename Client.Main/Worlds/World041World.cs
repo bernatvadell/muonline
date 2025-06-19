@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(40, "Silent Map")]
     public class World041World : WalkableWorldControl
     {
         public World041World() : base(worldIndex: 41) // SILENT MAP (GM MAP)
