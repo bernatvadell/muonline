@@ -226,13 +226,22 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 }
 
                 string itemNameFinal = ItemDatabase.GetItemName(itemData) ?? "Unknown Item";
-                int itemVisualWidth = 1;
-                int itemVisualHeight = 1;
+                // Try to obtain a full definition with stats and size
+                ItemDefinition itemDef = ItemDatabase.GetItemDefinition(itemData);
 
-                ItemDefinition itemDef = new ItemDefinition(0, itemNameFinal, itemVisualWidth, itemVisualHeight, defaultItemIconTexturePath);
+                if (itemDef == null)
+                {
+                    // Fallback definition if the item is unknown in the database
+                    itemDef = new ItemDefinition(0, itemNameFinal, 1, 1, defaultItemIconTexturePath);
+                }
+
                 InventoryItem newItem = new InventoryItem(itemDef,
                                           new Point(gridX, gridY),
                                           itemData);
+
+                // Use the durability byte from the data if available
+                if (itemData.Length > 2)
+                    newItem.Durability = itemData[2];
 
                 if (!AddItem(newItem))
                 {
@@ -418,9 +427,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
         {
             if (!Visible) return;
 
+            Rectangle displayRect = DisplayRectangle;
+
             using (new SpriteBatchScope(GraphicsManager.Instance.Sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend))
             {
-                Rectangle displayRect = DisplayRectangle;
                 if (_texBackground != null)
                     GraphicsManager.Instance.Sprite.Draw(_texBackground, displayRect, Color.White);
 
@@ -428,10 +438,15 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 DrawGrid(GraphicsManager.Instance.Sprite, displayRect);
                 DrawItems(GraphicsManager.Instance.Sprite, displayRect);
                 _pickedItemRenderer.Draw(gameTime);
-                DrawTooltip(GraphicsManager.Instance.Sprite, displayRect);
             }
 
-            base.Draw(gameTime); // This will draw all children, including the ZEN label
+            // Draw child controls (e.g., ZEN label) before rendering the tooltip
+            base.Draw(gameTime);
+
+            using (new SpriteBatchScope(GraphicsManager.Instance.Sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend))
+            {
+                DrawTooltip(GraphicsManager.Instance.Sprite, displayRect);
+            }
         }
 
         private void DrawFrame(SpriteBatch spriteBatch, Rectangle frameRect)
@@ -631,17 +646,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 spriteBatch.Draw(GraphicsManager.Instance.Pixel, new Rectangle(itemRect.X, itemRect.Bottom - 1, itemRect.Width, 1), Color.White);
                 spriteBatch.Draw(GraphicsManager.Instance.Pixel, new Rectangle(itemRect.X, itemRect.Y, 1, itemRect.Height), Color.White);
                 spriteBatch.Draw(GraphicsManager.Instance.Pixel, new Rectangle(itemRect.Right - 1, itemRect.Y, 1, itemRect.Height), Color.White);
-
-                if (font != null && !string.IsNullOrEmpty(item.Definition.Name))
-                {
-                    float textScale = 0.4f;
-                    string text = item.Definition.Name;
-                    Vector2 textSize = font.MeasureString(text) * textScale;
-                    Vector2 textPos = new Vector2(
-                        itemRect.X + (itemRect.Width - textSize.X) / 2,
-                        itemRect.Y + (itemRect.Height - textSize.Y) / 2);
-                    spriteBatch.DrawString(font, text, textPos, Color.White, 0, Vector2.Zero, textScale, SpriteEffects.None, 0f);
-                }
             }
         }
 
@@ -650,15 +654,46 @@ namespace Client.Main.Controls.UI.Game.Inventory
             var d = it.Details;
             var li = new List<(string, Color)>();
 
-            // ── nazwa ─────────────────────────────────────────────────────────────
+            // ── name ─────────────────────────────────────────────────────────────
             string name = d.IsExcellent ? $"Excellent {it.Definition.Name}"
                        : d.IsAncient ? $"Ancient {it.Definition.Name}"
                        : it.Definition.Name;
+            if (d.Level > 0)
+                name += $" +{d.Level}";
             li.Add((name, Color.White));
 
-            // ── level + durability ────────────────────────────────────────────────
-            li.Add(($"Level      : +{d.Level}", Color.SkyBlue));
-            li.Add(($"Durability : {it.Durability}", Color.Silver));
+            // ── stats from ItemDefinition ─────────────────────────────────────
+            var def = it.Definition;
+            if (def.DamageMin > 0 || def.DamageMax > 0)
+            {
+                string dmgType = def.TwoHanded ? "Two-hand" : "One-hand";
+                li.Add(($"{dmgType} Damage : {def.DamageMin} ~ {def.DamageMax}", Color.Orange));
+            }
+            if (def.Defense > 0)
+                li.Add(($"Defense     : {def.Defense}", Color.Orange));
+            if (def.DefenseRate > 0)
+                li.Add(($"Defense Rate: {def.DefenseRate}", Color.Orange));
+            if (def.AttackSpeed > 0)
+                li.Add(($"Attack Speed: {def.AttackSpeed}", Color.Orange));
+
+            // ── durability ────────────────────────────────────────────────
+            li.Add(($"Durability : {it.Durability}/{def.BaseDurability}", Color.Silver));
+
+            // ── requirements ────────────────────────────────────────────────────
+            if (def.RequiredLevel > 0)
+                li.Add(($"Required Level   : {def.RequiredLevel}", Color.LightGray));
+            if (def.RequiredStrength > 0)
+                li.Add(($"Required Strength: {def.RequiredStrength}", Color.LightGray));
+            if (def.RequiredDexterity > 0)
+                li.Add(($"Required Agility : {def.RequiredDexterity}", Color.LightGray));
+            if (def.RequiredEnergy > 0)
+                li.Add(($"Required Energy  : {def.RequiredEnergy}", Color.LightGray));
+
+            if (def.AllowedClasses != null && def.AllowedClasses.Count > 0)
+            {
+                foreach (string cls in def.AllowedClasses)
+                    li.Add(($"Can be equipped by {cls}", Color.LightGray));
+            }
 
             // ── opt (+4/+8/+12) ────────────────────────────────────────
             if (d.OptionLevel > 0)
@@ -666,7 +701,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             // ── luck / skill ─────────────────────────────────────────────────────
             if (d.HasLuck) li.Add(("+Luck  (Crit +5 %, Jewel +25 %)", Color.CornflowerBlue));
-            if (d.HasSkill) li.Add(("+Skill (Right mouse click – skill)", Color.CornflowerBlue));
+            if (d.HasSkill) li.Add(("+Skill (Right mouse click - skill)", Color.CornflowerBlue));
 
             // ── excellent ──────────────────────────────────────────────────
             if (d.IsExcellent)
@@ -689,7 +724,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 return;
 
             var lines = BuildTooltipLines(_hoveredItem);
-            const float scale = 0.6f;
+            const float scale = 0.5f;
 
             int w = 0, h = 0;
             foreach (var (t, _) in lines)
@@ -715,11 +750,12 @@ namespace Client.Main.Controls.UI.Game.Inventory
             int y = r.Y + 4;
             foreach (var (t, col) in lines)
             {
+                Vector2 size = _font.MeasureString(t) * scale;
                 sb.DrawString(_font, t,
-                              new Vector2(r.X + 6, y),
+                              new Vector2(r.X + (r.Width - size.X) / 2, y),
                               col, 0f, Vector2.Zero, scale,
                               SpriteEffects.None, 0f);
-                y += (int)(_font.MeasureString(t).Y * scale) + 2;
+                y += (int)size.Y + 2;
             }
         }
     }

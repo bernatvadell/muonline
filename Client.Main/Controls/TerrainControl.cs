@@ -32,7 +32,7 @@ namespace Client.Main.Controls
         /// <summary>
         /// Texture indices that should spawn grass tufts.
         /// </summary>
-        public HashSet<byte> GrassTextureIndices { get; } = new() { 0, 1, 30, 31, 32 };
+        public HashSet<byte> GrassTextureIndices { get; } = new() { 0 };
 
         // Grass density distances (squared)
         private const float GrassNearSq = 3000f * 3000f;   // full density

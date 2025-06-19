@@ -22,6 +22,28 @@ namespace Client.Main.Core.Utilities
             [JsonPropertyName("szItemName")] public object SzItemName { get; set; }
             [JsonPropertyName("Width")] public int Width { get; set; }
             [JsonPropertyName("Height")] public int Height { get; set; }
+            [JsonPropertyName("DamageMin")] public int DamageMin { get; set; }
+            [JsonPropertyName("DamageMax")] public int DamageMax { get; set; }
+            [JsonPropertyName("AttackSpeed")] public int AttackSpeed { get; set; }
+            [JsonPropertyName("Defense")] public int Defense { get; set; }
+            [JsonPropertyName("DefenseRate")] public int DefenseRate { get; set; }
+            [JsonPropertyName("Durability")] public int Durability { get; set; }
+            [JsonPropertyName("ReqStr")] public int ReqStr { get; set; }
+            [JsonPropertyName("ReqDex")] public int ReqDex { get; set; }
+            [JsonPropertyName("ReqEne")] public int ReqEne { get; set; }
+            [JsonPropertyName("ReqLvl")] public int ReqLvl { get; set; }
+            [JsonPropertyName("TwoHands")] public int TwoHands { get; set; }
+            [JsonPropertyName("DW")] public int DW { get; set; }
+            [JsonPropertyName("DK")] public int DK { get; set; }
+            [JsonPropertyName("FE")] public int FE { get; set; }
+            [JsonPropertyName("MG")] public int MG { get; set; }
+            [JsonPropertyName("DL")] public int DL { get; set; }
+            [JsonPropertyName("SU")] public int SU { get; set; }
+            [JsonPropertyName("RF")] public int RF { get; set; }
+            [JsonPropertyName("GL")] public int GL { get; set; }
+            [JsonPropertyName("RW")] public int RW { get; set; }
+            [JsonPropertyName("SL")] public int SL { get; set; }
+            [JsonPropertyName("GC")] public int GC { get; set; }
         }
 
         private static readonly Dictionary<(byte Group, short Id), ItemDefinition> _definitions;
@@ -86,7 +108,21 @@ namespace Client.Main.Core.Utilities
                                         width: jsonItem.Width,
                                         height: jsonItem.Height,
                                         texturePath: texturePath
-                                    );
+                                    )
+                                    {
+                                        DamageMin = jsonItem.DamageMin,
+                                        DamageMax = jsonItem.DamageMax,
+                                        AttackSpeed = jsonItem.AttackSpeed,
+                                        Defense = jsonItem.Defense,
+                                        DefenseRate = jsonItem.DefenseRate,
+                                        BaseDurability = jsonItem.Durability,
+                                        RequiredStrength = jsonItem.ReqStr,
+                                        RequiredDexterity = jsonItem.ReqDex,
+                                        RequiredEnergy = jsonItem.ReqEne,
+                                        RequiredLevel = jsonItem.ReqLvl,
+                                        TwoHanded = jsonItem.TwoHands != 0,
+                                        AllowedClasses = BuildAllowedClasses(jsonItem)
+                                    };
                                     data.Add(key, definition);
                                 }
                             }
@@ -175,6 +211,23 @@ namespace Client.Main.Core.Utilities
         public static string ParseSocketOption(byte socketByte)
         {
             return $"S:{socketByte}";
+        }
+
+        private static List<string> BuildAllowedClasses(JsonItem json)
+        {
+            var classes = new List<string>();
+            if (json.DW != 0) classes.Add("Dark Wizard");
+            if (json.DK != 0) classes.Add("Dark Knight");
+            if (json.FE != 0) classes.Add("Fairy Elf");
+            if (json.MG != 0) classes.Add("Magic Gladiator");
+            if (json.DL != 0) classes.Add("Dark Lord");
+            if (json.SU != 0) classes.Add("Summoner");
+            if (json.RF != 0) classes.Add("Rage Fighter");
+            if (json.GL != 0) classes.Add("Grow Lancer");
+            if (json.RW != 0) classes.Add("Rune Wizard");
+            if (json.SL != 0) classes.Add("Slayer");
+            if (json.GC != 0) classes.Add("Gun Crusher");
+            return classes;
         }
     }
 }
