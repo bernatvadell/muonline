@@ -66,6 +66,13 @@ dotnet publish ./MuAndroid/MuAndroid.csproj -f net9.0-android -c Release -p:Andr
 *   `-p:AcceptAndroidSdkLicenses=True` attempts to accept licenses automatically; you might need to accept them manually via Android Studio or SDK manager tools if this fails.
 *   The output APK will be suitable for deployment to an Android device or emulator.
 
+### Linux
+
+```bash
+dotnet publish ./MuLinux/MuLinux.csproj -f net9.0 -c Release -r linux-x64
+```
+This builds a standalone executable for 64-bit Linux systems.
+
 ### iOS
 
 ```bash
