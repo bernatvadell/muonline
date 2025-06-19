@@ -461,5 +461,32 @@ namespace Client.Main.Networking.Services
                 _logger.LogError(ex, "Error sending pickup item request for itemId {ItemId}.", itemIdMasked);
             }
         }
+
+        public async Task SendEnterGateRequestAsync(ushort gateId)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send enter gate request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending enter gate request for gate {GateId}...", gateId);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new EnterGateRequest(_connectionManager.Connection.Output.GetMemory(EnterGateRequest.Length).Slice(0, EnterGateRequest.Length));
+                    packet.GateNumber = gateId;
+                    packet.TeleportTargetX = 0;
+                    packet.TeleportTargetY = 0;
+                    return EnterGateRequest.Length;
+                });
+                _logger.LogInformation("Enter gate request sent for gate {GateId}.", gateId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending enter gate request for gate {GateId}.", gateId);
+            }
+        }
     }
 }

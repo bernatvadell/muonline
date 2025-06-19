@@ -493,5 +493,26 @@ namespace Client.Main.Objects.Player
                         Color.White * 0.3f);
             }
         }
+
+        protected override void OnLocationChanged(Vector2 oldLocation, Vector2 newLocation)
+        {
+            base.OnLocationChanged(oldLocation, newLocation);
+            if (IsMainWalker)
+            {
+                CheckForGateEntry((int)newLocation.X, (int)newLocation.Y);
+            }
+        }
+
+        private void CheckForGateEntry(int x, int y)
+        {
+            if (World == null) return;
+            var gate = GateDataManager.Instance.GetGate((int)World.MapId, x, y);
+            if (gate != null && gate.Flag == 1) // Flag 1 is an entrance gate
+            {
+                var charState = MuGame.Network.GetCharacterState();
+                if (charState.Level >= gate.Level)
+                    _characterService?.SendEnterGateRequestAsync((ushort)gate.Id);
+            }
+        }
     }
 }

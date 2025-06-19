@@ -41,6 +41,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Controls\UI\Game\Layouts\*.json" />
+    <EmbeddedResource Include="Data\gates.json" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)'!='net9.0-android'">

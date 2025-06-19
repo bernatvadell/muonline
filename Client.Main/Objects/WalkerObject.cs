@@ -92,7 +92,7 @@ namespace Client.Main.Objects
         public ushort idanim = 0;
 
         // Public Methods
-        protected AnimationController _animationController;
+        protected readonly AnimationController _animationController;
 
         public bool IsOneShotPlaying => _animationController?.IsOneShotPlaying ?? false;
 
@@ -278,7 +278,7 @@ namespace Client.Main.Objects
             PlayAction(actionIndex, false);
         }
 
-        public void MoveTo(Vector2 targetLocation, bool sendToServer = true)
+        public virtual void MoveTo(Vector2 targetLocation, bool sendToServer = true)
         {
             if (World == null) return;
 
@@ -370,7 +370,7 @@ namespace Client.Main.Objects
         }
 
         // Private Methods
-        private void OnLocationChanged(Vector2 oldLocation, Vector2 newLocation)
+        protected virtual void OnLocationChanged(Vector2 oldLocation, Vector2 newLocation)
         {
             if (oldLocation == newLocation) return;
             _location = new Vector2((int)newLocation.X, (int)newLocation.Y);
