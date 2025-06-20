@@ -14,6 +14,9 @@ using System.Threading.Tasks;
 using Client.Main.Core.Client;
 using Client.Main.Core.Utilities;
 using System.Text;
+using Client.Main.Controls.UI.Game.Inventory;
+using Client.Main.Helpers;
+using Client.Main.Content;
 
 namespace Client.Main.Objects
 {
@@ -24,10 +27,11 @@ namespace Client.Main.Objects
     public class DroppedItemObject : WorldObject
     {
         // ─────────────────── constants
-        private const float HeightOffset = 50f;
+        private const float HeightOffset = 90f;
         private const float PickupRange = 300f;
         private const float LabelScale = 0.6f;
         private const float LabelOffsetZ = 10f;
+        private const int LabelPixelGap = 20;
 
         // ─────────────────── deps / state
         private readonly ScopeObject _scope;
@@ -38,6 +42,10 @@ namespace Client.Main.Objects
         private SpriteFont _font;
         private LabelControl _label;
         private bool _pickedUp;
+        private Texture2D _itemTexture;
+        private readonly ItemDefinition _definition;
+        private const float SpriteScale = 0.5f;
+        private const float SpriteOffsetZ = 0f;
 
         // ─────────────────── public helpers
         public ushort RawId => _scope.RawId;
@@ -72,6 +80,7 @@ namespace Client.Main.Objects
                 ReadOnlySpan<byte> itemData = itemScope.ItemData.Span;
                 baseName = itemScope.ItemDescription;
                 itemDetails = ItemDatabase.ParseItemDetails(itemData);
+                _definition = ItemDatabase.GetItemDefinition(itemData);
             }
             else if (scope is MoneyScopeObject moneyScope)
             {
@@ -120,7 +129,19 @@ namespace Client.Main.Objects
             }
             else
             {
-                _log.LogWarning("World.Scene == null – label will not be visible.");
+                _log.LogWarning("World.Scene == null - label will not be visible.");
+            }
+
+            if (_definition != null && !string.IsNullOrEmpty(_definition.TexturePath))
+            {
+                await TextureLoader.Instance.Prepare(_definition.TexturePath);
+                _itemTexture = TextureLoader.Instance.GetTexture2D(_definition.TexturePath);
+                if (_itemTexture == null && _definition.TexturePath.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase))
+                {
+                    int w = Math.Max(60, _definition.Width * 60);
+                    int h = Math.Max(60, _definition.Height * 60);
+                    _itemTexture = BmdPreviewRenderer.GetPreview(_definition, w, h);
+                }
             }
         }
 
@@ -131,6 +152,55 @@ namespace Client.Main.Objects
 
             UpdateLabelVisibility();
             if (_label.Visible) UpdateLabelPosition();
+        }
+
+        // =====================================================================
+        public override void Draw(GameTime gameTime)
+        {
+            base.Draw(gameTime);
+
+            if (!Visible || _itemTexture == null || GraphicsDevice == null)
+                return;
+
+            Vector3 anchor = new(Position.X, Position.Y, Position.Z + SpriteOffsetZ);
+            Vector3 screen = GraphicsDevice.Viewport.Project(
+                anchor,
+                Camera.Instance.Projection,
+                Camera.Instance.View,
+                Matrix.Identity);
+
+            if (screen.Z < 0f || screen.Z > 1f)
+                return;
+
+            var sb = GraphicsManager.Instance.Sprite;
+            Vector2 origin = new(_itemTexture.Width / 2f, _itemTexture.Height / 2f);
+
+            void draw()
+            {
+                float pitch = MathHelper.ToRadians(0f);
+                sb.Draw(
+                    _itemTexture,
+                    new Vector2(screen.X, screen.Y),
+                    null,
+                    Color.White,
+                    pitch,
+                    origin,
+                    SpriteScale,
+                    SpriteEffects.None,
+                    screen.Z);
+            }
+
+            if (!SpriteBatchScope.BatchIsBegun)
+            {
+                using (new SpriteBatchScope(sb, SpriteSortMode.BackToFront, BlendState.NonPremultiplied, SamplerState.PointClamp, DepthState))
+                {
+                    draw();
+                }
+            }
+            else
+            {
+                draw();
+            }
         }
 
         // =====================================================================
@@ -250,18 +320,26 @@ namespace Client.Main.Objects
         {
             if (_font == null || GraphicsDevice == null || Camera.Instance == null) return;
 
+            float scale = _label.FontSize / _font.LineSpacing;
+
             Vector3 anchor = new(Position.X, Position.Y, Position.Z + LabelOffsetZ);
-            Vector3 screen = GraphicsDevice.Viewport.Project(anchor,
+            Vector3 screen = GraphicsDevice.Viewport.Project(
+                                anchor,
                                 Camera.Instance.Projection,
                                 Camera.Instance.View,
                                 Matrix.Identity);
 
             if (screen.Z is < 0f or > 1f) { _label.Visible = false; return; }
 
-            Vector2 size = _font.MeasureString(_label.Text) * LabelScale;
-            _label.X = (int)(screen.X - size.X / 2);
-            _label.Y = (int)(screen.Y - size.Y - 5);
-            _label.ControlSize = new((int)size.X, (int)size.Y);
+            Vector2 textSize = _font.MeasureString(_label.Text) * scale;
+
+            int width = (int)(textSize.X + _label.Padding.Left + _label.Padding.Right);
+            int height = (int)(textSize.Y + _label.Padding.Top + _label.Padding.Bottom);
+
+            _label.ControlSize = new(width, height);
+
+            _label.X = (int)(screen.X - width / 2f);
+            _label.Y = (int)(screen.Y - height - LabelPixelGap);
         }
 
         private static Color GetLabelColor(ScopeObject s) =>
