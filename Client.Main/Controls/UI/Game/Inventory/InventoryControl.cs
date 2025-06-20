@@ -631,6 +631,13 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 if (!string.IsNullOrEmpty(item.Definition.TexturePath))
                 {
                     itemTexture = TextureLoader.Instance.GetTexture2D(item.Definition.TexturePath);
+
+                    if (itemTexture == null && item.Definition.TexturePath.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase))
+                    {
+                        int w = item.Definition.Width * INVENTORY_SQUARE_WIDTH;
+                        int h = item.Definition.Height * INVENTORY_SQUARE_HEIGHT;
+                        itemTexture = BmdPreviewRenderer.GetPreview(item.Definition, w, h);
+                    }
                 }
 
                 if (itemTexture != null)
