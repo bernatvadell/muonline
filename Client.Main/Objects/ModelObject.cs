@@ -485,7 +485,7 @@ namespace Client.Main.Objects
 
                 if (!ValidateWorldMatrix(WorldPosition))
                 {
-                    _logger?.LogDebug("Invalid WorldPosition matrix detected – skipping shadow rendering");
+                    _logger?.LogDebug("Invalid WorldPosition matrix detected - skipping shadow rendering");
                     return;
                 }
 
@@ -497,10 +497,22 @@ namespace Client.Main.Objects
                 int primitiveCount = indexBuffer.IndexCount / 3;
 
                 var prevBlendState = GraphicsDevice.BlendState;
-                var prevDepthStencilState = GraphicsDevice.DepthStencilState;
+                var prevDepthState = GraphicsDevice.DepthStencilState;
+                var prevRasterizerState = GraphicsDevice.RasterizerState;
+
+                float constBias = 1f / (1 << 24);
+                float slopeBias = -1.0f;
+
+                RasterizerState ShadowRasterizer = new RasterizerState
+                {
+                    CullMode = CullMode.None,
+                    DepthBias = constBias * -20,
+                    SlopeScaleDepthBias = slopeBias
+                };
 
                 GraphicsDevice.BlendState = Blendings.ShadowBlend;
                 GraphicsDevice.DepthStencilState = DepthStencilState.DepthRead;
+                GraphicsDevice.RasterizerState = ShadowRasterizer;
 
                 try
                 {
@@ -510,26 +522,24 @@ namespace Client.Main.Objects
 
                     effect.Parameters["World"]?.SetValue(shadowWorld);
                     effect.Parameters["ViewProjection"]?.SetValue(view * projection);
-                    effect.Parameters["ShadowTint"]?.SetValue(
-                        new Vector4(0f, 0f, 0f, 1f * ShadowOpacity));
+                    effect.Parameters["ShadowTint"]?.SetValue(new Vector4(0, 0, 0, 1f * ShadowOpacity));
                     effect.Parameters["ShadowTexture"]?.SetValue(_boneTextures[mesh]);
 
-                    foreach (EffectPass pass in effect.CurrentTechnique.Passes)
+                    foreach (var pass in effect.CurrentTechnique.Passes)
                     {
                         pass.Apply();
                         GraphicsDevice.SetVertexBuffer(vertexBuffer);
                         GraphicsDevice.Indices = indexBuffer;
                         GraphicsDevice.DrawIndexedPrimitives(
                             PrimitiveType.TriangleList,
-                            baseVertex: 0,
-                            startIndex: 0,
-                            primitiveCount: primitiveCount);
+                            0, 0, primitiveCount);
                     }
                 }
                 finally
                 {
                     GraphicsDevice.BlendState = prevBlendState;
-                    GraphicsDevice.DepthStencilState = prevDepthStencilState;
+                    GraphicsDevice.DepthStencilState = prevDepthState;
+                    GraphicsDevice.RasterizerState = prevRasterizerState;
                 }
             }
             catch (Exception ex)
