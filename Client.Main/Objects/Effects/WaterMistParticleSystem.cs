@@ -95,6 +95,10 @@ namespace Client.Main.Objects.Effects
         public float ScaleGrowthFactor { get; set; } = 0.5f;
         // Global wind applied to particles (horizontal only).
         public Vector2 Wind { get; set; } = Vector2.Zero;
+        // Minimum emission multiplier when far away.
+        public float MinEmissionScale { get; set; } = 0.2f;
+        // Exponent controlling how emission decreases with distance.
+        public float EmissionDistanceExponent { get; set; } = 2f;
 
         public WaterMistParticleSystem(Texture2D texture)
         {
@@ -155,8 +159,12 @@ namespace Client.Main.Objects.Effects
                     particlePool.Enqueue(p);
                 }
             }
-            // Continuous emission.
-            emissionAccumulator += EmissionRate * delta;
+            // Continuous emission scaled by distance from the camera.
+            float emissionDistance = Vector3.Distance(Camera.Instance.Position, Position);
+            float emissionNorm = MathHelper.Clamp(emissionDistance / MaxEffectiveDistance, 0f, 1f);
+            float emissionFactor = (float)Math.Pow(emissionNorm, EmissionDistanceExponent);
+            float emissionScale = MathHelper.Lerp(1f, MinEmissionScale, emissionFactor);
+            emissionAccumulator += EmissionRate * emissionScale * delta;
             int emitCount = (int)emissionAccumulator;
             if (emitCount > 0)
             {
