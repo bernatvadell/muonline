@@ -7,6 +7,7 @@ using Client.Main.Controls;
 using Client.Main.Controls.UI;
 using Client.Main.Objects.Player;
 using Client.Main.Models;
+using System.Text;
 
 namespace Client.Main.Objects.Effects
 {
@@ -18,6 +19,7 @@ namespace Client.Main.Objects.Effects
         private const float DefaultLifetime = 5f;
         private const float OffsetZ = 60f;
         private const int PixelGap = 8;
+        private const int MaxBubbleWidth = 200;
 
         private readonly string _text;
         private readonly string _playerName;
@@ -62,6 +64,7 @@ namespace Client.Main.Objects.Effects
                 BackgroundColor = new Color(20, 20, 60, 180),
                 Padding = new Margin { Left = 4, Right = 4, Top = 2, Bottom = 2 },
                 UseManualPosition = true,
+                UseControlSizeBackground = true,
                 Visible = false
             };
 
@@ -76,8 +79,11 @@ namespace Client.Main.Objects.Effects
                 BackgroundColor = new Color(0, 0, 0, 160),
                 Padding = new Margin { Left = 4, Right = 4, Top = 2, Bottom = 2 },
                 UseManualPosition = true,
+                UseControlSizeBackground = true,
                 Visible = false
             };
+
+            _textLabel.Text = WrapText(_textLabel.Text, _textLabel.FontSize, MaxBubbleWidth);
 
             if (World?.Scene != null)
             {
@@ -146,21 +152,23 @@ namespace Client.Main.Objects.Effects
                 return;
             }
 
-            float scaleName = _font != null ? _nameLabel.FontSize / _font.LineSpacing : 1f;
-            float scaleText = _font != null ? _textLabel.FontSize / _font.LineSpacing : 1f;
+            Vector2 nameSize = MeasureLabelSize(_nameLabel);
+            Vector2 textSize = MeasureLabelSize(_textLabel);
 
-            Vector2 nameSize = _font != null ? _font.MeasureString(_nameLabel.Text) * scaleName : Vector2.Zero;
-            Vector2 textSize = _font != null ? _font.MeasureString(_textLabel.Text) * scaleText : Vector2.Zero;
+            int nameWidth = (int)nameSize.X + _nameLabel.Padding.Left + _nameLabel.Padding.Right;
+            int textWidth = (int)textSize.X + _textLabel.Padding.Left + _textLabel.Padding.Right;
 
-            int nameWidth = (int)(nameSize.X + _nameLabel.Padding.Left + _nameLabel.Padding.Right);
-            int textWidth = (int)(textSize.X + _textLabel.Padding.Left + _textLabel.Padding.Right);
-            int nameHeight = (int)(nameSize.Y + _nameLabel.Padding.Top + _nameLabel.Padding.Bottom);
-            int textHeight = (int)(textSize.Y + _textLabel.Padding.Top + _textLabel.Padding.Bottom);
+            int nameHeight = (int)nameSize.Y + _nameLabel.Padding.Top + _nameLabel.Padding.Bottom;
+            int textHeight = (int)textSize.Y + _textLabel.Padding.Top + _textLabel.Padding.Bottom;
 
             int maxWidth = Math.Max(nameWidth, textWidth);
 
-            _nameLabel.ControlSize = new Point(maxWidth, nameHeight);
-            _textLabel.ControlSize = new Point(maxWidth, textHeight);
+            _nameLabel.ControlSize = new Point(
+                maxWidth - (_nameLabel.Padding.Left + _nameLabel.Padding.Right),
+                (int)nameSize.Y);
+            _textLabel.ControlSize = new Point(
+                maxWidth - (_textLabel.Padding.Left + _textLabel.Padding.Right),
+                (int)textSize.Y);
 
             int bubbleHeight = nameHeight + textHeight;
 
@@ -174,6 +182,67 @@ namespace Client.Main.Objects.Effects
 
             _nameLabel.Visible = true;
             _textLabel.Visible = true;
+        }
+
+        private Vector2 MeasureLabelSize(LabelControl label)
+        {
+            if (_font == null)
+                return Vector2.Zero;
+
+            float scale = label.FontSize / Constants.BASE_FONT_SIZE;
+            Vector2 size = _font.MeasureString(label.Text) * scale;
+
+            if (label.HasShadow)
+            {
+                size.X += (float)Math.Ceiling(Math.Abs(label.ShadowOffset.X));
+                size.Y += (float)Math.Ceiling(Math.Abs(label.ShadowOffset.Y));
+            }
+
+            if (label.IsBold)
+            {
+                size.X += (float)Math.Ceiling(label.BoldStrength * 2);
+                size.Y += (float)Math.Ceiling(label.BoldStrength * 2);
+            }
+
+            return size;
+        }
+
+        private string WrapText(string rawText, float fontSize, int maxWidth)
+        {
+            if (_font == null || string.IsNullOrEmpty(rawText))
+                return rawText;
+
+            float scale = fontSize / Constants.BASE_FONT_SIZE;
+            var words = rawText.Split(' ');
+            var sb = new StringBuilder();
+            var current = new StringBuilder();
+
+            foreach (var w in words)
+            {
+                string test = current.Length == 0 ? w : current + " " + w;
+                float width = _font.MeasureString(test).X * scale;
+
+                if (width <= maxWidth)
+                {
+                    current.Clear();
+                    current.Append(test);
+                }
+                else
+                {
+                    if (sb.Length > 0) sb.Append('\n');
+                    sb.Append(current);
+                    current.Clear();
+                    current.Append(w);
+                }
+            }
+
+            if (current.Length > 0)
+            {
+                if (sb.Length > 0) sb.Append('\n');
+                sb.Append(current);
+            }
+
+            return sb.ToString();
         }
 
         public override void Dispose()

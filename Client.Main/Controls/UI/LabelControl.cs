@@ -46,6 +46,9 @@ namespace Client.Main.Controls.UI
 
         public bool UseManualPosition { get; set; } = false;
 
+        // When true, background size uses ControlSize instead of text dimensions
+        public bool UseControlSizeBackground { get; set; } = false;
+
         /// <summary>
         /// Text to display. Changing this recalculates the rendered text.
         /// </summary>
@@ -128,11 +131,20 @@ namespace Client.Main.Controls.UI
 
             if (BackgroundColor.A > 0)
             {
+                int bgWidth = totalTextWidth + Padding.Left + Padding.Right;
+                int bgHeight = totalTextHeight + Padding.Top + Padding.Bottom;
+
+                if (UseControlSizeBackground)
+                {
+                    bgWidth = ControlSize.X + Padding.Left + Padding.Right;
+                    bgHeight = ControlSize.Y + Padding.Top + Padding.Bottom;
+                }
+
                 var backgroundRect = new Rectangle(
                     (int)(textPosition.X - Padding.Left),
                     (int)(textPosition.Y - Padding.Top),
-                    totalTextWidth + Padding.Left + Padding.Right,
-                    totalTextHeight + Padding.Top + Padding.Bottom
+                    bgWidth,
+                    bgHeight
                 );
                 sb.Draw(GraphicsManager.Instance.Pixel, backgroundRect, BackgroundColor * Alpha);
             }
