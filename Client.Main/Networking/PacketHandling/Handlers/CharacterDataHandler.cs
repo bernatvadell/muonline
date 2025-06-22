@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 using Client.Main.Core.Client;
 using System.Linq;
 using Client.Main.Controllers;
+using Client.Main.Objects.Effects;
+using Client.Main.Scenes;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
@@ -372,13 +374,21 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     _logger.LogInformation("🎉 LEVEL UP! You are now level {Level} with {Points} points.", newLevel, newPoints);
                     Console.WriteLine($"*** LEVEL UP! You are now level {newLevel}! ***");
                     SoundController.Instance.PlayBuffer("Sound/pLevelUp.wav");
-                    MuGame.ScheduleOnMainThread(() =>
+                    MuGame.ScheduleOnMainThread(async () =>
                     {
-                        var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
-                        if (gameScene != null)
+                        if (MuGame.Instance?.ActiveScene is not GameScene gameScene || gameScene.World == null || gameScene.Hero == null)
                         {
-                            gameScene.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>().FirstOrDefault()?.AddMessage("System", $"You have reached Level {newLevel}! You have {newPoints} stat points remaining.", Client.Main.Models.MessageType.System);
+                            _logger.LogWarning("Cannot spawn LevelUpEffect: GameScene, World, or Hero is null.");
+                            return;
                         }
+
+                        var heroPosition = gameScene.Hero.Position;
+                        var levelUpEffect = new LevelUpEffect(heroPosition);
+                        gameScene.World.Objects.Add(levelUpEffect);
+                        await levelUpEffect.Load(); // Asynchronously load the effect and its children
+
+                        gameScene.Controls.OfType<Controls.UI.ChatLogWindow>().FirstOrDefault()
+                            ?.AddMessage("System", $"You have reached Level {newLevel}! You have {newPoints} stat points remaining.", Models.MessageType.System);
                     });
                 }
                 else
