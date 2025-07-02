@@ -1,5 +1,6 @@
 ﻿using Client.Main.Controls;
 using Microsoft.Xna.Framework;
+using System;
 using System.Collections.Generic;
 
 namespace Client.Main
@@ -133,6 +134,26 @@ namespace Client.Main
             }
 
             path.Reverse(); // Reverse the path to go from start to goal
+            return path;
+        }
+
+        /// <summary>
+        /// Builds a simple straight-line path ignoring obstacles. Used as a
+        /// fallback when A* fails but we still need visible movement.
+        /// </summary>
+        public static List<Vector2> BuildDirectPath(Vector2 start, Vector2 goal)
+        {
+            List<Vector2> path = new();
+            Vector2 current = start;
+            while (current != goal)
+            {
+                if (current.X != goal.X)
+                    current.X += (float)Math.Sign(goal.X - current.X);
+                if (current.Y != goal.Y)
+                    current.Y += (float)Math.Sign(goal.Y - current.Y);
+                path.Add(current);
+            }
+
             return path;
         }
     }

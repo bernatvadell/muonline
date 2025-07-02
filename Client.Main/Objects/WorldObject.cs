@@ -4,6 +4,7 @@ using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Helpers;
 using Client.Main.Models;
+using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Extensions.Logging;
@@ -163,8 +164,17 @@ namespace Client.Main.Objects
             // Determine whether the object should be rendered in low quality based on distance to the camera
             if (World != null)
             {
-                float dist = Vector3.Distance(Camera.Instance.Position, WorldPosition.Translation);
-                LowQuality = dist > Constants.LOW_QUALITY_DISTANCE;
+                bool isLoginScene = World.Scene is LoginScene;
+                if (!Constants.ENABLE_LOW_QUALITY_SWITCH ||
+                    (isLoginScene && !Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE))
+                {
+                    LowQuality = false;
+                }
+                else
+                {
+                    float dist = Vector3.Distance(Camera.Instance.Position, WorldPosition.Translation);
+                    LowQuality = dist > Constants.LOW_QUALITY_DISTANCE;
+                }
             }
             else
             {

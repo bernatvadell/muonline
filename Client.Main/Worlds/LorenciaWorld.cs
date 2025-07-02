@@ -1,5 +1,6 @@
 ﻿using Client.Main.Controllers;
 using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Client.Main.Objects.Monsters;
 using Client.Main.Objects.Worlds.Lorencia;
 using Microsoft.Xna.Framework;
@@ -7,6 +8,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(0, "Lorencia")]
     public class LorenciaWorld : WalkableWorldControl
     {
 

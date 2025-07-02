@@ -79,10 +79,16 @@ namespace Client.Main.Worlds
             }
             _characterLabels.Clear();
 
+            // Positions for up to three characters in the select screen.
+            // The first entry should be the center spot so that the
+            // initially selected character appears in the middle.
             Vector3[] pos =
             {
-                new Vector3(14000, 11995, 250),
+                // Center
                 new Vector3(14000, 12295, 250),
+                // Left
+                new Vector3(14000, 11995, 250),
+                // Right
                 new Vector3(14000, 12595, 250)
             };
 

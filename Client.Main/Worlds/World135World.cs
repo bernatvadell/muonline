@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(134, "Ashen Aida")]
     public class World135World : WalkableWorldControl
     {
         public World135World() : base(worldIndex: 135) // ASHEN AIDA (GRAY AIDA)

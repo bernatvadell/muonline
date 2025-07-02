@@ -1,9 +1,11 @@
 using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Client.Main.Objects.Worlds.Atlans;
 using Microsoft.Xna.Framework;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(7, "Atlans")]
     public class AtlansWorld : WalkableWorldControl
     {
         public AtlansWorld() : base(worldIndex: 8)

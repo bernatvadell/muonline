@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(95, "Debenter")]
     public class World096World : WalkableWorldControl
     {
         public World096World() : base(worldIndex: 96) // DEBENTER (AKERON PART)

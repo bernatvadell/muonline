@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(114, "Loren Market")]
     public class World115World : WalkableWorldControl
     {
         public World115World() : base(worldIndex: 115) // LOREN MARKET & EVENT SQUARE (02)

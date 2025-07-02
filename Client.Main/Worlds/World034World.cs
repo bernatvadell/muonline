@@ -1,8 +1,10 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(33, "Aida")]
     public class World034World : WalkableWorldControl
     {
         public World034World() : base(worldIndex: 34) // AIDA

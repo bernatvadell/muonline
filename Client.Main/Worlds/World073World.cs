@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(72, "Imperial Guardian")]
     public class World073World : WalkableWorldControl
     {
         public World073World() : base(worldIndex: 73) // IMPERIAL GUARDIAN (GAION)

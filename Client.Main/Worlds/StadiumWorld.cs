@@ -1,8 +1,10 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(6, "Arena")]
     public class StadiumWorld : WalkableWorldControl
     {
         public StadiumWorld() : base(worldIndex: 7) // ARENA

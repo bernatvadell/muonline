@@ -2,6 +2,7 @@
 using Client.Data.CAP;
 using Client.Data.OBJS;
 using Client.Main.Controllers;
+using Client.Main.Core.Utilities;
 using Client.Main.Models;
 using Client.Main.Objects;
 using Client.Main.Objects.Player;
@@ -84,6 +85,10 @@ namespace Client.Main.Controls
 
         public Type[] MapTileObjects { get; } = new Type[Constants.TERRAIN_SIZE];
 
+        public ushort MapId { get; protected set; }
+
+        public new string Name { get; protected set; }
+
         // --- Constructor ---
 
         public WorldControl(short worldIndex)
@@ -91,6 +96,13 @@ namespace Client.Main.Controls
             AutoViewSize = false;
             ViewSize = new(MuGame.Instance.Width, MuGame.Instance.Height);
             WorldIndex = worldIndex;
+
+            var worldInfo = (WorldInfoAttribute)Attribute.GetCustomAttribute(GetType(), typeof(WorldInfoAttribute));
+            if (worldInfo != null)
+            {
+                MapId = worldInfo.MapId;
+                Name = worldInfo.DisplayName;
+            }
 
             Controls.Add(Terrain = new TerrainControl { WorldIndex = worldIndex });
             Objects.ControlAdded += OnObjectAdded;

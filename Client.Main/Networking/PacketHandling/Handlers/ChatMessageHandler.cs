@@ -1,6 +1,9 @@
 using Client.Main.Controls.UI;           // For ChatLogWindow, NotificationManager
 using Client.Main.Core.Utilities;       // For PacketHandlerAttribute
 using Client.Main.Scenes;               // For GameScene
+using Client.Main.Objects.Effects;       // For ChatBubbleObject
+using Client.Main.Objects.Player;        // For PlayerObject
+using Client.Main.Controls;              // For WalkableWorldControl
 using Microsoft.Extensions.Logging;
 using MUnique.OpenMU.Network.Packets.ServerToClient;
 using System;
@@ -138,6 +141,25 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         }
 
                         chatLog.AddMessage(sender, display, uiType);
+
+                        if (scene.World is WalkableWorldControl world)
+                        {
+                            var player = world.Objects.OfType<PlayerObject>()
+                                                 .FirstOrDefault(p => string.Equals(p.Name, sender, StringComparison.OrdinalIgnoreCase));
+
+                            if (player == null && world is WalkableWorldControl walk &&
+                                walk.Walker is PlayerObject hero &&
+                                string.Equals(hero.Name, sender, StringComparison.OrdinalIgnoreCase))
+                            {
+                                player = hero;
+                            }
+
+                            if (player != null)
+                            {
+                                var bubble = new ChatBubbleObject(display, player.NetworkId, sender);
+                                world.Objects.Add(bubble);
+                            }
+                        }
                     }
                     else
                     {

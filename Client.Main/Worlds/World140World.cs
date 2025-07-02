@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(139, "Boss Battle Zone")]
     public class World140World : WalkableWorldControl
     {
         public World140World() : base(worldIndex: 140) // BOSS BATTLE ZONE

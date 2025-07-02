@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(117, "Deep Dungeon 2")]
     public class World118World : WalkableWorldControl
     {
         public World118World() : base(worldIndex: 118) // DEEP DUNGEON 02

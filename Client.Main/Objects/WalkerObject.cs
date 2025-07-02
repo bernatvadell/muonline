@@ -92,7 +92,7 @@ namespace Client.Main.Objects
         public ushort idanim = 0;
 
         // Public Methods
-        protected AnimationController _animationController;
+        protected readonly AnimationController _animationController;
 
         public bool IsOneShotPlaying => _animationController?.IsOneShotPlaying ?? false;
 
@@ -278,13 +278,13 @@ namespace Client.Main.Objects
             PlayAction(actionIndex, false);
         }
 
-        public void MoveTo(Vector2 targetLocation, bool sendToServer = true)
+        public virtual void MoveTo(Vector2 targetLocation, bool sendToServer = true)
         {
             if (World == null) return;
 
             if (this is PlayerObject player)
             {
-                player.OnPlayerMoved(); // Użyjemy metody pomocniczej
+                player.OnPlayerMoved();
             }
 
             Vector2 startPos = new Vector2((int)Location.X, (int)Location.Y);
@@ -293,21 +293,29 @@ namespace Client.Main.Objects
             {
                 List<Vector2> path = Pathfinding.FindPath(startPos, targetLocation, currentWorld);
 
-                if (MuGame.Instance.ActiveScene?.World != currentWorld || path == null || path.Count == 0)
+                // If no path was found for a remote object, fall back to a simple
+                // straight-line path so that the character still moves visibly
+                if ((path == null || path.Count == 0) && !sendToServer)
                 {
-                    return;
+                    path = Pathfinding.BuildDirectPath(startPos, targetLocation);
                 }
 
                 MuGame.ScheduleOnMainThread(() =>
                 {
-                    if (MuGame.Instance.ActiveScene?.World == currentWorld && this.Status != GameControlStatus.Disposed)
-                    {
-                        _currentPath = new Queue<Vector2>(path);
+                    if (MuGame.Instance.ActiveScene?.World != currentWorld || this.Status == GameControlStatus.Disposed)
+                        return;
 
-                        if (sendToServer && IsMainWalker)
-                        {
-                            Task.Run(() => SendWalkPathToServerAsync(path));
-                        }
+                    if (path == null || path.Count == 0)
+                    {
+                        _currentPath?.Clear();
+                        return;
+                    }
+
+                    _currentPath = new Queue<Vector2>(path);
+
+                    if (sendToServer && IsMainWalker)
+                    {
+                        Task.Run(() => SendWalkPathToServerAsync(path));
                     }
                 });
             });
@@ -370,7 +378,7 @@ namespace Client.Main.Objects
         }
 
         // Private Methods
-        private void OnLocationChanged(Vector2 oldLocation, Vector2 newLocation)
+        protected virtual void OnLocationChanged(Vector2 oldLocation, Vector2 newLocation)
         {
             if (oldLocation == newLocation) return;
             _location = new Vector2((int)newLocation.X, (int)newLocation.Y);

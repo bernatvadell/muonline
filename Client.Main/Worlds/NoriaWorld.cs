@@ -1,4 +1,5 @@
 using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Client.Main.Objects.Monsters;
 using Client.Main.Objects.NPCS;
 using Client.Main.Objects.Worlds.Noria;
@@ -7,6 +8,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(3, "Noria")]
     public class NoriaWorld : WalkableWorldControl
     {
         public NoriaWorld() : base(worldIndex: 4)

@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(138, "Ignis Volcano")]
     public class World139World : WalkableWorldControl
     {
         public World139World() : base(worldIndex: 139) // IGNIS VOLCANO

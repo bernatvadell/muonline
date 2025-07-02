@@ -65,17 +65,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
             Rectangle destRect = new Rectangle(X, Y, ViewSize.X, ViewSize.Y);
             spriteBatch.Draw(pixel, destRect, Color.DarkGoldenrod * 0.8f); // Color for the picked-up item
 
-            // Draw item name (simplified)
-            if (_font != null && !string.IsNullOrEmpty(Item.Definition.Name))
-            {
-                Vector2 textSize = _font.MeasureString(Item.Definition.Name) * 0.5f; // Small font
-                Vector2 textPos = new Vector2(
-                    destRect.X + (destRect.Width - textSize.X) / 2,
-                    destRect.Y + (destRect.Height - textSize.Y) / 2
-                );
-                spriteBatch.DrawString(_font, Item.Definition.Name, textPos, Color.White, 0, Vector2.Zero, 0.5f, SpriteEffects.None, 0f);
-            }
-
             // We don't call base.Draw(gameTime) because we don't have children and don't want the standard background/frame
         }
     }

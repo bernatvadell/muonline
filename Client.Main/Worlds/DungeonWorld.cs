@@ -1,8 +1,10 @@
 using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 
 namespace Client.Main.Worlds
 {
+    [WorldInfo(1, "Dungeon")]
     public class DungeonWorld : WalkableWorldControl
     {
         public DungeonWorld() : base(worldIndex: 2)
