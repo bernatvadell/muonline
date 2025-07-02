@@ -135,6 +135,34 @@ namespace Client.Main.Scenes
             GameControl topmostHoverForTooltip = null;
             GameControl topmostInteractiveForScroll = null;
 
+            // Simulate mouse click by touch input
+            var touchState = MuGame.Instance.Touch;
+            if (touchState.Count > 0)
+            {
+                var touch = touchState[0];
+                int x = (int)touch.Position.X;
+                int y = (int)touch.Position.Y;
+            
+                Mouse.SetPosition(x, y);
+            
+                if (touch.State == TouchLocationState.Pressed)
+                {
+                    MuGame.Instance.Mouse = new MouseState(
+                        x, y, 0,
+                        ButtonState.Pressed, ButtonState.Released,
+                        ButtonState.Released, ButtonState.Released, ButtonState.Released
+                    );
+                }
+                else if (touch.State == TouchLocationState.Released)
+                {
+                    MuGame.Instance.Mouse = new MouseState(
+                        x, y, 0,
+                        ButtonState.Released, ButtonState.Released,
+                        ButtonState.Released, ButtonState.Released, ButtonState.Released
+                    );
+                }
+            }
+            
             // set scene's MouseControl (which is the target for scroll)
             MouseControl = null;
 
