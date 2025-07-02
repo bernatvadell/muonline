@@ -71,7 +71,9 @@ namespace Client.Main
 #if ANDROID || IOS
             _graphics.IsFullScreen = true;
             _graphics.SynchronizeWithVerticalRetrace = true;
-            IsFixedTimeStep = true;
+            _graphics.PreferredBackBufferWidth = Window.ClientBounds.Width;
+            _graphics.PreferredBackBufferHeight = Window.ClientBounds.Height;
+            IsFixedTimeStep = false;
             TargetElapsedTime = TimeSpan.FromMilliseconds(16.67);
 #else
             if (Constants.UNLIMITED_FPS)
