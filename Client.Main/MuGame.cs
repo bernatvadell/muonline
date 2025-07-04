@@ -44,7 +44,7 @@ namespace Client.Main
         public int Width => _graphics.PreferredBackBufferWidth;
         public int Height => _graphics.PreferredBackBufferHeight;
         public MouseState PrevMouseState { get; private set; }
-        public MouseState Mouse { get; private set; }
+        public MouseState Mouse { get; set; }
         public KeyboardState PrevKeyboard { get; private set; }
         public KeyboardState Keyboard { get; private set; }
         public TouchCollection PrevTouchState { get; private set; }
@@ -71,7 +71,9 @@ namespace Client.Main
 #if ANDROID || IOS
             _graphics.IsFullScreen = true;
             _graphics.SynchronizeWithVerticalRetrace = true;
-            IsFixedTimeStep = true;
+            _graphics.PreferredBackBufferWidth = Window.ClientBounds.Width;
+            _graphics.PreferredBackBufferHeight = Window.ClientBounds.Height;
+            IsFixedTimeStep = false;
             TargetElapsedTime = TimeSpan.FromMilliseconds(16.67);
 #else
             if (Constants.UNLIMITED_FPS)
