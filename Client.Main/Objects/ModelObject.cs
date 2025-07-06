@@ -80,6 +80,10 @@ namespace Client.Main.Objects
         private int _boundingFrameCounter = BoundingUpdateInterval;
         private const int BoundingUpdateInterval = 5;
 
+        // Animation
+        private bool _needsBufferUpdate = true;
+        private float _lastAnimationTime = 0;
+
         public ModelObject()
         {
             MatrixChanged += (_s, _e) => UpdateWorldPosition();
@@ -144,6 +148,20 @@ namespace Client.Main.Objects
         public override void Update(GameTime gameTime)
         {
             if (World == null) return;
+
+            // Track animation changes for buffer optimization
+            float currentAnimTime = (float)gameTime.TotalGameTime.TotalSeconds;
+            bool animationChanged = Math.Abs(currentAnimTime - _lastAnimationTime) > 0.001f;
+
+            if (animationChanged)
+            {
+                _lastAnimationTime = currentAnimTime;
+                _needsBufferUpdate = true;
+            }
+
+            // Advance animation before updating children so attachments use the latest bones
+            Animation(gameTime);
+
             base.Update(gameTime);
 
             if (!Visible) return;
@@ -156,18 +174,20 @@ namespace Client.Main.Objects
                     Vector3 currentLight = World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y) + Light;
 
                     // Use squared distance with higher threshold to reduce sensitivity
-                    if (Vector3.DistanceSquared(currentLight, _lastFrameLight) > 0.0001f) // Increased threshold
+                    if (Vector3.DistanceSquared(currentLight, _lastFrameLight) > 0.0001f)
                     {
-                        _invalidatedBuffers = true;
+                        _needsBufferUpdate = true;
                         _lastFrameLight = currentLight;
                     }
                 }
             }
 
-            Animation(gameTime);
-
-            if (_contentLoaded && _invalidatedBuffers)
+            // Update buffers only when necessary
+            if (_contentLoaded && (_invalidatedBuffers || _needsBufferUpdate))
+            {
                 SetDynamicBuffers();
+                _needsBufferUpdate = false;
+            }
         }
         public override void Draw(GameTime gameTime)
         {
