@@ -2,6 +2,8 @@
 using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Models;
+using Client.Main.Objects.Player;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
 
@@ -10,16 +12,26 @@ namespace Client.Main.Objects.Monsters
     [NpcInfo(6, "Lich")]
     public class Lich : MonsterObject
     {
+        private WeaponObject _rightHandWeapon;
         public Lich()
         {
             RenderShadow = true;
             Scale = 0.85f; // Set according to C++ Setting_Monster
+            _rightHandWeapon = new WeaponObject
+            {
+                LinkParentAnimation = false,
+                ParentBoneLink = 41
+            };
+            Children.Add(_rightHandWeapon);
         }
 
         public override async Task Load()
         {
             // Model Loading Type: 4 -> File Number: 4 + 1 = 5
             Model = await BMDLoader.Instance.Prepare($"Monster/Monster05.bmd");
+            var item = ItemDatabase.GetItemDefinition(5, 2); // Serpent Staff
+            if (item != null)
+                _rightHandWeapon.Model = await BMDLoader.Instance.Prepare(item.TexturePath);
             await base.Load();
         }
 

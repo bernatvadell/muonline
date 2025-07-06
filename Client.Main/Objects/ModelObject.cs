@@ -1027,12 +1027,12 @@ namespace Client.Main.Objects
         protected override void RecalculateWorldPosition()
         {
             Matrix localMatrix = Matrix.CreateScale(Scale) *
-                                 Matrix.CreateFromQuaternion(MathUtils.AngleQuaternion(Angle)) *
-                                 Matrix.CreateTranslation(Position);
+            Matrix.CreateFromQuaternion(MathUtils.AngleQuaternion(Angle)) *
+            Matrix.CreateTranslation(Position);
 
             if (Parent != null)
             {
-                Matrix worldMatrix = ParentBodyOrigin * localMatrix * Parent.WorldPosition;
+                Matrix worldMatrix = localMatrix * ParentBodyOrigin * Parent.WorldPosition;
 
                 if (WorldPosition != worldMatrix)
                 {

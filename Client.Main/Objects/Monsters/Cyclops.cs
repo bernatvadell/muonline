@@ -2,6 +2,8 @@
 using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Models;
+using Client.Main.Objects.Player;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
 
@@ -10,16 +12,26 @@ namespace Client.Main.Objects.Monsters
     [NpcInfo(17, "Cyclops")]
     public class Cyclops : MonsterObject
     {
+        private WeaponObject _rightHandWeapon;
         public Cyclops()
         {
             RenderShadow = true;
             Scale = 1.0f; // Default
+            _rightHandWeapon = new WeaponObject
+            {
+                LinkParentAnimation = false,
+                ParentBoneLink = 41
+            };
+            Children.Add(_rightHandWeapon);
         }
 
         public override async Task Load()
         {
             // Model Loading Type: 10 -> File Number: 10 + 1 = 11
             Model = await BMDLoader.Instance.Prepare($"Monster/Monster11.bmd");
+            var item = ItemDatabase.GetItemDefinition(1, 8); // Crescent Axe
+            if (item != null)
+                _rightHandWeapon.Model = await BMDLoader.Instance.Prepare(item.TexturePath);
             await base.Load();
             SetActionSpeed(MonsterActionType.Walk, 0.28f);
             // C++: Models[MODEL_MONSTER01+Type].BoneHead = 20; (Additional info)

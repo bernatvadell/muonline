@@ -2,6 +2,8 @@
 using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Models;
+using Client.Main.Objects.Player;
+using Client.Main.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
@@ -11,18 +13,38 @@ namespace Client.Main.Objects.Monsters
     [NpcInfo(7, "Giant")]
     public class Giant : MonsterObject
     {
+        private WeaponObject _rightHandWeapon;
+        private WeaponObject _leftHandWeapon;
         private new ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<MonsterObject>();
 
         public Giant()
         {
             RenderShadow = true;
             Scale = 1.6f;
+            _rightHandWeapon = new WeaponObject
+            {
+                LinkParentAnimation = false,
+                ParentBoneLink = 41
+            };
+            _leftHandWeapon = new WeaponObject
+            {
+                LinkParentAnimation = false,
+                ParentBoneLink = 32
+            };
+            Children.Add(_rightHandWeapon);
+            Children.Add(_leftHandWeapon);
         }
 
         public override async Task Load()
         {
             // Model Loading Type: 5 -> File Number: 5 + 1 = 6
             Model = await BMDLoader.Instance.Prepare($"Monster/Monster06.bmd");
+            var item = ItemDatabase.GetItemDefinition(1, 2); // Double Axe
+            if (item != null)
+            {
+                _rightHandWeapon.Model = await BMDLoader.Instance.Prepare(item.TexturePath);
+                _leftHandWeapon.Model = await BMDLoader.Instance.Prepare(item.TexturePath);
+            }
             await base.Load(); // Important that base.Load() is called before accessing Model.Actions
 
             if (Model != null && Model.Actions != null)

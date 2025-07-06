@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using Client.Main.Controllers;
 using System.Linq;
 using System;
+using Client.Main.Objects.Player;
+using Client.Main.Core.Utilities;
 
 namespace Client.Main.Objects.Monsters
 {
@@ -25,11 +27,24 @@ namespace Client.Main.Objects.Monsters
             { MonsterActionType.Attack4, PlayerAction.AttackFist }, // TODO:
             { MonsterActionType.Run,     PlayerAction.Run }
         };
-
+        private WeaponObject _rightHandWeapon;
+        private WeaponObject _leftHandWeapon;
         public SkeletonWarrior()
         {
             Scale = 0.95f; // Set according to C++ Setting_Monster
             RenderShadow = true;
+            _rightHandWeapon = new WeaponObject
+            {
+                LinkParentAnimation = false,
+                ParentBoneLink = 33
+            };
+            _leftHandWeapon = new WeaponObject
+            {
+                LinkParentAnimation = false,
+                ParentBoneLink = 42
+            };
+            Children.Add(_rightHandWeapon);
+            Children.Add(_leftHandWeapon);
         }
 
         public override async Task Load()
@@ -53,7 +68,13 @@ namespace Client.Main.Objects.Monsters
 
             Model = skeletonModel;
 
-            // TODO: Implement SubType handling in C# to apply MODEL_SKELETON1 appearance
+            var item = ItemDatabase.GetItemDefinition(0, 6); // Gladius
+            if (item != null)
+                _rightHandWeapon.Model = await BMDLoader.Instance.Prepare(item.TexturePath);
+            var shield = ItemDatabase.GetItemDefinition(6, 4); // Buckler
+            if (shield != null)
+                _leftHandWeapon.Model = await BMDLoader.Instance.Prepare(shield.TexturePath);
+
             await base.Load();
             // No specific sounds assigned in C++ for this SubType
         }

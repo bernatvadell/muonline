@@ -2,6 +2,8 @@
 using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Models;
+using Client.Main.Objects.Player;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
 
@@ -10,16 +12,27 @@ namespace Client.Main.Objects.Monsters
     [NpcInfo(13, "Hell Spider")]
     public class HellSpider : MonsterObject
     {
+        private WeaponObject _rightHandWeapon;
         public HellSpider()
         {
             RenderShadow = true;
             Scale = 1.1f; // Set according to C++ Setting_Monster
+            _rightHandWeapon = new WeaponObject
+            {
+                LinkParentAnimation = true,
+                ParentBoneLink = 42
+            };
+            Children.Add(_rightHandWeapon);
         }
 
         public override async Task Load()
         {
             // Model Loading Type: 8 -> File Number: 8 + 1 = 9
             Model = await BMDLoader.Instance.Prepare($"Monster/Monster09.bmd");
+            var item = ItemDatabase.GetItemDefinition(5, 2); // Serpent Staff
+            if (item != null)
+                _rightHandWeapon.Model = await BMDLoader.Instance.Prepare(item.TexturePath);
+
             await base.Load();
 
             // Specific PlaySpeed adjustment from C++

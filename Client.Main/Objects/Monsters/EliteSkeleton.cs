@@ -1,6 +1,8 @@
 using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Models;
+using Client.Main.Objects.Player;
+using Client.Main.Core.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,10 +27,24 @@ namespace Client.Main.Objects.Monsters
             { MonsterActionType.Attack4, PlayerAction.AttackFist }, // TODO:
             { MonsterActionType.Run,     PlayerAction.Run }
         };
+        private WeaponObject _rightHandWeapon;
+        private WeaponObject _leftHandWeapon;
         public EliteSkeleton()
         {
             Scale = 1.2f; // Set according to C++ Setting_Monster
             RenderShadow = true;
+            _rightHandWeapon = new WeaponObject
+            {
+                LinkParentAnimation = false,
+                ParentBoneLink = 33
+            };
+            _leftHandWeapon = new WeaponObject
+            {
+                LinkParentAnimation = false,
+                ParentBoneLink = 42 // Assuming 43 is left hand
+            };
+            Children.Add(_rightHandWeapon);
+            Children.Add(_leftHandWeapon);
         }
 
         public override async Task Load()
@@ -50,7 +66,13 @@ namespace Client.Main.Objects.Monsters
 
             Model = skeletonModel;
 
-            // TODO: Implement SubType handling in C# to apply MODEL_SKELETON1 appearance
+            var item = ItemDatabase.GetItemDefinition(1, 3); // Tomahawk
+            if (item != null)
+                _rightHandWeapon.Model = await BMDLoader.Instance.Prepare(item.TexturePath);
+            var shield = ItemDatabase.GetItemDefinition(6, 6); // Skull Shield
+            if (shield != null)
+                _leftHandWeapon.Model = await BMDLoader.Instance.Prepare(shield.TexturePath);
+
             await base.Load();
             // No specific sounds assigned in C++ for this SubType
         }

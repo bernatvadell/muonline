@@ -2,6 +2,8 @@
 using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Models;
+using Client.Main.Objects.Player;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
 
@@ -10,16 +12,26 @@ namespace Client.Main.Objects.Monsters
     [NpcInfo(26, "Goblin")]
     public class Goblin : MonsterObject
     {
+        private WeaponObject _rightHandWeapon;
         public Goblin()
         {
             RenderShadow = true;
             Scale = 0.8f; // Set according to C++ Setting_Monster
+            _rightHandWeapon = new WeaponObject
+            {
+                LinkParentAnimation = false,
+                ParentBoneLink = 31 // 22 left
+            };
+            Children.Add(_rightHandWeapon);
         }
 
         public override async Task Load()
         {
             // Model Loading Type: 19 -> File Number: 19 + 1 = 20
             Model = await BMDLoader.Instance.Prepare($"Monster/Monster20.bmd");
+            var item = ItemDatabase.GetItemDefinition(1, 0); // Axe
+            if (item != null)
+                _rightHandWeapon.Model = await BMDLoader.Instance.Prepare(item.TexturePath);
             await base.Load();
 
             // Specific PlaySpeed adjustment from C++ OpenMonsterModel

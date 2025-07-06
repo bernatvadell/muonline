@@ -1,6 +1,8 @@
 using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Models;
+using Client.Main.Objects.Player;
+using Client.Main.Core.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,10 +27,17 @@ namespace Client.Main.Objects.Monsters
             { MonsterActionType.Attack4, PlayerAction.AttackFist }, // TODO:
             { MonsterActionType.Run,     PlayerAction.Run }
         };
+        private WeaponObject _rightHandWeapon;
         public SkeletonArcher()
         {
             Scale = 1.1f; // Set according to C++ Setting_Monster
             RenderShadow = true;
+            _rightHandWeapon = new WeaponObject
+            {
+                LinkParentAnimation = false,
+                ParentBoneLink = 42
+            };
+            Children.Add(_rightHandWeapon);
         }
 
         public override async Task Load()
@@ -50,7 +59,10 @@ namespace Client.Main.Objects.Monsters
 
             Model = skeletonModel;
 
-            // TODO: Implement SubType handling in C# to apply MODEL_SKELETON1 appearance
+            var item = ItemDatabase.GetItemDefinition(4, 2); // Elven Bow
+            if (item != null)
+                _rightHandWeapon.Model = await BMDLoader.Instance.Prepare(item.TexturePath);
+
             await base.Load();
             // No specific sounds assigned in C++ for this SubType
         }

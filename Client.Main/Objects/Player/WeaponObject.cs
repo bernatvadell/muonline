@@ -1,6 +1,7 @@
 using Client.Data;
 using Client.Main.Content;
 using Microsoft.Extensions.Logging;
+using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Player
@@ -8,6 +9,7 @@ namespace Client.Main.Objects.Player
     public class WeaponObject : ModelObject
     {
         private int _type;
+        private Matrix _lastWorld;
         private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<WeaponObject>();
 
         public new int Type
@@ -66,6 +68,17 @@ namespace Client.Main.Objects.Player
             }
 
             return null;
+        }
+
+        public override void Update(GameTime gameTime)
+        {
+            base.Update(gameTime);
+
+            if (Parent != null && WorldPosition != _lastWorld)
+            {
+                _lastWorld = WorldPosition;
+                InvalidateBuffers();
+            }
         }
     }
 }
