@@ -159,14 +159,19 @@ namespace Client.Main.Objects
                 _needsBufferUpdate = true;
             }
 
-            // Advance animation before updating children so attachments use the latest bones
-            Animation(gameTime);
+            // Process animation BEFORE updating children so they get fresh bone transforms
+            // This ensures child objects with LinkParentAnimation get smooth updates
+            if (_contentLoaded && Visible)
+            {
+                Animation(gameTime);
+            }
 
+            // Now update children - they will use the updated bone transforms
             base.Update(gameTime);
 
             if (!Visible) return;
 
-            // Only calculate lighting for non-animated objects or every few frames for animated ones
+            // Only calculate lighting for non-animated objects or when needed
             if (!LinkParentAnimation && _contentLoaded)
             {
                 if (LightEnabled && World?.Terrain != null)
