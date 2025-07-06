@@ -1,5 +1,7 @@
 using Client.Main.Content;
+using Client.Main.Core.Utilities;
 using Client.Main.Models;
+using Client.Main.Objects.Player;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.NPCS
@@ -7,11 +9,23 @@ namespace Client.Main.Objects.NPCS
     [NpcInfo(249, "Berdysh Guard")]
     public class BerdyshGuard : CompositeNPCObject
     {
+        private WeaponObject _rightHandWeapon;
+
+        public BerdyshGuard()
+        {
+            _rightHandWeapon = new WeaponObject
+            {
+                LinkParentAnimation = false,
+                ParentBoneLink = 42
+            };
+            Children.Add(_rightHandWeapon);
+        }
         public override async Task Load()
         {
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
             await SetBodyPartsAsync("Player/", "HelmMale", "ArmorMale", "PantMale", "GloveMale", "BootMale", 10); // Plate Set
-            // Weapon1.Type = (int)ModelType.Spear + 6 + MODEL_ITEM; // Berdysh
+            var item = ItemDatabase.GetItemDefinition(3, 7); // Berdysh
+            _rightHandWeapon.Model = await BMDLoader.Instance.Prepare(item.TexturePath);
             await base.Load();
             CurrentAction = (int)PlayerAction.StopMale;
         }
