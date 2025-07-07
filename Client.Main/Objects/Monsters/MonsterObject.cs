@@ -46,6 +46,9 @@ namespace Client.Main.Objects.Monsters
         public void StartDeathFade(float duration = 2f)
         {
             if (_isFading) return;
+
+            // Ensure the monster stops moving while the death animation plays
+            StopMovement();
             _isFading = true;
             _fadeDuration = duration;
             _fadeTimer = 0f;

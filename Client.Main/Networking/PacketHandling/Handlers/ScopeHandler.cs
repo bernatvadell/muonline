@@ -1108,6 +1108,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                 PlayerAction clientActionToPlay;
                 string actionNameForLog;
+                MonsterActionType? monsterAction = null;
 
                 if (walker is PlayerObject playerToAnimate)
                 {
@@ -1118,8 +1119,19 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 else if (walker is MonsterObject monsterToAnimate)
                 {
                     byte actionIdx = (byte)((serverActionId & 0xE0) >> 5);
-                    clientActionToPlay = (PlayerAction)(MonsterActionType)actionIdx;
-                    actionNameForLog = ((MonsterActionType)actionIdx).ToString();
+                    var action = (MonsterActionType)actionIdx;
+
+                    if (action is MonsterActionType.Attack1 or MonsterActionType.Attack2) // It was always attack1
+                    {
+                        action = MuGame.Random.Next(2) == 0
+                            ? MonsterActionType.Attack1
+                            : MonsterActionType.Attack2;
+                        actionIdx = (byte)action;
+                    }
+
+                    clientActionToPlay = (PlayerAction)action;
+                    actionNameForLog = action.ToString();
+                    monsterAction = action;
                 }
                 else
                 {
@@ -1139,7 +1151,15 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 else
                 {
                     walker.Direction = clientDirection;
+
                     walker.PlayAction((ushort)clientActionToPlay, fromServer: true); // <-- Dodaj fromServer: true
+
+                    if (walker is MonsterObject monster && monsterAction.HasValue &&
+                        (monsterAction == MonsterActionType.Attack1 || monsterAction == MonsterActionType.Attack2))
+                    {
+                        monster.OnPerformAttack(monsterAction == MonsterActionType.Attack1 ? 1 : 2);
+                    }
+
                     _logger.LogInformation("🎞️ Animation ({WalkerType} {Id:X4}): Action: {ActionName} ({ClientAction}), ServerActionID: {ServerActionId}, Dir: {Direction}",
                        walker.GetType().Name, maskedId, actionNameForLog, clientActionToPlay, serverActionId, clientDirection);
                 }
