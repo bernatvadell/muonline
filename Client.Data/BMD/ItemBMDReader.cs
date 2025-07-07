@@ -16,7 +16,7 @@ namespace Client.Data.BMD
             using var br = new BinaryReader(new MemoryStream(buffer));
             var itemCount = br.ReadInt32();
             var BytesPerItem = (len - 8) / itemCount; //len minus 4 bytes item count and 4 bytes crc at the end
-            while (br.BaseStream.Position != br.BaseStream.Length)
+            while (br.BaseStream.Position != br.BaseStream.Length - 4) //ignore last 4 bytes that is crc
             {
                 var itemBytes = br.ReadBytes(BytesPerItem);
                 XOR3(ref itemBytes);
