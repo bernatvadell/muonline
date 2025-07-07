@@ -37,6 +37,36 @@ namespace Client.Main
                     _gates = JsonSerializer.Deserialize<List<GateInfo>>(json);
                 }
             }
+
+            // Ensure that exit gates link back to their entrances so players can
+            // return through a warp in both directions.
+            CreateReverseGateLinks();
+        }
+
+        /// <summary>
+        /// Finds the gate with the specified identifier.
+        /// </summary>
+        public GateInfo GetGateById(int id)
+        {
+            return _gates.FirstOrDefault(g => g.Id == id);
+        }
+
+        /// <summary>
+        /// Updates exit gates so that they lead back to their entrance gates.
+        /// Many gate definitions only point from an entrance to an exit. This
+        /// method scans for such pairs and assigns the reverse target on the
+        /// exit gate if it is missing.
+        /// </summary>
+        private void CreateReverseGateLinks()
+        {
+            foreach (var entrance in _gates.Where(g => g.Flag == 1 && g.Target > 0))
+            {
+                var exitGate = GetGateById(entrance.Target);
+                if (exitGate != null && exitGate.Target == 0)
+                {
+                    exitGate.Target = entrance.Id;
+                }
+            }
         }
 
         public GateInfo GetGate(int mapId, int x, int y)

@@ -512,7 +512,7 @@ namespace Client.Main.Objects.Player
         {
             if (World == null) return;
             var gate = GateDataManager.Instance.GetGate((int)World.MapId, x, y);
-            if (gate != null && gate.Flag == 1) // Flag 1 is an entrance gate
+            if (gate != null && gate.Flag != 0)
             {
                 var charState = MuGame.Network.GetCharacterState();
                 if (charState.Level >= gate.Level)
