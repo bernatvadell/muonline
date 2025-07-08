@@ -14,7 +14,7 @@ namespace Client.Main
 
 #if DEBUG
                 public static Type ENTRY_SCENE = typeof(Scenes.LoadScene);
-                public static bool BACKGROUND_MUSIC = true;
+                public static bool BACKGROUND_MUSIC = false;
                 public static bool SOUND_EFFECTS = true;
                 public static bool DRAW_BOUNDING_BOXES = false;
                 public static bool DRAW_BOUNDING_BOXES_INTERACTIVES = false;
@@ -25,7 +25,7 @@ namespace Client.Main
                 //public static string DataPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
 #else
                 public static Type ENTRY_SCENE = typeof(Scenes.LoadScene);
-                public static bool BACKGROUND_MUSIC = true;
+                public static bool BACKGROUND_MUSIC = false;
                 public static bool SOUND_EFFECTS = true;
                 public static bool DRAW_BOUNDING_BOXES = false;
                 public static bool DRAW_BOUNDING_BOXES_INTERACTIVES = false;
@@ -78,5 +78,12 @@ namespace Client.Main
                 /// Enables drawing of object names when hovered with the mouse.
                 /// </summary>
                 public const bool SHOW_NAMES_ON_HOVER = true;
+
+                // Android-specific adjustments
+                /// <summary>
+                /// Scale factor applied to the camera field of view on Android
+                /// to reduce edge artifacts on wide screens.
+                /// </summary>
+                public const float ANDROID_FOV_SCALE = 0.8f;
         }
 }

@@ -2,6 +2,8 @@
 using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Models;
+using Client.Main.Objects.Player;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
 
@@ -10,16 +12,26 @@ namespace Client.Main.Objects.Monsters
     [NpcInfo(28, "Beetle Monster")]
     public class BeetleMonster : MonsterObject
     {
+        private WeaponObject _rightHandWeapon;
         public BeetleMonster()
         {
             RenderShadow = true;
             Scale = 0.8f; // Set according to C++ Setting_Monster
+            _rightHandWeapon = new WeaponObject
+            {
+                LinkParentAnimation = false,
+                ParentBoneLink = 24
+            };
+            Children.Add(_rightHandWeapon);
         }
 
         public override async Task Load()
         {
             // Model Loading Type: 21 -> File Number: 21 + 1 = 22
             Model = await BMDLoader.Instance.Prepare($"Monster/Monster22.bmd");
+            var item = ItemDatabase.GetItemDefinition(3, 1); // Spear
+            if (item != null)
+                _rightHandWeapon.Model = await BMDLoader.Instance.Prepare(item.TexturePath);
             await base.Load();
             SetActionSpeed(MonsterActionType.Walk, 0.5f);
             // C++: Models[MODEL_MONSTER01+Type].BoneHead = 5;

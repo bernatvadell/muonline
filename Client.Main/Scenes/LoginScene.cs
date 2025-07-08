@@ -230,8 +230,8 @@ namespace Client.Main.Scenes
                     case ClientConnectionState.RequestingConnectionInfo:
                     case ClientConnectionState.ReceivedConnectionInfo:
                     case ClientConnectionState.ConnectingToGameServer:
-                        hideAll = true;
-                        _logger.LogDebug("HandleConnectionStateChange: Setting hideAll = true");
+                        showLoginDialog = _loginDialog?.Visible == true;
+                        _logger.LogDebug("HandleConnectionStateChange: Keeping login dialog visible during connection");
                         break;
                     case ClientConnectionState.ConnectedToGameServer:
                         showLoginDialog = true;
@@ -508,6 +508,13 @@ namespace Client.Main.Scenes
 
             // UI visibility will be handled by HandleConnectionStateChange when state changes to RequestingConnectionInfo
             _ = _networkManager.RequestGameServerConnectionAsync(e.Index);
+
+            // On Android the state change might be delayed; show the dialog immediately
+            if (_loginDialog != null)
+            {
+                _loginDialog.Visible = true;
+                _loginDialog.FocusUsername();
+            }
         }
 
         // --- Helper Methods ---

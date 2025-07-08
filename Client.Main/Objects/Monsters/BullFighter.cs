@@ -1,7 +1,9 @@
 ﻿using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Controls;
+using Client.Main.Core.Utilities;
 using Client.Main.Models;
+using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
 
@@ -10,16 +12,25 @@ namespace Client.Main.Objects.Monsters
     [NpcInfo(0, "Bull Fighter")]
     public class BullFighter : MonsterObject
     {
+        private WeaponObject _rightHandWeapon;
         public BullFighter()
         {
             RenderShadow = true;
-            Scale = 0.8f; // Default or adjust based on C++ if specified
+            Scale = 0.8f;
+            _rightHandWeapon = new WeaponObject
+            {
+                LinkParentAnimation = false,
+                ParentBoneLink = 42, // Right hand bone for monsters
+            };
+            Children.Add(_rightHandWeapon);
         }
 
         public override async Task Load()
         {
             // Model Loading Type: 0 -> File Number: 0 + 1 = 1
             Model = await BMDLoader.Instance.Prepare($"Monster/Monster01.bmd");
+            var item = ItemDatabase.GetItemDefinition(1, 6);
+            _rightHandWeapon.Model = await BMDLoader.Instance.Prepare(item.TexturePath);
             await base.Load();
         }
 

@@ -14,15 +14,21 @@ namespace Client.Main.Objects.NPCS
     public class ElfSoldier : CompositeNPCObject
     {
         private new readonly ILogger<ElfSoldier> _logger;
-
+        private WingObject _wings;
         public ElfSoldier()
         {
             _logger = AppLoggerFactory?.CreateLogger<ElfSoldier>();
+
+            _wings = new WingObject
+            {
+                BlendMesh = 0,
+                BlendMeshState = Microsoft.Xna.Framework.Graphics.BlendState.Additive
+            };
+            Children.Add(_wings);
         }
 
         public override async Task Load()
         {
-            // 1. Ładujemy model animacji (szkielet) do właściwości Model w klasie bazowej
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
             if (Model == null)
             {
@@ -31,18 +37,9 @@ namespace Client.Main.Objects.NPCS
                 return;
             }
 
-            await SetBodyPartsAsync("Player/", "HelmElf", "ArmorElf", "PantElf", "GloveElf", "BootElf", 5);
+            await SetBodyPartsAsync("Player/", "HelmMale", "ArmorMale", "PantMale", "GloveMale", "BootMale", 25);
 
-            if (this.Wings != null)
-            {
-                this.Wings.Type = 403;
-                this.Wings.Hidden = false;
-                this.Wings.LinkParentAnimation = false;
-            }
-            else
-            {
-                _logger?.LogWarning("ElfSoldier: obiekt 'Wings' jest null i nie można go ustawić.");
-            }
+            _wings.Model = await BMDLoader.Instance.Prepare("Item/Wing04.bmd");
 
             await base.Load();
 

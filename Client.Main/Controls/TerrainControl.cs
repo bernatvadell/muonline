@@ -1197,5 +1197,24 @@ namespace Client.Main.Controls
             }
             GraphicsDevice.BlendState = BlendState.Opaque;
         }
+
+        /// <summary>
+        /// Returns the base texture index at the specified terrain coordinates.
+        /// This is useful for gameplay logic that depends on the ground type
+        /// (e.g. playing different footstep sounds).
+        /// </summary>
+        /// <param name="x">Tile X coordinate.</param>
+        /// <param name="y">Tile Y coordinate.</param>
+        public byte GetBaseTextureIndexAt(int x, int y)
+        {
+            if (_mapping.Layer1 == null || _mapping.Layer2 == null || _mapping.Alpha == null)
+                return 0;
+
+            x = Math.Clamp(x, 0, Constants.TERRAIN_SIZE - 1);
+            y = Math.Clamp(y, 0, Constants.TERRAIN_SIZE - 1);
+            int idx = GetTerrainIndex(x, y);
+            byte alpha = _mapping.Alpha[idx];
+            return alpha == 255 ? _mapping.Layer2[idx] : _mapping.Layer1[idx];
+        }
     }
 }

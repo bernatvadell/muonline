@@ -34,6 +34,9 @@ namespace Client.Main.Objects.Player
         // Cached gender flag – avoids evaluating gender every frame
         private bool _isFemale;
 
+        // Timer for footstep sound playback
+        private float _footstepTimer;
+
         // ───────────────────────────────── PROPERTIES ─────────────────────────────────
         public bool IsResting { get; set; }
         public bool IsSitting { get; set; }
@@ -129,9 +132,9 @@ namespace Client.Main.Objects.Player
                 return;
 
             if (IsMainWalker)
-                UpdateLocalPlayer(world);
+                UpdateLocalPlayer(world, gameTime);
             else
-                UpdateRemotePlayer(world);
+                UpdateRemotePlayer(world, gameTime);
         }
 
         // --------------- Helpers for correct animation selection ----------------
@@ -182,7 +185,7 @@ namespace Client.Main.Objects.Player
             GetIdleAction(GetCurrentMovementMode(world));
 
         // --------------- LOCAL PLAYER (the one we control) ----------------
-        private void UpdateLocalPlayer(WalkableWorldControl world)
+        private void UpdateLocalPlayer(WalkableWorldControl world, GameTime gameTime)
         {
             // Rest / sit handling first
             if (HandleRestTarget(world) || HandleSitTarget())
@@ -196,6 +199,7 @@ namespace Client.Main.Objects.Player
                 var desired = GetMovementAction(mode);
                 if (!IsOneShotPlaying && CurrentAction != desired)
                     PlayAction((ushort)desired);
+                PlayFootstepSound(world, gameTime);
             }
             else if (!IsOneShotPlaying && CurrentAction != GetIdleAction(mode))
             {
@@ -204,7 +208,7 @@ namespace Client.Main.Objects.Player
         }
 
         // --------------- REMOTE PLAYERS ----------------
-        private void UpdateRemotePlayer(WalkableWorldControl world)
+        private void UpdateRemotePlayer(WalkableWorldControl world, GameTime gameTime)
         {
             var mode = GetCurrentMovementMode(world);
             if (IsMoving)
@@ -213,6 +217,7 @@ namespace Client.Main.Objects.Player
                 var desired = GetMovementAction(mode);
                 if (!IsOneShotPlaying && CurrentAction != desired)
                     PlayAction((ushort)desired);
+                PlayFootstepSound(world, gameTime);
             }
             else if (!IsOneShotPlaying && CurrentAction != GetIdleAction(mode))
             {
@@ -507,12 +512,64 @@ namespace Client.Main.Objects.Player
         {
             if (World == null) return;
             var gate = GateDataManager.Instance.GetGate((int)World.MapId, x, y);
-            if (gate != null && gate.Flag == 1) // Flag 1 is an entrance gate
+            if (gate != null && gate.Flag != 0)
             {
                 var charState = MuGame.Network.GetCharacterState();
                 if (charState.Level >= gate.Level)
                     _characterService?.SendEnterGateRequestAsync((ushort)gate.Id);
             }
+        }
+
+        /// <summary>
+        /// Plays a footstep sound based on terrain and movement mode.
+        /// </summary>
+        private void PlayFootstepSound(WalkableWorldControl world, GameTime gameTime)
+        {
+            if (!IsMoving)
+            {
+                _footstepTimer = 0f;
+                return;
+            }
+
+            _footstepTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            var mode = GetCurrentMovementMode(world);
+            float interval = mode == MovementMode.Swim ? 2.0f : 0.4f;
+            if (_footstepTimer < interval)
+                return;
+
+            _footstepTimer = 0f;
+
+            string soundPath;
+            if (mode == MovementMode.Swim)
+            {
+                soundPath = "Sound/pSwim.wav";
+            }
+            else
+            {
+                byte tex = world.Terrain.GetBaseTextureIndexAt((int)Location.X, (int)Location.Y);
+                if (world.Name == "Devias")
+                {
+                    if (tex == 0 || tex == 1)
+                        soundPath = "Sound/pWalk(Snow).wav";
+                    else if (tex == 4)
+                        soundPath = "Sound/pWalk(Soil).wav";
+                    else
+                        soundPath = "Sound/pWalk(Soil).wav";
+                }
+                else
+                {
+                    if (tex == 0 || tex == 1)
+                        soundPath = "Sound/pWalk(Grass).wav";
+                    else if (tex == 4)
+                        soundPath = "Sound/pWalk(Snow).wav";
+                    else
+                        soundPath = "Sound/pWalk(Soil).wav";
+                }
+                
+            }
+
+            SoundController.Instance.PlayBufferWithAttenuation(soundPath, Position, world.Walker.Position);
         }
     }
 }

@@ -5,6 +5,7 @@ using Android.Content.PM;
 using Android.OS;
 using Android.Provider;
 using Android.Views;
+using Client.Main.Platform.Android;
 using Microsoft.Xna.Framework;
 using System;
 using System.IO;
@@ -83,9 +84,16 @@ namespace MuAndroid
             }
         }
 
+        /// <summary>
+        /// Gets the current MainActivity instance.
+        /// </summary>
+        public static MainActivity Instance { get; private set; }
+
         protected override void OnCreate(Bundle bundle)
         {
             base.OnCreate(bundle);
+            Instance = this;
+            AndroidKeyboard.Activity = this;
 
             Window.AddFlags(WindowManagerFlags.KeepScreenOn);
             RequestLegacyWritePermission();

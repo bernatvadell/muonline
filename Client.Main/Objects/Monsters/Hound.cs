@@ -2,6 +2,8 @@
 using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Models;
+using Client.Main.Objects.Player;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
 
@@ -10,16 +12,26 @@ namespace Client.Main.Objects.Monsters
     [NpcInfo(1, "Hound")]
     public class Hound : MonsterObject
     {
+        private WeaponObject _rightHandWeapon;
         public Hound()
         {
             RenderShadow = true;
             Scale = 0.85f; // Set according to C++ Setting_Monster
+            _rightHandWeapon = new WeaponObject
+            {
+                LinkParentAnimation = false,
+                ParentBoneLink = 19
+            };
+            Children.Add(_rightHandWeapon);
         }
 
         public override async Task Load()
         {
             // Model Loading Type: 1 -> File Number: 1 + 1 = 2
             Model = await BMDLoader.Instance.Prepare($"Monster/Monster02.bmd");
+            var item = ItemDatabase.GetItemDefinition(0, 4); // Sword of Assassin
+            if (item != null)
+                _rightHandWeapon.Model = await BMDLoader.Instance.Prepare(item.TexturePath);
             await base.Load();
             // No specific PlaySpeed adjustments mentioned for this monster in OpenMonsterModel's switch
         }

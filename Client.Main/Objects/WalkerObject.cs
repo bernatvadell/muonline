@@ -117,6 +117,18 @@ namespace Client.Main.Objects
             MoveTargetPosition = Vector3.Zero;
         }
 
+        /// <summary>
+        /// Immediately stops any ongoing movement for this walker.
+        /// Clears the current path and syncs the move target with the
+        /// current position so that <see cref="IsMoving"/> returns false.
+        /// </summary>
+        public void StopMovement()
+        {
+            _currentPath?.Clear();
+            _currentPath = null;
+            MoveTargetPosition = TargetPosition;
+        }
+
         public void OnDirectionChanged()
         {
             if (World is WalkableWorldControl)
@@ -481,6 +493,9 @@ namespace Client.Main.Objects
             var cameraPosition = position + cameraOffset;
 
             Camera.Instance.FOV = 35;
+#if ANDROID
+            Camera.Instance.FOV *= Constants.ANDROID_FOV_SCALE;
+#endif
             Camera.Instance.Position = cameraPosition;
             Camera.Instance.Target = position;
         }

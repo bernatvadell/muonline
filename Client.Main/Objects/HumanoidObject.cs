@@ -34,8 +34,8 @@ namespace Client.Main.Objects
             Pants = new PlayerPantObject { LinkParentAnimation = true };
             Gloves = new PlayerGloveObject { LinkParentAnimation = true };
             Boots = new PlayerBootObject { LinkParentAnimation = true };
-            Weapon1 = new WeaponObject { IsRightHand = true };
-            Weapon2 = new WeaponObject { IsRightHand = false };
+            Weapon1 = new WeaponObject { };
+            Weapon2 = new WeaponObject { };
             Wings = new WingObject { LinkParentAnimation = true, Hidden = true };
 
             Children.Add(HelmMask);
