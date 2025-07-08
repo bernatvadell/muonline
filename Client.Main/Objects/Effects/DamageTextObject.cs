@@ -240,7 +240,7 @@ namespace Client.Main.Objects.Effects
                 spriteBatch,
                 SpriteSortMode.Deferred,
                 BlendState.AlphaBlend,
-                SamplerState.LinearClamp,
+                SamplerState.AnisotropicClamp,
                 DepthStencilState.None,
                 RasterizerState.CullNone))
             {
@@ -251,6 +251,30 @@ namespace Client.Main.Objects.Effects
                         font, Text,
                         _screenPosition + _shadowOffset,
                         Color.Black * (Alpha * ShadowAlpha),
+                        0f, origin, scale, SpriteEffects.None, 0f);
+                }
+
+                // Outline ----------------------------------------------------
+                float outline = 1.5f;
+                Color outlineColor = Color.Black * Alpha;
+                Vector2[] outlineOffsets =
+                {
+                    new(-outline, 0f),
+                    new(outline, 0f),
+                    new(0f, -outline),
+                    new(0f, outline),
+                    new(-outline, -outline),
+                    new(outline, -outline),
+                    new(-outline, outline),
+                    new(outline, outline)
+                };
+
+                foreach (Vector2 off in outlineOffsets)
+                {
+                    spriteBatch.DrawString(
+                        font, Text,
+                        _screenPosition + off,
+                        outlineColor,
                         0f, origin, scale, SpriteEffects.None, 0f);
                 }
 

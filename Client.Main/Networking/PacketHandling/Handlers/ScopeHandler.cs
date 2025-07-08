@@ -415,10 +415,24 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     var headPos = target.WorldPosition.Translation
                                 + Vector3.UnitZ * (target.BoundingBoxWorld.Max.Z - target.WorldPosition.Translation.Z + 30f);
 
+                    Color dmgColor;
+                    if (totalDmg == 0)
+                    {
+                        dmgColor = Color.White;
+                    }
+                    else if (maskedId == _characterState.Id)
+                    {
+                        dmgColor = Color.Red;
+                    }
+                    else
+                    {
+                        dmgColor = Color.Orange;
+                    }
+
                     var txt = new DamageTextObject(
                         totalDmg == 0 ? "Miss" : totalDmg.ToString(),
                         maskedId,
-                        totalDmg == 0 ? Color.White : Color.Red
+                        dmgColor
                     );
                     world.Objects.Add(txt);
                     _logger.LogDebug("Spawned DamageTextObject '{Text}' for {Id:X4}", txt.Text, maskedId);

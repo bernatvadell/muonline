@@ -48,6 +48,9 @@ namespace Client.Main.Networking
         private List<ServerInfo> _serverList = new();
         private CancellationTokenSource _managerCts;
 
+        private string _currentHost = string.Empty; // Host of current connection
+        private int _currentPort; // Port of current connection
+
         // Events
         public event EventHandler<ClientConnectionState> ConnectionStateChanged;
         public event EventHandler<List<ServerInfo>> ServerListReceived;
@@ -68,6 +71,8 @@ namespace Client.Main.Networking
         public ScopeManager GetScopeManager() => _scopeManager;
         public PartyManager GetPartyManager() => _partyManager;
         public TargetProtocolVersion TargetVersion => _packetRouter.TargetVersion;
+        public string CurrentHost => _currentHost;
+        public int CurrentPort => _currentPort;
 
         // Constructors
         public NetworkManager(ILoggerFactory loggerFactory, MuOnlineSettings settings, CharacterState characterState, ScopeManager scopeManager)
@@ -218,6 +223,9 @@ namespace Client.Main.Networking
 
             if (await _connectionManager.ConnectAsync(_settings.ConnectServerHost, _settings.ConnectServerPort, false, cancellationToken))
             {
+                _currentHost = _settings.ConnectServerHost;
+                _currentPort = _settings.ConnectServerPort;
+
                 var csConnection = _connectionManager.Connection;
                 csConnection.PacketReceived += HandlePacketAsync;
                 csConnection.Disconnected += HandleDisconnectAsync;
@@ -481,6 +489,9 @@ namespace Client.Main.Networking
 
             if (await _connectionManager.ConnectAsync(host, (ushort)port, true, _managerCts.Token))
             {
+                _currentHost = host;
+                _currentPort = port;
+
                 var gsConnection = _connectionManager.Connection;
                 gsConnection.PacketReceived += HandlePacketAsync;
                 gsConnection.Disconnected += HandleDisconnectAsync;
@@ -559,6 +570,30 @@ namespace Client.Main.Networking
             }
             catch (Exception ex) { _logger.LogError(ex, "--- ProcessCharacterInformation: Exception during EnteredGame event invocation."); }
             _logger.LogInformation("<<< ProcessCharacterInformation: State updated and EnteredGame event raised.");
+        }
+
+        /// <summary>
+        /// Pings the current server.
+        /// </summary>
+        /// <param name="timeoutMs">The timeout for the ping in milliseconds.</param>
+        /// <returns>The round-trip time in milliseconds, or null if the ping failed or host is not set.</returns>
+        public async Task<int?> PingServerAsync(int timeoutMs = 1000)
+        {
+            if (string.IsNullOrWhiteSpace(_currentHost))
+                return null;
+
+            try
+            {
+                using var p = new System.Net.NetworkInformation.Ping();
+                var reply = await p.SendPingAsync(_currentHost, timeoutMs);
+                return reply.Status == System.Net.NetworkInformation.IPStatus.Success
+                    ? (int?)reply.RoundtripTime
+                    : null;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         // Private Methods

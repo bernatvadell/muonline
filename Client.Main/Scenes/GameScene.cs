@@ -48,6 +48,8 @@ namespace Client.Main.Scenes
         private CharacterInfoWindowControl _characterInfoWindow;
         private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<GameScene>();
         private MapNameControl _currentMapNameControl; // Track active map name display
+        private LabelControl _pingLabel; // Displays current ping
+        private double _pingTimer = 0; // Timer for ping updates
 
         // ───────────────────────── Properties ─────────────────────────
         public PlayerObject Hero => _hero;
@@ -129,6 +131,17 @@ namespace Client.Main.Scenes
 
             _partyPanel = new PartyPanelControl();
             Controls.Add(_partyPanel);
+
+            _pingLabel = new LabelControl
+            {
+                Text = "Ping: --",
+                Align = ControlAlign.Bottom | ControlAlign.Right,
+                Margin = new Margin { Bottom = 5, Right = 5 },
+                FontSize = 10,
+                TextColor = Color.White
+            };
+            Controls.Add(_pingLabel);
+            _pingLabel.BringToFront();
 
             _chatInput.BringToFront();
             DebugPanel.BringToFront();
@@ -727,6 +740,14 @@ namespace Client.Main.Scenes
                 if (scrollDelta != 0) _chatLog.ScrollLines(scrollDelta);
             }
             _previousKeyboardState = currentKeyboardState;
+
+            // Update ping every second
+            _pingTimer += gameTime.ElapsedGameTime.TotalSeconds;
+            if (_pingTimer >= 1.0)
+            {
+                _pingTimer = 0;
+                _ = UpdatePingAsync();
+            }
         }
 
         // ─────────────────────────── Draw Loop ───────────────────────────
@@ -816,6 +837,18 @@ namespace Client.Main.Scenes
             {
                 _ = MuGame.Network.SendPublicChatMessageAsync(e.Message);
             }
+        }
+
+        private async Task UpdatePingAsync()
+        {
+            if (MuGame.Network == null)
+                return;
+
+            int? ping = await MuGame.Network.PingServerAsync();
+            MuGame.ScheduleOnMainThread(() =>
+            {
+                _pingLabel.Text = ping.HasValue ? $"Ping: {ping.Value} ms" : "Ping: --";
+            });
         }
 
         public override void Dispose()
