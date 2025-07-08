@@ -136,6 +136,27 @@ namespace Client.Main.Scenes
             GameControl topmostHoverForTooltip = null;
             GameControl topmostInteractiveForScroll = null;
 
+            #if ANDROID
+            // Optimized touch input for Android
+            var touchState = MuGame.Instance.Touch;
+            if (touchState.Count > 0)
+            {
+                var touch = touchState[0];
+                int x = (int)touch.Position.X;
+                int y = (int)touch.Position.Y;
+
+                // Directly update mouse state based on touch
+                if (touch.State == TouchLocationState.Pressed)
+                {
+                    Mouse.SetPosition(x, y);
+                    MuGame.Instance.Mouse = new MouseState(x, y, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
+                }
+                else if (touch.State == TouchLocationState.Released)
+                {
+                    MuGame.Instance.Mouse = new MouseState(x, y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
+                }
+            }
+#else
             // Simulate mouse click by touch input
             var touchState = MuGame.Instance.Touch;
             if (touchState.Count > 0)
@@ -163,6 +184,7 @@ namespace Client.Main.Scenes
                     );
                 }
             }
+#endif
             
             // set scene's MouseControl (which is the target for scroll)
             MouseControl = null;
@@ -305,12 +327,14 @@ namespace Client.Main.Scenes
                        SamplerState.PointClamp,
                        DepthStencilState.DepthRead))     // Read depth buffer but don't write to it
             {
+#if !ANDROID
                 foreach (var worldObject in World.Objects)
                 {
                     // Call the public methods to draw depth-aware UI elements
                     worldObject.DrawHoverName();
                     worldObject.DrawBoundingBox2D();
                 }
+#endif
             }
 
             // --- Pass 3: Render standard 2D UI (HUD overlays) ---

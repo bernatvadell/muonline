@@ -493,6 +493,9 @@ namespace Client.Main.Objects
             var cameraPosition = position + cameraOffset;
 
             Camera.Instance.FOV = 35;
+#if ANDROID
+            Camera.Instance.FOV *= Constants.ANDROID_FOV_SCALE;
+#endif
             Camera.Instance.Position = cameraPosition;
             Camera.Instance.Target = position;
         }

@@ -78,5 +78,12 @@ namespace Client.Main
                 /// Enables drawing of object names when hovered with the mouse.
                 /// </summary>
                 public const bool SHOW_NAMES_ON_HOVER = true;
+
+                // Android-specific adjustments
+                /// <summary>
+                /// Scale factor applied to the camera field of view on Android
+                /// to reduce edge artifacts on wide screens.
+                /// </summary>
+                public const float ANDROID_FOV_SCALE = 0.8f;
         }
 }

@@ -9,6 +9,9 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+#if ANDROID
+using Client.Main.Platform.Android;
+#endif
 
 namespace Client.Main.Controls.UI
 {
@@ -81,6 +84,9 @@ namespace Client.Main.Controls.UI
             _showCursor = true;
             _cursorBlinkTimer = 0;
             if (Scene != null) Scene.FocusControl = this;
+#if ANDROID
+            AndroidKeyboard.Show();
+#endif
         }
 
         public override void OnBlur()
@@ -89,6 +95,9 @@ namespace Client.Main.Controls.UI
             IsFocused = false;
             _showCursor = false;
             _cursorBlinkTimer = 0;
+#if ANDROID
+            AndroidKeyboard.Hide();
+#endif
         }
 
         public new void Focus() => OnFocus();

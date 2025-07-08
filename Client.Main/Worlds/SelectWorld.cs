@@ -63,6 +63,9 @@ namespace Client.Main.Worlds
             // TODO: Camera position check
             Camera.Instance.Target = new Vector3(14229.295898f, 12340.358398f, 380);
             Camera.Instance.FOV = 29;
+#if ANDROID
+            Camera.Instance.FOV *= Constants.ANDROID_FOV_SCALE;
+#endif
         }
 
         public async Task CreateCharacterObjects(List<(string Name, CharacterClassNumber Class, ushort Level)> characters)
