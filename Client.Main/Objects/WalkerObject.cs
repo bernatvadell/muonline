@@ -119,14 +119,26 @@ namespace Client.Main.Objects
 
         /// <summary>
         /// Immediately stops any ongoing movement for this walker.
-        /// Clears the current path and syncs the move target with the
-        /// current position so that <see cref="IsMoving"/> returns false.
+        /// Clears the current path and locks the movement target to the
+        /// current world position so the object stays exactly where it is.
+        /// The logical <see cref="Location"/> is also synchronized without
+        /// triggering direction changes.
         /// </summary>
         public void StopMovement()
         {
             _currentPath?.Clear();
             _currentPath = null;
-            MoveTargetPosition = TargetPosition;
+
+            // Freeze the object at its current rendered position
+            MoveTargetPosition = Position;
+
+            // Update the logical tile position without invoking OnLocationChanged
+            _location = new Vector2(
+                (int)(Position.X / Constants.TERRAIN_SCALE),
+                (int)(Position.Y / Constants.TERRAIN_SCALE));
+
+            // Align target angle with current rotation to prevent snapping
+            _targetAngle = Angle;
         }
 
         public void OnDirectionChanged()
