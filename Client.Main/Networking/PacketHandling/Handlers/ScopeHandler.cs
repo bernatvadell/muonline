@@ -119,7 +119,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     if (masked != _characterState.Id) // Don't spawn self as a remote player
                     {
-                        SpawnRemotePlayerIntoWorld(w, masked, raw, c.CurrentPositionX, c.CurrentPositionY, c.Name, cls);
+                        SpawnRemotePlayerIntoWorld(w, masked, raw, c.CurrentPositionX, c.CurrentPositionY, c.Name, cls, c.Appearance.ToArray());
                     }
                 }
                 else if (masked != _characterState.Id)
@@ -128,7 +128,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     {
                         if (!_pendingPlayers.Any(p => p.Id == masked))
                         {
-                            _pendingPlayers.Add(new PlayerScopeObject(masked, raw, c.CurrentPositionX, c.CurrentPositionY, c.Name, cls));
+                            _pendingPlayers.Add(new PlayerScopeObject(masked, raw, c.CurrentPositionX, c.CurrentPositionY, c.Name, cls, c.Appearance.ToArray()));
                         }
                     }
                 }
@@ -163,7 +163,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                    byte x,
                    byte y,
                    string name,
-                   CharacterClassNumber cls)
+                   CharacterClassNumber cls,
+                   ReadOnlyMemory<byte> appearanceData)
         {
             MuGame.ScheduleOnMainThread(async () =>
             {
@@ -182,7 +183,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 if (world.Objects.OfType<PlayerObject>().Any(p => p.NetworkId == maskedId))
                     return;
 
-                var p = new PlayerObject
+                var p = new PlayerObject(new AppearanceData(appearanceData))
                 {
                     NetworkId = maskedId,
                     CharacterClass = cls,

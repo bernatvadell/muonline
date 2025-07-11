@@ -90,17 +90,20 @@ namespace Client.Main.Core.Models
         // Properties
         public string Name { get; set; }
         public CharacterClassNumber Class { get; set; } // Player's character class.
+        public ReadOnlyMemory<byte> AppearanceData { get; set; }
 
         public override ScopeObjectType ObjectType => ScopeObjectType.Player;
 
         // Constructors
         public PlayerScopeObject(ushort maskedId, ushort rawId,
                                  byte x, byte y, string name,
-                                 CharacterClassNumber cls = CharacterClassNumber.DarkWizard)
+                                 CharacterClassNumber cls = CharacterClassNumber.DarkWizard,
+                                 ReadOnlyMemory<byte> appearanceData = default)
             : base(maskedId, rawId, x, y)
         {
             Name = name;
             Class = cls;
+            AppearanceData = appearanceData;
         }
 
         // Methods

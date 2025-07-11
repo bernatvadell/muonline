@@ -61,6 +61,8 @@ namespace Client.Main.Objects.Player
 
         public PlayerEquipment Equipment { get; } = new PlayerEquipment();
 
+        public AppearanceData Appearance { get; private set; }
+
         public CharacterClassNumber CharacterClass
         {
             get => _characterClass;
@@ -92,9 +94,9 @@ namespace Client.Main.Objects.Player
         public event EventHandler PlayerTookDamage;
 
         // ───────────────────────────────── CONSTRUCTOR ─────────────────────────────────
-        public PlayerObject()
+        public PlayerObject(AppearanceData appearance = default)
         {
-            _logger = ModelObject.AppLoggerFactory?.CreateLogger(GetType());
+            _logger = AppLoggerFactory?.CreateLogger(GetType());
             HelmMask = new PlayerMaskHelmObject { LinkParentAnimation = true, Hidden = true };
             Helm = new PlayerHelmObject { LinkParentAnimation = true };
             Armor = new PlayerArmorObject { LinkParentAnimation = true };
@@ -127,6 +129,8 @@ namespace Client.Main.Objects.Player
 
             _networkManager = MuGame.Network;
             _characterService = _networkManager?.GetCharacterService();
+
+            Appearance = appearance;
         }
 
         // ───────────────────────────────── LOADING ─────────────────────────────────
@@ -134,6 +138,7 @@ namespace Client.Main.Objects.Player
         {
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
             await UpdateBodyPartClassesAsync();
+            await UpdateEquipmentAppearanceAsync();
             await base.Load();
 
             // Idle actions play at half speed so the character breathes naturally
@@ -142,6 +147,113 @@ namespace Client.Main.Objects.Player
             SetActionSpeed(PlayerAction.StopFlying, 0.5f);
 
             UpdateWorldBoundingBox();
+        }
+
+        private async Task UpdateEquipmentAppearanceAsync()
+        {
+            if (Appearance.RawData.IsEmpty) return; // No appearance data to process
+
+            // Update CharacterClass based on appearance data
+            CharacterClass = Appearance.CharacterClass;
+
+            // Helm
+            if (Appearance.HelmItemIndex != 255)
+            {
+                var helmDef = ItemDatabase.GetItemDefinition(7, Appearance.HelmItemIndex);
+                await LoadPartAsync(Helm, helmDef?.TexturePath.Replace("Item/", "Player/"));
+            }
+            // Armor
+            if (Appearance.ArmorItemIndex != 255)
+            {
+                var armorDef = ItemDatabase.GetItemDefinition(8, Appearance.ArmorItemIndex);
+                await LoadPartAsync(Armor, armorDef?.TexturePath.Replace("Item/", "Player/"));
+            }
+
+            // Pants
+            if (Appearance.PantsItemIndex != 255)
+            {
+                var pantsDef = ItemDatabase.GetItemDefinition(9, Appearance.PantsItemIndex);
+                await LoadPartAsync(Pants, pantsDef?.TexturePath.Replace("Item/", "Player/"));
+            }
+
+            // Gloves
+            if (Appearance.GlovesItemIndex != 255)
+            {
+                var glovesDef = ItemDatabase.GetItemDefinition(10, Appearance.GlovesItemIndex);
+                await LoadPartAsync(Gloves, glovesDef?.TexturePath.Replace("Item/", "Player/"));
+            }
+
+            // Boots
+            if (Appearance.BootsItemIndex != 255)
+            {
+                var bootsDef = ItemDatabase.GetItemDefinition(11, Appearance.BootsItemIndex);
+                await LoadPartAsync(Boots, bootsDef?.TexturePath.Replace("Item/", "Player/"));
+            }
+
+            // Wings
+            // The Appearance.md specifies wing item index in byte 9, bits 0-2.
+            // This needs to be mapped to actual wing models. For now, a simplified approach.
+            // Assuming wing models are named like "Wing01.bmd", "Wing02.bmd" etc.
+            if (Appearance.WingItemIndex != 255)
+            {
+                if (Appearance.WingItemIndex > 0)
+                {
+                    EquippedWings.Type = Appearance.WingItemIndex;
+                    EquippedWings.Hidden = false;
+                    await EquippedWings.Load();
+                }
+                else
+                {
+                    EquippedWings.Hidden = true;
+                }
+            }
+            // Weapons
+            // This requires more sophisticated logic to determine the exact weapon model
+            // based on item group, index, and potentially other flags.
+            // For now, we'll use generic models if an item is equipped.
+            if (Appearance.LeftHandItemIndex != 255)
+            {
+                if (Appearance.LeftHandItemIndex != 0xFF)
+                {
+                    var leftHandDef = ItemDatabase.GetItemDefinition(Appearance.LeftHandItemGroup, Appearance.LeftHandItemIndex);
+                    if (leftHandDef != null)
+                    {
+                        Weapon1.Model = await BMDLoader.Instance.Prepare(leftHandDef.TexturePath);
+                        Weapon1.ParentBoneLink = 33;
+                        Weapon1.LinkParentAnimation = false;
+                    }
+                    else
+                    {
+                        Weapon1.Model = null;
+                    }
+                }
+                else
+                {
+                    Weapon1.Model = null;
+                }
+            }
+
+            if (Appearance.RightHandItemIndex != 255)
+            {
+                if (Appearance.RightHandItemIndex != 0xFF)
+                {
+                    var rightHandDef = ItemDatabase.GetItemDefinition(Appearance.RightHandItemGroup, Appearance.RightHandItemIndex);
+                    if (rightHandDef != null)
+                    {
+                        Weapon2.Model = await BMDLoader.Instance.Prepare(rightHandDef.TexturePath);
+                        Weapon2.ParentBoneLink = 42;
+                        Weapon2.LinkParentAnimation = false;
+                    }
+                    else
+                    {
+                        Weapon2.Model = null;
+                    }
+                }
+                else
+                {
+                    Weapon2.Model = null;
+                }
+            }
         }
 
         private void SetActionSpeed(PlayerAction action, float speed)
