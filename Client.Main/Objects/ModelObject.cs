@@ -416,22 +416,30 @@ namespace Client.Main.Objects
 
         public virtual void DrawMeshHighlight(int mesh, Matrix highlightMatrix, Vector3 highlightColor)
         {
-            if (IsHiddenMesh(mesh) || _boneVertexBuffers == null)
+            if (IsHiddenMesh(mesh) || _boneVertexBuffers == null || _boneIndexBuffers == null || _boneTextures == null)
                 return;
 
             VertexBuffer vertexBuffer = _boneVertexBuffers[mesh];
             IndexBuffer indexBuffer = _boneIndexBuffers[mesh];
+
+            if (vertexBuffer == null || indexBuffer == null)
+                return;
+
             int primitiveCount = indexBuffer.IndexCount / 3;
 
             // Save previous graphics states
             var previousDepthState = GraphicsDevice.DepthStencilState;
             var previousBlendState = GraphicsDevice.BlendState;
-            float prevAlpha = GraphicsManager.Instance.AlphaTestEffect3D.Alpha;
 
-            GraphicsManager.Instance.AlphaTestEffect3D.World = highlightMatrix;
-            GraphicsManager.Instance.AlphaTestEffect3D.Texture = _boneTextures[mesh];
-            GraphicsManager.Instance.AlphaTestEffect3D.DiffuseColor = highlightColor;
-            GraphicsManager.Instance.AlphaTestEffect3D.Alpha = 1f;
+            var alphaTestEffect = GraphicsManager.Instance.AlphaTestEffect3D;
+            if (alphaTestEffect == null || alphaTestEffect.CurrentTechnique == null) return; // Ensure effect and technique are not null
+
+            float prevAlpha = alphaTestEffect.Alpha;
+
+            alphaTestEffect.World = highlightMatrix;
+            alphaTestEffect.Texture = _boneTextures[mesh];
+            alphaTestEffect.DiffuseColor = highlightColor;
+            alphaTestEffect.Alpha = 1f;
 
             // Configure depth and blend states for drawing the highlight
             GraphicsDevice.DepthStencilState = new DepthStencilState
@@ -442,7 +450,7 @@ namespace Client.Main.Objects
             GraphicsDevice.BlendState = BlendState.Additive;
 
             // Draw the mesh highlight
-            foreach (EffectPass pass in GraphicsManager.Instance.AlphaTestEffect3D.CurrentTechnique.Passes)
+            foreach (EffectPass pass in alphaTestEffect.CurrentTechnique.Passes)
             {
                 pass.Apply();
                 GraphicsDevice.SetVertexBuffer(vertexBuffer);
@@ -450,14 +458,14 @@ namespace Client.Main.Objects
                 GraphicsDevice.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
             }
 
-            GraphicsManager.Instance.AlphaTestEffect3D.Alpha = prevAlpha;
+            alphaTestEffect.Alpha = prevAlpha;
 
             // Restore previous graphics states
             GraphicsDevice.DepthStencilState = previousDepthState;
             GraphicsDevice.BlendState = previousBlendState;
 
-            GraphicsManager.Instance.AlphaTestEffect3D.World = WorldPosition;
-            GraphicsManager.Instance.AlphaTestEffect3D.DiffuseColor = Vector3.One;
+            alphaTestEffect.World = WorldPosition;
+            alphaTestEffect.DiffuseColor = Vector3.One;
         }
 
         private bool ValidateWorldMatrix(Matrix matrix)
