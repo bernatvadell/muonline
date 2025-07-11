@@ -48,7 +48,7 @@ namespace Client.Main.Objects.Worlds.Lorencia
         private readonly Vector3 MiddleFlameColor = new Vector3(1.0f, 0.65f, 0.25f);
         private readonly Vector3 TopFlameColor = new Vector3(1.0f, 0.75f, 0.35f);
 
-        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<ModelObject>();
+        private new ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<ModelObject>();
 
         public FireLightObject()
         {

@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 namespace Client.Main.Objects.NPCS
 {
     [NpcInfo(223, "Senior")]
-    public class Senior : CompositeNPCObject
+    public class Senior : NPCObject
     {
         public override async Task Load()
         {

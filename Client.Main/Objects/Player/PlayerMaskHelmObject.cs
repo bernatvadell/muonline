@@ -14,7 +14,7 @@ namespace Client.Main.Objects.Player
             set { _playerClass = value; } // Only set the field, no async logic here
         }
 
-        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<PlayerObject>();
+        private new ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<PlayerObject>();
 
         // New async setter for correct model loading
         public async Task SetPlayerClassAsync(PlayerClass playerClass)

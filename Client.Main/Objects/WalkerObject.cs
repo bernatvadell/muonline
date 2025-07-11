@@ -101,7 +101,7 @@ namespace Client.Main.Objects
             _animationController = new AnimationController(this);
         }
 
-        public override async Task Load()
+        public new virtual async Task Load()
         {
             MoveTargetPosition = Vector3.Zero;
             _previousScrollValue = MuGame.Instance.Mouse.ScrollWheelValue;

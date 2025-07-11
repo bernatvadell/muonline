@@ -9,7 +9,7 @@ namespace Client.Main.Objects
 {
     public class MapTileObject : ModelObject
     {
-        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<MapTileObject>();
+        private new ILogger _logger = AppLoggerFactory?.CreateLogger<MapTileObject>();
 
         public MapTileObject()
         {

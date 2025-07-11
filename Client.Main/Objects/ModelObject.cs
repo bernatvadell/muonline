@@ -67,7 +67,7 @@ namespace Client.Main.Objects
         public bool RenderShadow { get => _renderShadow; set { _renderShadow = value; OnRenderShadowChanged(); } }
         public float AnimationSpeed { get; set; } = 4f;
         public static ILoggerFactory AppLoggerFactory { get; private set; }
-        private ILogger _logger => AppLoggerFactory?.CreateLogger<ModelObject>();
+        protected ILogger _logger;
 
         private int _blendFromAction = -1;
         private double _blendFromTime = 0.0;
@@ -86,6 +86,7 @@ namespace Client.Main.Objects
 
         public ModelObject()
         {
+            _logger = AppLoggerFactory?.CreateLogger(GetType());
             MatrixChanged += (_s, _e) => UpdateWorldPosition();
         }
 
@@ -237,7 +238,7 @@ namespace Client.Main.Objects
                 doShadow = TryGetShadowMatrix(out shadowMatrix);
 
             bool highlightAllowed = !isAfterDraw && !LowQuality && IsMouseHover &&
-                                   !(this is Monsters.MonsterObject m && m.IsDead);
+                                   !(this is MonsterObject m && m.IsDead);
             Matrix highlightMatrix = Matrix.Identity;
             Vector3 highlightColor = Vector3.One;
 
@@ -248,7 +249,7 @@ namespace Client.Main.Objects
                 highlightMatrix = Matrix.CreateScale(scaleFactor) *
                     Matrix.CreateTranslation(-scaleHighlight, -scaleHighlight, -scaleHighlight) *
                     worldPos;
-                highlightColor = this is Monsters.MonsterObject ? new Vector3(1, 0, 0) : new Vector3(0, 1, 0);
+                highlightColor = this is MonsterObject ? new Vector3(1, 0, 0) : new Vector3(0, 1, 0);
             }
 
             // First pass - draw non-blend meshes (batch similar operations)

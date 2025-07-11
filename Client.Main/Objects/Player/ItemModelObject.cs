@@ -16,7 +16,7 @@ namespace Client.Main.Objects.Player
     public class ItemModelObject : ModelObject
     {
         private readonly ItemDefinition _definition;
-        private static readonly ILogger<ItemModelObject> _logger =
+        private static new readonly ILogger<ItemModelObject> _logger =
             AppLoggerFactory?.CreateLogger<ItemModelObject>();
 
         public ItemModelObject(ItemDefinition definition)

@@ -9,7 +9,7 @@ namespace Client.Main.Controls.UI.Game
     {
         private readonly LabelControl _nameLabel;
         private readonly LabelControl _infoLabel;
-        private readonly ColorBarControl _healthBar;
+        
         private readonly LabelControl _healthPercentLabel;
         private readonly ButtonControl _leaveButton;
 

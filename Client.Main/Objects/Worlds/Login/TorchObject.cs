@@ -9,7 +9,7 @@ namespace Client.Main.Objects.Worlds.Login
 {
     public class TorchObject : ModelObject
     {
-        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<ModelObject>();
+        private new ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<ModelObject>();
 
         public TorchObject()
         {

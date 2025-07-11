@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 namespace Client.Main.Objects.NPCS
 {
     [NpcInfo(257, "Elf Soldier")]
-    public class ElfSoldier : CompositeNPCObject
+    public class ElfSoldier : NPCObject
     {
         private new readonly ILogger<ElfSoldier> _logger;
         private WingObject _wings;

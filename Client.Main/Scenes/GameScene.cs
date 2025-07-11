@@ -694,8 +694,6 @@ namespace Client.Main.Scenes
                 }
             }
 
-
-
             _notificationManager?.Update(gameTime);
             ProcessPendingNotifications();
 
@@ -706,7 +704,7 @@ namespace Client.Main.Scenes
             }
 
             // Handle attack clicks on monsters
-            else if (!IsMouseInputConsumedThisFrame && MouseHoverObject is Client.Main.Objects.Monsters.MonsterObject targetMonster &&
+            else if (!IsMouseInputConsumedThisFrame && MouseHoverObject is MonsterObject targetMonster &&
                 MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
                 MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released) // Fresh press
             {

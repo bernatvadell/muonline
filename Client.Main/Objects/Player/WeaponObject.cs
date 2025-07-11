@@ -10,7 +10,7 @@ namespace Client.Main.Objects.Player
     {
         private int _type;
         private Matrix _lastWorld;
-        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<WeaponObject>();
+        private new ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<WeaponObject>();
 
         public new int Type
         {

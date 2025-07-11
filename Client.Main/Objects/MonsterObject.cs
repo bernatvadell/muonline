@@ -5,7 +5,7 @@ using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Client.Main.Objects.Monsters
+namespace Client.Main.Objects
 {
     public abstract class MonsterObject : WalkerObject
     {
@@ -59,10 +59,10 @@ namespace Client.Main.Objects.Monsters
                 var stain = new Effects.BloodStainEffect
                 {
                     Position = new Vector3(Position.X, Position.Y,
-                        World.Terrain.RequestTerrainHeight(Position.X, Position.Y))
+                        World.Terrain.RequestTerrainHeight(Position.X, Position.Y) + 60f)
                 };
-                World.Objects.Add(stain);
-                _ = stain.Load(); //TODO: BLOOD
+                //World.Objects.Add(stain);
+                //_ = stain.Load(); //TODO: BLOOD
             }
         }
 
@@ -261,6 +261,6 @@ namespace Client.Main.Objects.Monsters
             return bones;
         }
 
-        protected ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<MonsterObject>();
+        protected new ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<MonsterObject>();
     }
 }

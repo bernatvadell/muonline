@@ -8,7 +8,7 @@ namespace Client.Main.Objects.Player
     public class PlayerHelmObject : ModelObject
     {
         private PlayerClass _playerClass;
-        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<PlayerObject>();
+        private new ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<PlayerObject>();
 
         public PlayerClass PlayerClass
         {

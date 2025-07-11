@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace Client.Main.Objects.NPCS
 {
     [NpcInfo(249, "Berdysh Guard")]
-    public class BerdyshGuard : CompositeNPCObject
+    public class BerdyshGuard : NPCObject
     {
         private WeaponObject _rightHandWeapon;
 

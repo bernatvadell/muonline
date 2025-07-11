@@ -241,9 +241,8 @@ namespace Client.Main.Objects
 
             // Limit name display to player, monster and NPC entities
             if (this is not Player.PlayerObject &&
-                this is not Monsters.MonsterObject &&
-                this is not NPCS.NPCObject &&
-                this is not NPCS.CompositeNPCObject)
+                this is not MonsterObject &&
+                this is not NPCObject)
                 return;
 
             string name = DisplayName;

@@ -111,6 +111,9 @@ namespace Client.Main.Worlds
                     World = this,
                     CurrentAction = PlayerAction.StopMale
                 };
+
+                player.BoundingBoxLocal = new BoundingBox(new Vector3(-40, -40, 0), new Vector3(40, 40, 180));
+
                 player.Click += PlayerObject_Click;
 
                 _characterObjects.Add(player);

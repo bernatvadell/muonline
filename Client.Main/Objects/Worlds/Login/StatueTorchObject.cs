@@ -15,7 +15,7 @@ namespace Client.Main.Objects.Worlds.Login
     {
         private static readonly Random _random = new Random();
 
-        private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<ModelObject>();
+        private new ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<ModelObject>();
 
         // The dynamic light source and unique properties for this torch instance.
         private DynamicLight _dynamicLight;

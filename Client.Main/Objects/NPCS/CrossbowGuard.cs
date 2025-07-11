@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 namespace Client.Main.Objects.NPCS
 {
     [NpcInfo(247, "Crossbow Guard")]
-    public class CrossbowGuard : CompositeNPCObject
+    public class CrossbowGuard : NPCObject
     {
         public override async Task Load()
         {

@@ -1,8 +1,9 @@
-using Client.Main.Content;
+﻿using Client.Main.Content;
 using Client.Main.Controls;
 using Client.Main.Models;
+
+using Client.Main.Objects;
 using Client.Main.Objects.Wings;
-using Client.Main.Objects.Monsters;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using MUnique.OpenMU.Network.Packets; // CharacterClassNumber enum
@@ -15,7 +16,6 @@ using Client.Data.ATT;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Controllers;
-using System.Linq;
 using Client.Main.Helpers;
 
 namespace Client.Main.Objects.Player
@@ -28,11 +28,21 @@ namespace Client.Main.Objects.Player
         Swim
     }
 
-    public class PlayerObject : HumanoidObject
+    public class PlayerObject : WalkerObject
     {
         private CharacterClassNumber _characterClass;
         // Cached gender flag – avoids evaluating gender every frame
         private bool _isFemale;
+
+        public PlayerMaskHelmObject HelmMask { get; private set; }
+        public PlayerHelmObject Helm { get; private set; }
+        public PlayerArmorObject Armor { get; private set; }
+        public PlayerPantObject Pants { get; private set; }
+        public PlayerGloveObject Gloves { get; private set; }
+        public PlayerBootObject Boots { get; private set; }
+        public WeaponObject Weapon1 { get; private set; }
+        public WeaponObject Weapon2 { get; private set; }
+        public Client.Main.Objects.Wings.WingObject EquippedWings { get; private set; }
 
         // Timer for footstep sound playback
         private float _footstepTimer;
@@ -66,10 +76,8 @@ namespace Client.Main.Objects.Player
             }
         }
 
-        public new WingObject Wings { get; }
-
         /// <summary>True if wings are equipped and visible.</summary>
-        public bool HasEquippedWings => Wings is { Hidden: false, Type: > 0 };
+        public bool HasEquippedWings => EquippedWings is { Hidden: false, Type: > 0 };
 
         public new PlayerAction CurrentAction
         {
@@ -86,6 +94,27 @@ namespace Client.Main.Objects.Player
         // ───────────────────────────────── CONSTRUCTOR ─────────────────────────────────
         public PlayerObject()
         {
+            _logger = ModelObject.AppLoggerFactory?.CreateLogger(GetType());
+            HelmMask = new PlayerMaskHelmObject { LinkParentAnimation = true, Hidden = true };
+            Helm = new PlayerHelmObject { LinkParentAnimation = true };
+            Armor = new PlayerArmorObject { LinkParentAnimation = true };
+            Pants = new PlayerPantObject { LinkParentAnimation = true };
+            Gloves = new PlayerGloveObject { LinkParentAnimation = true };
+            Boots = new PlayerBootObject { LinkParentAnimation = true };
+            Weapon1 = new WeaponObject { };
+            Weapon2 = new WeaponObject { };
+            EquippedWings = new WingObject { LinkParentAnimation = true, Hidden = true };
+
+            Children.Add(HelmMask);
+            Children.Add(Helm);
+            Children.Add(Armor);
+            Children.Add(Pants);
+            Children.Add(Gloves);
+            Children.Add(Boots);
+            Children.Add(Weapon1);
+            Children.Add(Weapon2);
+            Children.Add(EquippedWings);
+
             // Enable mouse hover interactions so the name is shown
             Interactive = true;
             BoundingBoxLocal = new BoundingBox(new Vector3(-40, -40, 0), new Vector3(40, 40, 120));
@@ -95,9 +124,6 @@ namespace Client.Main.Objects.Player
             CurrentAction = PlayerAction.StopMale;
             _characterClass = CharacterClassNumber.DarkWizard;
             _isFemale = PlayerActionMapper.IsCharacterFemale(_characterClass);
-
-            // Wings = new Wing403 { LinkParentAnimation = false, Hidden = false };
-            // Children.Add(Wings);
 
             _networkManager = MuGame.Network;
             _characterService = _networkManager?.GetCharacterService();
@@ -114,6 +140,8 @@ namespace Client.Main.Objects.Player
             SetActionSpeed(PlayerAction.StopMale, 0.5f);
             SetActionSpeed(PlayerAction.StopFemale, 0.5f);
             SetActionSpeed(PlayerAction.StopFlying, 0.5f);
+
+            UpdateWorldBoundingBox();
         }
 
         private void SetActionSpeed(PlayerAction action, float speed)
@@ -570,6 +598,61 @@ namespace Client.Main.Objects.Player
             }
 
             SoundController.Instance.PlayBufferWithAttenuation(soundPath, Position, world.Walker.Position);
+        }
+
+        /// <summary>
+        /// Loads the models for all body parts based on a specified path prefix, part prefixes, and a file suffix.
+        /// Example: ("Npc/", "FemaleHead", "FemaleUpper", ..., 2) -> "Data/Npc/FemaleHead02.bmd"
+        /// </summary>
+        protected async Task SetBodyPartsAsync(
+            string pathPrefix, string helmPrefix, string armorPrefix, string pantPrefix,
+            string glovePrefix, string bootPrefix, int skinIndex)
+        {
+            // Format skin index to two digits (e.g., 1 -> "01", 10 -> "10")
+            string fileSuffix = skinIndex.ToString("D2");
+
+            var tasks = new List<Task>
+            {
+                LoadPartAsync(Helm, $"{pathPrefix}{helmPrefix}{fileSuffix}.bmd"),
+                LoadPartAsync(Armor, $"{pathPrefix}{armorPrefix}{fileSuffix}.bmd"),
+                LoadPartAsync(Pants, $"{pathPrefix}{pantPrefix}{fileSuffix}.bmd"),
+                LoadPartAsync(Gloves, $"{pathPrefix}{glovePrefix}{fileSuffix}.bmd"),
+                LoadPartAsync(Boots, $"{pathPrefix}{bootPrefix}{fileSuffix}.bmd")
+            };
+
+            await Task.WhenAll(tasks);
+        }
+
+        private async Task LoadPartAsync(ModelObject part, string modelPath)
+        {
+            if (part != null)
+            {
+                part.Model = await BMDLoader.Instance.Prepare(modelPath);
+                if (part.Model == null)
+                {
+                    _logger?.LogDebug("Model part not found (this is often normal for NPCs): {Path}", modelPath);
+                }
+            }
+        }
+
+        protected override void UpdateWorldBoundingBox()
+        {
+            base.UpdateWorldBoundingBox();
+
+            var allCorners = new List<Vector3>(BoundingBoxWorld.GetCorners());
+
+            foreach (var child in Children)
+            {
+                if (child is ModelObject modelChild && modelChild.Visible && modelChild.Model != null)
+                {
+                    allCorners.AddRange(modelChild.BoundingBoxWorld.GetCorners());
+                }
+            }
+
+            if (allCorners.Count > 0)
+            {
+                BoundingBoxWorld = BoundingBox.CreateFromPoints(allCorners);
+            }
         }
     }
 }

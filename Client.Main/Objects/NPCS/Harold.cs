@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 namespace Client.Main.Objects.NPCS
 {
     [NpcInfo(250, "Wandering Merchant Harold")]
-    public class Harold : CompositeNPCObject
+    public class Harold : NPCObject
     {
         public override async Task Load()
         {

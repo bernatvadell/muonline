@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 namespace Client.Main.Objects.NPCS
 {
     [NpcInfo(253, "Potion Girl Amy")]
-    public class PotionGirl : CompositeNPCObject
+    public class PotionGirl : NPCObject
     {
         public override async Task Load()
         {

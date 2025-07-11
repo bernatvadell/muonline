@@ -6,13 +6,12 @@ using System;
 using System.Threading.Tasks;
 using System.Linq;
 using MUnique.OpenMU.Network.Packets;
-using Client.Main.Objects.Player;
 using Client.Main.Controls;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
 using Client.Main.Models;
-using Client.Main.Objects.Monsters;
 using Client.Main.Objects;
+using Client.Main.Objects.Player;
 using Client.Main.Objects.Effects;
 using Client.Main.Core.Client;
 using Client.Main.Scenes;
@@ -962,7 +961,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     walker.PlayAction((ushort)MonsterActionType.Walk, fromServer: true);
                 }
-                else if (walker is HumanoidObject)           // ③ Humanoid NPCs (guards, priests, etc.)
+                else if (walker is NPCObject)
                 {
                     const PlayerAction walkAction = PlayerAction.WalkMale;
                     if (walker.CurrentAction != (int)walkAction)
