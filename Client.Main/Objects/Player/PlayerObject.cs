@@ -17,6 +17,7 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Controllers;
 using Client.Main.Helpers;
+using Client.Main.Controls.UI.Game.Inventory;
 
 namespace Client.Main.Objects.Player
 {
@@ -137,8 +138,26 @@ namespace Client.Main.Objects.Player
         public override async Task Load()
         {
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
-            await UpdateBodyPartClassesAsync();
-            await UpdateEquipmentAppearanceAsync();
+
+            if (IsMainWalker)
+            {
+                // First, load the base body for the current class
+                var charState = _networkManager.GetCharacterState();
+                CharacterClass = (CharacterClassNumber)charState.Class;
+                await UpdateBodyPartClassesAsync();
+
+                // Then, hook events to update equipment based on inventory
+                HookInventoryEvents();
+                // Perform the initial appearance update and wait for it to complete
+                await UpdateAppearanceFromInventoryAsync();
+            }
+            else
+            {
+                // Remote players use AppearanceData
+                await UpdateBodyPartClassesAsync();
+                await UpdateEquipmentAppearanceAsync();
+            }
+
             await base.Load();
 
             // Idle actions play at half speed so the character breathes naturally
@@ -147,6 +166,142 @@ namespace Client.Main.Objects.Player
             SetActionSpeed(PlayerAction.StopFlying, 0.5f);
 
             UpdateWorldBoundingBox();
+        }
+
+        private void HookInventoryEvents()
+        {
+            if (_networkManager != null)
+            {
+                _networkManager.GetCharacterState().InventoryChanged += OnInventoryChanged;
+            }
+        }
+
+        private void UnhookInventoryEvents()
+        {
+            if (_networkManager == null) return;
+            try
+            {
+                _networkManager.GetCharacterState().InventoryChanged -= OnInventoryChanged;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to unhook inventory events. This may happen on shutdown.");
+            }
+        }
+
+        private void OnInventoryChanged()
+        {
+            if (!IsMainWalker) return;
+            // Fire-and-forget the async update method
+            _ = UpdateAppearanceFromInventoryAsync();
+        }
+
+        private static class InventoryConstants
+        {
+            public const byte LeftHandSlot = 0;
+            public const byte RightHandSlot = 1;
+            public const byte HelmSlot = 2;
+            public const byte ArmorSlot = 3;
+            public const byte PantsSlot = 4;
+            public const byte GlovesSlot = 5;
+            public const byte BootsSlot = 6;
+            public const byte WingsSlot = 7;
+            public const byte PetSlot = 8;
+        }
+
+        private async Task UpdateAppearanceFromInventoryAsync()
+        {
+            if (_networkManager == null) return;
+
+            var charState = _networkManager.GetCharacterState();
+            var inventory = charState.GetInventoryItems();
+
+            // Ensure base body model is correct for the character's class
+            var newClass = (CharacterClassNumber)charState.Class;
+            if (CharacterClass != newClass)
+            {
+                CharacterClass = newClass;
+            }
+            
+            // ALWAYS load the default class-specific body parts first.
+            await UpdateBodyPartClassesAsync();
+
+            ItemDefinition GetItemDef(byte slot)
+            {
+                return inventory.TryGetValue(slot, out var itemData)
+                    ? ItemDatabase.GetItemDefinition(itemData)
+                    : null;
+            }
+
+            // --- Overwrite with equipped items ---
+
+            // Helm
+            var helmDef = GetItemDef(InventoryConstants.HelmSlot);
+            if (helmDef != null)
+                await LoadPartAsync(Helm, helmDef.TexturePath?.Replace("Item/", "Player/"));
+
+            // Armor
+            var armorDef = GetItemDef(InventoryConstants.ArmorSlot);
+            if (armorDef != null)
+                await LoadPartAsync(Armor, armorDef.TexturePath?.Replace("Item/", "Player/"));
+
+            // Pants
+            var pantsDef = GetItemDef(InventoryConstants.PantsSlot);
+            if (pantsDef != null)
+                await LoadPartAsync(Pants, pantsDef.TexturePath?.Replace("Item/", "Player/"));
+
+            // Gloves
+            var glovesDef = GetItemDef(InventoryConstants.GlovesSlot);
+            if (glovesDef != null)
+                await LoadPartAsync(Gloves, glovesDef.TexturePath?.Replace("Item/", "Player/"));
+
+            // Boots
+            var bootsDef = GetItemDef(InventoryConstants.BootsSlot);
+            if (bootsDef != null)
+                await LoadPartAsync(Boots, bootsDef.TexturePath?.Replace("Item/", "Player/"));
+
+            // Wings
+            var wingsDef = GetItemDef(InventoryConstants.WingsSlot);
+            if (wingsDef != null && !string.IsNullOrEmpty(wingsDef.TexturePath))
+            {
+                EquippedWings.Model = await BMDLoader.Instance.Prepare(wingsDef.TexturePath.Replace("Item/", "Player/"));
+                EquippedWings.Hidden = EquippedWings.Model == null;
+                if (!EquippedWings.Hidden)
+                {
+                    await EquippedWings.Load(); // To ensure any internal state is set
+                }
+            }
+            else
+            {
+                EquippedWings.Model = null;
+                EquippedWings.Hidden = true;
+            }
+
+            // Left Hand
+            var leftHandDef = GetItemDef(InventoryConstants.LeftHandSlot);
+            if (leftHandDef != null)
+            {
+                Weapon1.Model = await BMDLoader.Instance.Prepare(leftHandDef.TexturePath);
+                Weapon1.ParentBoneLink = 33;
+                Weapon1.LinkParentAnimation = false;
+            }
+            else
+            {
+                Weapon1.Model = null;
+            }
+
+            // Right Hand
+            var rightHandDef = GetItemDef(InventoryConstants.RightHandSlot);
+            if (rightHandDef != null)
+            {
+                Weapon2.Model = await BMDLoader.Instance.Prepare(rightHandDef.TexturePath);
+                Weapon2.ParentBoneLink = 42;
+                Weapon2.LinkParentAnimation = false;
+            }
+            else
+            {
+                Weapon2.Model = null;
+            }
         }
 
         private async Task UpdateEquipmentAppearanceAsync()
@@ -200,7 +355,6 @@ namespace Client.Main.Objects.Player
                 {
                     EquippedWings.Type = Appearance.WingItemIndex;
                     EquippedWings.Hidden = false;
-                    await EquippedWings.Load();
                 }
                 else
                 {
@@ -211,48 +365,42 @@ namespace Client.Main.Objects.Player
             // This requires more sophisticated logic to determine the exact weapon model
             // based on item group, index, and potentially other flags.
             // For now, we'll use generic models if an item is equipped.
-            if (Appearance.LeftHandItemIndex != 255)
+            if (Appearance.LeftHandItemIndex != 255 && Appearance.LeftHandItemIndex != 0xFF)
             {
-                if (Appearance.LeftHandItemIndex != 0xFF)
+                var leftHandDef = ItemDatabase.GetItemDefinition(Appearance.LeftHandItemGroup, Appearance.LeftHandItemIndex);
+                if (leftHandDef != null)
                 {
-                    var leftHandDef = ItemDatabase.GetItemDefinition(Appearance.LeftHandItemGroup, Appearance.LeftHandItemIndex);
-                    if (leftHandDef != null)
-                    {
-                        Weapon1.Model = await BMDLoader.Instance.Prepare(leftHandDef.TexturePath);
-                        Weapon1.ParentBoneLink = 33;
-                        Weapon1.LinkParentAnimation = false;
-                    }
-                    else
-                    {
-                        Weapon1.Model = null;
-                    }
+                    Weapon1.Model = await BMDLoader.Instance.Prepare(leftHandDef.TexturePath);
+                    Weapon1.ParentBoneLink = 33;
+                    Weapon1.LinkParentAnimation = false;
                 }
                 else
                 {
                     Weapon1.Model = null;
                 }
             }
-
-            if (Appearance.RightHandItemIndex != 255)
+            else
             {
-                if (Appearance.RightHandItemIndex != 0xFF)
+                Weapon1.Model = null;
+            }
+
+            if (Appearance.RightHandItemIndex != 255 && Appearance.RightHandItemIndex != 0xFF)
+            {
+                var rightHandDef = ItemDatabase.GetItemDefinition(Appearance.RightHandItemGroup, Appearance.RightHandItemIndex);
+                if (rightHandDef != null)
                 {
-                    var rightHandDef = ItemDatabase.GetItemDefinition(Appearance.RightHandItemGroup, Appearance.RightHandItemIndex);
-                    if (rightHandDef != null)
-                    {
-                        Weapon2.Model = await BMDLoader.Instance.Prepare(rightHandDef.TexturePath);
-                        Weapon2.ParentBoneLink = 42;
-                        Weapon2.LinkParentAnimation = false;
-                    }
-                    else
-                    {
-                        Weapon2.Model = null;
-                    }
+                    Weapon2.Model = await BMDLoader.Instance.Prepare(rightHandDef.TexturePath);
+                    Weapon2.ParentBoneLink = 42;
+                    Weapon2.LinkParentAnimation = false;
                 }
                 else
                 {
                     Weapon2.Model = null;
                 }
+            }
+            else
+            {
+                Weapon2.Model = null;
             }
         }
 

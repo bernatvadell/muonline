@@ -540,15 +540,19 @@ namespace Client.Main.Scenes
             {
                 if (s.Id == MuGame.Network.GetCharacterState().Id) continue;
                 if (w.Objects.OfType<PlayerObject>().Any(p => p.NetworkId == s.Id)) continue;
-                var remote = new PlayerObject
+
+                // Preserve appearance data so remote players show correct equipment
+                var remote = new PlayerObject(new AppearanceData(s.AppearanceData))
                 {
                     NetworkId = s.Id,
                     Name = s.Name,
                     CharacterClass = s.Class,
                     Location = new Vector2(s.PositionX, s.PositionY)
                 };
+
                 w.Objects.Add(remote);
                 await remote.Load();
+                await remote.PreloadTexturesAsync();
             }
         }
 
@@ -787,7 +791,7 @@ namespace Client.Main.Scenes
 
             foreach (var walker in world.Objects.OfType<WalkerObject>())
             {
-                if (walker is Objects.Player.PlayerObject) continue;
+                if (walker is PlayerObject) continue;
                 if (walker is ModelObject modelObject)
                     await modelObject.PreloadTexturesAsync();
             }
