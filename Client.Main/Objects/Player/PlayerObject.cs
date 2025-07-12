@@ -43,7 +43,7 @@ namespace Client.Main.Objects.Player
         public PlayerBootObject Boots { get; private set; }
         public WeaponObject Weapon1 { get; private set; }
         public WeaponObject Weapon2 { get; private set; }
-        public Client.Main.Objects.Wings.WingObject EquippedWings { get; private set; }
+        public WingObject EquippedWings { get; private set; }
 
         // Timer for footstep sound playback
         private float _footstepTimer;
@@ -222,7 +222,7 @@ namespace Client.Main.Objects.Player
             {
                 CharacterClass = newClass;
             }
-            
+
             // ALWAYS load the default class-specific body parts first.
             await UpdateBodyPartClassesAsync();
 
@@ -264,16 +264,12 @@ namespace Client.Main.Objects.Player
             var wingsDef = GetItemDef(InventoryConstants.WingsSlot);
             if (wingsDef != null && !string.IsNullOrEmpty(wingsDef.TexturePath))
             {
-                EquippedWings.Model = await BMDLoader.Instance.Prepare(wingsDef.TexturePath.Replace("Item/", "Player/"));
-                EquippedWings.Hidden = EquippedWings.Model == null;
-                if (!EquippedWings.Hidden)
-                {
-                    await EquippedWings.Load(); // To ensure any internal state is set
-                }
+                EquippedWings.Hidden = false;
+                EquippedWings.Type = (short)(wingsDef.Id + 1);
+                EquippedWings.LinkParentAnimation = false;
             }
             else
             {
-                EquippedWings.Model = null;
                 EquippedWings.Hidden = true;
             }
 
@@ -346,20 +342,15 @@ namespace Client.Main.Objects.Player
             }
 
             // Wings
-            // The Appearance.md specifies wing item index in byte 9, bits 0-2.
-            // This needs to be mapped to actual wing models. For now, a simplified approach.
-            // Assuming wing models are named like "Wing01.bmd", "Wing02.bmd" etc.
-            if (Appearance.WingItemIndex != 255)
+            if (Appearance.WingInfo.HasWings)
             {
-                if (Appearance.WingItemIndex > 0)
-                {
-                    EquippedWings.Type = Appearance.WingItemIndex;
-                    EquippedWings.Hidden = false;
-                }
-                else
-                {
-                    EquippedWings.Hidden = true;
-                }
+                EquippedWings.Type = (short)(Appearance.WingInfo.Type * Appearance.WingInfo.Level);
+                EquippedWings.Hidden = false;
+                EquippedWings.LinkParentAnimation = false;
+            }
+            else
+            {
+                EquippedWings.Hidden = true;
             }
             // Weapons
             // This requires more sophisticated logic to determine the exact weapon model
@@ -854,7 +845,7 @@ namespace Client.Main.Objects.Player
                     else
                         soundPath = "Sound/pWalk(Soil).wav";
                 }
-                
+
             }
 
             SoundController.Instance.PlayBufferWithAttenuation(soundPath, Position, world.Walker.Position);
