@@ -168,6 +168,24 @@ namespace Client.Main.Objects.Player
             UpdateWorldBoundingBox();
         }
 
+        public override async Task PreloadTexturesAsync()
+        {
+            await base.PreloadTexturesAsync(); // Preload base model textures
+
+            var tasks = new List<Task>();
+
+            // Preload all children that are ModelObjects or SpriteObjects
+            foreach (var child in Children)
+            {
+                if (child is ModelObject mo)
+                    tasks.Add(mo.PreloadTexturesAsync());
+                else if (child is SpriteObject so)
+                    tasks.Add(so.PreloadTexturesAsync());
+            }
+
+            await Task.WhenAll(tasks);
+        }
+
         private void HookInventoryEvents()
         {
             if (_networkManager != null)

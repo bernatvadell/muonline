@@ -202,17 +202,20 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     };
                     _logger.LogDebug($"[Spawn] Main thread: PlayerObject created for {name}.");
 
-                    // 1. Add the object to the world FIRST. This sets the 'World' property.
-                    world.Objects.Add(p);
-                    _logger.LogDebug($"[Spawn] Main thread: Added {name} to world.Objects.");
+                    // 1. Assign world context so asset loading can work
+                    p.World = world;
 
-                    // 2. Now load assets, which requires the World property to be set.
+                    // 2. Load assets BEFORE adding to the renderable world
                     await p.Load();
                     _logger.LogDebug($"[Spawn] Main thread: p.Load() completed for {name}.");
                     await p.PreloadTexturesAsync();
                     _logger.LogDebug($"[Spawn] Main thread: p.PreloadTexturesAsync() completed for {name}.");
 
-                    // 3. Set final position.
+                    // 3. Now add the fully loaded object to the world
+                    world.Objects.Add(p);
+                    _logger.LogDebug($"[Spawn] Main thread: Added {name} to world.Objects.");
+
+                    // 4. Set final position.
                     if (p.World != null && p.World.Terrain != null)
                     {
                         p.MoveTargetPosition = p.TargetPosition;
@@ -324,12 +327,40 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                             if (Activator.CreateInstance(npcClassType) is WalkerObject obj)
                             {
+                                // 1. Configure the object's properties
                                 obj.NetworkId = maskedId;
                                 obj.Location = new Vector2(x, y);
                                 obj.Direction = (Client.Main.Models.Direction)direction;
 
+                                // 2. Assign world context so asset loading can work
+                                obj.World = worldRef;
+
+                                // 3. Load assets BEFORE adding to the renderable world
+                                try
+                                {
+                                    await obj.Load();
+                                    if (obj is ModelObject modelObj)
+                                    {
+                                        await modelObj.PreloadTexturesAsync();
+                                    }
+
+                                    if (obj.Status != GameControlStatus.Ready)
+                                    {
+                                        _logger.LogWarning($"ScopeHandler: NPC/Monster {maskedId} ({obj.GetType().Name}) loaded but status is {obj.Status}.");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogError(ex, $"ScopeHandler: Error loading NPC/Monster {maskedId} ({obj.GetType().Name}).");
+                                    // If loading fails, don't add it to the world.
+                                    obj.Dispose();
+                                    return;
+                                }
+
+                                // 4. Now add the fully loaded object to the world
                                 worldRef.Objects.Add(obj);
 
+                                // 5. Set final position
                                 if (obj.World?.Terrain != null)
                                 {
                                     obj.MoveTargetPosition = obj.TargetPosition;
@@ -337,28 +368,12 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                                 }
                                 else
                                 {
-                                    _logger.LogError($"ScopeHandler: obj.World or obj.World.Terrain is null for NPC/Monster {maskedId} ({obj.GetType().Name}) AFTER adding to worldRef.Objects. This should not happen.");
+                                    // This case should be less likely now, but keep as a fallback.
+                                    _logger.LogError($"ScopeHandler: obj.World or obj.World.Terrain is null for NPC/Monster {maskedId} ({obj.GetType().Name}) AFTER loading and adding. This indicates a problem.");
                                     float worldX = obj.Location.X * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
                                     float worldY = obj.Location.Y * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
                                     obj.MoveTargetPosition = new Vector3(worldX, worldY, 0);
                                     obj.Position = obj.MoveTargetPosition;
-                                }
-
-                                try
-                                {
-                                    await obj.Load();
-                                    if (obj.Status != GameControlStatus.Ready)
-                                    {
-                                        _logger.LogWarning($"ScopeHandler: NPC/Monster {maskedId} ({obj.GetType().Name}) loaded but status is {obj.Status}.");
-                                    }
-
-                                    // Preload model textures to avoid stall on first render
-                                    if (obj is ModelObject modelObj)
-                                        await modelObj.PreloadTexturesAsync();
-                                }
-                                catch (Exception ex)
-                                {
-                                    _logger.LogError(ex, $"ScopeHandler: Error loading NPC/Monster {maskedId} ({obj.GetType().Name}).");
                                 }
                             }
                             else

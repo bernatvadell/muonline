@@ -57,6 +57,24 @@ namespace Client.Main.Objects
         }
         protected abstract void HandleClick();
 
+        public override async Task PreloadTexturesAsync()
+        {
+            await base.PreloadTexturesAsync(); // Preload base model textures
+
+            var tasks = new List<Task>();
+
+            // Preload all children that are ModelObjects or SpriteObjects
+            foreach (var child in Children)
+            {
+                if (child is ModelObject mo)
+                    tasks.Add(mo.PreloadTexturesAsync());
+                else if (child is SpriteObject so)
+                    tasks.Add(so.PreloadTexturesAsync());
+            }
+
+            await Task.WhenAll(tasks);
+        }
+
         /// <summary>
         /// Loads the models for all body parts based on a specified path prefix, part prefixes, and a file suffix.
         /// Example: ("Npc/", "FemaleHead", "FemaleUpper", ..., 2) -> "Data/Npc/FemaleHead02.bmd"
