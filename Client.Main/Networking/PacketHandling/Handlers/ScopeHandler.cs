@@ -156,58 +156,81 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             };
         }
 
-        private static void SpawnRemotePlayerIntoWorld(
-                   WalkableWorldControl world,
-                   ushort maskedId,
-                   ushort rawId,
-                   byte x,
-                   byte y,
-                   string name,
-                   CharacterClassNumber cls,
-                   ReadOnlyMemory<byte> appearanceData)
+        private void SpawnRemotePlayerIntoWorld(
+                WalkableWorldControl world,
+                ushort maskedId,
+                ushort rawId,
+                byte x,
+                byte y,
+                string name,
+                CharacterClassNumber cls,
+                ReadOnlyMemory<byte> appearanceData)
         {
+            _logger.LogDebug($"[Spawn] Received request for {name} ({maskedId:X4}).");
+
             MuGame.ScheduleOnMainThread(async () =>
             {
-                if (MuGame.Instance.ActiveScene?.World != world || world.Status != GameControlStatus.Ready)
+                try
                 {
-                    return;
+                    _logger.LogDebug($"[Spawn] Main thread: Starting creation for {name} ({maskedId:X4}).");
+
+                    if (MuGame.Instance.ActiveScene?.World != world || world.Status != GameControlStatus.Ready)
+                    {
+                        _logger.LogWarning($"[Spawn] Main thread: World changed or not ready. Aborting spawn for {name}.");
+                        return;
+                    }
+
+                    if (world.WalkerObjectsById.TryGetValue(maskedId, out WalkerObject existingWalker))
+                    {
+                        _logger.LogWarning($"[Spawn] Main thread: Stale object for {name} found. Removing before adding new.");
+                        world.Objects.Remove(existingWalker);
+                        existingWalker.Dispose();
+                    }
+
+                    if (world.Objects.OfType<PlayerObject>().Any(pl => pl.NetworkId == maskedId))
+                    {
+                        _logger.LogWarning($"[Spawn] Main thread: PlayerObject for {name} already exists. Aborting.");
+                        return;
+                    }
+
+                    var p = new PlayerObject(new AppearanceData(appearanceData))
+                    {
+                        NetworkId = maskedId,
+                        CharacterClass = cls,
+                        Name = name,
+                        Location = new Vector2(x, y)
+                    };
+                    _logger.LogDebug($"[Spawn] Main thread: PlayerObject created for {name}.");
+
+                    // 1. Add the object to the world FIRST. This sets the 'World' property.
+                    world.Objects.Add(p);
+                    _logger.LogDebug($"[Spawn] Main thread: Added {name} to world.Objects.");
+
+                    // 2. Now load assets, which requires the World property to be set.
+                    await p.Load();
+                    _logger.LogDebug($"[Spawn] Main thread: p.Load() completed for {name}.");
+                    await p.PreloadTexturesAsync();
+                    _logger.LogDebug($"[Spawn] Main thread: p.PreloadTexturesAsync() completed for {name}.");
+
+                    // 3. Set final position.
+                    if (p.World != null && p.World.Terrain != null)
+                    {
+                        p.MoveTargetPosition = p.TargetPosition;
+                        p.Position = p.TargetPosition;
+                    }
+                    else
+                    {
+                        float worldX = p.Location.X * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
+                        float worldY = p.Location.Y * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
+                        p.MoveTargetPosition = new Vector3(worldX, worldY, 0);
+                        p.Position = p.MoveTargetPosition;
+                    }
+                    _logger.LogInformation($"[Spawn] Successfully spawned {name} ({maskedId:X4}) into world.");
                 }
-
-                if (world.WalkerObjectsById.TryGetValue(maskedId, out WalkerObject existingWalker))
+                catch (Exception ex)
                 {
-                    // GameScene._logger.LogWarning($"SpawnRemotePlayer: Stale PlayerObject {maskedId:X4} found. Removing before adding new.");
-                    world.Objects.Remove(existingWalker);
-                    existingWalker.Dispose();
+                    _logger.LogError(ex, $"[Spawn] CRITICAL FAILURE spawning {name} ({maskedId:X4}).");
                 }
-
-                if (world.Objects.OfType<PlayerObject>().Any(p => p.NetworkId == maskedId))
-                    return;
-
-                var p = new PlayerObject(new AppearanceData(appearanceData))
-                {
-                    NetworkId = maskedId,
-                    CharacterClass = cls,
-                    Name = name,
-                    Location = new Vector2(x, y)
-                };
-
-                world.Objects.Add(p);
-
-                if (p.World != null && p.World.Terrain != null)
-                {
-                    p.MoveTargetPosition = p.TargetPosition;
-                    p.Position = p.TargetPosition;
-                }
-                else
-                {
-                    float worldX = p.Location.X * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
-                    float worldY = p.Location.Y * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
-                    p.MoveTargetPosition = new Vector3(worldX, worldY, 0);
-                    p.Position = p.MoveTargetPosition;
-                }
-
-                await p.Load();
-                await p.PreloadTexturesAsync();
             });
         }
 
@@ -832,7 +855,18 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                     _scopeManager.RemoveObjectFromScope(masked);
 
-                    // ---- 1) Walker / NPC / Player -----------------------------------
+                    // ---- 1) Player --------------------------------------------------
+                    var player = world.Objects
+                                      .OfType<PlayerObject>()
+                                      .FirstOrDefault(p => p.NetworkId == masked);
+                    if (player != null)
+                    {
+                        world.Objects.Remove(player);
+                        player.Dispose();
+                        continue;
+                    }
+
+                    // ---- 2) Walker / NPC --------------------------------------------
                     var walker = world.Objects
                                       .OfType<WalkerObject>()
                                       .FirstOrDefault(w => w.NetworkId == masked);
@@ -843,7 +877,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         continue;
                     }
 
-                    // ---- 2) Dropped item --------------------------------------------
+                    // ---- 3) Dropped item --------------------------------------------
                     var drop = world.Objects
                                      .OfType<DroppedItemObject>()
                                      .FirstOrDefault(d => d.NetworkId == masked);

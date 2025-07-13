@@ -94,7 +94,7 @@ namespace Client.Main.Models
                 if (RawData.Length < 14) return 0xFF;
                 byte lower4 = (byte)((RawData[3] >> 4) & 0xF);
                 byte bit5 = (byte)((RawData[9] >> 7) & 0x1);
-                byte upper4 = (byte)((RawData[13] >> 4) & 0xF); // Corrected: read upper 4 bits
+                byte upper4 = (byte)(RawData[13] & 0xF);
                 return (byte)(lower4 | (bit5 << 4) | (upper4 << 5));
             }
         }
