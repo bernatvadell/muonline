@@ -958,6 +958,21 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl world)
                     return;
 
+                // ────────────────────────────────────────────────
+                //  local player?  → do not override animation
+                // ────────────────────────────────────────────────
+                if (maskedId == _characterState.Id)
+                {
+
+                    var self = world.Walker;
+
+                    if (self != null && self.NetworkId == maskedId)
+                    {
+                        self.MoveTo(new Vector2(x, y), sendToServer: false);
+                        return;
+                    }
+                }
+
                 if (!world.TryGetWalkerById(maskedId, out var walker) || walker == null)
                 {
                     _logger.LogTrace("HandleObjectWalked: Walker {Id:X4} not found.", maskedId);

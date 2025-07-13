@@ -460,6 +460,16 @@ namespace Client.Main.Objects.Player
                 _ => _isFemale ? PlayerAction.StopFemale : PlayerAction.StopMale
             };
 
+        private MovementMode GetModeFromCurrentAction() =>
+            CurrentAction switch
+            {
+                PlayerAction.Fly or PlayerAction.StopFlying or PlayerAction.PlayerFlyingRest
+                    => MovementMode.Fly,
+                PlayerAction.RunSwim
+                    => MovementMode.Swim,
+                _ => MovementMode.Walk
+            };
+
         private PlayerAction GetIdleAction(WalkableWorldControl world) =>
             GetIdleAction(GetCurrentMovementMode(world));
 
@@ -470,12 +480,21 @@ namespace Client.Main.Objects.Player
             if (HandleRestTarget(world) || HandleSitTarget())
                 return;
 
-            // Movement / idle logic
-            var mode = GetCurrentMovementMode(world);
-            if (IsMoving)
+            bool pathQueued = _currentPath?.Count > 0;
+            bool isAboutToMove = IsMoving || pathQueued || MovementIntent;
+
+            var mode = (!IsMoving && (pathQueued || MovementIntent))
+                ? GetModeFromCurrentAction()
+                : GetCurrentMovementMode(world);
+
+            if (isAboutToMove)
             {
                 ResetRestSitStates();
-                var desired = GetMovementAction(mode);
+
+                var desired = (HasEquippedWings && mode == MovementMode.Fly)
+                    ? PlayerAction.Fly
+                    : GetMovementAction(mode);
+
                 if (!IsOneShotPlaying && CurrentAction != desired)
                     PlayAction((ushort)desired);
                 PlayFootstepSound(world, gameTime);
@@ -489,11 +508,20 @@ namespace Client.Main.Objects.Player
         // --------------- REMOTE PLAYERS ----------------
         private void UpdateRemotePlayer(WalkableWorldControl world, GameTime gameTime)
         {
-            var mode = GetCurrentMovementMode(world);
-            if (IsMoving)
+            bool pathQueued = _currentPath?.Count > 0;
+            bool isAboutToMove = IsMoving || pathQueued || MovementIntent;
+
+            var mode = (!IsMoving && (pathQueued || MovementIntent))
+                ? GetModeFromCurrentAction()
+                : GetCurrentMovementMode(world);
+
+            if (isAboutToMove)
             {
                 ResetRestSitStates();
-                var desired = GetMovementAction(mode);
+                var desired = (HasEquippedWings && mode == MovementMode.Fly)
+                    ? PlayerAction.Fly
+                    : GetMovementAction(mode);
+
                 if (!IsOneShotPlaying && CurrentAction != desired)
                     PlayAction((ushort)desired);
                 PlayFootstepSound(world, gameTime);

@@ -488,7 +488,10 @@ namespace Client.Main.Objects
             Vector3 moveVector = direction * MoveSpeed * deltaTime;
 
             if (moveVector.Length() >= (TargetPosition - MoveTargetPosition).Length())
+            {
                 UpdateCameraPosition(TargetPosition);
+                _movementIntent = false;
+            }
             else
                 UpdateCameraPosition(MoveTargetPosition + moveVector);
         }
@@ -589,6 +592,9 @@ namespace Client.Main.Objects
                 _wasRotating = false;
             }
         }
+        
+        protected bool _movementIntent;
+        public bool MovementIntent => _movementIntent;
 
         // protected override void Dispose(bool disposing)
         // {
