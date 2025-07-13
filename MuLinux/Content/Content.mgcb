@@ -19,6 +19,12 @@
 /processorParam:DebugMode=Auto
 /build:AlphaRGB.fx
 
+#begin GammaCorrection.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:GammaCorrection.fx
+
 #begin Arial.spritefont
 /importer:FontDescriptionImporter
 /processor:FontDescriptionProcessor
@@ -37,7 +43,7 @@
 /processorParam:DebugMode=Auto
 /build:Shadow.fx
 
-#begin Background.png
+#begin Background.jpg
 /importer:TextureImporter
 /processor:TextureProcessor
 /build:Background.jpg

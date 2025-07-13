@@ -159,7 +159,7 @@ namespace Client.Main.Controls.UI
             }
 
             sb.End();
-            sb.Begin(SpriteSortMode.Deferred, BlendState.NonPremultiplied, null, null, null, null, italicTransform);
+            sb.Begin(SpriteSortMode.Deferred, BlendState.NonPremultiplied, SamplerState.LinearClamp, null, null, null, italicTransform);
 
             if (HasShadow)
             {
@@ -194,7 +194,7 @@ namespace Client.Main.Controls.UI
             sb.Begin(
                 SpriteSortMode.Deferred,
                 BlendState.AlphaBlend,
-                SamplerState.PointClamp);
+                SamplerState.LinearClamp);
         }
 
         private void OnChangeText()

@@ -30,6 +30,7 @@ namespace Client.Main.Controllers
         public BasicEffect BoundingBoxEffect3D { get; private set; }
         public Effect AlphaRGBEffect { get; set; }
         public Effect FXAAEffect { get; private set; }
+        public Effect GammaCorrectionEffect { get; private set; }
 
         public RenderTarget2D MainRenderTarget { get; private set; }
         public RenderTarget2D TempTarget1 { get; private set; }
@@ -54,6 +55,7 @@ namespace Client.Main.Controllers
             AlphaRGBEffect = LoadEffect("AlphaRGB");
             FXAAEffect = LoadEffect("FXAA");
             ShadowEffect = LoadEffect("Shadow");
+            GammaCorrectionEffect = LoadEffect("GammaCorrection");
 
             InitializeFXAAEffect();
 
@@ -110,11 +112,25 @@ namespace Client.Main.Controllers
             //        targetHeight = (int)(targetHeight * 0.5f);
             //#endif
 
-            MainRenderTarget = new RenderTarget2D(_graphicsDevice, targetWidth, targetHeight, false, pp.BackBufferFormat, DepthFormat.Depth24);
-            TempTarget1 = new RenderTarget2D(_graphicsDevice, targetWidth, targetHeight);
-            TempTarget2 = new RenderTarget2D(_graphicsDevice, targetWidth, targetHeight);
+            // POPRAWKA: Używamy SurfaceFormat.Color zamiast pp.BackBufferFormat dla MSAA
+            // to pomaga z problemem gamma
+            SurfaceFormat renderTargetFormat = Constants.MSAA_ENABLED ? SurfaceFormat.Color : pp.BackBufferFormat;
 
-            EffectRenderTarget = new RenderTarget2D(_graphicsDevice, targetWidth, targetHeight, false, pp.BackBufferFormat, DepthFormat.Depth24);
+            MainRenderTarget = new RenderTarget2D(_graphicsDevice, targetWidth, targetHeight, false,
+                renderTargetFormat, DepthFormat.Depth24,
+                Constants.MSAA_ENABLED ? pp.MultiSampleCount : 0,
+                RenderTargetUsage.DiscardContents);
+
+            // Temp targets nie potrzebują MSAA
+            TempTarget1 = new RenderTarget2D(_graphicsDevice, targetWidth, targetHeight, false,
+                SurfaceFormat.Color, DepthFormat.None);
+            TempTarget2 = new RenderTarget2D(_graphicsDevice, targetWidth, targetHeight, false,
+                SurfaceFormat.Color, DepthFormat.None);
+
+            EffectRenderTarget = new RenderTarget2D(_graphicsDevice, targetWidth, targetHeight, false,
+                renderTargetFormat, DepthFormat.Depth24,
+                Constants.MSAA_ENABLED ? pp.MultiSampleCount : 0,
+                RenderTargetUsage.DiscardContents);
         }
 
         private Effect LoadEffect(string effectName)

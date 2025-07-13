@@ -454,7 +454,7 @@ namespace Client.Main.Controls.UI.Game
 
             _markerScreenPositions.Clear();
 
-            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
 
             float mapWorldSize = Constants.TERRAIN_SIZE * Constants.TERRAIN_SCALE; // Add map world size calculation
 
@@ -547,7 +547,7 @@ namespace Client.Main.Controls.UI.Game
             float mapRotationRadians = MathHelper.ToRadians(MAP_ROTATION_DEGREES); // Should be 0
             float finalPlayerRotationOnMap = playerWorldRotationZ + MathHelper.PiOver2 - mapRotationRadians + MathHelper.ToRadians(PLAYER_ICON_ROTATION_OFFSET_DEGREES);
 
-            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+            spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone);
             spriteBatch.Draw(
                 _playerMarker.Texture,
                 centerPos,
