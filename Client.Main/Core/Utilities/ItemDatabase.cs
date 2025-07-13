@@ -26,7 +26,7 @@ namespace Client.Main.Core.Utilities
 
             var assembly = Assembly.GetExecutingAssembly();
 
-            // Find *one* resource whose name ends with "items.bmd"
+            // Find *one* resource whose name ends with "item.bmd"
             var resourceName = assembly.GetManifestResourceNames()
                                        .SingleOrDefault(n =>
                                            n.EndsWith("item.bmd", StringComparison.OrdinalIgnoreCase));
@@ -34,7 +34,7 @@ namespace Client.Main.Core.Utilities
             if (resourceName == null)
             {
                 Console.WriteLine(
-                    "Embedded resource 'items.bmd' not found. " +
+                    "Embedded resource 'item.bmd' not found. " +
                     "Verify Build Action = Embedded Resource and correct RootNamespace.");
                 return data;
             }

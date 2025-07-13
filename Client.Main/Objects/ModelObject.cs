@@ -10,11 +10,14 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using System.Reflection;
 
 namespace Client.Main.Objects
 {
     public abstract class ModelObject : WorldObject
     {
+        private static readonly Dictionary<string, BlendState> _blendStateCache = new Dictionary<string, BlendState>();
+
         private DynamicVertexBuffer[] _boneVertexBuffers;
         private DynamicIndexBuffer[] _boneIndexBuffers;
         private Texture2D[] _boneTextures;
@@ -377,10 +380,27 @@ namespace Client.Main.Objects
                 var prevBlend = gd.BlendState;
                 float prevAlpha = effect.Alpha;
 
-                // Apply new states
-                gd.RasterizerState = isTwoSided ? RasterizerState.CullNone : RasterizerState.CullClockwise;
-                gd.BlendState = isBlendMesh ? BlendMeshState : BlendState;
+                // for custom blending from json
+                // Apply new states from config first
+                var meshConf = Model.Meshes[mesh];
+                BlendState customBlendState = null;
+                if (meshConf.BlendingMode != null)
+                {
+                    if (!_blendStateCache.TryGetValue(meshConf.BlendingMode, out customBlendState))
+                    {
+                        var field = typeof(Blendings).GetField(meshConf.BlendingMode, BindingFlags.Public | BindingFlags.Static);
+                        if (field != null)
+                        {
+                            customBlendState = (BlendState)field.GetValue(null);
+                            _blendStateCache[meshConf.BlendingMode] = customBlendState;
+                        }
+                    }
+                }
 
+                gd.RasterizerState = isTwoSided ? RasterizerState.CullNone : RasterizerState.CullClockwise;
+                gd.BlendState = customBlendState ?? (isBlendMesh ? BlendMeshState : BlendState);
+                //
+                
                 // Set effect properties
                 effect.Texture = texture;
                 effect.Alpha = TotalAlpha;

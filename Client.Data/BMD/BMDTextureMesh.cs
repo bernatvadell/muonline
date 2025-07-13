@@ -10,5 +10,8 @@ namespace Client.Data.BMD
         public BMDTriangle[] Triangles { get; set; } = [];
         public short Texture { get; set; } = 0;
         public string TexturePath { get; set; } = string.Empty;
+
+        //for custom blending from json
+        public string BlendingMode { get; set; } = null;
     }
 }

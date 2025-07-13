@@ -5,10 +5,12 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using static Client.Main.Utils;
+using System.Reflection;
 
 namespace Client.Main.Content
 {
@@ -19,9 +21,74 @@ namespace Client.Main.Content
         private readonly BMDReader _reader = new();
         private readonly Dictionary<string, Task<BMD>> _bmds = [];
         private readonly Dictionary<BMD, Dictionary<string, string>> _texturePathMap = [];
+        private Dictionary<string, Dictionary<int, string>> _blendingConfig;
 
         private GraphicsDevice _graphicsDevice;
         private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<BMDLoader>();
+
+        // for custom blending from json
+
+        private BMDLoader()
+        {
+            LoadBlendingConfig();
+        }
+
+        private void LoadBlendingConfig()
+        {
+            _blendingConfig = new();
+
+            try
+            {
+                var asm = Assembly.GetExecutingAssembly();
+
+                // Szukamy dokładnie jednego zasobu kończącego się nazwą pliku
+                var resName = asm.GetManifestResourceNames()
+                                 .SingleOrDefault(n =>
+                                     n.EndsWith("bmd_blending_config.json",
+                                                StringComparison.OrdinalIgnoreCase));
+
+                if (resName == null)
+                {
+                    _logger?.LogWarning(
+                        "Embedded resource 'bmd_blending_config.json' not found " +
+                        "(sprawdź Build Action = Embedded Resource i RootNamespace).");
+                    return;
+                }
+
+                using var stream = asm.GetManifestResourceStream(resName);
+                if (stream == null)
+                {
+                    _logger?.LogWarning($"Nie udało się otworzyć strumienia '{resName}'.");
+                    return;
+                }
+
+                using var reader = new StreamReader(stream);
+                var json = reader.ReadToEnd();
+
+                using var doc = JsonDocument.Parse(json);
+                var cleanObj = new Dictionary<string, Dictionary<int, string>>();
+
+                foreach (var prop in doc.RootElement.EnumerateObject())
+                {
+                    if (prop.Name.StartsWith("comment", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var innerDict = new Dictionary<int, string>();
+                    foreach (var mesh in prop.Value.EnumerateObject())
+                        innerDict[int.Parse(mesh.Name)] = mesh.Value.GetString();
+
+                    cleanObj[prop.Name] = innerDict;
+                }
+
+                _blendingConfig = cleanObj;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to load embedded BMD blending config.");
+            }
+        }
+
+        //
 
         public void SetGraphicsDevice(GraphicsDevice graphicsDevice)
         {
@@ -55,6 +122,21 @@ namespace Client.Main.Content
                 }
 
                 var asset = await _reader.Load(path);
+
+                // for custom blending from json
+                var relativePath = Path.GetRelativePath(Constants.DataPath, path).Replace("\\", "/");
+                if (_blendingConfig.TryGetValue(relativePath, out var meshConfig))
+                {
+                    for (int i = 0; i < asset.Meshes.Length; i++)
+                    {
+                        if (meshConfig.TryGetValue(i, out var blendMode))
+                        {
+                            asset.Meshes[i].BlendingMode = blendMode;
+                        }
+                    }
+                }
+                //
+
                 var texturePathMap = new Dictionary<string, string>();
 
                 lock (_texturePathMap)

@@ -5,6 +5,13 @@ namespace Client.Main
 {
     public static class Blendings
     {
+        // Standard MonoGame Blend States
+        public static readonly BlendState Additive = BlendState.Additive;
+        public static readonly BlendState AlphaBlend = BlendState.AlphaBlend;
+        public static readonly BlendState NonPremultiplied = BlendState.NonPremultiplied;
+        public static readonly BlendState Opaque = BlendState.Opaque;
+
+        // Custom Blend States
         public static readonly BlendState Negative = new()
         {
             ColorSourceBlend = Blend.Zero,

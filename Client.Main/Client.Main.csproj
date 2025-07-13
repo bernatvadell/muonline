@@ -44,6 +44,7 @@
     <EmbeddedResource Include="Data\gates.json" />
     <EmbeddedResource Include="Data\item.bmd" />
     <EmbeddedResource Include="Data\skills.json" />
+    <EmbeddedResource Include="Data\bmd_blending_config.json" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)'!='net9.0-android'">

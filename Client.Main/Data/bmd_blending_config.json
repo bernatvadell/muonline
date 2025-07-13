@@ -1,0 +1,41 @@
+{
+  "comment": "This file configures custom blend states for specific meshes within BMD models.",
+  "comment_2": "Use model paths relative to the Data directory, e.g., 'Player/Sword.bmd'.",
+  "comment_3": "Mesh indices are 0-based. Blend state names must match a static property in the Blendings class.",
+
+  "comment_4" : "Lighting Sword",
+  "Item/sword15.bmd": {
+    "0": "Opaque",
+    "1": "Additive"
+  },
+    "comment_5" : "Blade",
+    "Item/sword06.bmd": {
+    "0": "Opaque",
+    "1": "Additive"
+  },
+    "comment_6" : "Double Blade ",
+    "Item/sword14.bmd": {
+    "0": "Opaque",
+    "1": "Additive"
+  },
+    "comment_7" : "Light Saber",
+    "Item/sword11.bmd": {
+    "0": "Opaque",
+    "1": "Additive"
+  },
+    "comment_8" : "Crystal Sword",
+    "Item/Mace06.bmd": {
+    "0": "Additive"
+  },
+    "comment_9" : "Chaos Dragon Axe",
+    "Item/Mace07.bmd": {
+    "0": "Opaque",
+    "1": "Additive"
+  },
+    "comment_10" : "Crystal Axe",
+    "Item/Mace05.bmd": {
+    "0": "Opaque",
+    "1": "Additive"
+  }
+}
+ 
