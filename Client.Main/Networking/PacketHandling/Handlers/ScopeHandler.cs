@@ -1005,16 +1005,16 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     {
                         var flags = world.Terrain.RequestTerrainFlag(x, y);
                         walkAction = flags.HasFlag(TWFlags.SafeZone)
-                            ? (isFemale ? PlayerAction.WalkFemale : PlayerAction.WalkMale)
-                            : PlayerAction.RunSwim;
+                            ? (isFemale ? PlayerAction.PlayerWalkFemale : PlayerAction.PlayerWalkMale)
+                            : PlayerAction.PlayerRunSwim;
                     }
                     else if (world.WorldIndex == 11 || (world.WorldIndex == 1 && player.HasEquippedWings && !world.Terrain.RequestTerrainFlag(x, y).HasFlag(TWFlags.SafeZone)))
                     {
-                        walkAction = PlayerAction.Fly;
+                        walkAction = PlayerAction.PlayerFly;
                     }
                     else
                     {
-                        walkAction = isFemale ? PlayerAction.WalkFemale : PlayerAction.WalkMale;
+                        walkAction = isFemale ? PlayerAction.PlayerWalkFemale : PlayerAction.PlayerWalkMale;
                     }
 
                     if (player.CurrentAction != walkAction)
@@ -1028,9 +1028,9 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 }
                 else if (walker is NPCObject)
                 {
-                    const PlayerAction walkAction = PlayerAction.WalkMale;
+                    const PlayerAction walkAction = PlayerAction.PlayerWalkMale;
                     if (walker.CurrentAction != (int)walkAction)
-                    walker.PlayAction((ushort)walkAction, fromServer: true);
+                        walker.PlayAction((ushort)walkAction, fromServer: true);
                 }
             });
 

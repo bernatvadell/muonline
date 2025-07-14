@@ -136,6 +136,13 @@ namespace Client.Main.Core.Utilities
             return GetItemDefinition(group, id);
         }
 
+        public static byte GetItemGroup(ReadOnlySpan<byte> itemData)
+        {
+            if (itemData.Length < 6) return 0;
+            byte group = (byte)(itemData[5] >> 4);
+            return group;
+        }
+
         public static string GetItemName(byte group, short id) =>
             GetItemDefinition(group, id)?.Name;
 

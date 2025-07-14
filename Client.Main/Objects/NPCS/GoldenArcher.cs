@@ -14,19 +14,19 @@ namespace Client.Main.Objects.NPCS
     {
         private static readonly Dictionary<MonsterActionType, PlayerAction> _actionMap = new()
         {
-            { MonsterActionType.Stop1,   PlayerAction.StopMale },
-            { MonsterActionType.Stop2,   PlayerAction.StopMale },
-            { MonsterActionType.Walk,    PlayerAction.WalkMale },
-            { MonsterActionType.Attack1, PlayerAction.AttackFist },
-            { MonsterActionType.Attack2, PlayerAction.AttackFist },
+            { MonsterActionType.Stop1,   PlayerAction.PlayerStopMale },
+            { MonsterActionType.Stop2,   PlayerAction.PlayerStopMale },
+            { MonsterActionType.Walk,    PlayerAction.PlayerWalkMale },
+            { MonsterActionType.Attack1, PlayerAction.PlayerAttackBow },
+            { MonsterActionType.Attack2, PlayerAction.PlayerAttackBow },
             { MonsterActionType.Shock,   PlayerAction.PlayerShock },
             { MonsterActionType.Die,     PlayerAction.PlayerDie1 },
-            { MonsterActionType.Appear,  PlayerAction.AttackFist },
-            { MonsterActionType.Attack3, PlayerAction.AttackFist },
-            { MonsterActionType.Attack4, PlayerAction.AttackFist },
-            { MonsterActionType.Run,     PlayerAction.Run }
+            { MonsterActionType.Appear,  PlayerAction.PlayerComeUp },
+            { MonsterActionType.Attack3, PlayerAction.PlayerAttackBow },
+            { MonsterActionType.Attack4, PlayerAction.PlayerAttackBow },
+            { MonsterActionType.Run,     PlayerAction.PlayerRun }
         };
-        
+
         public override async Task Load()
         {
             var skeletonModel = await BMDLoader.Instance.Prepare($"Skill/Skeleton02.bmd");
@@ -46,7 +46,7 @@ namespace Client.Main.Objects.NPCS
             Model = skeletonModel;
 
             await base.Load();
-            CurrentAction = (int)PlayerAction.StopMale;
+            CurrentAction = (int)PlayerAction.PlayerStopMale;
         }
         // protected override void HandleClick() { }
     }

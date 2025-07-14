@@ -12,7 +12,7 @@ namespace Client.Main.Objects.NPCS
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
             await SetBodyPartsAsync("Player/", "HelmMale", "ArmorMale", "PantMale", "GloveMale", "BootMale", 10); // Plate Set
             await base.Load();
-            CurrentAction = (int)PlayerAction.StopMale;
+            CurrentAction = (int)PlayerAction.PlayerStopMale;
         }
         protected override void HandleClick() { }
     }

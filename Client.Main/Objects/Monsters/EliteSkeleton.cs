@@ -15,17 +15,17 @@ namespace Client.Main.Objects.Monsters
     {
         private static readonly Dictionary<MonsterActionType, PlayerAction> _actionMap = new()
         {
-            { MonsterActionType.Stop1,   PlayerAction.StopMale },
-            { MonsterActionType.Stop2,   PlayerAction.StopMale },
-            { MonsterActionType.Walk,    PlayerAction.WalkMale },
-            { MonsterActionType.Attack1, PlayerAction.AttackFist }, // TODO:
-            { MonsterActionType.Attack2, PlayerAction.AttackFist }, // TODO:
+            { MonsterActionType.Stop1,   PlayerAction.PlayerStopMale },
+            { MonsterActionType.Stop2,   PlayerAction.PlayerStopMale },
+            { MonsterActionType.Walk,    PlayerAction.PlayerWalkBow },
+            { MonsterActionType.Attack1, PlayerAction.PlayerAttackSwordRight1 },
+            { MonsterActionType.Attack2, PlayerAction.PlayerAttackSwordRight2 },
             { MonsterActionType.Shock,   PlayerAction.PlayerShock },
             { MonsterActionType.Die,     PlayerAction.PlayerDie1 },
-            { MonsterActionType.Appear,  PlayerAction.AttackFist }, // TODO:
-            { MonsterActionType.Attack3, PlayerAction.AttackFist }, // TODO:
-            { MonsterActionType.Attack4, PlayerAction.AttackFist }, // TODO:
-            { MonsterActionType.Run,     PlayerAction.Run }
+            { MonsterActionType.Appear,  PlayerAction.PlayerComeUp },
+            { MonsterActionType.Attack3, PlayerAction.PlayerAttackSwordRight1 },
+            { MonsterActionType.Attack4, PlayerAction.PlayerAttackSwordRight2 },
+            { MonsterActionType.Run,     PlayerAction.PlayerRun }
         };
         private WeaponObject _rightHandWeapon;
         private WeaponObject _leftHandWeapon;

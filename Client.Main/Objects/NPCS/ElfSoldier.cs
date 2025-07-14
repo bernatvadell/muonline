@@ -43,7 +43,7 @@ namespace Client.Main.Objects.NPCS
 
             await base.Load();
 
-            CurrentAction = (int)PlayerAction.StopFlying;
+            CurrentAction = (int)PlayerAction.PlayerStopFly;
             Scale = 1.0f;
 
             var currentBBox = BoundingBoxLocal;

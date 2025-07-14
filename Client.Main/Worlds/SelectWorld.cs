@@ -109,7 +109,7 @@ namespace Client.Main.Worlds
                     Angle = new Vector3(0, 0, MathHelper.ToRadians(90)),
                     Interactive = true,
                     World = this,
-                    CurrentAction = PlayerAction.StopMale
+                    CurrentAction = PlayerAction.PlayerStopMale
                 };
 
                 player.BoundingBoxLocal = new BoundingBox(new Vector3(-40, -40, 0), new Vector3(40, 40, 180));

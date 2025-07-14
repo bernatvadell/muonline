@@ -142,9 +142,9 @@ namespace Client.Main.Objects
 
             if (wasMoving && !IsMoving && !IsOneShotPlaying)
             {
-                if (CurrentAction == (int)PlayerAction.WalkMale || CurrentAction == (int)PlayerAction.WalkFemale)
+                if (CurrentAction == (int)PlayerAction.PlayerWalkMale || CurrentAction == (int)PlayerAction.PlayerWalkFemale)
                 {
-                    PlayAction((ushort)PlayerAction.StopMale);
+                    PlayAction((ushort)PlayerAction.PlayerStopMale);
                 }
             }
         }

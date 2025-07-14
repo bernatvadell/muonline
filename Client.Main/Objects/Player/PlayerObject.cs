@@ -88,7 +88,7 @@ namespace Client.Main.Objects.Player
             set => base.CurrentAction = (int)value;
         }
 
-        public PlayerAction SelectedAttackAction { get; set; } = PlayerAction.BlowSkill;
+        public PlayerAction SelectedAttackAction { get; set; } = PlayerAction.PlayerAttackDeathstab;
 
         // Events
         public event EventHandler PlayerMoved;
@@ -124,7 +124,7 @@ namespace Client.Main.Objects.Player
 
             Scale = 0.85f;
             AnimationSpeed = 5f;
-            CurrentAction = PlayerAction.StopMale;
+            CurrentAction = PlayerAction.PlayerStopMale;
             _characterClass = CharacterClassNumber.DarkWizard;
             _isFemale = PlayerActionMapper.IsCharacterFemale(_characterClass);
 
@@ -161,9 +161,9 @@ namespace Client.Main.Objects.Player
             await base.Load();
 
             // Idle actions play at half speed so the character breathes naturally
-            SetActionSpeed(PlayerAction.StopMale, 0.5f);
-            SetActionSpeed(PlayerAction.StopFemale, 0.5f);
-            SetActionSpeed(PlayerAction.StopFlying, 0.5f);
+            SetActionSpeed(PlayerAction.PlayerStopMale, 0.5f);
+            SetActionSpeed(PlayerAction.PlayerStopFemale, 0.5f);
+            SetActionSpeed(PlayerAction.PlayerStopFly, 0.5f);
 
             UpdateWorldBoundingBox();
         }
@@ -461,10 +461,28 @@ namespace Client.Main.Objects.Player
         private PlayerAction GetMovementAction(MovementMode mode) =>
             mode switch
             {
-                MovementMode.Swim => PlayerAction.RunSwim,
-                MovementMode.Fly => PlayerAction.Fly,
-                _ => _isFemale ? PlayerAction.WalkFemale : PlayerAction.WalkMale
+                MovementMode.Swim => PlayerAction.PlayerRunSwim,
+                MovementMode.Fly => PlayerAction.PlayerFly,
+                _ => GetMovementActionForWeapon(GetEquippedWeaponType())
             };
+        
+        /// <summary>
+        /// Gets the appropriate movement action based on equipped weapon
+        /// </summary>
+        private PlayerAction GetMovementActionForWeapon(WeaponType weaponType)
+        {
+            return weaponType switch
+            {
+                WeaponType.Sword => PlayerAction.PlayerWalkSword,
+                WeaponType.TwoHandSword => PlayerAction.PlayerWalkTwoHandSword,
+                WeaponType.Spear => PlayerAction.PlayerWalkSpear,
+                WeaponType.Bow => PlayerAction.PlayerWalkBow,
+                WeaponType.Crossbow => PlayerAction.PlayerWalkCrossbow,
+                WeaponType.Staff => PlayerAction.PlayerWalkWand,
+                WeaponType.Scythe => PlayerAction.PlayerWalkScythe,
+                _ => _isFemale ? PlayerAction.PlayerWalkFemale : PlayerAction.PlayerWalkMale
+            };
+        }
 
         // Back-compat overload used in older call-sites
         private PlayerAction GetMovementAction(WalkableWorldControl world) =>
@@ -474,16 +492,33 @@ namespace Client.Main.Objects.Player
         private PlayerAction GetIdleAction(MovementMode mode) =>
             mode switch
             {
-                MovementMode.Fly or MovementMode.Swim => PlayerAction.StopFlying,
-                _ => _isFemale ? PlayerAction.StopFemale : PlayerAction.StopMale
+                MovementMode.Fly or MovementMode.Swim => PlayerAction.PlayerStopFly,
+                _ => GetIdleActionForWeapon(GetEquippedWeaponType())
             };
+        
+        /// <summary>
+        /// Gets the appropriate idle action based on equipped weapon
+        /// </summary>
+        private PlayerAction GetIdleActionForWeapon(WeaponType weaponType)
+        {
+            return weaponType switch
+            {
+                WeaponType.TwoHandSword => PlayerAction.PlayerStopTwoHandSword,
+                WeaponType.Spear => PlayerAction.PlayerStopSpear,
+                WeaponType.Bow => PlayerAction.PlayerStopBow,
+                WeaponType.Crossbow => PlayerAction.PlayerStopCrossbow,
+                WeaponType.Staff => PlayerAction.PlayerStopWand,
+                WeaponType.Scythe => PlayerAction.PlayerStopScythe,
+                _ => _isFemale ? PlayerAction.PlayerStopFemale : PlayerAction.PlayerStopMale
+            };
+        }
 
         private MovementMode GetModeFromCurrentAction() =>
             CurrentAction switch
             {
-                PlayerAction.Fly or PlayerAction.StopFlying or PlayerAction.PlayerFlyingRest
+                PlayerAction.PlayerFly or PlayerAction.PlayerStopFly or PlayerAction.PlayerPose1
                     => MovementMode.Fly,
-                PlayerAction.RunSwim
+                PlayerAction.PlayerRunSwim
                     => MovementMode.Swim,
                 _ => MovementMode.Walk
             };
@@ -510,7 +545,7 @@ namespace Client.Main.Objects.Player
                 ResetRestSitStates();
 
                 var desired = (HasEquippedWings && mode == MovementMode.Fly)
-                    ? PlayerAction.Fly
+                    ? PlayerAction.PlayerFly
                     : GetMovementAction(mode);
 
                 if (!IsOneShotPlaying && CurrentAction != desired)
@@ -537,7 +572,7 @@ namespace Client.Main.Objects.Player
             {
                 ResetRestSitStates();
                 var desired = (HasEquippedWings && mode == MovementMode.Fly)
-                    ? PlayerAction.Fly
+                    ? PlayerAction.PlayerFly
                     : GetMovementAction(mode);
 
                 if (!IsOneShotPlaying && CurrentAction != desired)
@@ -559,8 +594,8 @@ namespace Client.Main.Objects.Player
             if (dist < 0.1f && !IsMoving && !IsOneShotPlaying)
             {
                 var restAction = world.WorldIndex == 4
-                    ? PlayerAction.PlayerFlyingRest
-                    : PlayerAction.PlayerStandingRest;
+                    ? PlayerAction.PlayerPose1
+                    : PlayerAction.PlayerPoseMale1;
 
                 if (CurrentAction != restAction)
                 {
@@ -624,7 +659,7 @@ namespace Client.Main.Objects.Player
         public ushort GetCorrectIdleAction()
         {
             if (World is not WalkableWorldControl world)
-                return (ushort)(_isFemale ? PlayerAction.StopFemale : PlayerAction.StopMale);
+                return (ushort)(_isFemale ? PlayerAction.PlayerStopFemale : PlayerAction.PlayerStopMale);
 
             return (ushort)GetIdleAction(world);
         }
@@ -632,28 +667,28 @@ namespace Client.Main.Objects.Player
         private bool IsMovementAnimation(ushort action)
         {
             var a = (PlayerAction)action;
-            return a is PlayerAction.WalkMale or PlayerAction.WalkFemale
-                       or PlayerAction.RunSwim or PlayerAction.Fly;
+            return a is PlayerAction.PlayerWalkMale or PlayerAction.PlayerWalkFemale
+                       or PlayerAction.PlayerRunSwim or PlayerAction.PlayerFly;
         }
 
         // ────────────────────────────── ATTACKS (unchanged) ──────────────────────────────
         public PlayerAction GetAttackAnimation()
         {
-            // For now choose by class; replace with real equipment logic later
-            WeaponType weapon = Equipment.GetWeaponTypeForClass(CharacterClass);
+            // Get actual equipped weapon type
+            WeaponType weapon = GetEquippedWeaponType();
             return weapon switch
             {
-                WeaponType.Sword => PlayerAction.AttackFist,
+                WeaponType.Sword => PlayerAction.PlayerAttackSwordRight1,
                 WeaponType.TwoHandSword => PlayerAction.PlayerAttackTwoHandSword1,
                 WeaponType.Spear => PlayerAction.PlayerAttackSpear1,
                 WeaponType.Bow => PlayerAction.PlayerAttackBow,
                 WeaponType.Crossbow => PlayerAction.PlayerAttackCrossbow,
                 WeaponType.Staff => PlayerAction.PlayerSkillHand1,
-                WeaponType.Scepter => PlayerAction.PlayerAttackStrike,
+                WeaponType.Scepter => PlayerAction.PlayerAttackFist, // TODO: Add proper scepter animation
                 WeaponType.Scythe => PlayerAction.PlayerAttackScythe1,
-                WeaponType.Book => PlayerAction.PlayerSkillSummon,
-                WeaponType.Fist or WeaponType.None => PlayerAction.AttackFist,
-                _ => PlayerAction.AttackFist
+                WeaponType.Book => PlayerAction.PlayerSkillHand1, // TODO: Add proper book animation
+                WeaponType.Fist or WeaponType.None => PlayerAction.PlayerAttackFist,
+                _ => PlayerAction.PlayerAttackFist
             };
         }
 
@@ -689,10 +724,38 @@ namespace Client.Main.Objects.Player
         }
 
         public float GetAttackRangeTiles() => GetAttackRangeForAction(GetAttackAnimation());
+        
+        /// <summary>
+        /// Gets the currently equipped weapon type based on actual equipment
+        /// </summary>
+        private WeaponType GetEquippedWeaponType()
+        {
+            if (_networkManager == null) 
+                return Equipment.GetDefaultWeaponTypeForClass(CharacterClass);
+            
+            var charState = _networkManager.GetCharacterState();
+            var inventory = charState.GetInventoryItems();
+            
+            // Get item definitions for both hands
+            var leftHandItem = inventory.TryGetValue(InventoryConstants.LeftHandSlot, out var leftData)
+                ? ItemDatabase.GetItemDefinition(leftData)
+                : null;
+            var rightHandItem = inventory.TryGetValue(InventoryConstants.RightHandSlot, out var rightData)
+                ? ItemDatabase.GetItemDefinition(rightData)
+                : null;
+            
+            // Use equipment system to determine weapon type
+            var equippedWeapon = Equipment.GetEquippedWeaponType(leftHandItem, rightHandItem, ItemDatabase.GetItemGroup(leftData), ItemDatabase.GetItemGroup(rightData));
+            
+            // Fall back to class default if no weapon equipped
+            return equippedWeapon != WeaponType.None 
+                ? equippedWeapon 
+                : Equipment.GetDefaultWeaponTypeForClass(CharacterClass);
+        }
 
         private static float GetAttackRangeForAction(PlayerAction a) => a switch
         {
-            PlayerAction.AttackFist => 3f,
+            PlayerAction.PlayerAttackFist => 3f,
             PlayerAction.PlayerAttackBow => 8f,
             PlayerAction.PlayerAttackCrossbow => 8f,
             PlayerAction.PlayerAttackFlyBow => 8f,

@@ -13,7 +13,7 @@ namespace Client.Main.Objects.NPCS
             await SetBodyPartsAsync("Player/", "HelmMale", "ArmorMale", "PantMale", "GloveMale", "BootMale", 10);
             // Weapon1.Type = (int)ModelType.Spear + 6 + MODEL_ITEM; // Berdysh
             await base.Load();
-            CurrentAction = (int)PlayerAction.StopMale;
+            CurrentAction = (int)PlayerAction.PlayerStopMale;
         }
         protected override void HandleClick() { }
     }

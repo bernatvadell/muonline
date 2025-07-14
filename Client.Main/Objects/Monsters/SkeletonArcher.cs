@@ -15,17 +15,17 @@ namespace Client.Main.Objects.Monsters
     {
         private static readonly Dictionary<MonsterActionType, PlayerAction> _actionMap = new()
         {
-            { MonsterActionType.Stop1,   PlayerAction.StopMale },
-            { MonsterActionType.Stop2,   PlayerAction.StopMale },
-            { MonsterActionType.Walk,    PlayerAction.WalkMale },
-            { MonsterActionType.Attack1, PlayerAction.AttackFist }, // TODO:
-            { MonsterActionType.Attack2, PlayerAction.AttackFist }, // TODO:
+            { MonsterActionType.Stop1,   PlayerAction.PlayerStopBow },
+            { MonsterActionType.Stop2,   PlayerAction.PlayerStopBow },
+            { MonsterActionType.Walk,    PlayerAction.PlayerWalkBow },
+            { MonsterActionType.Attack1, PlayerAction.PlayerAttackBow },
+            { MonsterActionType.Attack2, PlayerAction.PlayerAttackBow },
             { MonsterActionType.Shock,   PlayerAction.PlayerShock },
             { MonsterActionType.Die,     PlayerAction.PlayerDie1 },
-            { MonsterActionType.Appear,  PlayerAction.AttackFist }, // TODO:
-            { MonsterActionType.Attack3, PlayerAction.AttackFist }, // TODO:
-            { MonsterActionType.Attack4, PlayerAction.AttackFist }, // TODO:
-            { MonsterActionType.Run,     PlayerAction.Run }
+            { MonsterActionType.Appear,  PlayerAction.PlayerComeUp },
+            { MonsterActionType.Attack3, PlayerAction.PlayerAttackBow },
+            { MonsterActionType.Attack4, PlayerAction.PlayerAttackBow },
+            { MonsterActionType.Run,     PlayerAction.PlayerRun }
         };
         private WeaponObject _rightHandWeapon;
         public SkeletonArcher()
@@ -35,7 +35,7 @@ namespace Client.Main.Objects.Monsters
             _rightHandWeapon = new WeaponObject
             {
                 LinkParentAnimation = false,
-                ParentBoneLink = 42
+                ParentBoneLink = 33
             };
             Children.Add(_rightHandWeapon);
         }
