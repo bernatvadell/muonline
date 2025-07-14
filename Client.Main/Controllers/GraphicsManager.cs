@@ -37,6 +37,7 @@ namespace Client.Main.Controllers
         public RenderTarget2D TempTarget2 { get; private set; }
 
         public Effect ShadowEffect { get; private set; }
+        public Effect ItemMaterialEffect { get; private set; }
 
         public void Init(GraphicsDevice graphicsDevice, ContentManager content)
         {
@@ -56,6 +57,7 @@ namespace Client.Main.Controllers
             FXAAEffect = LoadEffect("FXAA");
             ShadowEffect = LoadEffect("Shadow");
             GammaCorrectionEffect = LoadEffect("GammaCorrection");
+            ItemMaterialEffect = LoadEffect("ItemMaterial");
 
             InitializeFXAAEffect();
 

@@ -57,3 +57,9 @@
 /importer:TextureImporter
 /processor:TextureProcessor
 /build:WaterSplashParticle.webp
+
+#begin ItemMaterial.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:ItemMaterial.fx

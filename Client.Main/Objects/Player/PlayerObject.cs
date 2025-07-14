@@ -256,27 +256,42 @@ namespace Client.Main.Objects.Player
             // Helm
             var helmDef = GetItemDef(InventoryConstants.HelmSlot);
             if (helmDef != null)
+            {
                 await LoadPartAsync(Helm, helmDef.TexturePath?.Replace("Item/", "Player/"));
+                SetItemProperties(Helm, inventory[InventoryConstants.HelmSlot]);
+            }
 
             // Armor
             var armorDef = GetItemDef(InventoryConstants.ArmorSlot);
             if (armorDef != null)
+            {
                 await LoadPartAsync(Armor, armorDef.TexturePath?.Replace("Item/", "Player/"));
+                SetItemProperties(Armor, inventory[InventoryConstants.ArmorSlot]);
+            }
 
             // Pants
             var pantsDef = GetItemDef(InventoryConstants.PantsSlot);
             if (pantsDef != null)
+            {
                 await LoadPartAsync(Pants, pantsDef.TexturePath?.Replace("Item/", "Player/"));
+                SetItemProperties(Pants, inventory[InventoryConstants.PantsSlot]);
+            }
 
             // Gloves
             var glovesDef = GetItemDef(InventoryConstants.GlovesSlot);
             if (glovesDef != null)
+            {
                 await LoadPartAsync(Gloves, glovesDef.TexturePath?.Replace("Item/", "Player/"));
+                SetItemProperties(Gloves, inventory[InventoryConstants.GlovesSlot]);
+            }
 
             // Boots
             var bootsDef = GetItemDef(InventoryConstants.BootsSlot);
             if (bootsDef != null)
+            {
                 await LoadPartAsync(Boots, bootsDef.TexturePath?.Replace("Item/", "Player/"));
+                SetItemProperties(Boots, inventory[InventoryConstants.BootsSlot]);
+            }
 
             // Wings
             var wingsDef = GetItemDef(InventoryConstants.WingsSlot);
@@ -298,6 +313,7 @@ namespace Client.Main.Objects.Player
                 Weapon1.Model = await BMDLoader.Instance.Prepare(leftHandDef.TexturePath);
                 Weapon1.ParentBoneLink = 33;
                 Weapon1.LinkParentAnimation = false;
+                SetItemProperties(Weapon1, inventory[InventoryConstants.LeftHandSlot]);
             }
             else
             {
@@ -311,6 +327,7 @@ namespace Client.Main.Objects.Player
                 Weapon2.Model = await BMDLoader.Instance.Prepare(rightHandDef.TexturePath);
                 Weapon2.ParentBoneLink = 42;
                 Weapon2.LinkParentAnimation = false;
+                SetItemProperties(Weapon2, inventory[InventoryConstants.RightHandSlot]);
             }
             else
             {
@@ -993,6 +1010,15 @@ namespace Client.Main.Objects.Player
                     _logger?.LogDebug("Model part not found (this is often normal for NPCs): {Path}", modelPath);
                 }
             }
+        }
+
+        private void SetItemProperties(ModelObject part, byte[] itemData)
+        {
+            if (part == null || itemData == null) return;
+
+            var itemDetails = ItemDatabase.ParseItemDetails(itemData);
+            part.ItemLevel = itemDetails.Level;
+            part.IsExcellentItem = itemDetails.IsExcellent;
         }
 
         protected override void UpdateWorldBoundingBox()

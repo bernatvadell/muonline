@@ -71,6 +71,9 @@ namespace Client.Main.Objects
         public float AnimationSpeed { get; set; } = 4f;
         public static ILoggerFactory AppLoggerFactory { get; private set; }
         protected ILogger _logger;
+        
+        public int ItemLevel { get; set; } = 0;
+        public bool IsExcellentItem { get; set; } = false;
 
         private int _blendFromAction = -1;
         private double _blendFromTime = 0.0;
@@ -366,6 +369,16 @@ namespace Client.Main.Objects
             try
             {
                 var gd = GraphicsDevice;
+                
+                // Use item material effect if item has enhancement level or is excellent
+                bool useItemMaterial = (ItemLevel > 0 || IsExcellentItem) && GraphicsManager.Instance.ItemMaterialEffect != null;
+                
+                if (useItemMaterial)
+                {
+                    DrawMeshWithItemMaterial(mesh);
+                    return;
+                }
+                
                 var effect = GraphicsManager.Instance.AlphaTestEffect3D;
 
                 // Cache frequently used values
@@ -431,6 +444,92 @@ namespace Client.Main.Objects
             catch (Exception ex)
             {
                 _logger?.LogDebug($"Error in DrawMesh: {ex.Message}");
+            }
+        }
+
+        public virtual void DrawMeshWithItemMaterial(int mesh)
+        {
+            if (_boneVertexBuffers?[mesh] == null ||
+                _boneIndexBuffers?[mesh] == null ||
+                _boneTextures?[mesh] == null ||
+                IsHiddenMesh(mesh))
+                return;
+
+            try
+            {
+                var gd = GraphicsDevice;
+                var effect = GraphicsManager.Instance.ItemMaterialEffect;
+
+                if (effect == null)
+                {
+                    DrawMesh(mesh);
+                    return;
+                }
+
+                bool isBlendMesh = IsBlendMesh(mesh);
+                bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
+                var vertexBuffer = _boneVertexBuffers[mesh];
+                var indexBuffer = _boneIndexBuffers[mesh];
+                var texture = _boneTextures[mesh];
+
+                var prevCull = gd.RasterizerState;
+                var prevBlend = gd.BlendState;
+
+                var meshConf = Model.Meshes[mesh];
+                BlendState customBlendState = null;
+                if (meshConf.BlendingMode != null)
+                {
+                    if (!_blendStateCache.TryGetValue(meshConf.BlendingMode, out customBlendState))
+                    {
+                        var field = typeof(Blendings).GetField(meshConf.BlendingMode, BindingFlags.Public | BindingFlags.Static);
+                        if (field != null)
+                        {
+                            customBlendState = (BlendState)field.GetValue(null);
+                            _blendStateCache[meshConf.BlendingMode] = customBlendState;
+                        }
+                    }
+                }
+
+                gd.RasterizerState = isTwoSided ? RasterizerState.CullNone : RasterizerState.CullClockwise;
+                gd.BlendState = customBlendState ?? (isBlendMesh ? BlendMeshState : BlendState);
+
+                // Set world view projection matrix
+                Matrix worldViewProjection = WorldPosition * Camera.Instance.View * Camera.Instance.Projection;
+                effect.Parameters["WorldViewProjection"]?.SetValue(worldViewProjection);
+                effect.Parameters["World"]?.SetValue(WorldPosition);
+                effect.Parameters["View"]?.SetValue(Camera.Instance.View);
+                effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
+                effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
+                
+                // Set texture
+                effect.Parameters["DiffuseTexture"]?.SetValue(texture);
+                
+                // Set item properties
+                int itemOptions = ItemLevel & 0x0F;
+                if (IsExcellentItem)
+                    itemOptions |= 0x10;
+                    
+                effect.Parameters["ItemOptions"]?.SetValue(itemOptions);
+                effect.Parameters["Time"]?.SetValue((float)Environment.TickCount * 0.001f);
+
+                gd.SetVertexBuffer(vertexBuffer);
+                gd.Indices = indexBuffer;
+
+                int primitiveCount = indexBuffer.IndexCount / 3;
+
+                foreach (EffectPass pass in effect.CurrentTechnique.Passes)
+                {
+                    pass.Apply();
+                    gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+                }
+
+                gd.BlendState = prevBlend;
+                gd.RasterizerState = prevCull;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug($"Error in DrawMeshWithItemMaterial: {ex.Message}");
+                DrawMesh(mesh);
             }
         }
 
