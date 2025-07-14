@@ -136,33 +136,9 @@ namespace Client.Main.Controls.Terrain
             DrawnCells = 0;
         }
 
-        private bool IsPatchUniform(int xi, int yi, int size)
-        {
-            int idx0 = GetTerrainIndex(xi, yi);
-            byte l1 = _data.Mapping.Layer1[idx0];
-            byte l2 = _data.Mapping.Layer2[idx0];
-            byte a0 = _data.Mapping.Alpha[idx0];
-
-            for (int y = 0; y < size; y++)
-            {
-                for (int x = 0; x < size; x++)
-                {
-                    int idx = GetTerrainIndex(xi + x, yi + y);
-                    if (_data.Mapping.Layer1[idx] != l1
-                     || _data.Mapping.Layer2[idx] != l2
-                     || _data.Mapping.Alpha[idx] != a0)
-                        return false;
-                }
-            }
-            return true;
-        }
-
         private void RenderTerrainBlock(int xi, int yi, bool after, int lodStep)
         {
             if (!after) DrawnBlocks++;
-
-            if (lodStep > 1 && !IsPatchUniform(xi, yi, lodStep))
-                lodStep = 1;
 
             _graphicsDevice.BlendState = BlendState.Opaque;
 
