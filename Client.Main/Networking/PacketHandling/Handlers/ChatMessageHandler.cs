@@ -156,8 +156,18 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                             if (player != null)
                             {
-                                var bubble = new ChatBubbleObject(display, player.NetworkId, sender);
-                                world.Objects.Add(bubble);
+                                var existingBubble = world.Objects.OfType<ChatBubbleObject>()
+                                    .FirstOrDefault(b => b.TargetId == player.NetworkId);
+                                
+                                if (existingBubble != null)
+                                {
+                                    existingBubble.AppendMessage(display);
+                                }
+                                else
+                                {
+                                    var bubble = new ChatBubbleObject(display, player.NetworkId, sender);
+                                    world.Objects.Add(bubble);
+                                }
                             }
                         }
                     }
