@@ -63,3 +63,9 @@
 /processor:EffectProcessor
 /processorParam:DebugMode=Auto
 /build:ItemMaterial.fx
+
+#begin MonsterMaterial.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:MonsterMaterial.fx

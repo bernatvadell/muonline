@@ -39,6 +39,13 @@ namespace Client.Main.Objects.NPCS
 
             await SetBodyPartsAsync("Player/", "HelmMale", "ArmorMale", "PantMale", "GloveMale", "BootMale", 25);
 
+            // Set item enhancement level +11 for all equipment parts
+            Helm.ItemLevel = 11;
+            Armor.ItemLevel = 11;
+            Pants.ItemLevel = 11;
+            Gloves.ItemLevel = 11;
+            Boots.ItemLevel = 11;
+
             _wings.Model = await BMDLoader.Instance.Prepare("Item/Wing04.bmd");
 
             await base.Load();

@@ -74,6 +74,12 @@ namespace Client.Main.Objects
         
         public int ItemLevel { get; set; } = 0;
         public bool IsExcellentItem { get; set; } = false;
+        public bool IsAncientItem { get; set; } = false;
+        
+        // Monster/NPC glow properties
+        public Vector3 GlowColor { get; set; } = new Vector3(1.0f, 0.8f, 0.0f); // Default gold
+        public float GlowIntensity { get; set; } = 0.0f;
+        public bool EnableCustomShader { get; set; } = false;
 
         private int _blendFromAction = -1;
         private double _blendFromTime = 0.0;
@@ -370,12 +376,21 @@ namespace Client.Main.Objects
             {
                 var gd = GraphicsDevice;
                 
-                // Use item material effect if item has enhancement level or is excellent
-                bool useItemMaterial = (ItemLevel > 0 || IsExcellentItem) && GraphicsManager.Instance.ItemMaterialEffect != null;
+                // Use item material effect only for items with level 7+, excellent, or ancient
+                bool useItemMaterial = (ItemLevel >= 7 || IsExcellentItem || IsAncientItem) && GraphicsManager.Instance.ItemMaterialEffect != null;
+                
+                // Use monster material effect if custom shader is enabled
+                bool useMonsterMaterial = EnableCustomShader && GraphicsManager.Instance.MonsterMaterialEffect != null;
                 
                 if (useItemMaterial)
                 {
                     DrawMeshWithItemMaterial(mesh);
+                    return;
+                }
+                
+                if (useMonsterMaterial)
+                {
+                    DrawMeshWithMonsterMaterial(mesh);
                     return;
                 }
                 
@@ -511,6 +526,9 @@ namespace Client.Main.Objects
                     
                 effect.Parameters["ItemOptions"]?.SetValue(itemOptions);
                 effect.Parameters["Time"]?.SetValue((float)Environment.TickCount * 0.001f);
+                effect.Parameters["IsAncient"]?.SetValue(IsAncientItem);
+                effect.Parameters["IsExcellent"]?.SetValue(IsExcellentItem);
+                //effect.Parameters["GlowColor"]?.SetValue(GlowColor);
 
                 gd.SetVertexBuffer(vertexBuffer);
                 gd.Indices = indexBuffer;
@@ -529,6 +547,88 @@ namespace Client.Main.Objects
             catch (Exception ex)
             {
                 _logger?.LogDebug($"Error in DrawMeshWithItemMaterial: {ex.Message}");
+                DrawMesh(mesh);
+            }
+        }
+
+        public virtual void DrawMeshWithMonsterMaterial(int mesh)
+        {
+            if (_boneVertexBuffers?[mesh] == null ||
+                _boneIndexBuffers?[mesh] == null ||
+                _boneTextures?[mesh] == null ||
+                IsHiddenMesh(mesh))
+                return;
+
+            try
+            {
+                var gd = GraphicsDevice;
+                var effect = GraphicsManager.Instance.MonsterMaterialEffect;
+
+                if (effect == null)
+                {
+                    DrawMesh(mesh);
+                    return;
+                }
+
+                bool isBlendMesh = IsBlendMesh(mesh);
+                bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
+                var vertexBuffer = _boneVertexBuffers[mesh];
+                var indexBuffer = _boneIndexBuffers[mesh];
+                var texture = _boneTextures[mesh];
+
+                var prevCull = gd.RasterizerState;
+                var prevBlend = gd.BlendState;
+
+                var meshConf = Model.Meshes[mesh];
+                BlendState customBlendState = null;
+                if (meshConf.BlendingMode != null)
+                {
+                    if (!_blendStateCache.TryGetValue(meshConf.BlendingMode, out customBlendState))
+                    {
+                        var field = typeof(Blendings).GetField(meshConf.BlendingMode, BindingFlags.Public | BindingFlags.Static);
+                        if (field != null)
+                        {
+                            customBlendState = (BlendState)field.GetValue(null);
+                            _blendStateCache[meshConf.BlendingMode] = customBlendState;
+                        }
+                    }
+                }
+
+                gd.RasterizerState = isTwoSided ? RasterizerState.CullNone : RasterizerState.CullClockwise;
+                gd.BlendState = customBlendState ?? (isBlendMesh ? BlendMeshState : BlendState);
+
+                // Set matrices
+                effect.Parameters["World"]?.SetValue(WorldPosition);
+                effect.Parameters["View"]?.SetValue(Camera.Instance.View);
+                effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
+                effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
+                
+                // Set texture
+                effect.Parameters["DiffuseTexture"]?.SetValue(texture);
+                
+                // Set monster-specific properties
+                effect.Parameters["GlowColor"]?.SetValue(GlowColor);
+                effect.Parameters["GlowIntensity"]?.SetValue(GlowIntensity);
+                effect.Parameters["EnableGlow"]?.SetValue(GlowIntensity > 0.0f);
+                effect.Parameters["Time"]?.SetValue((float)Environment.TickCount * 0.001f);
+
+                gd.SetVertexBuffer(vertexBuffer);
+                gd.Indices = indexBuffer;
+
+                int primitiveCount = indexBuffer.IndexCount / 3;
+
+                foreach (EffectPass pass in effect.CurrentTechnique.Passes)
+                {
+                    pass.Apply();
+                    gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+                }
+
+                gd.BlendState = prevBlend;
+                gd.RasterizerState = prevCull;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug($"Error in DrawMeshWithMonsterMaterial: {ex.Message}");
                 DrawMesh(mesh);
             }
         }

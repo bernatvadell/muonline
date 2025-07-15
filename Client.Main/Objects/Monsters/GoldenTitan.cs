@@ -1,6 +1,7 @@
 using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Controls;
+using Client.Main.Extensions;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using System.Threading.Tasks;
@@ -21,6 +22,10 @@ namespace Client.Main.Objects.Monsters
             // Model Loading Type: 39 -> File Number: 39 + 1 = 40
             Model = await BMDLoader.Instance.Prepare($"Monster/Monster40.bmd"); // Titan's model
             await base.Load();
+
+            // Apply intense golden glow effect
+            this.SetGoldGlow(2.5f);
+
             // C++: Models[MODEL_MONSTER01+Type].BoneHead = 28; (Titan's bone head)
         }
 

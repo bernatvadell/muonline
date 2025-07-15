@@ -38,6 +38,7 @@ namespace Client.Main.Controllers
 
         public Effect ShadowEffect { get; private set; }
         public Effect ItemMaterialEffect { get; private set; }
+        public Effect MonsterMaterialEffect { get; private set; }
 
         public void Init(GraphicsDevice graphicsDevice, ContentManager content)
         {
@@ -58,6 +59,7 @@ namespace Client.Main.Controllers
             ShadowEffect = LoadEffect("Shadow");
             GammaCorrectionEffect = LoadEffect("GammaCorrection");
             ItemMaterialEffect = LoadEffect("ItemMaterial");
+            MonsterMaterialEffect = LoadEffect("MonsterMaterial");
 
             InitializeFXAAEffect();
 
