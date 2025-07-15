@@ -101,7 +101,7 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     float lightIntensity = max(0.1, dot(normal, -LightDirection));
     color.rgb *= lightIntensity;
     
-    float wave = frac(Time * 0.001) * 10000.0 * 0.0001;
+    float waveBase = frac(Time * 0.001) * 10000.0 * 0.0001;
     float3 view = normalize(input.ViewDirection) + normal + float3(10000.5, 10000.5, 10000.5);
     
     // Determine glow parameters based on item level
@@ -188,14 +188,32 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     float glowEffect = (1.0 + sin(Time * 1.0)) * 0.1 + 0.8;
     color.rgb += effectColor * glowEffect * extraGlow * level10Mask;
     
-    // Ancient item effect - always visible white-blue glow
-    float ancientPulse = sin(Time * 0.3) * 0.2 + 0.3; // Reduced intensity: 30-50%
-    float3 ancientColor = float3(0.6, 0.7, 0.8); // Softer white-blue
-    float ancientIntensity = ancientPulse * 0.6; // Reduced from 1.2
+    // Ancient item effect - sweeping white-blue light wave
     float ancientEnabled = IsAncient ? 1.0 : 0.0;
+    float3 ancientColor = float3(0.8, 0.9, 1.0); // Brighter white-blue
     
-    color.rgb += ancientGhost1.rgb * ancientColor * ancientIntensity * ancientEnabled;
-    color.rgb += ancientGhost2.rgb * ancientColor * ancientIntensity * 0.7 * ancientEnabled;
+    // Create sweeping wave effect across texture
+    float waveSpeed = Time * 1.2; // Faster sweep
+    float wavePhase = waveSpeed + input.TextureCoordinate.x * 8.0; // Wave travels across X axis
+    float wave = sin(wavePhase) * 0.5 + 0.5; // 0-1 range
+    
+    // Create narrow focused beam effect
+    float beamWidth = 0.3; // Narrower beam
+    float beamIntensity = pow(wave, 6.0) * 2.0; // Sharp, focused beam
+    
+    // Additional wave for more complex pattern
+    float wave2 = sin(waveSpeed * 0.7 + input.TextureCoordinate.y * 4.0) * 0.3 + 0.7;
+    float combinedWave = beamIntensity * wave2;
+    
+    // Apply the sweeping light effect with higher intensity for +9 and higher items
+    float levelBoost = (itemLevel >= 9) ? 2.0 : 1.0; // Double intensity for +9 and higher
+    color.rgb += ancientGhost1.rgb * ancientColor * combinedWave * 1.2 * levelBoost * ancientEnabled;
+    color.rgb += ancientGhost2.rgb * ancientColor * combinedWave * 0.9 * levelBoost * ancientEnabled;
+    
+    // Add stronger base glow for higher level items
+    float baseGlow = sin(Time * 0.5) * 0.1 + 0.2;
+    float baseGlowIntensity = (itemLevel >= 9) ? 0.6 : 0.3; // Stronger for +9 and higher
+    color.rgb += color.rgb * ancientColor * baseGlow * baseGlowIntensity * ancientEnabled;
     
     // Excellent item effect - smooth rainbow gradient always visible
     float excellentPulse = sin(Time * 0.4) * 0.15 + 0.25;

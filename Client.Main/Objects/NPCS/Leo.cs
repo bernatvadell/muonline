@@ -15,15 +15,18 @@ namespace Client.Main.Objects.NPCS
             await SetBodyPartsAsync("Player/", "HelmMale", "ArmorMale", "PantMale", "GloveMale", "BootMale", 10);
 
             // Set item levels +7 or higher to see effects
-            Helm.ItemLevel = 11;
-            Armor.ItemLevel = 11;
-            Pants.ItemLevel = 11;
-            Gloves.ItemLevel = 11;
-            Boots.ItemLevel = 11;
+            Helm.ItemLevel = 7;
+            Armor.ItemLevel = 7;
+            Pants.ItemLevel = 7;
+            Gloves.ItemLevel = 7;
+            Boots.ItemLevel = 7;
 
             // Set item properties for testing
-            Armor.IsExcellentItem = true;
+            Armor.IsAncientItem = true;
             Helm.IsAncientItem = true;
+            Pants.IsAncientItem = true;
+            Gloves.IsAncientItem = true;
+            Boots.IsAncientItem = true;
 
             await base.Load();
             CurrentAction = (int)PlayerAction.PlayerStopMale;
