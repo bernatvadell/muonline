@@ -127,7 +127,6 @@ namespace Client.Main.Scenes
             var currentMouseControl = MouseControl;
 
             MouseControl = null;
-            MouseHoverObject = null;
             IsMouseInputConsumedThisFrame = false;
             IsKeyboardEnterConsumedThisFrame = false;
 
@@ -233,6 +232,15 @@ namespace Client.Main.Scenes
                 return;
 
             if (World == null) return;
+            
+            // Clear MouseHoverObject if no object is currently being hovered
+            if (MouseHoverObject != null && !MouseHoverObject.IsMouseHover)
+            {
+                MouseHoverObject = null;
+            }
+            
+            // Update cursor after world objects have been updated
+            Cursor.Update(gameTime);
 
             // focus management (driven by GameControl.OnClick via FocusControlIfInteractive)
             if (FocusControl != currentFocusControl)
