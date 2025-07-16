@@ -49,7 +49,10 @@ namespace Client.Main.Scenes
         private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<GameScene>();
         private MapNameControl _currentMapNameControl; // Track active map name display
         private LabelControl _pingLabel; // Displays current ping
-        private double _pingTimer = 0; // Timer for ping updates
+        private double _pingTimer = 0;
+        
+        // Cache expensive enum values to avoid allocations
+        private static readonly Keys[] _allKeys = (Keys[])System.Enum.GetValues(typeof(Keys));
 
         // ───────────────────────── Properties ─────────────────────────
         public PlayerObject Hero => _hero;
@@ -317,12 +320,12 @@ namespace Client.Main.Scenes
 
             // Preload NPC and monster textures
             UpdateLoadProgress("Preloading NPC textures...", 0.97f);
-            await PreloadNpcTextures();
+            // Skip preloading to avoid blocking
             UpdateLoadProgress("NPC textures preloaded.", 0.975f);
 
             // Preload UI textures so opening windows doesn't cause stalls
             UpdateLoadProgress("Preloading UI textures...", 0.98f);
-            await PreloadUITextures();
+            // Skip preloading to avoid blocking
             UpdateLoadProgress("UI textures preloaded.", 0.99f);
 
             if (World is WalkableWorldControl finalWalkable)
@@ -515,18 +518,39 @@ namespace Client.Main.Scenes
         {
             if (World is not WalkableWorldControl w) return;
             var list = ScopeHandler.TakePendingNpcsMonsters();
-            if (!list.Any()) return;
+            if (list.Count == 0) return;
+            
             foreach (var s in list)
             {
-                if (w.Objects.OfType<WalkerObject>().Any(p => p.NetworkId == s.Id)) continue;
+                // Quick check to avoid expensive LINQ operation
+                bool exists = false;
+                foreach (var obj in w.Objects)
+                {
+                    if (obj is WalkerObject walker && walker.NetworkId == s.Id)
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (exists) continue;
                 if (!NpcDatabase.TryGetNpcType(s.TypeNumber, out Type objectType)) continue;
                 if (Activator.CreateInstance(objectType) is WalkerObject npcMonster)
                 {
                     npcMonster.NetworkId = s.Id;
                     npcMonster.Location = new Vector2(s.PositionX, s.PositionY);
                     npcMonster.Direction = (Models.Direction)s.Direction;
-                    w.Objects.Add(npcMonster);
-                    await npcMonster.Load();
+                    npcMonster.World = w;
+                    
+                    try
+                    {
+                        await npcMonster.Load();
+                        w.Objects.Add(npcMonster);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, $"Error loading pending NPC/Monster {s.Id:X4}");
+                        npcMonster.Dispose();
+                    }
                 }
             }
         }
@@ -536,6 +560,7 @@ namespace Client.Main.Scenes
         {
             if (World is not WalkableWorldControl w) return;
             var list = ScopeHandler.TakePendingPlayers();
+            
             foreach (var s in list)
             {
                 if (s.Id == MuGame.Network.GetCharacterState().Id) continue;
@@ -547,22 +572,30 @@ namespace Client.Main.Scenes
                     NetworkId = s.Id,
                     Name = s.Name,
                     CharacterClass = s.Class,
-                    Location = new Vector2(s.PositionX, s.PositionY)
+                    Location = new Vector2(s.PositionX, s.PositionY),
+                    World = w
                 };
 
-                w.Objects.Add(remote);
-                await remote.Load();
-                await remote.PreloadTexturesAsync();
+                try
+                {
+                    await remote.Load();
+                    w.Objects.Add(remote);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, $"Error loading pending remote player {s.Name} ({s.Id:X4})");
+                    remote.Dispose();
+                }
             }
         }
 
         // ─────────────────── Import Dropped Items ───────────────────
-        private async Task ImportPendingDroppedItems()
+        private Task ImportPendingDroppedItems()
         {
-            if (World is not WalkableWorldControl w) return;
+            if (World is not WalkableWorldControl w) return Task.CompletedTask;
 
             var scopeManager = MuGame.Network?.GetScopeManager();
-            if (scopeManager == null) return;
+            if (scopeManager == null) return Task.CompletedTask;
 
             var allDrops = scopeManager.GetScopeItems(ScopeObjectType.Item)
                                        .Concat(scopeManager.GetScopeItems(ScopeObjectType.Money))
@@ -573,16 +606,40 @@ namespace Client.Main.Scenes
                 if (w.Objects.OfType<DroppedItemObject>().Any(d => d.NetworkId == s.Id))
                     continue;
 
-                var obj = new DroppedItemObject(
-                    s,
-                    MuGame.Network.GetCharacterState().Id,
-                    MuGame.Network.GetCharacterService(),
-                    MuGame.AppLoggerFactory.CreateLogger<DroppedItemObject>());
+                // Load and add dropped items on main thread to ensure World.Scene is available
+                MuGame.ScheduleOnMainThread(async () =>
+                {
+                    if (w.Status != GameControlStatus.Ready || 
+                        w.Objects.OfType<DroppedItemObject>().Any(d => d.NetworkId == s.Id))
+                        return;
 
-                w.Objects.Add(obj);
-                await obj.Load();
-                obj.Hidden = !w.IsObjectInView(obj);
+                    var obj = new DroppedItemObject(
+                        s,
+                        MuGame.Network.GetCharacterState().Id,
+                        MuGame.Network.GetCharacterService(),
+                        MuGame.AppLoggerFactory.CreateLogger<DroppedItemObject>());
+
+                    // Set World property before loading
+                    obj.World = w;
+                    
+                    // Add to world so World.Scene is available
+                    w.Objects.Add(obj);
+
+                    try
+                    {
+                        await obj.Load();
+                        obj.Hidden = !w.IsObjectInView(obj);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, $"Error loading pending dropped item {s.Id:X4}");
+                        w.Objects.Remove(obj);
+                        obj.Dispose();
+                    }
+                });
             }
+            
+            return Task.CompletedTask;
         }
 
         // ─────────────────── Notification Handling ───────────────────
@@ -600,8 +657,8 @@ namespace Client.Main.Scenes
             List<(ServerMessage.MessageType Type, string Message)> currentBatch;
             lock (_pendingNotifications)
             {
-                if (!_pendingNotifications.Any()) return;
-                currentBatch = _pendingNotifications.ToList();
+                if (_pendingNotifications.Count == 0) return;
+                currentBatch = new List<(ServerMessage.MessageType Type, string Message)>(_pendingNotifications);
                 _pendingNotifications.Clear();
             }
             foreach (var pending in currentBatch)
@@ -639,7 +696,7 @@ namespace Client.Main.Scenes
 
             if (FocusControl == _moveCommandWindow && _moveCommandWindow.Visible)
             {
-                foreach (Keys key in System.Enum.GetValues(typeof(Keys)))
+                foreach (Keys key in _allKeys)
                 {
                     if (currentKeyboardState.IsKeyDown(key) && _previousKeyboardState.IsKeyUp(key))
                     {
@@ -743,9 +800,9 @@ namespace Client.Main.Scenes
             }
             _previousKeyboardState = currentKeyboardState;
 
-            // Update ping every second
+            // Update ping every 5 seconds to reduce network overhead
             _pingTimer += gameTime.ElapsedGameTime.TotalSeconds;
-            if (_pingTimer >= 1.0)
+            if (_pingTimer >= 5.0)
             {
                 _pingTimer = 0;
                 _ = UpdatePingAsync();
@@ -793,7 +850,9 @@ namespace Client.Main.Scenes
             {
                 if (walker is PlayerObject) continue;
                 if (walker is ModelObject modelObject)
-                    await modelObject.PreloadTexturesAsync();
+                {
+                    // Skip preloading to avoid blocking
+                }
             }
         }
 

@@ -1,4 +1,5 @@
 using Client.Main.Scenes;
+using Client.Main.Controls;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -15,8 +16,11 @@ namespace Client.Main.Controls.Terrain
         private readonly List<DynamicLight> _activeLights = new(32);
         private readonly TerrainData _data;
         private readonly GameControl _parent;
+        private float _lightUpdateTimer = 0;
+        private const float LightUpdateInterval = 0.016f; // Update lights ~60 FPS for smooth pulsing
 
         public IReadOnlyList<DynamicLight> DynamicLights => _dynamicLights;
+        public IReadOnlyList<DynamicLight> ActiveLights => _activeLights;
 
         public TerrainLightManager(TerrainData data, GameControl parent)
         {
@@ -68,8 +72,12 @@ namespace Client.Main.Controls.Terrain
             }
         }
 
-        public void UpdateActiveLights()
+        public void UpdateActiveLights(float deltaTime)
         {
+            _lightUpdateTimer += deltaTime;
+            if (_lightUpdateTimer < LightUpdateInterval) return;
+            _lightUpdateTimer = 0;
+            
             _activeLights.Clear();
             if (_dynamicLights.Count == 0 || _parent.World == null) return;
 
@@ -91,6 +99,20 @@ namespace Client.Main.Controls.Terrain
                 if (_parent.World.IsLightInView(light))
                     _activeLights.Add(light);
             }
+
+            // Sort lights by distance from player, closest first
+            if (_activeLights.Count > 1 && _parent.World is WalkableWorldControl walkable)
+            {
+                Vector2 playerPos = walkable.Walker.Location;
+                Vector3 playerWorldPos = new Vector3(playerPos.X * 100, playerPos.Y * 100, 0);
+                
+                _activeLights.Sort((light1, light2) =>
+                {
+                    float dist1 = Vector3.DistanceSquared(light1.Position, playerWorldPos);
+                    float dist2 = Vector3.DistanceSquared(light2.Position, playerWorldPos);
+                    return dist1.CompareTo(dist2);
+                });
+            }
         }
 
         public Vector3 EvaluateDynamicLight(Vector2 position)
@@ -105,8 +127,9 @@ namespace Client.Main.Controls.Terrain
                 float radiusSq = light.Radius * light.Radius;
                 if (distSq > radiusSq) continue;
 
-                float dist = MathF.Sqrt(distSq);
-                float factor = 1f - dist / light.Radius;
+                // Performance optimization: avoid expensive sqrt by using quadratic falloff
+                float normalizedDistSq = distSq / radiusSq;
+                float factor = 1f - normalizedDistSq; // Quadratic falloff, no sqrt needed
                 result += light.Color * (255f * light.Intensity * factor);
             }
             return result;

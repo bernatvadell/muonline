@@ -9,7 +9,6 @@ namespace Client.Main.Objects.Player
     public class WeaponObject : ModelObject
     {
         private int _type;
-        private Matrix _lastWorld;
         private new ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<WeaponObject>();
 
         public new int Type
@@ -73,12 +72,7 @@ namespace Client.Main.Objects.Player
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
-
-            if (Parent != null && WorldPosition != _lastWorld)
-            {
-                _lastWorld = WorldPosition;
-                InvalidateBuffers();
-            }
+            // Force invalidation is now handled at parent level in ModelObject.Update()
         }
     }
 }

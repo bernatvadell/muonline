@@ -138,7 +138,11 @@ namespace Client.Main.Core.Client
             }
             else
             {
-                _logger.LogTrace("🔭 Scope Remove: ID {Id:X4} - Failed (Not Found)", maskedId);
+                // Only log if we're at trace level to reduce log spam
+                if (_logger.IsEnabled(LogLevel.Trace))
+                {
+                    _logger.LogTrace("🔭 Scope Remove: ID {Id:X4} - Failed (Not Found)", maskedId);
+                }
                 return false;
             }
         }

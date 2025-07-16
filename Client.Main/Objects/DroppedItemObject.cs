@@ -1,4 +1,3 @@
-// DroppedItemObject.cs
 using Client.Main.Controllers;              // GraphicsManager
 using Client.Main.Core.Models;              // ScopeObject
 using Client.Main.Models;                   // MessageType
@@ -17,6 +16,7 @@ using System.Text;
 using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Helpers;
 using Client.Main.Content;
+using System.Collections.Generic;
 
 namespace Client.Main.Objects
 {
@@ -32,6 +32,14 @@ namespace Client.Main.Objects
         private const float LabelScale = 0.6f;
         private const float LabelOffsetZ = 10f;
         private const int LabelPixelGap = 20;
+
+        // Cache for failed texture loads to avoid repeated attempts
+        private static readonly HashSet<string> _failedTextures = new();
+        
+        // Cache for commonly used item textures to avoid repeated loading
+        private static readonly Dictionary<string, WeakReference<Texture2D>> _textureCache = new();
+        private static readonly object _textureCacheLock = new object();
+        private static DateTime _lastCacheCleanup = DateTime.Now;
 
         // ─────────────────── deps / state
         private readonly ScopeObject _scope;
@@ -134,14 +142,132 @@ namespace Client.Main.Objects
 
             if (_definition != null && !string.IsNullOrEmpty(_definition.TexturePath))
             {
-                await TextureLoader.Instance.Prepare(_definition.TexturePath);
-                _itemTexture = TextureLoader.Instance.GetTexture2D(_definition.TexturePath);
-                if (_itemTexture == null && _definition.TexturePath.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase))
+                // Skip if we already know this texture failed to load
+                if (_failedTextures.Contains(_definition.TexturePath))
                 {
-                    int w = Math.Max(60, _definition.Width * 60);
-                    int h = Math.Max(60, _definition.Height * 60);
-                    _itemTexture = BmdPreviewRenderer.GetPreview(_definition, w, h);
+                    _log.LogDebug("Skipping known failed texture: {Path}", _definition.TexturePath);
+                    return;
                 }
+
+                // Check cache first
+                lock (_textureCacheLock)
+                {
+                    // Clean up cache periodically
+                    if (DateTime.Now - _lastCacheCleanup > TimeSpan.FromMinutes(5))
+                    {
+                        CleanupTextureCache();
+                        _lastCacheCleanup = DateTime.Now;
+                    }
+                    
+                    if (_textureCache.TryGetValue(_definition.TexturePath, out var weakRef) && 
+                        weakRef.TryGetTarget(out var cachedTexture))
+                    {
+                        _itemTexture = cachedTexture;
+                        return;
+                    }
+                }
+
+                // Load texture asynchronously without blocking
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        // Only try to load if it's not a BMD file
+                        if (!_definition.TexturePath.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase))
+                        {
+                            await TextureLoader.Instance.Prepare(_definition.TexturePath);
+                            
+                            // GetTexture2D must run on main thread as it creates GPU resources
+                            var textureTcs = new TaskCompletionSource<Texture2D>();
+                            
+                            MuGame.ScheduleOnMainThread(() =>
+                            {
+                                try
+                                {
+                                    var texture = TextureLoader.Instance.GetTexture2D(_definition.TexturePath);
+                                    textureTcs.SetResult(texture);
+                                }
+                                catch (Exception ex)
+                                {
+                                    _log.LogDebug(ex, "Error creating texture on main thread for {Path}", _definition.TexturePath);
+                                    textureTcs.SetResult(null);
+                                }
+                            });
+                            
+                            _itemTexture = await textureTcs.Task;
+                            
+                            // Cache the texture if loaded successfully
+                            if (_itemTexture != null)
+                            {
+                                lock (_textureCacheLock)
+                                {
+                                    _textureCache[_definition.TexturePath] = new WeakReference<Texture2D>(_itemTexture);
+                                }
+                            }
+                        }
+
+                        // If texture is still null, try BMD preview on main thread
+                        if (_itemTexture == null && _definition.TexturePath.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase))
+                        {
+                            int w = Math.Max(60, _definition.Width * 60);
+                            int h = Math.Max(60, _definition.Height * 60);
+                            
+                            // BMD preview needs to run on main thread for graphics operations
+                            // Schedule it on main thread and wait for result
+                            var tcs = new TaskCompletionSource<Texture2D>();
+                            
+                            MuGame.ScheduleOnMainThread(() =>
+                            {
+                                try
+                                {
+                                    var texture = BmdPreviewRenderer.GetPreview(_definition, w, h);
+                                    tcs.SetResult(texture);
+                                }
+                                catch (Exception ex)
+                                {
+                                    _log.LogDebug(ex, "Error generating BMD preview for {Path}", _definition.TexturePath);
+                                    tcs.SetResult(null);
+                                }
+                            });
+                            
+                            try
+                            {
+                                // Wait for the main thread to complete the operation
+                                _itemTexture = await tcs.Task;
+                                
+                                // Cache BMD preview if loaded successfully
+                                if (_itemTexture != null)
+                                {
+                                    lock (_textureCacheLock)
+                                    {
+                                        _textureCache[_definition.TexturePath] = new WeakReference<Texture2D>(_itemTexture);
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _log.LogDebug(ex, "Error waiting for BMD preview for {Path}", _definition.TexturePath);
+                            }
+                        }
+
+                        // If still null, mark as failed
+                        if (_itemTexture == null)
+                        {
+                            lock (_failedTextures)
+                            {
+                                _failedTextures.Add(_definition.TexturePath);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _log.LogDebug(ex, "Error loading texture for dropped item {Path}", _definition.TexturePath);
+                        lock (_failedTextures)
+                        {
+                            _failedTextures.Add(_definition.TexturePath);
+                        }
+                    }
+                });
             }
         }
 
@@ -260,6 +386,26 @@ namespace Client.Main.Objects
 
             Task.Run(() => _charSvc.SendPickupItemRequestAsync(RawId, MuGame.Network.TargetVersion));
             _log.LogDebug("Pickup request sent for {RawId:X4} ({DisplayName})", RawId, DisplayName);
+        }
+
+        // ─────────────────── texture cache helpers
+        
+        private static void CleanupTextureCache()
+        {
+            // Remove dead weak references from cache
+            var keysToRemove = new List<string>();
+            foreach (var kvp in _textureCache)
+            {
+                if (!kvp.Value.TryGetTarget(out _))
+                {
+                    keysToRemove.Add(kvp.Key);
+                }
+            }
+            
+            foreach (var key in keysToRemove)
+            {
+                _textureCache.Remove(key);
+            }
         }
 
         // ─────────────────── label helpers

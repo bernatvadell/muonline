@@ -11,6 +11,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using static Client.Main.Utils;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace Client.Main.Content
 {
@@ -22,6 +23,24 @@ namespace Client.Main.Content
         private readonly Dictionary<string, Task<BMD>> _bmds = [];
         private readonly Dictionary<BMD, Dictionary<string, string>> _texturePathMap = [];
         private Dictionary<string, Dictionary<int, string>> _blendingConfig;
+        
+        // Enhanced cache for GetModelBuffers to avoid redundant calculations
+        private readonly Dictionary<string, (DynamicVertexBuffer vertexBuffer, DynamicIndexBuffer indexBuffer)> _bufferCache = [];
+        private readonly Dictionary<string, BufferCacheEntry> _bufferCacheState = [];
+        
+        private struct BufferCacheEntry
+        {
+            public Color LastColor;
+            public int LastBoneMatrixHash;
+            public bool IsValid;
+            
+            public BufferCacheEntry(Color color, int boneMatrixHash)
+            {
+                LastColor = color;
+                LastBoneMatrixHash = boneMatrixHash;
+                IsValid = true;
+            }
+        }
 
         private GraphicsDevice _graphicsDevice;
         private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<BMDLoader>();
@@ -167,7 +186,7 @@ namespace Client.Main.Content
 
         /// <summary>
         /// Builds (or updates) the dynamic vertex/index buffers for the given mesh.
-        /// Uses ArrayPool to eliminate per‑frame allocations.
+        /// Uses ArrayPool to eliminate per‑frame allocations and intelligent caching.
         /// </summary>
         public void GetModelBuffers(
          BMD asset,
@@ -175,7 +194,8 @@ namespace Client.Main.Content
          Color color,
          Matrix[] boneMatrix,
          ref DynamicVertexBuffer vertexBuffer,
-         ref DynamicIndexBuffer indexBuffer)
+         ref DynamicIndexBuffer indexBuffer,
+         bool skipCache = false)
         {
             if (boneMatrix == null)
             {
@@ -188,6 +208,26 @@ namespace Client.Main.Content
             int totalVertices = mesh.Triangles.Sum(t => t.Polygon);
             int totalIndices = totalVertices;
 
+            // Create cache key based on asset and mesh
+            string cacheKey = $"{asset.GetHashCode()}_{meshIndex}";
+            
+            // Calculate bone matrix hash for cache validation
+            int boneMatrixHash = CalculateBoneMatrixHash(boneMatrix);
+            
+            // Check if we can use cached data (only if caching is enabled)
+            if (!skipCache && 
+                _bufferCacheState.TryGetValue(cacheKey, out var cacheEntry) &&
+                cacheEntry.IsValid &&
+                cacheEntry.LastColor == color &&
+                cacheEntry.LastBoneMatrixHash == boneMatrixHash &&
+                vertexBuffer != null &&
+                indexBuffer != null)
+            {
+                // Cache hit - reuse existing buffers
+                return;
+            }
+
+            // Ensure buffers are properly sized
             if (vertexBuffer == null || vertexBuffer.VertexCount < totalVertices)
             {
                 vertexBuffer?.Dispose();
@@ -208,6 +248,7 @@ namespace Client.Main.Content
                     BufferUsage.None);
             }
 
+            // Build vertex and index data
             var vertices = ArrayPool<VertexPositionColorNormalTexture>.Shared.Rent(totalVertices);
             var indices = ArrayPool<int>.Shared.Rent(totalIndices);
 
@@ -243,6 +284,25 @@ namespace Client.Main.Content
 
             ArrayPool<VertexPositionColorNormalTexture>.Shared.Return(vertices);
             ArrayPool<int>.Shared.Return(indices, clearArray: true);
+            
+            // Update cache entry only if caching is enabled
+            if (!skipCache)
+            {
+                _bufferCacheState[cacheKey] = new BufferCacheEntry(color, boneMatrixHash);
+            }
+        }
+        
+        private int CalculateBoneMatrixHash(Matrix[] boneMatrix)
+        {
+            if (boneMatrix == null) return 0;
+            
+            int hash = 17;
+            // Sample only every 4th matrix to balance performance vs accuracy
+            for (int i = 0; i < boneMatrix.Length; i += 4)
+            {
+                hash = hash * 31 + boneMatrix[i].GetHashCode();
+            }
+            return hash;
         }
 
         public string GetTexturePath(BMD bmd, string texturePath)
@@ -258,6 +318,12 @@ namespace Client.Main.Content
                 _logger?.LogDebug($"Texture path not found: {texturePath}");
 
             return result;
+        }
+        
+        // Clear cache when needed (e.g., when objects are disposed)
+        public void ClearBufferCache()
+        {
+            _bufferCacheState.Clear();
         }
     }
 

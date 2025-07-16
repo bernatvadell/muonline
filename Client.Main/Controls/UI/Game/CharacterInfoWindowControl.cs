@@ -87,15 +87,29 @@ namespace Client.Main.Controls.UI.Game
             _rightFrame = new TextureControl { TexturePath = "Interface/newui_item_back02-R.tga", ViewSize = new Point(21, 320), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
             _bottomFrame = new TextureControl { TexturePath = "Interface/newui_item_back03.tga", ViewSize = new Point(WINDOW_WIDTH, 45), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
 
-            // Usuń blok Task.Run i ładuj tekstury bezpośrednio z await
-            _texTableTopLeft = await tl.PrepareAndGetTexture("Interface/newui_item_table01(L).tga");
-            _texTableTopRight = await tl.PrepareAndGetTexture("Interface/newui_item_table01(R).tga");
-            _texTableBottomLeft = await tl.PrepareAndGetTexture("Interface/newui_item_table02(L).tga");
-            _texTableBottomRight = await tl.PrepareAndGetTexture("Interface/newui_item_table02(R).tga");
-            _texTableTopHorizontalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(Up).tga");
-            _texTableBottomHorizontalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(Dw).tga");
-            _texTableLeftVerticalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(L).tga");
-            _texTableRightVerticalLinePixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(R).tga");
+            // Load all textures in parallel to avoid blocking main thread
+            var textureLoadTasks = new[]
+            {
+                tl.PrepareAndGetTexture("Interface/newui_item_table01(L).tga"),
+                tl.PrepareAndGetTexture("Interface/newui_item_table01(R).tga"),
+                tl.PrepareAndGetTexture("Interface/newui_item_table02(L).tga"),
+                tl.PrepareAndGetTexture("Interface/newui_item_table02(R).tga"),
+                tl.PrepareAndGetTexture("Interface/newui_item_table03(Up).tga"),
+                tl.PrepareAndGetTexture("Interface/newui_item_table03(Dw).tga"),
+                tl.PrepareAndGetTexture("Interface/newui_item_table03(L).tga"),
+                tl.PrepareAndGetTexture("Interface/newui_item_table03(R).tga")
+            };
+
+            var loadedTextures = await Task.WhenAll(textureLoadTasks);
+            
+            _texTableTopLeft = loadedTextures[0];
+            _texTableTopRight = loadedTextures[1];
+            _texTableBottomLeft = loadedTextures[2];
+            _texTableBottomRight = loadedTextures[3];
+            _texTableTopHorizontalLinePixel = loadedTextures[4];
+            _texTableBottomHorizontalLinePixel = loadedTextures[5];
+            _texTableLeftVerticalLinePixel = loadedTextures[6];
+            _texTableRightVerticalLinePixel = loadedTextures[7];
 
             Controls.Add(_background);
             Controls.Add(_topFrame);

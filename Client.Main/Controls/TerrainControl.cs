@@ -28,8 +28,21 @@ namespace Client.Main.Controls
         public short WorldIndex { get; set; }
         public Vector3 LightDirection { get; set; } = new Vector3(0.5f, -0.5f, 0.5f);
         public IReadOnlyList<DynamicLight> DynamicLights => _lightManager.DynamicLights;
+        public IReadOnlyList<DynamicLight> ActiveLights => _lightManager.ActiveLights;
         public Texture2D HeightMapTexture => _data?.HeightMapTexture;
-        public Dictionary<int, string> TextureMappingFiles { get => _data.TextureMappingFiles; set => _data.TextureMappingFiles = value; }
+        private Dictionary<int, string> _pendingTextureMap = new();
+
+        public Dictionary<int, string> TextureMappingFiles
+        {
+            get => _data != null ? _data.TextureMappingFiles : _pendingTextureMap;
+            set
+            {
+                if (_data != null)
+                    _data.TextureMappingFiles = value;
+                else
+                    _pendingTextureMap = value ?? new Dictionary<int, string>();
+            }
+        }
 
         public float WaterSpeed { get => _renderer.WaterSpeed; set => _renderer.WaterSpeed = value; }
         public float DistortionAmplitude { get => _renderer.DistortionAmplitude; set => _renderer.DistortionAmplitude = value; }
@@ -72,6 +85,11 @@ namespace Client.Main.Controls
             _loader = new TerrainLoader(WorldIndex);
             _data = await _loader.LoadAsync();
 
+            foreach (var kvp in _pendingTextureMap)
+                _data.TextureMappingFiles[kvp.Key] = kvp.Value;
+
+            _pendingTextureMap.Clear();
+
             if (_data == null)
             {
                 Status = Models.GameControlStatus.Error;
@@ -109,7 +127,7 @@ namespace Client.Main.Controls
             var camPos2D = new Vector2(Camera.Instance.Position.X, Camera.Instance.Position.Y);
 
             _visibility.Update(camPos2D);
-            _lightManager.UpdateActiveLights();
+            _lightManager.UpdateActiveLights((float)time.ElapsedGameTime.TotalSeconds);
             _wind.Update(time);
             _renderer.Update(time);
         }
@@ -144,7 +162,8 @@ namespace Client.Main.Controls
         // --- Public Query Methods (Facade) ---
         public TWFlags RequestTerrainFlag(int x, int y) => _physics.RequestTerrainFlag(x, y);
         public float RequestTerrainHeight(float xf, float yf) => _physics.RequestTerrainHeight(xf, yf);
-        public Vector3 RequestTerrainLight(float xf, float yf) => _physics.RequestTerrainLight(xf, yf, AmbientLight);
+        public Vector3 EvaluateTerrainLight(float xf, float yf) => _physics.RequestTerrainLight(xf, yf, AmbientLight);
+        public Vector3 EvaluateDynamicLight(Vector2 position) => _lightManager.EvaluateDynamicLight(position);
         public byte GetBaseTextureIndexAt(int x, int y) => _physics.GetBaseTextureIndexAt(x, y);
         public float GetWindValue(int x, int y) => _wind.GetWindValue(x, y);
 

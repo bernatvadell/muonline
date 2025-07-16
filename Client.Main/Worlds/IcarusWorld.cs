@@ -16,8 +16,8 @@ namespace Client.Main.Worlds
         public IcarusWorld() : base(worldIndex: 11)
         {
             Terrain.TextureMappingFiles.Clear();
-            Terrain.TextureMappingFiles[10] = "TileRock04.OZJ";
-            ExtraHeight = 90f;
+            //Terrain.TextureMappingFiles[10] = "TileRock04.OZJ";
+            ExtraHeight = 0f;
             BackgroundMusicPath = "Music/icarus.mp3";
         }
 

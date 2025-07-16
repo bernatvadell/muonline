@@ -37,6 +37,8 @@ namespace Client.Main.Objects
 
         private SpriteFont _font;
         private Texture2D _whiteTexture;
+        private float _cullingCheckTimer = 0;
+        private const float CullingCheckInterval = 0.1f; // Check culling every 100ms instead of every frame
 
         public bool LinkParentAnimation { get; set; }
         public bool OutOfView { get; private set; } = true;
@@ -152,10 +154,23 @@ namespace Client.Main.Objects
             }
             if (Status != GameControlStatus.Ready) return;
 
-            // Update OutOfView flag. The derived class will decide whether to act on it.
+            // Update OutOfView flag, but not every frame to reduce overhead
             if (World != null)
             {
-                OutOfView = !World.IsObjectInView(this);
+                _cullingCheckTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
+                if (_cullingCheckTimer >= CullingCheckInterval)
+                {
+                    _cullingCheckTimer = 0;
+                    bool wasOutOfView = OutOfView;
+                    OutOfView = !World.IsObjectInView(this);
+                    
+                    // If object was just marked as out of view, give it another chance next frame
+                    // This prevents flickering at screen edges
+                    if (!wasOutOfView && OutOfView)
+                    {
+                        _cullingCheckTimer = CullingCheckInterval - 0.016f; // Check again in ~1 frame
+                    }
+                }
             }
 
             // OPTIMIZATION: Early exit if the object is not in the camera's view.

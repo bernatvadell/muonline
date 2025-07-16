@@ -138,17 +138,34 @@ namespace Client.Main.Controls.UI.Game.Inventory
         public override async Task Load()
         {
             var tl = TextureLoader.Instance;
-            _texSquare = await tl.PrepareAndGetTexture("Interface/newui_item_box.tga");
-            _texTableTopLeft = await tl.PrepareAndGetTexture("Interface/newui_item_table01(L).tga");
-            _texTableTopRight = await tl.PrepareAndGetTexture("Interface/newui_item_table01(R).tga");
-            _texTableBottomLeft = await tl.PrepareAndGetTexture("Interface/newui_item_table02(L).tga");
-            _texTableBottomRight = await tl.PrepareAndGetTexture("Interface/newui_item_table02(R).tga");
-            _texTableTopPixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(Up).tga");
-            _texTableBottomPixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(Dw).tga");
-            _texTableLeftPixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(L).tga");
-            _texTableRightPixel = await tl.PrepareAndGetTexture("Interface/newui_item_table03(R).tga");
+            
+            // Load all textures in parallel to avoid blocking main thread
+            var textureLoadTasks = new[]
+            {
+                tl.PrepareAndGetTexture("Interface/newui_item_box.tga"),
+                tl.PrepareAndGetTexture("Interface/newui_item_table01(L).tga"),
+                tl.PrepareAndGetTexture("Interface/newui_item_table01(R).tga"),
+                tl.PrepareAndGetTexture("Interface/newui_item_table02(L).tga"),
+                tl.PrepareAndGetTexture("Interface/newui_item_table02(R).tga"),
+                tl.PrepareAndGetTexture("Interface/newui_item_table03(Up).tga"),
+                tl.PrepareAndGetTexture("Interface/newui_item_table03(Dw).tga"),
+                tl.PrepareAndGetTexture("Interface/newui_item_table03(L).tga"),
+                tl.PrepareAndGetTexture("Interface/newui_item_table03(R).tga"),
+                tl.PrepareAndGetTexture("Interface/newui_msgbox_back.jpg")
+            };
 
-            _texBackground = await tl.PrepareAndGetTexture("Interface/newui_msgbox_back.jpg");
+            var loadedTextures = await Task.WhenAll(textureLoadTasks);
+            
+            _texSquare = loadedTextures[0];
+            _texTableTopLeft = loadedTextures[1];
+            _texTableTopRight = loadedTextures[2];
+            _texTableBottomLeft = loadedTextures[3];
+            _texTableBottomRight = loadedTextures[4];
+            _texTableTopPixel = loadedTextures[5];
+            _texTableBottomPixel = loadedTextures[6];
+            _texTableLeftPixel = loadedTextures[7];
+            _texTableRightPixel = loadedTextures[8];
+            _texBackground = loadedTextures[9];
 
             _font = GraphicsManager.Instance.Font;
 
@@ -249,12 +266,20 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 }
             }
 
+            // Preload all item textures in parallel to avoid blocking
+            var itemTexturePreloadTasks = new List<Task>();
             foreach (var item in _items)
             {
                 if (!string.IsNullOrEmpty(item.Definition.TexturePath))
                 {
-                    TextureLoader.Instance.Prepare(item.Definition.TexturePath);
+                    itemTexturePreloadTasks.Add(TextureLoader.Instance.Prepare(item.Definition.TexturePath));
                 }
+            }
+            
+            // Don't await here - let them load in background
+            if (itemTexturePreloadTasks.Count > 0)
+            {
+                _ = Task.WhenAll(itemTexturePreloadTasks);
             }
         }
 
@@ -634,9 +659,21 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
                     if (itemTexture == null && item.Definition.TexturePath.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase))
                     {
-                        int w = item.Definition.Width * INVENTORY_SQUARE_WIDTH;
-                        int h = item.Definition.Height * INVENTORY_SQUARE_HEIGHT;
-                        itemTexture = BmdPreviewRenderer.GetPreview(item.Definition, w, h);
+                        try
+                        {
+                            int w = item.Definition.Width * INVENTORY_SQUARE_WIDTH;
+                            int h = item.Definition.Height * INVENTORY_SQUARE_HEIGHT;
+                            itemTexture = BmdPreviewRenderer.GetPreview(item.Definition, w, h);
+                        }
+                        catch (InvalidOperationException ex) when (ex.Message.Contains("UI thread"))
+                        {
+                            // Skip BMD preview if UI thread check fails
+                            // Will fall back to dark gray rectangle
+                        }
+                        catch (Exception)
+                        {
+                            // Other errors, also skip
+                        }
                     }
                 }
 

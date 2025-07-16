@@ -7,7 +7,6 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Reflection;
@@ -45,13 +44,20 @@ namespace Client.Main.Objects
         public int ParentBoneLink { get; set; } = -1;
         public BMD Model { get; set; }
 
-        public Matrix ParentBodyOrigin => ParentBoneLink >= 0
-            && Parent != null
-            && Parent is ModelObject modelObject
-            && modelObject.BoneTransform != null
-            && ParentBoneLink < modelObject.BoneTransform.Length
-                ? modelObject.BoneTransform[ParentBoneLink]
-                : Matrix.Identity;
+        public Matrix ParentBodyOrigin
+        {
+            get
+            {
+                if (ParentBoneLink >= 0 && Parent != null && Parent is ModelObject modelObject)
+                {
+                    if (modelObject.BoneTransform != null && ParentBoneLink < modelObject.BoneTransform.Length)
+                    {
+                        return modelObject.BoneTransform[ParentBoneLink];
+                    }
+                }
+                return Matrix.Identity;
+            }
+        }
 
         public float BodyHeight { get; private set; }
         public int HiddenMesh { get; set; } = -1;
@@ -71,15 +77,47 @@ namespace Client.Main.Objects
         public float AnimationSpeed { get; set; } = 4f;
         public static ILoggerFactory AppLoggerFactory { get; private set; }
         protected ILogger _logger;
-        
+
         public int ItemLevel { get; set; } = 0;
         public bool IsExcellentItem { get; set; } = false;
         public bool IsAncientItem { get; set; } = false;
-        
+
         // Monster/NPC glow properties
         public Vector3 GlowColor { get; set; } = new Vector3(1.0f, 0.8f, 0.0f); // Default gold
         public float GlowIntensity { get; set; } = 0.0f;
         public bool EnableCustomShader { get; set; } = false;
+
+        // Cached arrays for dynamic lighting to avoid allocations
+        private static readonly Vector3[] _cachedLightPositions = new Vector3[16];
+        private static readonly Vector3[] _cachedLightColors = new Vector3[16];
+        private static readonly float[] _cachedLightRadii = new float[16];
+        private static readonly float[] _cachedLightIntensities = new float[16];
+        
+        // Cache for Environment.TickCount to reduce system calls
+        private static float _cachedTime = 0f;
+        private static int _lastTickCount = 0;
+        
+        // Cached common Vector3 instances to avoid allocations
+        private static readonly Vector3 _ambientLightVector = new Vector3(0.8f, 0.8f, 0.8f);
+        private static readonly Vector3 _redHighlight = new Vector3(1, 0, 0);
+        private static readonly Vector3 _greenHighlight = new Vector3(0, 1, 0);
+        private static readonly Vector3 _maxValueVector = new Vector3(float.MaxValue);
+        private static readonly Vector3 _minValueVector = new Vector3(float.MinValue);
+        
+        // Cache common graphics states to avoid repeated property access
+        private static readonly RasterizerState _cullClockwise = RasterizerState.CullClockwise;
+        private static readonly RasterizerState _cullNone = RasterizerState.CullNone;
+        
+        private static float GetCachedTime()
+        {
+            int currentTick = Environment.TickCount;
+            if (currentTick != _lastTickCount)
+            {
+                _lastTickCount = currentTick;
+                _cachedTime = currentTick * 0.001f;
+            }
+            return _cachedTime;
+        }
 
         private int _blendFromAction = -1;
         private double _blendFromTime = 0.0;
@@ -90,11 +128,15 @@ namespace Client.Main.Objects
 
         // Bounding box update optimization
         private int _boundingFrameCounter = BoundingUpdateInterval;
-        private const int BoundingUpdateInterval = 5;
+        private const int BoundingUpdateInterval = 10;
 
-        // Animation
-        private bool _needsBufferUpdate = true;
-        private float _lastAnimationTime = 0;
+        // Animation and buffer optimization
+
+        // Cache for bone matrix calculations
+        private Matrix[] _cachedBoneMatrix = null;
+        private int _lastCachedAction = -1;
+        private float _lastCachedAnimTime = -1;
+        private bool _boneMatrixCacheValid = false;
 
         public ModelObject()
         {
@@ -147,68 +189,102 @@ namespace Client.Main.Objects
 
             _blendMeshIndicesScratch = new int[meshCount];
 
-            // Initialize lighting cache for static objects
-            _lastFrameLight = LightEnabled && World?.Terrain != null
-                ? World.Terrain.RequestTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y) + Light
-                : Light;
-
             _invalidatedBuffers = true;
             _contentLoaded = true;
-            GenerateBoneMatrix(0, 0, 0, 0);
+
+            if (Model?.Bones != null && Model.Bones.Length > 0)
+            {
+                BoneTransform = new Matrix[Model.Bones.Length];
+
+                if (Model.Actions != null && Model.Actions.Length > 0)
+                {
+                    GenerateBoneMatrix(0, 0, 0, 0);
+                }
+                else
+                {
+                    for (int i = 0; i < Model.Bones.Length; i++)
+                    {
+                        var bone = Model.Bones[i];
+                        var localMatrix = Matrix.Identity;
+
+                        BoneTransform[i] = (bone.Parent != -1 && bone.Parent < BoneTransform.Length)
+                            ? localMatrix * BoneTransform[bone.Parent]
+                            : localMatrix;
+                    }
+                }
+            }
+
             UpdateBoundings();
         }
 
         public override void Update(GameTime gameTime)
         {
-            if (World == null) return;
+            if (World == null || !_contentLoaded) return;
 
             bool isVisible = Visible;
-            bool isContentLoaded = _contentLoaded;
 
-            // Track animation changes for buffer optimization
-            float currentAnimTime = (float)gameTime.TotalGameTime.TotalSeconds;
-            bool animationChanged = Math.Abs(currentAnimTime - _lastAnimationTime) > 0.001f;
-
-            if (animationChanged)
-            {
-                _lastAnimationTime = currentAnimTime;
-                _needsBufferUpdate = true;
-            }
-
-            // Process animation BEFORE updating children so they get fresh bone transforms
-            if (isContentLoaded && isVisible)
+            // Process animation for the parent first. This ensures its BoneTransform is up-to-date.
+            if (isVisible && !LinkParentAnimation)
             {
                 Animation(gameTime);
             }
 
-            // Now update children - they will use the updated bone transforms
             base.Update(gameTime);
 
-            if (!isVisible || !isContentLoaded) return;
-
-            // Only calculate lighting for non-animated objects or when needed
-            if (!LinkParentAnimation)
+            if (isVisible)
             {
-                if (LightEnabled && World?.Terrain != null)
+                for (int i = 0; i < Children.Count; i++)
                 {
-                    Vector3 worldPos = WorldPosition.Translation;
-                    Vector3 currentLight = World.Terrain.RequestTerrainLight(worldPos.X, worldPos.Y) + Light;
-
-                    // Use squared distance with higher threshold to reduce sensitivity
-                    float lightDeltaSq = Vector3.DistanceSquared(currentLight, _lastFrameLight);
-                    if (lightDeltaSq > 0.0001f)
+                    if (Children[i] is ModelObject childModel)
                     {
-                        _needsBufferUpdate = true;
-                        _lastFrameLight = currentLight;
+                        if (childModel.ParentBoneLink >= 0 || childModel.LinkParentAnimation)
+                        {
+                            childModel.CurrentAction = this.CurrentAction;
+                            childModel._animTime = this._animTime;
+                            childModel._isBlending = this._isBlending;
+                            childModel._blendElapsed = this._blendElapsed;
+
+                            childModel.RecalculateWorldPosition();
+
+                            if (this._isBlending || this.BoneTransform != null)
+                            {
+                                childModel.InvalidateBuffers();
+                            }
+                        }
                     }
                 }
             }
 
-            // Update buffers only when necessary
-            if (_invalidatedBuffers || _needsBufferUpdate)
+            if (!isVisible) return;
+
+            // Like old code: Check if lighting has changed significantly (for static objects)
+            Vector3 currentLight = LightEnabled && World?.Terrain != null
+                ? World.Terrain.EvaluateTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y) + Light
+                : Light;
+
+            // Add dynamic lighting to currentLight for CPU-based lighting
+            bool hasDynamicLightingShader = Constants.ENABLE_DYNAMIC_LIGHTING_SHADER && 
+                                           GraphicsManager.Instance.DynamicLightingEffect != null;
+            
+            if (!hasDynamicLightingShader && LightEnabled && World?.Terrain != null)
+            {
+                currentLight += World.Terrain.EvaluateDynamicLight(new Vector2(WorldPosition.Translation.X, WorldPosition.Translation.Y));
+            }
+
+            if (!LinkParentAnimation && _contentLoaded)
+            {
+                bool lightChanged = Vector3.DistanceSquared(currentLight, _lastFrameLight) > 0.0001f;
+                if (lightChanged)
+                {
+                    _invalidatedBuffers = true;
+                    _lastFrameLight = currentLight;
+                }
+            }
+
+            // Like old code: always call SetDynamicBuffers when content is loaded
+            if (_contentLoaded)
             {
                 SetDynamicBuffers();
-                _needsBufferUpdate = false;
             }
         }
 
@@ -217,8 +293,8 @@ namespace Client.Main.Objects
             if (!Visible || _boneIndexBuffers == null) return;
 
             var gd = GraphicsDevice;
-            var prevCull = gd.RasterizerState;                      // zapisz
-            gd.RasterizerState = RasterizerState.CullClockwise;
+            var prevCull = gd.RasterizerState;
+            gd.RasterizerState = _cullClockwise;
 
             GraphicsManager.Instance.AlphaTestEffect3D.View = Camera.Instance.View;
             GraphicsManager.Instance.AlphaTestEffect3D.Projection = Camera.Instance.Projection;
@@ -261,7 +337,7 @@ namespace Client.Main.Objects
                 highlightMatrix = Matrix.CreateScale(scaleFactor) *
                     Matrix.CreateTranslation(-scaleHighlight, -scaleHighlight, -scaleHighlight) *
                     worldPos;
-                highlightColor = this is MonsterObject ? new Vector3(1, 0, 0) : new Vector3(0, 1, 0);
+                highlightColor = this is MonsterObject ? _redHighlight : _greenHighlight;
             }
 
             // First pass - draw non-blend meshes (batch similar operations)
@@ -336,34 +412,6 @@ namespace Client.Main.Objects
             return BlendMesh == mesh || BlendMesh == -2 || _meshBlendByScript[mesh];
         }
 
-        /// <summary>
-        /// Preloads textures for this model and all child models so that the first
-        /// render does not trigger loading stalls.
-        /// </summary>
-        public virtual async Task PreloadTexturesAsync()
-        {
-            if (Model?.Meshes != null)
-            {
-                foreach (var mesh in Model.Meshes)
-                {
-                    string texturePath = BMDLoader.Instance.GetTexturePath(Model, mesh.TexturePath);
-                    if (!string.IsNullOrEmpty(texturePath))
-                    {
-                        await TextureLoader.Instance.PrepareAndGetTexture(texturePath);
-                        await Task.Yield();
-                    }
-                }
-            }
-
-            foreach (var child in Children)
-            {
-                if (child is ModelObject mo)
-                    await mo.PreloadTexturesAsync();
-                else if (child is SpriteObject so)
-                    await so.PreloadTexturesAsync();
-            }
-        }
-
         public virtual void DrawMesh(int mesh)
         {
             if (_boneVertexBuffers?[mesh] == null ||
@@ -375,25 +423,42 @@ namespace Client.Main.Objects
             try
             {
                 var gd = GraphicsDevice;
+
+                // Use dynamic lighting effect if shader is enabled and available
+                bool useDynamicLighting = Constants.ENABLE_DYNAMIC_LIGHTING_SHADER && 
+                                        GraphicsManager.Instance.DynamicLightingEffect != null;
                 
+                // Debug: Force dynamic lighting for testing pulsing
+                // useDynamicLighting = useDynamicLighting || (GraphicsManager.Instance.DynamicLightingEffect != null);
+
                 // Use item material effect only for items with level 7+, excellent, or ancient
-                bool useItemMaterial = (ItemLevel >= 7 || IsExcellentItem || IsAncientItem) && GraphicsManager.Instance.ItemMaterialEffect != null;
-                
+                bool useItemMaterial = Constants.ENABLE_ITEM_MATERIAL_SHADER && 
+                                     (ItemLevel >= 7 || IsExcellentItem || IsAncientItem) && 
+                                     GraphicsManager.Instance.ItemMaterialEffect != null;
+
                 // Use monster material effect if custom shader is enabled
-                bool useMonsterMaterial = EnableCustomShader && GraphicsManager.Instance.MonsterMaterialEffect != null;
-                
+                bool useMonsterMaterial = Constants.ENABLE_MONSTER_MATERIAL_SHADER && 
+                                        EnableCustomShader && 
+                                        GraphicsManager.Instance.MonsterMaterialEffect != null;
+
+                if (useDynamicLighting && !useItemMaterial && !useMonsterMaterial)
+                {
+                    DrawMeshWithDynamicLighting(mesh);
+                    return;
+                }
+
                 if (useItemMaterial)
                 {
                     DrawMeshWithItemMaterial(mesh);
                     return;
                 }
-                
+
                 if (useMonsterMaterial)
                 {
                     DrawMeshWithMonsterMaterial(mesh);
                     return;
                 }
-                
+
                 var effect = GraphicsManager.Instance.AlphaTestEffect3D;
 
                 // Cache frequently used values
@@ -425,10 +490,10 @@ namespace Client.Main.Objects
                     }
                 }
 
-                gd.RasterizerState = isTwoSided ? RasterizerState.CullNone : RasterizerState.CullClockwise;
+                gd.RasterizerState = isTwoSided ? _cullNone : _cullClockwise;
                 gd.BlendState = customBlendState ?? (isBlendMesh ? BlendMeshState : BlendState);
                 //
-                
+
                 // Set effect properties
                 effect.Texture = texture;
                 effect.Alpha = TotalAlpha;
@@ -458,7 +523,7 @@ namespace Client.Main.Objects
             }
             catch (Exception ex)
             {
-                _logger?.LogDebug($"Error in DrawMesh: {ex.Message}");
+                _logger?.LogDebug("Error in DrawMesh: {Message}", ex.Message);
             }
         }
 
@@ -505,7 +570,7 @@ namespace Client.Main.Objects
                     }
                 }
 
-                gd.RasterizerState = isTwoSided ? RasterizerState.CullNone : RasterizerState.CullClockwise;
+                gd.RasterizerState = isTwoSided ? _cullNone : _cullClockwise;
                 gd.BlendState = customBlendState ?? (isBlendMesh ? BlendMeshState : BlendState);
 
                 // Set world view projection matrix
@@ -515,17 +580,17 @@ namespace Client.Main.Objects
                 effect.Parameters["View"]?.SetValue(Camera.Instance.View);
                 effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
                 effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
-                
+
                 // Set texture
                 effect.Parameters["DiffuseTexture"]?.SetValue(texture);
-                
+
                 // Set item properties
                 int itemOptions = ItemLevel & 0x0F;
                 if (IsExcellentItem)
                     itemOptions |= 0x10;
-                    
+
                 effect.Parameters["ItemOptions"]?.SetValue(itemOptions);
-                effect.Parameters["Time"]?.SetValue((float)Environment.TickCount * 0.001f);
+                effect.Parameters["Time"]?.SetValue(GetCachedTime());
                 effect.Parameters["IsAncient"]?.SetValue(IsAncientItem);
                 effect.Parameters["IsExcellent"]?.SetValue(IsExcellentItem);
                 //effect.Parameters["GlowColor"]?.SetValue(GlowColor);
@@ -546,7 +611,7 @@ namespace Client.Main.Objects
             }
             catch (Exception ex)
             {
-                _logger?.LogDebug($"Error in DrawMeshWithItemMaterial: {ex.Message}");
+                _logger?.LogDebug("Error in DrawMeshWithItemMaterial: {Message}", ex.Message);
                 DrawMesh(mesh);
             }
         }
@@ -594,7 +659,7 @@ namespace Client.Main.Objects
                     }
                 }
 
-                gd.RasterizerState = isTwoSided ? RasterizerState.CullNone : RasterizerState.CullClockwise;
+                gd.RasterizerState = isTwoSided ? _cullNone : _cullClockwise;
                 gd.BlendState = customBlendState ?? (isBlendMesh ? BlendMeshState : BlendState);
 
                 // Set matrices
@@ -602,15 +667,15 @@ namespace Client.Main.Objects
                 effect.Parameters["View"]?.SetValue(Camera.Instance.View);
                 effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
                 effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
-                
+
                 // Set texture
                 effect.Parameters["DiffuseTexture"]?.SetValue(texture);
-                
+
                 // Set monster-specific properties
                 effect.Parameters["GlowColor"]?.SetValue(GlowColor);
                 effect.Parameters["GlowIntensity"]?.SetValue(GlowIntensity);
                 effect.Parameters["EnableGlow"]?.SetValue(GlowIntensity > 0.0f);
-                effect.Parameters["Time"]?.SetValue((float)Environment.TickCount * 0.001f);
+                effect.Parameters["Time"]?.SetValue(GetCachedTime());
 
                 gd.SetVertexBuffer(vertexBuffer);
                 gd.Indices = indexBuffer;
@@ -628,8 +693,134 @@ namespace Client.Main.Objects
             }
             catch (Exception ex)
             {
-                _logger?.LogDebug($"Error in DrawMeshWithMonsterMaterial: {ex.Message}");
+                _logger?.LogDebug("Error in DrawMeshWithMonsterMaterial: {Message}", ex.Message);
                 DrawMesh(mesh);
+            }
+        }
+
+        public virtual void DrawMeshWithDynamicLighting(int mesh)
+        {
+            if (_boneVertexBuffers?[mesh] == null ||
+                _boneIndexBuffers?[mesh] == null ||
+                _boneTextures?[mesh] == null ||
+                IsHiddenMesh(mesh))
+                return;
+
+            try
+            {
+                var gd = GraphicsDevice;
+                var effect = GraphicsManager.Instance.DynamicLightingEffect;
+
+                if (effect == null)
+                {
+                    DrawMesh(mesh); // Fallback to standard rendering
+                    return;
+                }
+
+                bool isBlendMesh = IsBlendMesh(mesh);
+                bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
+                var vertexBuffer = _boneVertexBuffers[mesh];
+                var indexBuffer = _boneIndexBuffers[mesh];
+                var texture = _boneTextures[mesh];
+
+                var prevCull = gd.RasterizerState;
+                var prevBlend = gd.BlendState;
+
+                var meshConf = Model.Meshes[mesh];
+                BlendState customBlendState = null;
+                if (meshConf.BlendingMode != null)
+                {
+                    if (!_blendStateCache.TryGetValue(meshConf.BlendingMode, out customBlendState))
+                    {
+                        var field = typeof(Blendings).GetField(meshConf.BlendingMode, BindingFlags.Public | BindingFlags.Static);
+                        if (field != null)
+                        {
+                            customBlendState = (BlendState)field.GetValue(null);
+                            _blendStateCache[meshConf.BlendingMode] = customBlendState;
+                        }
+                    }
+                }
+
+                gd.RasterizerState = isTwoSided ? _cullNone : _cullClockwise;
+                gd.BlendState = customBlendState ?? (isBlendMesh ? BlendMeshState : BlendState);
+
+                // Set transformation matrices
+                effect.Parameters["World"]?.SetValue(WorldPosition);
+                effect.Parameters["View"]?.SetValue(Camera.Instance.View);
+                effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
+                Matrix worldViewProjection = WorldPosition * Camera.Instance.View * Camera.Instance.Projection;
+                effect.Parameters["WorldViewProjection"]?.SetValue(worldViewProjection);
+                effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
+
+                // Set texture
+                effect.Parameters["DiffuseTexture"]?.SetValue(texture);
+                effect.Parameters["Alpha"]?.SetValue(TotalAlpha);
+
+                // Set terrain lighting
+                Vector3 worldTranslation = WorldPosition.Translation;
+                Vector3 terrainLight = Vector3.One;
+                if (LightEnabled && World?.Terrain != null)
+                {
+                    terrainLight = World.Terrain.EvaluateTerrainLight(worldTranslation.X, worldTranslation.Y);
+                }
+                // Set ambient lighting for dynamic lighting shader
+                effect.Parameters["AmbientLight"]?.SetValue(_ambientLightVector);
+                
+                // Ensure terrain light is reasonable - don't divide by 255 as it makes it too dark
+                terrainLight = Vector3.Clamp(terrainLight / 255f, Vector3.Zero, Vector3.One);
+                effect.Parameters["TerrainLight"]?.SetValue(terrainLight);
+
+                // Set dynamic lights
+                var activeLights = World?.Terrain?.ActiveLights;
+                if (activeLights != null && activeLights.Count > 0)
+                {
+                    int maxLights = Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16;
+                    int lightCount = Math.Min(activeLights.Count, maxLights);
+                    effect.Parameters["ActiveLightCount"]?.SetValue(lightCount);
+                    effect.Parameters["MaxLightsToProcess"]?.SetValue(maxLights);
+
+                    // Use cached arrays to avoid allocations
+                    for (int i = 0; i < lightCount; i++)
+                    {
+                        var light = activeLights[i];
+                        _cachedLightPositions[i] = light.Position;
+                        _cachedLightColors[i] = light.Color; // Already in 0-1 range
+                        _cachedLightRadii[i] = light.Radius;
+                        _cachedLightIntensities[i] = light.Intensity;
+                    }
+
+                    effect.Parameters["LightPositions"]?.SetValue(_cachedLightPositions);
+                    effect.Parameters["LightColors"]?.SetValue(_cachedLightColors);
+                    effect.Parameters["LightRadii"]?.SetValue(_cachedLightRadii);
+                    effect.Parameters["LightIntensities"]?.SetValue(_cachedLightIntensities);
+                }
+                else
+                {
+                    effect.Parameters["ActiveLightCount"]?.SetValue(0);
+                    effect.Parameters["MaxLightsToProcess"]?.SetValue(Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16);
+                }
+                
+                // Set debug lighting areas parameter
+                effect.Parameters["DebugLightingAreas"]?.SetValue(Constants.DEBUG_LIGHTING_AREAS);
+
+                gd.SetVertexBuffer(vertexBuffer);
+                gd.Indices = indexBuffer;
+
+                int primitiveCount = indexBuffer.IndexCount / 3;
+
+                foreach (EffectPass pass in effect.CurrentTechnique.Passes)
+                {
+                    pass.Apply();
+                    gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+                }
+
+                gd.BlendState = prevBlend;
+                gd.RasterizerState = prevCull;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug("Error in DrawMeshWithDynamicLighting: {Message}", ex.Message);
+                DrawMesh(mesh); // Fallback to standard rendering
             }
         }
 
@@ -844,6 +1035,10 @@ namespace Client.Main.Objects
             Model = null;
             BoneTransform = null;
             _invalidatedBuffers = true;
+
+            // Clear cache references
+            _cachedBoneMatrix = null;
+            _boneMatrixCacheValid = false;
         }
 
         private void OnRenderShadowChanged()
@@ -871,9 +1066,9 @@ namespace Client.Main.Objects
 
             if (Model?.Meshes == null || Model.Meshes.Length == 0 || BoneTransform == null) return;
 
-            // Use faster min/max calculation
-            Vector3 min = new Vector3(float.MaxValue);
-            Vector3 max = new Vector3(float.MinValue);
+            // Use faster min/max calculation with cached vectors
+            Vector3 min = _maxValueVector;
+            Vector3 max = _minValueVector;
 
             bool hasValidVertices = false;
             var meshes = Model.Meshes;
@@ -919,21 +1114,19 @@ namespace Client.Main.Objects
             int currentActionIndex = Math.Clamp(CurrentAction, 0, Model.Actions.Length - 1);
             var action = Model.Actions[currentActionIndex];
             int totalFrames = Math.Max(action.NumAnimationKeys, 1);
-
             float delta = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-            // Handle single frame animations early
             if (totalFrames == 1)
             {
                 if (_priorAction != currentActionIndex)
                 {
                     GenerateBoneMatrix(currentActionIndex, 0, 0, 0);
                     _priorAction = currentActionIndex;
+                    InvalidateBuffers();
                 }
                 return;
             }
 
-            // Handle action changes with optimized blending setup
             if (_priorAction != currentActionIndex)
             {
                 _blendFromAction = _priorAction;
@@ -942,45 +1135,12 @@ namespace Client.Main.Objects
                 _isBlending = true;
                 _animTime = 0.0;
 
-                // Ensure blend bones array only when needed
                 int boneCount = Model.Bones.Length;
                 if (_blendFromBones == null || _blendFromBones.Length != boneCount)
                     _blendFromBones = new Matrix[boneCount];
-
-                // Pre-compute blend-from matrices if valid
-                if (_blendFromAction >= 0 && _blendFromAction < Model.Actions.Length)
-                {
-                    var prevAction = Model.Actions[_blendFromAction];
-                    int prevTotal = Math.Max(prevAction.NumAnimationKeys, 1);
-                    double pf = _blendFromTime % prevTotal;
-                    int pf0 = (int)pf;
-                    int pf1 = (pf0 + 1) % prevTotal;
-                    float pt = (float)(pf - pf0);
-                    ComputeBoneMatrixTo(_blendFromAction, pf0, pf1, pt, _blendFromBones);
-                }
             }
 
-            // Optimized blend timing update
-            if (_isBlending && _blendFromAction >= 0 && _blendFromAction < Model.Actions.Length)
-            {
-                var prevAction = Model.Actions[_blendFromAction];
-                float prevMul = prevAction.PlaySpeed == 0 ? 1.0f : prevAction.PlaySpeed;
-                float prevFps = Math.Max(0.01f, AnimationSpeed * prevMul);
-                _blendFromTime += delta * prevFps;
-                _blendElapsed += delta;
-
-                if (_blendElapsed >= _blendDuration)
-                {
-                    _blendElapsed = _blendDuration;
-                    _isBlending = false;
-                }
-            }
-
-            // Update main animation with cached calculations
-            float playMul = action.PlaySpeed == 0 ? 1.0f : action.PlaySpeed;
-            float effectiveFps = Math.Max(0.01f, AnimationSpeed * playMul);
-            _animTime += delta * effectiveFps;
-
+            _animTime += delta * (action.PlaySpeed == 0 ? 1.0f : action.PlaySpeed) * AnimationSpeed;
             double framePos = _animTime % totalFrames;
             int f0 = (int)framePos;
             int f1 = (f0 + 1) % totalFrames;
@@ -988,76 +1148,36 @@ namespace Client.Main.Objects
 
             GenerateBoneMatrix(currentActionIndex, f0, f1, t);
 
-            // Optimized blending with early exit conditions
-            if (_isBlending && _blendFromBones != null && _blendFromAction >= 0 && _blendFromAction < Model.Actions.Length)
+            if (_isBlending)
             {
-                float blendFactor = Math.Clamp(_blendElapsed / _blendDuration, 0f, 1f);
+                _blendElapsed += delta;
+                float blendFactor = MathHelper.Clamp(_blendElapsed / _blendDuration, 0f, 1f);
 
-                // Early exit for nearly complete blend
-                if (blendFactor >= 0.99f)
+                if (_blendFromAction >= 0 && _blendFromBones != null)
                 {
-                    _isBlending = false;
-                    _blendFromBones = null;
-                    _blendFromAction = -1;
-                    _priorAction = currentActionIndex;
-                    return;
-                }
+                    var prevAction = Model.Actions[_blendFromAction];
+                    _blendFromTime += delta * (prevAction.PlaySpeed == 0 ? 1.0f : prevAction.PlaySpeed) * AnimationSpeed;
+                    int prevTotal = Math.Max(prevAction.NumAnimationKeys, 1);
+                    double pf = _blendFromTime % prevTotal;
+                    int pf0 = (int)pf;
+                    int pf1 = (pf0 + 1) % prevTotal;
+                    float pt = (float)(pf - pf0);
+                    ComputeBoneMatrixTo(_blendFromAction, pf0, pf1, pt, _blendFromBones);
 
-                // Compute blend-from matrices
-                var prevAction = Model.Actions[_blendFromAction];
-                int prevTotal = Math.Max(prevAction.NumAnimationKeys, 1);
-                double pf = _blendFromTime % prevTotal;
-                int pf0 = (int)pf;
-                int pf1 = (pf0 + 1) % prevTotal;
-                float pt = (float)(pf - pf0);
-
-                ComputeBoneMatrixTo(_blendFromAction, pf0, pf1, pt, _blendFromBones);
-
-                // Optimized matrix blending
-                bool changed = false;
-                int boneCount = Math.Min(BoneTransform.Length, _blendFromBones.Length);
-
-                for (int i = 0; i < boneCount; i++)
-                {
-                    ref Matrix current = ref BoneTransform[i];
-                    ref Matrix previous = ref _blendFromBones[i];
-
-                    // Decompose matrices efficiently
-                    Vector3 curPos = current.Translation;
-                    Vector3 prevPos = previous.Translation;
-                    Vector3 pos = Vector3.Lerp(prevPos, curPos, blendFactor);
-
-                    // Optimized rotation extraction and blending
-                    Quaternion curRot = Quaternion.CreateFromRotationMatrix(current);
-                    Quaternion prevRot = Quaternion.CreateFromRotationMatrix(previous);
-                    Quaternion rot = Quaternion.Slerp(prevRot, curRot, blendFactor);
-
-                    // Reconstruct matrix
-                    Matrix newMatrix = Matrix.CreateFromQuaternion(rot);
-                    newMatrix.Translation = pos;
-
-                    // Only update if changed
-                    if (newMatrix != current)
+                    // blending
+                    for (int i = 0; i < BoneTransform.Length; i++)
                     {
-                        BoneTransform[i] = newMatrix;
-                        changed = true;
+                        Matrix.Lerp(ref _blendFromBones[i], ref BoneTransform[i], blendFactor, out BoneTransform[i]);
                     }
                 }
 
-                // Clean up blending state
-                if (blendFactor >= 1f)
+                if (blendFactor >= 1.0f)
                 {
                     _isBlending = false;
-                    _blendFromBones = null;
                     _blendFromAction = -1;
                 }
 
-                // Update dependent systems only when needed
-                if (changed)
-                {
-                    InvalidateBuffers();
-                    UpdateBoundings();
-                }
+                InvalidateBuffers();
             }
 
             _priorAction = currentActionIndex;
@@ -1065,7 +1185,7 @@ namespace Client.Main.Objects
 
         protected void GenerateBoneMatrix(int actionIdx, int frame0, int frame1, float t)
         {
-            if (Model?.Bones == null) return;
+            if (Model?.Bones == null || Model.Actions == null || Model.Actions.Length == 0) return;
 
             Matrix[] transforms = BoneTransform ??= new Matrix[Model.Bones.Length];
             var bones = Model.Bones;
@@ -1215,21 +1335,18 @@ namespace Client.Main.Objects
                 EnsureArraySize(ref _meshTexturePath, meshCount);
                 EnsureArraySize(ref _blendMeshIndicesScratch, meshCount);
 
-                // Get bone transforms with single check
-                Matrix[] bones = (LinkParentAnimation && Parent is ModelObject parentModel && parentModel.BoneTransform != null)
-                    ? parentModel.BoneTransform
-                    : BoneTransform;
-
+                // Get bone transforms with caching
+                Matrix[] bones = GetCachedBoneTransforms();
                 if (bones == null)
                 {
                     _logger?.LogDebug("SetDynamicBuffers: BoneTransform == null – skip");
                     return;
                 }
 
-                // Calculate lighting once for all meshes
+                // Always recalculate current lighting (like old working code)
                 Vector3 worldTranslation = WorldPosition.Translation;
                 Vector3 baseLight = LightEnabled && World?.Terrain != null
-                    ? World.Terrain.RequestTerrainLight(worldTranslation.X, worldTranslation.Y) + Light
+                    ? World.Terrain.EvaluateTerrainLight(worldTranslation.X, worldTranslation.Y) + Light
                     : Light;
 
                 // Pre-calculate common color components
@@ -1250,13 +1367,13 @@ namespace Client.Main.Objects
                         bool isBlend = IsBlendMesh(meshIndex);
                         Vector3 meshLight = isBlend ? baseLight * blendMeshLight : baseLight * totalAlpha;
 
-                        // Optimized color calculation with clamping
-                        byte r = (byte)Math.Min(255f, colorR * meshLight.X);
-                        byte g = (byte)Math.Min(255f, colorG * meshLight.Y);
-                        byte b = (byte)Math.Min(255f, colorB * meshLight.Z);
+                        // Optimized color calculation with clamping (like old code)
+                        byte r = (byte)MathF.Min(colorR * meshLight.X, 255f);
+                        byte g = (byte)MathF.Min(colorG * meshLight.Y, 255f);
+                        byte b = (byte)MathF.Min(colorB * meshLight.Z, 255f);
                         Color bodyColor = new Color(r, g, b);
 
-                        // Generate buffers
+                        // Generate buffers (like old code)
                         BMDLoader.Instance.GetModelBuffers(
                             Model, meshIndex, bodyColor, bones,
                             ref _boneVertexBuffers[meshIndex],
@@ -1288,12 +1405,54 @@ namespace Client.Main.Objects
                 }
 
                 _invalidatedBuffers = false;
-                RecalculateWorldPosition();
             }
             catch (Exception ex)
             {
                 _logger?.LogDebug($"SetDynamicBuffers FATAL: {ex.Message}");
             }
+        }
+
+        private Matrix[] GetCachedBoneTransforms()
+        {
+            Matrix[] bones = (LinkParentAnimation && Parent is ModelObject parentModel && parentModel.BoneTransform != null)
+                ? parentModel.BoneTransform
+                : BoneTransform;
+
+            if (bones == null) return null;
+
+            float currentAnimTime = (float)_animTime;
+
+            // For child objects that link to parent animation OR have ParentBoneLink, always use fresh bone transforms
+            // This ensures weapons and accessories animate properly during blending
+            if (LinkParentAnimation || ParentBoneLink >= 0)
+            {
+                return bones;
+            }
+
+            // Check if we can use cached bone matrix for main objects
+            // But be more conservative - only cache if animation time hasn't changed at all
+            if (_boneMatrixCacheValid &&
+                _lastCachedAction == CurrentAction &&
+                Math.Abs(_lastCachedAnimTime - currentAnimTime) < 0.0001f &&
+                _cachedBoneMatrix != null &&
+                _cachedBoneMatrix.Length == bones.Length)
+            {
+                return _cachedBoneMatrix;
+            }
+
+            // Update cache
+            if (_cachedBoneMatrix == null || _cachedBoneMatrix.Length != bones.Length)
+            {
+                _cachedBoneMatrix = new Matrix[bones.Length];
+            }
+
+            Array.Copy(bones, _cachedBoneMatrix, bones.Length);
+
+            _lastCachedAction = CurrentAction;
+            _lastCachedAnimTime = currentAnimTime;
+            _boneMatrixCacheValid = true;
+
+            return _cachedBoneMatrix;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -1322,29 +1481,33 @@ namespace Client.Main.Objects
 
             for (int i = 0; i < Children.Count; i++)
             {
-                if (Children[i] is ModelObject modelObject && modelObject.LinkParentAnimation)
+                if (Children[i] is ModelObject modelObject && (modelObject.LinkParentAnimation || modelObject.ParentBoneLink >= 0))
+                {
                     modelObject.InvalidateBuffers();
+                }
             }
         }
 
         protected override void RecalculateWorldPosition()
         {
             Matrix localMatrix = Matrix.CreateScale(Scale) *
-            Matrix.CreateFromQuaternion(MathUtils.AngleQuaternion(Angle)) *
-            Matrix.CreateTranslation(Position);
+                                 Matrix.CreateFromQuaternion(MathUtils.AngleQuaternion(Angle)) *
+                                 Matrix.CreateTranslation(Position);
 
+            Matrix newWorldPosition;
             if (Parent != null)
             {
-                Matrix worldMatrix = localMatrix * ParentBodyOrigin * Parent.WorldPosition;
-
-                if (WorldPosition != worldMatrix)
-                {
-                    WorldPosition = worldMatrix;
-                }
+                newWorldPosition = localMatrix * ParentBodyOrigin * Parent.WorldPosition;
             }
-            else if (WorldPosition != localMatrix)
+            else
             {
-                WorldPosition = localMatrix;
+                newWorldPosition = localMatrix;
+            }
+
+            if (WorldPosition != newWorldPosition)
+            {
+                WorldPosition = newWorldPosition;
+                _invalidatedBuffers = true;
             }
         }
     }

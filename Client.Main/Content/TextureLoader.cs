@@ -17,6 +17,7 @@ namespace Client.Main.Content
 
         private readonly ConcurrentDictionary<string, Task<TextureData>> _textureTasks = new();
         private readonly ConcurrentDictionary<string, ClientTexture> _textures = new();
+        private readonly ConcurrentDictionary<string, string> _pathExistsCache = new();
         private GraphicsDevice _graphicsDevice;
 
         private readonly Dictionary<string, BaseReader<TextureData>> _readers = new()
@@ -119,22 +120,37 @@ namespace Client.Main.Content
 
         private string GetActualPath(string path)
         {
+            // Check cache first
+            if (_pathExistsCache.TryGetValue(path, out var cachedPath))
+                return cachedPath;
+
+            string result = null;
+            
             if (File.Exists(path))
-                return path;
-
-            string directory = Path.GetDirectoryName(path);
-            string fileName = Path.GetFileName(path);
-
-            if (Directory.Exists(directory))
             {
-                foreach (var file in Directory.GetFiles(directory))
+                result = path;
+            }
+            else
+            {
+                string directory = Path.GetDirectoryName(path);
+                string fileName = Path.GetFileName(path);
+
+                if (Directory.Exists(directory))
                 {
-                    if (string.Equals(Path.GetFileName(file), fileName, StringComparison.OrdinalIgnoreCase))
-                        return file;
+                    foreach (var file in Directory.GetFiles(directory))
+                    {
+                        if (string.Equals(Path.GetFileName(file), fileName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            result = file;
+                            break;
+                        }
+                    }
                 }
             }
 
-            return null;
+            // Cache the result (including null)
+            _pathExistsCache.TryAdd(path, result);
+            return result;
         }
 
         private static TextureScript ParseScript(string fileName)

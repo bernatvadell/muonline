@@ -22,6 +22,31 @@ namespace Client.Main
                 public static bool ENABLE_LOW_QUALITY_SWITCH = true;
                 public static bool ENABLE_LOW_QUALITY_IN_LOGIN_SCENE = true;
                 public static bool MSAA_ENABLED = false;
+                /// <summary>
+                /// Enables GPU-based dynamic lighting shader for 3D objects.
+                /// When disabled, falls back to CPU-based lighting calculations.
+                /// </summary>
+                public static bool ENABLE_DYNAMIC_LIGHTING_SHADER = true;
+                /// <summary>
+                /// Reduces MAX_LIGHTS for integrated GPU performance optimization.
+                /// When true, uses fewer lights but better performance on weak GPUs.
+                /// </summary>
+                public static bool OPTIMIZE_FOR_INTEGRATED_GPU = false;
+                /// <summary>
+                /// Debug mode that shows lighting areas as black spots for debugging light range.
+                /// When enabled, areas affected by lights will appear as black patches on textures.
+                /// </summary>
+                public static bool DEBUG_LIGHTING_AREAS = false;
+                /// <summary>
+                /// Enables item material shader for items with level 7+, excellent, or ancient properties.
+                /// When disabled, uses standard rendering for all items.
+                /// </summary>
+                public static bool ENABLE_ITEM_MATERIAL_SHADER = true;
+                /// <summary>
+                /// Enables monster material shader for custom monster effects.
+                /// When disabled, uses standard rendering for all monsters.
+                /// </summary>
+                public static bool ENABLE_MONSTER_MATERIAL_SHADER = true;
                 public static string DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
                 //public static string DataPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
 #else
@@ -33,6 +58,32 @@ namespace Client.Main
                 public static bool DRAW_GRASS = true;
                 public static bool ENABLE_LOW_QUALITY_SWITCH = true;
                 public static bool ENABLE_LOW_QUALITY_IN_LOGIN_SCENE = true;
+                public static bool MSAA_ENABLED = false;
+                /// <summary>
+                /// Enables GPU-based dynamic lighting shader for 3D objects.
+                /// When disabled, falls back to CPU-based lighting calculations.
+                /// </summary>
+                public static bool ENABLE_DYNAMIC_LIGHTING_SHADER = true;
+                /// <summary>
+                /// Reduces MAX_LIGHTS for integrated GPU performance optimization.
+                /// When true, uses fewer lights but better performance on weak GPUs.
+                /// </summary>
+                public static bool OPTIMIZE_FOR_INTEGRATED_GPU = false;
+                /// <summary>
+                /// Debug mode that shows lighting areas as black spots for debugging light range.
+                /// When enabled, areas affected by lights will appear as black patches on textures.
+                /// </summary>
+                public static bool DEBUG_LIGHTING_AREAS = false;
+                /// <summary>
+                /// Enables item material shader for items with level 7+, excellent, or ancient properties.
+                /// When disabled, uses standard rendering for all items.
+                /// </summary>
+                public static bool ENABLE_ITEM_MATERIAL_SHADER = true;
+                /// <summary>
+                /// Enables monster material shader for custom monster effects.
+                /// When disabled, uses standard rendering for all monsters.
+                /// </summary>
+                public static bool ENABLE_MONSTER_MATERIAL_SHADER = true;
                 public static string DataPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
 #endif
                 public static string DataPathUrl = "http://192.168.55.220/Data.zip";

@@ -69,3 +69,9 @@
 /processor:EffectProcessor
 /processorParam:DebugMode=Auto
 /build:MonsterMaterial.fx
+
+#begin DynamicLighting.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:DynamicLighting.fx

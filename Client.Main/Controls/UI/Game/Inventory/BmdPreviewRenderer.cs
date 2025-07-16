@@ -13,6 +13,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
     public static class BmdPreviewRenderer
     {
         private static readonly Dictionary<string, Texture2D> _cache = new();
+        private static readonly HashSet<string> _failedRenders = new();
 
         public static Texture2D GetPreview(ItemDefinition definition, int width, int height)
         {
@@ -20,12 +21,40 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 return null;
 
             string key = $"{definition.TexturePath}:{width}x{height}";
+
+            // Check cache first
             if (_cache.TryGetValue(key, out var tex))
                 return tex;
 
-            tex = Render(definition, width, height);
-            if (tex != null)
-                _cache[key] = tex;
+            // Skip if we know this render failed before
+            if (_failedRenders.Contains(key))
+                return null;
+
+            try
+            {
+                tex = Render(definition, width, height);
+                if (tex != null)
+                {
+                    _cache[key] = tex;
+                }
+                else
+                {
+                    // Mark as failed to avoid repeated attempts
+                    _failedRenders.Add(key);
+                }
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("UI thread"))
+            {
+                // We're not on the UI thread, mark as failed and return null
+                _failedRenders.Add(key);
+                return null;
+            }
+            catch (Exception)
+            {
+                // Other rendering errors, mark as failed
+                _failedRenders.Add(key);
+                return null;
+            }
 
             return tex;
         }
@@ -37,10 +66,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 if (gd == null)
                     return null;
 
-                // ── wczytaj model ─────────────────────────────────────────────────────
                 var modelTask = BMDLoader.Instance.Prepare(def.TexturePath);
-                modelTask.Wait();
-                var bmd = modelTask.Result;
+                // Use ConfigureAwait(false) to avoid deadlocks and run on thread pool
+                var bmd = modelTask.ConfigureAwait(false).GetAwaiter().GetResult();
                 if (bmd == null)
                     return null;
 
@@ -67,7 +95,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
                                         (float)width / height,
                                         1f, 100f);
 
-                // ── skalowanie & rotacja ──────────────────────────────────────────────
                 Vector3 size = bounds.Max - bounds.Min;
                 float scale = 15f / Math.Max(size.X, Math.Max(size.Y, size.Z));
                 Vector3 center = (bounds.Min + bounds.Max) * 0.5f;
@@ -75,12 +102,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 Matrix rot = Matrix.CreateRotationY(0) *
                              Matrix.CreateRotationX(MathHelper.ToRadians(-80f));
 
-                // bez ostatecznego przesunięcia w Y
                 Matrix worldBase = Matrix.CreateScale(scale) *
                                    rot *
                                    Matrix.CreateTranslation(-center * scale);
 
-                // ── dynamiczne centrowanie po rotacji ────────────────────────────────
                 Vector3[] corners = bounds.GetCorners();
                 float minY = float.MaxValue, maxY = float.MinValue;
                 for (int i = 0; i < corners.Length; ++i)
@@ -93,14 +118,13 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
                 effect.World = worldBase * Matrix.CreateTranslation(0f, yOffset, 0f);
 
-                // ── rysowanie ─────────────────────────────────────────────────────────
                 for (int meshIdx = 0; meshIdx < bmd.Meshes.Length; ++meshIdx)
                 {
                     DynamicVertexBuffer vb = null;
                     DynamicIndexBuffer ib = null;
 
                     BMDLoader.Instance.GetModelBuffers(bmd, meshIdx, Color.White,
-                                                       bones, ref vb, ref ib);
+                                                       bones, ref vb, ref ib, false);
 
                     effect.Texture = TextureLoader.Instance.GetTexture2D(
                                          BMDLoader.Instance.GetTexturePath(
@@ -116,7 +140,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     }
                 }
 
-                // ── przywróć stan ─────────────────────────────────────────────────────
                 effect.View = oldV;
                 effect.Projection = oldP;
                 effect.World = oldW;

@@ -39,6 +39,7 @@ namespace Client.Main.Controllers
         public Effect ShadowEffect { get; private set; }
         public Effect ItemMaterialEffect { get; private set; }
         public Effect MonsterMaterialEffect { get; private set; }
+        public Effect DynamicLightingEffect { get; private set; }
 
         public void Init(GraphicsDevice graphicsDevice, ContentManager content)
         {
@@ -60,6 +61,7 @@ namespace Client.Main.Controllers
             GammaCorrectionEffect = LoadEffect("GammaCorrection");
             ItemMaterialEffect = LoadEffect("ItemMaterial");
             MonsterMaterialEffect = LoadEffect("MonsterMaterial");
+            DynamicLightingEffect = LoadEffect("DynamicLighting");
 
             InitializeFXAAEffect();
 
@@ -177,6 +179,9 @@ namespace Client.Main.Controllers
             AlphaRGBEffect?.Dispose();
             FXAAEffect?.Dispose();
             ShadowEffect?.Dispose();
+            DynamicLightingEffect?.Dispose();
+            ItemMaterialEffect?.Dispose();
+            MonsterMaterialEffect?.Dispose();
             AlphaTestEffect3D?.Dispose();
             BoundingBoxEffect3D?.Dispose();
             BasicEffect3D?.Dispose();

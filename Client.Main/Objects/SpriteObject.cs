@@ -41,14 +41,6 @@ namespace Client.Main.Objects
             }
         }
 
-        /// <summary>
-        /// Preloads this sprite's texture to avoid stalls on first render.
-        /// </summary>
-        public virtual async Task PreloadTexturesAsync()
-        {
-            if (!string.IsNullOrEmpty(TexturePath))
-                await TextureLoader.Instance.PrepareAndGetTexture(TexturePath);
-        }
         
         public override void Draw(GameTime gameTime)
         {
