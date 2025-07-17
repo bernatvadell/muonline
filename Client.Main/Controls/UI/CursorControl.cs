@@ -57,6 +57,12 @@ public class CursorControl : SpriteControl
 
     public override void Update(GameTime gameTime)
     {
+        if (Scene == null)
+        {
+            base.Update(gameTime);
+            return;
+        }
+
         var hoveredObject = Scene.MouseHoverObject;
 
         if (hoveredObject == null &&

@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Reflection;
+using Client.Main.Controls;
 
 namespace Client.Main.Objects
 {
@@ -942,6 +943,10 @@ namespace Client.Main.Objects
         {
             try
             {
+                // Skip shadow rendering if shadows are disabled for this world
+                if (MuGame.Instance.ActiveScene?.World is WorldControl world && !world.EnableShadows)
+                    return;
+                
                 if (IsHiddenMesh(mesh) || _boneVertexBuffers == null)
                     return;
 

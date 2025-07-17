@@ -79,6 +79,8 @@ namespace Client.Main.Controls
         public TerrainControl Terrain { get; }
 
         public short WorldIndex { get; private set; }
+        
+        public bool EnableShadows { get; protected set; } = true;
 
         public ChildrenCollection<WorldObject> Objects { get; private set; }
             = new ChildrenCollection<WorldObject>(null);
