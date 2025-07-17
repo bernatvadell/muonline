@@ -769,7 +769,7 @@ namespace Client.Main.Scenes
                 MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
                 MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released) // Fresh press
             {
-                if (Hero != null)
+                if (Hero != null && !targetMonster.IsDead)
                 {
                     Hero.Attack(targetMonster);
                     SetMouseInputConsumed(); // Consume the click

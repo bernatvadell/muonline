@@ -705,6 +705,9 @@ namespace Client.Main.Objects.Player
         {
             if (target == null || World == null) return;
 
+            // Don't attack dead monsters
+            if (target.IsDead) return;
+
             float rangeTiles = GetAttackRangeTiles();
             if (Vector2.Distance(Location, target.Location) > rangeTiles)
             {
