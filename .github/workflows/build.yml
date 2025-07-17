@@ -40,7 +40,7 @@ jobs:
       - name: Restore workloads
         run: dotnet workload restore
       - name: Publish
-        run: dotnet publish ${{ matrix.project }} -c Release -r ${{ matrix.runtime }} --self-contained true -o publish
+        run: dotnet publish ${{ matrix.project }} -c Release -r ${{ matrix.runtime }} -o publish
       - name: Create Zip
         run: ${{ matrix.zip }}
       - name: Upload Artifact
