@@ -18,6 +18,8 @@ public class CursorControl : SpriteControl
     private double animationTimer = 0;
     private double animationSpeed = 0.1;
     private Type[] restPlaceTypes;
+    private string currentTexturePath = "";
+    private Vector2[] currentAnimationState;
 
     public CursorControl()
     {
@@ -29,6 +31,8 @@ public class CursorControl : SpriteControl
         TileX = 0;
         TileY = 0;
         CurrentAnimation = DefaultAnimation;
+        currentTexturePath = TexturePath;
+        currentAnimationState = DefaultAnimation;
         restPlaceTypes =
         new Type[]
         {
@@ -53,6 +57,23 @@ public class CursorControl : SpriteControl
             return furniture.Type == 145 || furniture.Type == 146;
 
         return false;
+    }
+
+    private void SetCursorState(string texturePath, Vector2[] animation)
+    {
+        if (currentTexturePath != texturePath || currentAnimationState != animation)
+        {
+            currentTexturePath = texturePath;
+            currentAnimationState = animation;
+            TexturePath = texturePath;
+            CurrentAnimation = animation;
+            
+            // Reset animation only when texture/animation actually changes
+            animationIndex = 0;
+            animationTimer = 0;
+            TileX = (int)CurrentAnimation[animationIndex].X;
+            TileY = (int)CurrentAnimation[animationIndex].Y;
+        }
     }
 
     public override void Update(GameTime gameTime)
@@ -84,38 +105,31 @@ public class CursorControl : SpriteControl
             // If the touch is pressed or moved, simulate a click
             if (touch.State == TouchLocationState.Pressed || touch.State == TouchLocationState.Moved)
             {
-                TexturePath = "Interface/CursorPush.ozt";
-                CurrentAnimation = DefaultAnimation;
+                SetCursorState("Interface/CursorPush.ozt", DefaultAnimation);
             }
             else if (hoveredObject is MonsterObject monster && !monster.IsDead)
             {
-                TexturePath = "Interface/CursorAttack.ozt";
-                CurrentAnimation = DefaultAnimation;
+                SetCursorState("Interface/CursorAttack.ozt", DefaultAnimation);
             }
             else if (hoveredObject is DroppedItemObject)
             {
-                TexturePath = "Interface/CursorGet.ozt";
-                CurrentAnimation = DefaultAnimation;
+                SetCursorState("Interface/CursorGet.ozt", DefaultAnimation);
             }
             else if (hoveredObject is NPCObject)
             {
-                TexturePath = "Interface/CursorTalk.ozt";
-                CurrentAnimation = TalkAnimation;
+                SetCursorState("Interface/CursorTalk.ozt", TalkAnimation);
             }
             else if (hoveredObject != null && restPlaceTypes.Contains(hoveredObject.GetType()))
             {
-                TexturePath = "Interface/CursorLeanAgainst.ozt";
-                CurrentAnimation = DefaultAnimation;
+                SetCursorState("Interface/CursorLeanAgainst.ozt", DefaultAnimation);
             }
             else if (sitPlace)
             {
-                TexturePath = "Interface/CursorSitDown.ozt";
-                CurrentAnimation = DefaultAnimation;
+                SetCursorState("Interface/CursorSitDown.ozt", DefaultAnimation);
             }
             else
             {
-                TexturePath = "Interface/Cursor.ozt";
-                CurrentAnimation = DefaultAnimation;
+                SetCursorState("Interface/Cursor.ozt", DefaultAnimation);
             }
         }
         else
@@ -126,8 +140,7 @@ public class CursorControl : SpriteControl
 
             if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed)
             {
-                TexturePath = "Interface/CursorPush.ozt";
-                CurrentAnimation = DefaultAnimation;
+                SetCursorState("Interface/CursorPush.ozt", DefaultAnimation);
 
                 if (hoveredObject is NPCObject npc) {
                     npc.OnClick();
@@ -135,33 +148,27 @@ public class CursorControl : SpriteControl
             }
             else if (hoveredObject is MonsterObject monster && !monster.IsDead)
             {
-                TexturePath = "Interface/CursorAttack.ozt";
-                CurrentAnimation = DefaultAnimation;
+                SetCursorState("Interface/CursorAttack.ozt", DefaultAnimation);
             }
             else if (hoveredObject is DroppedItemObject)
             {
-                TexturePath = "Interface/CursorGet.ozt";
-                CurrentAnimation = DefaultAnimation;
+                SetCursorState("Interface/CursorGet.ozt", DefaultAnimation);
             }
             else if (hoveredObject is NPCObject)
             {
-                TexturePath = "Interface/CursorTalk.ozt";
-                CurrentAnimation = TalkAnimation;
+                SetCursorState("Interface/CursorTalk.ozt", TalkAnimation);
             }
             else if (hoveredObject != null && restPlaceTypes.Contains(hoveredObject.GetType()))
             {
-                TexturePath = "Interface/CursorLeanAgainst.ozt";
-                CurrentAnimation = DefaultAnimation;
+                SetCursorState("Interface/CursorLeanAgainst.ozt", DefaultAnimation);
             }
             else if (sitPlace)
             {
-                TexturePath = "Interface/CursorSitDown.ozt";
-                CurrentAnimation = DefaultAnimation;
+                SetCursorState("Interface/CursorSitDown.ozt", DefaultAnimation);
             }
             else
             {
-                TexturePath = "Interface/Cursor.ozt";
-                CurrentAnimation = DefaultAnimation;
+                SetCursorState("Interface/Cursor.ozt", DefaultAnimation);
             }
         }
 
