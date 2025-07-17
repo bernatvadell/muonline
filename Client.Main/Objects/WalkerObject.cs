@@ -115,6 +115,9 @@ namespace Client.Main.Objects
         {
             _currentPath = null;
             MoveTargetPosition = Vector3.Zero;
+            
+            // Reset animation state to clear any stuck death animations
+            _animationController?.Reset();
         }
 
         /// <summary>

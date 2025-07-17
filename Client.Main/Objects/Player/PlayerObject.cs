@@ -655,6 +655,15 @@ namespace Client.Main.Objects.Player
             }
         }
 
+        public new void Reset()
+        {
+            // Call base reset first
+            base.Reset();
+            
+            // Reset player-specific states
+            ResetRestSitStates();
+        }
+
         // --------------- UTILITIES ----------------
         public ushort GetCorrectIdleAction()
         {
