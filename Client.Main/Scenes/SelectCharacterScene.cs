@@ -18,19 +18,19 @@ namespace Client.Main.Scenes
     public class SelectCharacterScene : BaseScene
     {
         // Fields
-        private readonly List<(string Name, CharacterClassNumber Class, ushort Level)> _characters;
+        private readonly List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)> _characters;
         private SelectWorld _selectWorld;
         private LabelControl _infoLabel;
         private readonly NetworkManager _networkManager;
         private ILogger<SelectCharacterScene> _logger;
-        private (string Name, CharacterClassNumber Class, ushort Level)? _selectedCharacterInfo = null;
+        private (string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)? _selectedCharacterInfo = null;
         private LoadingScreenControl _loadingScreen;
         private bool _initialLoadComplete = false;
 
         // Constructors
-        public SelectCharacterScene(List<(string Name, CharacterClassNumber Class, ushort Level)> characters, NetworkManager networkManager)
+        public SelectCharacterScene(List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)> characters, NetworkManager networkManager)
         {
-            _characters = characters ?? new List<(string Name, CharacterClassNumber Class, ushort Level)>();
+            _characters = characters ?? new List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)>();
             _networkManager = networkManager ?? throw new ArgumentNullException(nameof(networkManager));
             _logger = MuGame.AppLoggerFactory.CreateLogger<SelectCharacterScene>();
 

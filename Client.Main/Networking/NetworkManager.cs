@@ -55,7 +55,7 @@ namespace Client.Main.Networking
         public event EventHandler<ClientConnectionState> ConnectionStateChanged;
         public event EventHandler<List<ServerInfo>> ServerListReceived;
         public event EventHandler<string> ErrorOccurred;
-        public event EventHandler<List<(string Name, CharacterClassNumber Class, ushort Level)>> CharacterListReceived;
+        public event EventHandler<List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)>> CharacterListReceived;
         public event EventHandler LoginSuccess;
         public event EventHandler EnteredGame;
         public event EventHandler<LoginResponse.LoginResult> LoginFailed;
@@ -428,7 +428,7 @@ namespace Client.Main.Networking
             });
         }
 
-        internal void ProcessCharacterList(List<(string Name, CharacterClassNumber Class, ushort Level)> characters)
+        internal void ProcessCharacterList(List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)> characters)
         {
             _logger.LogInformation(">>> ProcessCharacterList: Received list with {Count} characters. Raising event on UI thread...", characters?.Count ?? 0);
             MuGame.ScheduleOnMainThread(() =>

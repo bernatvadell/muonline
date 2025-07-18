@@ -352,7 +352,7 @@ namespace Client.Main.Scenes
         }
 
         private void HandleCharacterListReceived(object sender,
-            List<(string Name, CharacterClassNumber Class, ushort Level)> characters)
+            List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)> characters)
         {
             MuGame.ScheduleOnMainThread(() =>
             {

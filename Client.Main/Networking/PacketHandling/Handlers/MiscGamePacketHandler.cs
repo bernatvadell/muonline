@@ -197,7 +197,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         {
             try
             {
-                var list = new List<(string Name, CharacterClassNumber Class, ushort Level)>();
+                var list = new List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)>();
                 int dataSize = 0;
                 int offset = 0;
                 byte count = 0;
@@ -323,10 +323,10 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             _logger.LogWarning("Empty appearance data for {Name}. Defaulting to DarkWizard.", name);
                         }
 
-                        list.Add((name, cls, level));
+                        list.Add((name, cls, level, appearance.ToArray()));
                         _logger.LogDebug(
-                            "Added character: {Name}, Class={Class}, Level={Level}",
-                            name, cls, level);
+                            "Added character: {Name}, Class={Class}, Level={Level}, AppearanceBytes={Bytes}",
+                            name, cls, level, appearance.Length);
                     }
                     catch (Exception ex)
                     {

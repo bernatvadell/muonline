@@ -60,12 +60,45 @@ namespace Client.Main.Models
         /// </summary>
         public ReadOnlySpan<byte> RawData => _rawData.Span;
 
+        // ------------------------------------------------------------------
+        // Internal helpers for item levels
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Gets the 24‑bit combined glow‐level index packed in bytes 6–8.
+        /// </summary>
+        private int LevelIndex => RawData.Length >= 9
+            ? (RawData[6] << 16) | (RawData[7] << 8) | RawData[8]
+            : 0;
+
+        /// <summary>
+        /// Converts a 3‑bit glow level (0–7) to the actual item level (0, 1, 3, 5, …).
+        /// </summary>
+        private static byte ConvertGlowToItemLevel(byte glow) =>
+            glow == 0 ? (byte)0 : (byte)((glow - 1) * 2 + 1);
+
+        /// <summary>
+        /// Gets the item level for the specified slot index (0=LeftHand, 1=RightHand, …, 6=Boots).
+        /// </summary>
+        private byte GetItemLevel(int slotIndex)
+        {
+            if (RawData.Length < 9)
+                return 0;
+
+            byte glow = (byte)((LevelIndex >> (slotIndex * 3)) & 0x7);
+            return ConvertGlowToItemLevel(glow);
+        }
+
+        // ------------------------------------------------------------------
+        // Character class, pose, and item indices
+        // ------------------------------------------------------------------
+
         /// <summary>
         /// Gets the character class. (Byte 0, bits 4-7)
         /// </summary>
         public CharacterClassNumber CharacterClass => RawData.Length > 0
             ? (CharacterClassNumber)((RawData[0] >> 4) & 0xF)
-            : CharacterClassNumber.DarkWizard; // Default or unknown
+            : CharacterClassNumber.DarkWizard;
 
         /// <summary>
         /// Gets the character pose. (Byte 0, bits 0-3)
@@ -85,7 +118,7 @@ namespace Client.Main.Models
         public byte RightHandItemIndex => RawData.Length > 2 ? RawData[2] : (byte)0xFF;
 
         /// <summary>
-        /// Gets the helm item index (lower 4 bits from Byte 3, 5th bit from Byte 9, 6-9th bit from Byte 13).
+        /// Gets the helm item index (lower 4 bits from Byte 3, 5th bit from Byte 9, 6-9th bits from Byte 13).
         /// </summary>
         public short HelmItemIndex
         {
@@ -95,12 +128,12 @@ namespace Client.Main.Models
                 byte lower4 = (byte)((RawData[3] >> 4) & 0xF);
                 byte bit5 = (byte)((RawData[9] >> 7) & 0x1);
                 byte upper4 = (byte)(RawData[13] & 0xF);
-                return (byte)(lower4 | (bit5 << 4) | (upper4 << 5));
+                return (short)(lower4 | (bit5 << 4) | (upper4 << 5));
             }
         }
 
         /// <summary>
-        /// Gets the armor item index (lower 4 bits from Byte 3, 5th bit from Byte 9, 6-9th bit from Byte 14).
+        /// Gets the armor item index (lower 4 bits from Byte 3, 5th bit from Byte 9, 6-9th bits from Byte 14).
         /// </summary>
         public short ArmorItemIndex
         {
@@ -110,12 +143,12 @@ namespace Client.Main.Models
                 byte lower4 = (byte)(RawData[3] & 0xF);
                 byte bit5 = (byte)((RawData[9] >> 6) & 0x1);
                 byte upper4 = (byte)((RawData[14] >> 4) & 0xF);
-                return (byte)(lower4 | (bit5 << 4) | (upper4 << 5));
+                return (short)(lower4 | (bit5 << 4) | (upper4 << 5));
             }
         }
 
         /// <summary>
-        /// Gets the pants item index (lower 4 bits from Byte 4, 5th bit from Byte 9, 6-9th bit from Byte 14).
+        /// Gets the pants item index (lower 4 bits from Byte 4, 5th bit from Byte 9, 6-9th bits from Byte 14).
         /// </summary>
         public short PantsItemIndex
         {
@@ -125,12 +158,12 @@ namespace Client.Main.Models
                 byte lower4 = (byte)((RawData[4] >> 4) & 0xF);
                 byte bit5 = (byte)((RawData[9] >> 5) & 0x1);
                 byte upper4 = (byte)(RawData[14] & 0xF);
-                return (byte)(lower4 | (bit5 << 4) | (upper4 << 5));
+                return (short)(lower4 | (bit5 << 4) | (upper4 << 5));
             }
         }
 
         /// <summary>
-        /// Gets the gloves item index (lower 4 bits from Byte 4, 5th bit from Byte 9, 6-9th bit from Byte 15).
+        /// Gets the gloves item index (lower 4 bits from Byte 4, 5th bit from Byte 9, 6-9th bits from Byte 15).
         /// </summary>
         public short GlovesItemIndex
         {
@@ -140,12 +173,12 @@ namespace Client.Main.Models
                 byte lower4 = (byte)(RawData[4] & 0xF);
                 byte bit5 = (byte)((RawData[9] >> 4) & 0x1);
                 byte upper4 = (byte)((RawData[15] >> 4) & 0xF);
-                return (byte)(lower4 | (bit5 << 4) | (upper4 << 5));
+                return (short)(lower4 | (bit5 << 4) | (upper4 << 5));
             }
         }
 
         /// <summary>
-        /// Gets the boots item index (lower 4 bits from Byte 5, 5th bit from Byte 9, 6-9th bit from Byte 15).
+        /// Gets the boots item index (lower 4 bits from Byte 5, 5th bit from Byte 9, 6-9th bits from Byte 15).
         /// </summary>
         public short BootsItemIndex
         {
@@ -155,44 +188,52 @@ namespace Client.Main.Models
                 byte lower4 = (byte)((RawData[5] >> 4) & 0xF);
                 byte bit5 = (byte)((RawData[9] >> 3) & 0x1);
                 byte upper4 = (byte)(RawData[15] & 0xF);
-                return (byte)(lower4 | (bit5 << 4) | (upper4 << 5));
+                return (short)(lower4 | (bit5 << 4) | (upper4 << 5));
             }
         }
 
-        /// <summary>
-        /// Gets the left hand item level. (Byte 6, bits 5-7)
-        /// </summary>
-        public byte LeftHandItemLevel => RawData.Length > 6 ? (byte)((RawData[6] >> 5) & 0x7) : (byte)0;
+        // ------------------------------------------------------------------
+        // Corrected item level properties
+        // ------------------------------------------------------------------
 
         /// <summary>
-        /// Gets the right hand item level. (Byte 6, bits 2-4)
+        /// Gets the left hand item level.
         /// </summary>
-        public byte RightHandItemLevel => RawData.Length > 6 ? (byte)((RawData[6] >> 2) & 0x7) : (byte)0;
+        public byte LeftHandItemLevel => GetItemLevel(0);
 
         /// <summary>
-        /// Gets the helm item level. (Byte 6, bits 0-1 and Byte 7, bit 7)
+        /// Gets the right hand item level.
         /// </summary>
-        public byte HelmItemLevel => RawData.Length > 7 ? (byte)(((RawData[6] & 0x3) << 1) | ((RawData[7] >> 7) & 0x1)) : (byte)0;
+        public byte RightHandItemLevel => GetItemLevel(1);
 
         /// <summary>
-        /// Gets the armor item level. (Byte 7, bits 4-6)
+        /// Gets the helm item level.
         /// </summary>
-        public byte ArmorItemLevel => RawData.Length > 7 ? (byte)((RawData[7] >> 4) & 0x7) : (byte)0;
+        public byte HelmItemLevel => GetItemLevel(2);
 
         /// <summary>
-        /// Gets the pants item level. (Byte 7, bits 1-3)
+        /// Gets the armor item level.
         /// </summary>
-        public byte PantsItemLevel => RawData.Length > 7 ? (byte)((RawData[7] >> 1) & 0x7) : (byte)0;
+        public byte ArmorItemLevel => GetItemLevel(3);
 
         /// <summary>
-        /// Gets the gloves item level. (Byte 7, bit 0 and Byte 8, bits 6-7)
+        /// Gets the pants item level.
         /// </summary>
-        public byte GlovesItemLevel => RawData.Length > 8 ? (byte)(((RawData[7] & 0x1) << 2) | ((RawData[8] >> 6) & 0x3)) : (byte)0;
+        public byte PantsItemLevel => GetItemLevel(4);
 
         /// <summary>
-        /// Gets the boots item level. (Byte 8, bits 3-5)
+        /// Gets the gloves item level.
         /// </summary>
-        public byte BootsItemLevel => RawData.Length > 8 ? (byte)((RawData[8] >> 3) & 0x7) : (byte)0;
+        public byte GlovesItemLevel => GetItemLevel(5);
+
+        /// <summary>
+        /// Gets the boots item level.
+        /// </summary>
+        public byte BootsItemLevel => GetItemLevel(6);
+
+        // ------------------------------------------------------------------
+        // Wings, pets, and flags
+        // ------------------------------------------------------------------
 
         /// <summary>
         /// Gets the complete wing information for the character.
@@ -206,15 +247,12 @@ namespace Client.Main.Models
                     return new WingAppearance(0, 0);
                 }
 
-                // Wing level from byte 5 (bits 2-3)
                 byte wingLevelBits = (byte)((RawData[5] >> 2) & 0x3);
-
-                // Wing type from byte 9 (bits 0-2)
                 byte wingType = (byte)(RawData[9] & 0x7);
 
                 if (wingLevelBits == 0 || wingType == 0)
                 {
-                    return new WingAppearance(0, 0); // No wings
+                    return new WingAppearance(0, 0);
                 }
 
                 return new WingAppearance(wingLevelBits, wingType);
@@ -236,34 +274,11 @@ namespace Client.Main.Models
         /// </summary>
         public bool HelmExcellent => RawData.Length > 10 && ((RawData[10] >> 7) & 0x1) == 1;
 
-        /// <summary>
-        /// Gets the armor excellent option flag. (Byte 10, bit 6)
-        /// </summary>
         public bool ArmorExcellent => RawData.Length > 10 && ((RawData[10] >> 6) & 0x1) == 1;
-
-        /// <summary>
-        /// Gets the pants excellent option flag. (Byte 10, bit 5)
-        /// </summary>
         public bool PantsExcellent => RawData.Length > 10 && ((RawData[10] >> 5) & 0x1) == 1;
-
-        /// <summary>
-        /// Gets the gloves excellent option flag. (Byte 10, bit 4)
-        /// </summary>
         public bool GlovesExcellent => RawData.Length > 10 && ((RawData[10] >> 4) & 0x1) == 1;
-
-        /// <summary>
-        /// Gets the boots excellent option flag. (Byte 10, bit 3)
-        /// </summary>
         public bool BootsExcellent => RawData.Length > 10 && ((RawData[10] >> 3) & 0x1) == 1;
-
-        /// <summary>
-        /// Gets the left hand item excellent option flag. (Byte 10, bit 2)
-        /// </summary>
         public bool LeftHandExcellent => RawData.Length > 10 && ((RawData[10] >> 2) & 0x1) == 1;
-
-        /// <summary>
-        /// Gets the right hand item excellent option flag. (Byte 10, bit 1)
-        /// </summary>
         public bool RightHandExcellent => RawData.Length > 10 && ((RawData[10] >> 1) & 0x1) == 1;
 
         /// <summary>
@@ -271,50 +286,23 @@ namespace Client.Main.Models
         /// </summary>
         public bool HelmAncient => RawData.Length > 11 && ((RawData[11] >> 7) & 0x1) == 1;
 
-        /// <summary>
-        /// Gets the armor ancient option flag. (Byte 11, bit 6)
-        /// </summary>
         public bool ArmorAncient => RawData.Length > 11 && ((RawData[11] >> 6) & 0x1) == 1;
-
-        /// <summary>
-        /// Gets the pants ancient option flag. (Byte 11, bit 5)
-        /// </summary>
         public bool PantsAncient => RawData.Length > 11 && ((RawData[11] >> 5) & 0x1) == 1;
-
-        /// <summary>
-        /// Gets the gloves ancient option flag. (Byte 11, bit 4)
-        /// </summary>
         public bool GlovesAncient => RawData.Length > 11 && ((RawData[11] >> 4) & 0x1) == 1;
-
-        /// <summary>
-        /// Gets the boots ancient option flag. (Byte 11, bit 3)
-        /// </summary>
         public bool BootsAncient => RawData.Length > 11 && ((RawData[11] >> 3) & 0x1) == 1;
-
-        /// <summary>
-        /// Gets the left hand item ancient option flag. (Byte 11, bit 2)
-        /// </summary>
         public bool LeftHandAncient => RawData.Length > 11 && ((RawData[11] >> 2) & 0x1) == 1;
-
-        /// <summary>
-        /// Gets the right hand item ancient option flag. (Byte 11, bit 1)
-        /// </summary>
         public bool RightHandAncient => RawData.Length > 11 && ((RawData[11] >> 1) & 0x1) == 1;
-
-        /// <summary>
-        /// Gets the full ancient set flag. (Byte 11, bit 0)
-        /// </summary>
         public bool FullAncientSet => RawData.Length > 11 && (RawData[11] & 0x1) == 1;
 
         /// <summary>
         /// Gets the left hand item group. (Byte 12, bits 5-7)
         /// </summary>
-        public byte LeftHandItemGroup => RawData.Length > 12 ? (byte)((RawData[12] >> 5) & 0x7) : (byte)0x7; // 0x7 = empty
+        public byte LeftHandItemGroup => RawData.Length > 12 ? (byte)((RawData[12] >> 5) & 0x7) : (byte)0x7;
 
         /// <summary>
         /// Gets the right hand item group. (Byte 13, bits 5-7)
         /// </summary>
-        public byte RightHandItemGroup => RawData.Length > 13 ? (byte)((RawData[13] >> 5) & 0x7) : (byte)0x7; // 0x7 = empty
+        public byte RightHandItemGroup => RawData.Length > 13 ? (byte)((RawData[13] >> 5) & 0x7) : (byte)0x7;
 
         /// <summary>
         /// Gets the Dinorant flag. (Byte 10, bit 0)
