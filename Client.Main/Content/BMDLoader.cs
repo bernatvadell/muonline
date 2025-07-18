@@ -291,16 +291,16 @@ namespace Client.Main.Content
                 _bufferCacheState[cacheKey] = new BufferCacheEntry(color, boneMatrixHash);
             }
         }
-        
+
         private int CalculateBoneMatrixHash(Matrix[] boneMatrix)
         {
             if (boneMatrix == null) return 0;
-            
+
             int hash = 17;
-            // Sample only every 4th matrix to balance performance vs accuracy
-            for (int i = 0; i < boneMatrix.Length; i += 4)
+
+            for (int i = 0; i < boneMatrix.Length; i++)
             {
-                hash = hash * 31 + boneMatrix[i].GetHashCode();
+                hash = hash * 31 + boneMatrix[i].Translation.GetHashCode();
             }
             return hash;
         }
