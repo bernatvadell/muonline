@@ -1,0 +1,23 @@
+[
+  {
+    "Name": "Board",
+    "X": 0,
+    "Y": 0,
+    "Width": 325,
+    "Height": 387
+  },
+  {
+    "Name": "TopCorner",
+    "X": 651,
+    "Y": 94,
+    "Width": 330,
+    "Height": 70
+  },
+  {
+    "Name": "ContentBorder",
+    "X": 324,
+    "Y": 0,
+    "Width": 325,
+    "Height": 170
+  }
+]

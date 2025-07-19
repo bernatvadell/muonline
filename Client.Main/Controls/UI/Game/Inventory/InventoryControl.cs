@@ -14,10 +14,15 @@ using Microsoft.Extensions.Logging;
 
 namespace Client.Main.Controls.UI.Game.Inventory
 {
-    public class InventoryControl : UIControl
+    public class InventoryControl : DynamicLayoutControl
     {
-        public const int INVENTORY_SQUARE_WIDTH = 30;
-        public const int INVENTORY_SQUARE_HEIGHT = 30;
+        protected override string LayoutJsonResource => "Client.Main.Controls.UI.Game.Layouts.InventoryLayout.json";
+        protected override string TextureRectJsonResource => "Client.Main.Controls.UI.Game.Layouts.InventoryRect.json";
+        protected override string DefaultTexturePath => "Interface/GFx/NpcShop_I3.ozd";
+        private static InventoryControl _instance;
+
+        public const int INVENTORY_SQUARE_WIDTH = 35;
+        public const int INVENTORY_SQUARE_HEIGHT = 35;
         private const int WND_TOP_EDGE = 3;
         private const int WND_LEFT_EDGE = 4;
         private const int WND_BOTTOM_EDGE = 8;
@@ -44,6 +49,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
         }
 
         private Texture2D _texSquare;
+        private Texture2D _slotTexture; // Texture for slot background (same as NpcShop)
         private Texture2D _texTableTopLeft, _texTableTopRight, _texTableBottomLeft, _texTableBottomRight;
         private Texture2D _texTableTopPixel, _texTableBottomPixel, _texTableLeftPixel, _texTableRightPixel;
         private Texture2D _texBackground; // For msgbox_back
@@ -51,7 +57,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
         private List<InventoryItem> _items;
         private InventoryItem[,] _itemGrid; // For quick slot occupancy checks
 
-        private Point _gridOffset = new Point(WND_LEFT_EDGE + 2, WND_TOP_EDGE + 38); // Grid offset inside the frame (adjust as needed)
+        private Point _gridOffset = new Point(50, 80); // Grid offset with 40px margins and centered
 
         public PickedItemRenderer _pickedItemRenderer;
         private readonly NetworkManager _networkManager;
@@ -62,39 +68,42 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private readonly ILogger<InventoryControl> _logger;
 
+        // Window dragging variables
+        private bool _isDragging = false;
+        private Point _dragOffset;
+        private DateTime _lastClickTime = DateTime.MinValue;
+
         private void InitializeGrid()
         {
             _itemGrid = new InventoryItem[Columns, Rows];
-
-            // Dynamic size based on dimensions
-            int gridWidth = Columns * INVENTORY_SQUARE_WIDTH;
-            int gridHeight = Rows * INVENTORY_SQUARE_HEIGHT;
-
-            // Add an additional 25 pixels height for the ZEN label
-            int zenLabelSpace = 25;
-
-            ControlSize = new Point(gridWidth + WND_LEFT_EDGE + WND_RIGHT_EDGE + 4,
-                                  gridHeight + WND_TOP_EDGE + WND_BOTTOM_EDGE + 38 + 8 + zenLabelSpace);
-            ViewSize = ControlSize;
-            AutoViewSize = false;
             Interactive = true;
-            Visible = false; // Hidden by default
-
-            // Update label position after resizing
-            if (_zenLabel != null && Visible)
-                UpdateZenLabelPosition();
+            // DynamicLayoutControl will handle sizing automatically
         }
 
-        public InventoryControl(NetworkManager networkManager, ILoggerFactory loggerFactory) // Zmieniony konstruktor
+        public InventoryControl(NetworkManager networkManager = null, ILoggerFactory loggerFactory = null) // Zmieniony konstruktor
         {
-            _logger = loggerFactory.CreateLogger<InventoryControl>();
+            _logger = loggerFactory?.CreateLogger<InventoryControl>();
             _items = new List<InventoryItem>();
-            _networkManager = networkManager ?? throw new ArgumentNullException(nameof(networkManager));
+            _networkManager = networkManager;
+
+            Visible = false;
 
             InitializeGrid();
             Align = ControlAlign.VerticalCenter | ControlAlign.HorizontalCenter;
             _pickedItemRenderer = new PickedItemRenderer();
             InitializeZenLabel();
+        }
+
+        public static InventoryControl Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    _instance = new InventoryControl();
+                }
+                return _instance;
+            }
         }
 
         private void InitializeZenLabel()
@@ -116,6 +125,8 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void UpdateZenLabel()
         {
+            if (_networkManager == null) return;
+
             var playerState = _networkManager.GetCharacterState();
             if (_zenLabel != null)
             {
@@ -130,15 +141,18 @@ namespace Client.Main.Controls.UI.Game.Inventory
             {
                 int gridBottomY = _gridOffset.Y + (Rows * INVENTORY_SQUARE_HEIGHT);
 
-                _zenLabel.X = ViewSize.X - _zenLabel.ViewSize.X - 15;
-                _zenLabel.Y = gridBottomY + 5; // 5 pixels below the grid
+                _zenLabel.X = _gridOffset.X; // Align with left side of grid
+                _zenLabel.Y = gridBottomY + 10; // 10 pixels below the grid
             }
         }
 
         public override async Task Load()
         {
+            // First load the base DynamicLayoutControl
+            await base.Load();
+
             var tl = TextureLoader.Instance;
-            
+
             // Load all textures in parallel to avoid blocking main thread
             var textureLoadTasks = new[]
             {
@@ -151,11 +165,12 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 tl.PrepareAndGetTexture("Interface/newui_item_table03(Dw).tga"),
                 tl.PrepareAndGetTexture("Interface/newui_item_table03(L).tga"),
                 tl.PrepareAndGetTexture("Interface/newui_item_table03(R).tga"),
-                tl.PrepareAndGetTexture("Interface/newui_msgbox_back.jpg")
+                tl.PrepareAndGetTexture("Interface/newui_msgbox_back.jpg"),
+                tl.PrepareAndGetTexture(DefaultTexturePath) // Load slot texture (same as NpcShop)
             };
 
             var loadedTextures = await Task.WhenAll(textureLoadTasks);
-            
+
             _texSquare = loadedTextures[0];
             _texTableTopLeft = loadedTextures[1];
             _texTableTopRight = loadedTextures[2];
@@ -166,10 +181,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
             _texTableLeftPixel = loadedTextures[7];
             _texTableRightPixel = loadedTextures[8];
             _texBackground = loadedTextures[9];
+            _slotTexture = loadedTextures[10];
 
             _font = GraphicsManager.Instance.Font;
-
-            await base.Load();
 
             if (_zenLabel != null)
             {
@@ -180,6 +194,14 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         public void Show()
         {
+            Console.WriteLine("[DEBUG] InventoryControl.Show() called - reloading layout");
+
+            // Re-add ZEN label after layout reload
+            if (_zenLabel != null && !Controls.Contains(_zenLabel))
+            {
+                Controls.Add(_zenLabel);
+            }
+
             UpdateZenLabel();
             RefreshInventoryContent();
             Visible = true;
@@ -190,10 +212,20 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 _zenLabel.Visible = true;
                 UpdateZenLabelPosition();
             }
+
+            Console.WriteLine("[DEBUG] InventoryControl.Show() completed");
         }
 
         public void Hide()
         {
+            // If we have a picked item, return it to its original position before hiding
+            if (_pickedItemRenderer.Item != null)
+            {
+                InventoryItem itemToReturn = _pickedItemRenderer.Item;
+                AddItem(itemToReturn); // Put it back in the inventory
+                _pickedItemRenderer.ReleaseItem(); // Clear the picked item
+            }
+            
             Visible = false;
             if (Scene.FocusControl == this)
                 Scene.FocusControl = null;
@@ -211,6 +243,8 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void RefreshInventoryContent()
         {
+            if (_networkManager == null) return;
+
             _items.Clear();
             _itemGrid = new InventoryItem[Columns, Rows];
 
@@ -228,7 +262,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 int adjustedIndex = slotIndex - InventorySlotOffset;
                 if (adjustedIndex < 0)
                 {
-                    _logger.LogWarning($"SlotIndex {slotIndex} is below inventory offset. Skipping.");
+                    _logger?.LogWarning($"SlotIndex {slotIndex} is below inventory offset. Skipping.");
                     continue;
                 }
 
@@ -238,7 +272,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 if (gridX >= Columns || gridY >= Rows)
                 {
                     string itemName = ItemDatabase.GetItemName(itemData) ?? "Unknown Item";
-                    _logger.LogWarning($"Item at slot {slotIndex} ({itemName}) has invalid grid position ({gridX},{gridY}). Skipping.");
+                    _logger?.LogWarning($"Item at slot {slotIndex} ({itemName}) has invalid grid position ({gridX},{gridY}). Skipping.");
                     continue;
                 }
 
@@ -262,7 +296,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
                 if (!AddItem(newItem))
                 {
-                    _logger.LogWarning($"Failed to add item '{itemNameFinal}' to inventory UI at slot {slotIndex}. Slot might be occupied unexpectedly.");
+                    _logger?.LogWarning($"Failed to add item '{itemNameFinal}' to inventory UI at slot {slotIndex}. Slot might be occupied unexpectedly.");
                 }
             }
 
@@ -275,7 +309,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     itemTexturePreloadTasks.Add(TextureLoader.Instance.Prepare(item.Definition.TexturePath));
                 }
             }
-            
+
             // Don't await here - let them load in background
             if (itemTexturePreloadTasks.Count > 0)
             {
@@ -367,6 +401,19 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         public override void Update(GameTime gameTime)
         {
+            // Check for ESC key press (not hold)
+            if (MuGame.Instance.Keyboard.IsKeyDown(Keys.Escape) && MuGame.Instance.PrevKeyboard.IsKeyUp(Keys.Escape))
+            {
+                // If we have a picked item, return it to its original position before closing
+                if (_pickedItemRenderer.Item != null)
+                {
+                    InventoryItem itemToReturn = _pickedItemRenderer.Item;
+                    AddItem(itemToReturn); // Put it back in the inventory
+                    _pickedItemRenderer.ReleaseItem(); // Clear the picked item
+                }
+                Visible = false;
+            }
+
             if (!Visible)
             {
                 _pickedItemRenderer.Visible = false;
@@ -385,8 +432,44 @@ namespace Client.Main.Controls.UI.Game.Inventory
             _hoveredItem = null;
             _hoveredSlot = new Point(-1, -1);
 
-            // Picking up/dropping logic
-            if (IsMouseOver) // Checks if mouse is over the entire InventoryControl
+            // Window dragging logic
+            bool leftPressed = MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed;
+            bool leftJustPressed = leftPressed && MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released;
+            bool leftJustReleased = !leftPressed && MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Pressed;
+
+            if (leftJustPressed && IsMouseOverDragArea() && !_isDragging)
+            {
+                // Check for double click (within 500ms)
+                DateTime now = DateTime.Now;
+                if ((now - _lastClickTime).TotalMilliseconds < 500)
+                {
+                    // Double click - restore center alignment
+                    Align = ControlAlign.VerticalCenter | ControlAlign.HorizontalCenter;
+                    _lastClickTime = DateTime.MinValue; // Reset to prevent triple clicks
+                }
+                else
+                {
+                    // Single click - start dragging
+                    _isDragging = true;
+                    _dragOffset = new Point(mousePos.X - X, mousePos.Y - Y);
+                    // Disable auto-alignment when starting to drag
+                    Align = ControlAlign.None;
+                    _lastClickTime = now;
+                }
+            }
+            else if (leftJustReleased && _isDragging)
+            {
+                _isDragging = false;
+                // Keep Align = None to preserve manual position
+            }
+            else if (_isDragging && leftPressed)
+            {
+                X = mousePos.X - _dragOffset.X;
+                Y = mousePos.Y - _dragOffset.Y;
+            }
+
+            // Picking up/dropping logic (only if not dragging window)
+            if (IsMouseOver && !_isDragging) // Checks if mouse is over the entire InventoryControl
             {
                 Point gridSlot = GetSlotAtScreenPosition(mousePos);
                 _hoveredSlot = gridSlot; // Always update, even if outside the grid (-1,-1)
@@ -395,7 +478,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 {
                     _hoveredItem = _itemGrid[gridSlot.X, gridSlot.Y];
 
-                    if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released)
+                    if (leftJustPressed)
                     {
                         if (_pickedItemRenderer.Item != null) // We have a picked up item -> trying to drop
                         {
@@ -424,7 +507,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         public void HookEvents()
         {
-            _networkManager.GetCharacterState().InventoryChanged += RefreshInventoryContent;
+            if (_networkManager != null)
+            {
+                _networkManager.GetCharacterState().InventoryChanged += RefreshInventoryContent;
+            }
         }
 
         private Point GetSlotAtScreenPosition(Point screenPos)
@@ -452,69 +538,60 @@ namespace Client.Main.Controls.UI.Game.Inventory
         {
             if (!Visible) return;
 
+            // First draw the base DynamicLayoutControl (background textures)
+            base.Draw(gameTime);
+
             Rectangle displayRect = DisplayRectangle;
 
             using (new SpriteBatchScope(GraphicsManager.Instance.Sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend))
             {
-                if (_texBackground != null)
-                    GraphicsManager.Instance.Sprite.Draw(_texBackground, displayRect, Color.White);
-
+                // Draw custom inventory elements on top
                 DrawFrame(GraphicsManager.Instance.Sprite, displayRect);
                 DrawGrid(GraphicsManager.Instance.Sprite, displayRect);
                 DrawItems(GraphicsManager.Instance.Sprite, displayRect);
-                _pickedItemRenderer.Draw(gameTime);
-            }
-
-            // Draw child controls (e.g., ZEN label) before rendering the tooltip
-            base.Draw(gameTime);
-
-            using (new SpriteBatchScope(GraphicsManager.Instance.Sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend))
-            {
+                _pickedItemRenderer.Draw(GraphicsManager.Instance.Sprite, gameTime);
+                DrawDragArea(GraphicsManager.Instance.Sprite, displayRect);
                 DrawTooltip(GraphicsManager.Instance.Sprite, displayRect);
+            }
+        }
+
+        private void DrawDragArea(SpriteBatch spriteBatch, Rectangle frameRect)
+        {
+            // Only show drag area when mouse is over it or when dragging
+            if (IsMouseOverDragArea() || _isDragging)
+            {
+                int dragAreaHeight = frameRect.Height / 10;
+                Rectangle dragRect = new Rectangle(
+                    frameRect.X,
+                    frameRect.Y,
+                    frameRect.Width,
+                    dragAreaHeight);
+
+                Color dragColor = _isDragging ? Color.Yellow * 0.3f : Color.White * 0.2f;
+                spriteBatch.Draw(GraphicsManager.Instance.Pixel, dragRect, dragColor);
             }
         }
 
         private void DrawFrame(SpriteBatch spriteBatch, Rectangle frameRect)
         {
-            int cornerSize = 14;
-
-            // Corners
-            if (_texTableTopLeft != null) spriteBatch.Draw(_texTableTopLeft, new Rectangle(frameRect.X, frameRect.Y, cornerSize, cornerSize), Color.White);
-            if (_texTableTopRight != null) spriteBatch.Draw(_texTableTopRight, new Rectangle(frameRect.Right - cornerSize, frameRect.Y, cornerSize, cornerSize), Color.White);
-            if (_texTableBottomLeft != null) spriteBatch.Draw(_texTableBottomLeft, new Rectangle(frameRect.X, frameRect.Bottom - cornerSize, cornerSize, cornerSize), Color.White);
-            if (_texTableBottomRight != null) spriteBatch.Draw(_texTableBottomRight, new Rectangle(frameRect.Right - cornerSize, frameRect.Bottom - cornerSize, cornerSize, cornerSize), Color.White);
-
-            // Horizontal edges (pixels)
-            if (_texTableTopPixel != null)
-                spriteBatch.Draw(_texTableTopPixel, new Rectangle(frameRect.X + cornerSize, frameRect.Y, frameRect.Width - 2 * cornerSize, cornerSize), Color.White);
-            if (_texTableBottomPixel != null)
-                spriteBatch.Draw(_texTableBottomPixel, new Rectangle(frameRect.X + cornerSize, frameRect.Bottom - cornerSize, frameRect.Width - 2 * cornerSize, cornerSize), Color.White);
-
-            // Vertical edges (pixels)
-            if (_texTableLeftPixel != null)
-                spriteBatch.Draw(_texTableLeftPixel, new Rectangle(frameRect.X, frameRect.Y + cornerSize, cornerSize, frameRect.Height - 2 * cornerSize), Color.White);
-            if (_texTableRightPixel != null)
-                spriteBatch.Draw(_texTableRightPixel, new Rectangle(frameRect.Right - cornerSize, frameRect.Y + cornerSize, cornerSize, frameRect.Height - 2 * cornerSize), Color.White);
-
-            // Title text (as in CNewUIInventoryExtension)
             var font = GraphicsManager.Instance.Font;
             if (font != null)
             {
                 string title = "Inventory"; // Can be made a property
                 Vector2 titleSize = font.MeasureString(title);
-                float titleScale = 0.7f; // Adjust scale
+                float titleScale = 0.5f; // Adjust scale
                 Vector2 scaledTitleSize = titleSize * titleScale;
                 Vector2 titlePos = new Vector2(
                     frameRect.X + (frameRect.Width - scaledTitleSize.X) / 2,
-                    frameRect.Y + 12 // Adjust Y
+                    frameRect.Y + 36 // Adjust Y
                 );
-                spriteBatch.DrawString(font, title, titlePos, Color.WhiteSmoke, 0, Vector2.Zero, titleScale, SpriteEffects.None, 0f);
+                spriteBatch.DrawString(font, title, titlePos, Color.Orange, 0, Vector2.Zero, titleScale, SpriteEffects.None, 0f);
             }
         }
 
         private void DrawGrid(SpriteBatch spriteBatch, Rectangle frameRect)
         {
-            Point gridTopLeft = new Point(frameRect.X + _gridOffset.X, frameRect.Y + _gridOffset.Y);
+            Point gridTopLeft = new Point(DisplayRectangle.X + _gridOffset.X, DisplayRectangle.Y + _gridOffset.Y);
 
             for (int y = 0; y < Rows; y++)
             {
@@ -526,16 +603,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
                         INVENTORY_SQUARE_WIDTH,
                         INVENTORY_SQUARE_HEIGHT);
 
-                    // Draw slot background using _texSquare texture if available
-                    if (_texSquare != null)
+                    if (_slotTexture != null)
                     {
-                        Rectangle expandedTextureRect = new Rectangle(
-                            slotRect.X,
-                            slotRect.Y,
-                            slotRect.Width + 15,
-                            slotRect.Height + 15);
-
-                        spriteBatch.Draw(_texSquare, expandedTextureRect, Color.White);
+                        Rectangle sourceRect = new Rectangle(546, 220, 29, 29);
+                        spriteBatch.Draw(_slotTexture, slotRect, sourceRect, Color.White);
                     }
                     else
                     {
@@ -559,9 +630,18 @@ namespace Client.Main.Controls.UI.Game.Inventory
                             spriteBatch.Draw(GraphicsManager.Instance.Pixel, slotRect, highlightColor.Value);
                         }
                     }
-                    else if (IsMouseOverGrid() && _hoveredSlot.X == x && _hoveredSlot.Y == y && _pickedItemRenderer.Item == null)
+                    else if (IsMouseOverGrid() && _pickedItemRenderer.Item == null)
                     {
-                        spriteBatch.Draw(GraphicsManager.Instance.Pixel, slotRect, Color.Yellow * 0.3f);
+                        // Highlight hovered slot
+                        if (_hoveredSlot.X == x && _hoveredSlot.Y == y)
+                        {
+                            spriteBatch.Draw(GraphicsManager.Instance.Pixel, slotRect, Color.Yellow * 0.3f);
+                        }
+                        // Highlight all slots occupied by the hovered multi-slot item
+                        else if (_hoveredItem != null && IsSlotOccupiedByItem(new Point(x, y), _hoveredItem))
+                        {
+                            spriteBatch.Draw(GraphicsManager.Instance.Pixel, slotRect, Color.Blue * 0.3f);
+                        }
                     }
                 }
             }
@@ -617,6 +697,21 @@ namespace Client.Main.Controls.UI.Game.Inventory
             return _itemGrid[slot.X, slot.Y] != null;
         }
 
+        /// <summary>
+        /// Checks if the given slot is occupied by a specific item
+        /// </summary>
+        private bool IsSlotOccupiedByItem(Point slot, InventoryItem item)
+        {
+            if (slot.X < 0 || slot.Y < 0 || slot.X >= Columns || slot.Y >= Rows || item?.Definition == null)
+                return false;
+
+            // Check if the slot falls within the item's occupied area
+            return slot.X >= item.GridPosition.X &&
+                   slot.X < item.GridPosition.X + item.Definition.Width &&
+                   slot.Y >= item.GridPosition.Y &&
+                   slot.Y < item.GridPosition.Y + item.Definition.Height;
+        }
+
         private bool IsMouseOverGrid()
         {
             Point mousePos = MuGame.Instance.Mouse.Position;
@@ -626,6 +721,18 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 Columns * INVENTORY_SQUARE_WIDTH,
                 Rows * INVENTORY_SQUARE_HEIGHT);
             return gridScreenRect.Contains(mousePos);
+        }
+
+        private bool IsMouseOverDragArea()
+        {
+            Point mousePos = MuGame.Instance.Mouse.Position;
+            int dragAreaHeight = DisplayRectangle.Height / 10; // Top 1/10 of window
+            Rectangle dragRect = new Rectangle(
+                DisplayRectangle.X,
+                DisplayRectangle.Y,
+                DisplayRectangle.Width,
+                dragAreaHeight);
+            return dragRect.Contains(mousePos);
         }
 
         private bool IsPartOfPotentialDropArea(Point slot, InventoryItem itemBeingDragged)
@@ -639,7 +746,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void DrawItems(SpriteBatch spriteBatch, Rectangle frameRect)
         {
-            Point gridTopLeft = new Point(frameRect.X + _gridOffset.X, frameRect.Y + _gridOffset.Y);
+            Point gridTopLeft = new Point(DisplayRectangle.X + _gridOffset.X, DisplayRectangle.Y + _gridOffset.Y);
             var font = GraphicsManager.Instance.Font;
 
             foreach (var item in _items)
@@ -686,10 +793,42 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     spriteBatch.Draw(GraphicsManager.Instance.Pixel, itemRect, Color.DarkSlateGray);
                 }
 
-                spriteBatch.Draw(GraphicsManager.Instance.Pixel, new Rectangle(itemRect.X, itemRect.Y, itemRect.Width, 1), Color.White);
-                spriteBatch.Draw(GraphicsManager.Instance.Pixel, new Rectangle(itemRect.X, itemRect.Bottom - 1, itemRect.Width, 1), Color.White);
-                spriteBatch.Draw(GraphicsManager.Instance.Pixel, new Rectangle(itemRect.X, itemRect.Y, 1, itemRect.Height), Color.White);
-                spriteBatch.Draw(GraphicsManager.Instance.Pixel, new Rectangle(itemRect.Right - 1, itemRect.Y, 1, itemRect.Height), Color.White);
+                // Draw quantity for stackable items (BaseDurability = 0 means it's stackable)
+                if (item.Definition.BaseDurability == 0 && item.Durability > 1)
+                {
+                    string quantityText = item.Durability.ToString();
+                    Vector2 textSize = font.MeasureString(quantityText);
+                    float textScale = 0.4f; // Small text
+                    Vector2 scaledTextSize = textSize * textScale;
+                    
+                    // Position in upper right corner of the item (not just first slot)
+                    Vector2 textPosition = new Vector2(
+                        itemRect.Right - scaledTextSize.X - 2, // 2px margin from right edge
+                        itemRect.Y + 2 // 2px margin from top edge
+                    );
+
+                    // Draw black outline for readability
+                    Color outlineColor = Color.Black;
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        for (int dy = -1; dy <= 1; dy++)
+                        {
+                            if (dx != 0 || dy != 0) // Skip center
+                            {
+                                spriteBatch.DrawString(font, quantityText,
+                                    textPosition + new Vector2(dx, dy),
+                                    outlineColor, 0f, Vector2.Zero, textScale,
+                                    SpriteEffects.None, 0f);
+                            }
+                        }
+                    }
+
+                    // Draw main text in pale yellow
+                    Color quantityColor = new Color(255, 255, 180); // Pale yellow
+                    spriteBatch.DrawString(font, quantityText, textPosition,
+                        quantityColor, 0f, Vector2.Zero, textScale,
+                        SpriteEffects.None, 0f);
+                }
             }
         }
 
@@ -764,7 +903,8 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void DrawTooltip(SpriteBatch sb, Rectangle frameRect)
         {
-            if (_hoveredItem == null || _pickedItemRenderer.Item != null || _font == null)
+            // Don't show tooltip when dragging an item
+            if (_pickedItemRenderer.Item != null || _hoveredItem == null || _font == null)
                 return;
 
             var lines = BuildTooltipLines(_hoveredItem);
@@ -780,10 +920,48 @@ namespace Client.Main.Controls.UI.Game.Inventory
             w += 12; h += 8;
 
             Point m = MuGame.Instance.Mouse.Position;
-            Rectangle r = new(m.X + 15, m.Y + 15, w, h);
+            
+            // Get screen bounds
+            Rectangle screenBounds = MuGame.Instance.GraphicsDevice.Viewport.Bounds;
+            
+            // Calculate hovered item screen position to avoid covering it
+            Point gridTopLeft = new Point(DisplayRectangle.X + _gridOffset.X, DisplayRectangle.Y + _gridOffset.Y);
+            Rectangle hoveredItemRect = new Rectangle(
+                gridTopLeft.X + _hoveredItem.GridPosition.X * INVENTORY_SQUARE_WIDTH,
+                gridTopLeft.Y + _hoveredItem.GridPosition.Y * INVENTORY_SQUARE_HEIGHT,
+                _hoveredItem.Definition.Width * INVENTORY_SQUARE_WIDTH,
+                _hoveredItem.Definition.Height * INVENTORY_SQUARE_HEIGHT);
 
-            if (r.Right > frameRect.Right - 10) r.X = frameRect.Right - 10 - r.Width;
-            if (r.Bottom > frameRect.Bottom - 10) r.Y = frameRect.Bottom - 10 - r.Height;
+            // Start with tooltip to the right of the cursor
+            Rectangle r = new(m.X + 15, m.Y + 15, w, h);
+            
+            // If tooltip would cover the hovered item, try different positions
+            if (r.Intersects(hoveredItemRect))
+            {
+                // Try positioning tooltip to the left of the item
+                r.X = hoveredItemRect.X - w - 10;
+                r.Y = hoveredItemRect.Y;
+                
+                // If still intersecting or goes off screen, try above the item
+                if (r.Intersects(hoveredItemRect) || r.X < screenBounds.X + 10)
+                {
+                    r.X = hoveredItemRect.X;
+                    r.Y = hoveredItemRect.Y - h - 10;
+                    
+                    // If still intersecting or goes off screen, try below the item
+                    if (r.Intersects(hoveredItemRect) || r.Y < screenBounds.Y + 10)
+                    {
+                        r.X = hoveredItemRect.X;
+                        r.Y = hoveredItemRect.Bottom + 10;
+                    }
+                }
+            }
+            
+            // Ensure tooltip stays within screen bounds
+            if (r.Right > screenBounds.Right - 10) r.X = screenBounds.Right - 10 - r.Width;
+            if (r.Bottom > screenBounds.Bottom - 10) r.Y = screenBounds.Bottom - 10 - r.Height;
+            if (r.X < screenBounds.X + 10) r.X = screenBounds.X + 10;
+            if (r.Y < screenBounds.Y + 10) r.Y = screenBounds.Y + 10;
 
             sb.Draw(GraphicsManager.Instance.Pixel, r, Color.Black * 0.85f);
             sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(r.X, r.Y, r.Width, 1), Color.White);
