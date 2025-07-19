@@ -6,6 +6,8 @@
     <OutputType>Exe</OutputType>
     <SupportedOSPlatformVersion>11.2</SupportedOSPlatformVersion>
     <CodesignKey>iPhone Developer</CodesignKey>
+    <SkipXcodeVersionCheck>true</SkipXcodeVersionCheck>
+    <EnableCodeSigning>false</EnableCodeSigning>
   </PropertyGroup>
 
   <ItemGroup>
