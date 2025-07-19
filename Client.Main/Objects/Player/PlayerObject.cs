@@ -329,7 +329,10 @@ namespace Client.Main.Objects.Player
             if (Appearance.HelmItemIndex != 255)
             {
                 var helmDef = ItemDatabase.GetItemDefinition(7, Appearance.HelmItemIndex);
-                await LoadPartAsync(Helm, helmDef?.TexturePath.Replace("Item/", "Player/"));
+                if (helmDef?.TexturePath != null)
+                {
+                    await LoadPartAsync(Helm, helmDef.TexturePath.Replace("Item/", "Player/"));
+                }
                 
                 // Apply item properties for shader effects
                 Helm.ItemLevel = Appearance.HelmItemLevel;
@@ -340,7 +343,10 @@ namespace Client.Main.Objects.Player
             if (Appearance.ArmorItemIndex != 255)
             {
                 var armorDef = ItemDatabase.GetItemDefinition(8, Appearance.ArmorItemIndex);
-                await LoadPartAsync(Armor, armorDef?.TexturePath.Replace("Item/", "Player/"));
+                if (armorDef?.TexturePath != null)
+                {
+                    await LoadPartAsync(Armor, armorDef.TexturePath.Replace("Item/", "Player/"));
+                }
                 
                 // Apply item properties for shader effects
                 Armor.ItemLevel = Appearance.ArmorItemLevel;
@@ -352,7 +358,10 @@ namespace Client.Main.Objects.Player
             if (Appearance.PantsItemIndex != 255)
             {
                 var pantsDef = ItemDatabase.GetItemDefinition(9, Appearance.PantsItemIndex);
-                await LoadPartAsync(Pants, pantsDef?.TexturePath.Replace("Item/", "Player/"));
+                if (pantsDef?.TexturePath != null)
+                {
+                    await LoadPartAsync(Pants, pantsDef.TexturePath.Replace("Item/", "Player/"));
+                }
                 
                 // Apply item properties for shader effects
                 Pants.ItemLevel = Appearance.PantsItemLevel;
@@ -364,7 +373,10 @@ namespace Client.Main.Objects.Player
             if (Appearance.GlovesItemIndex != 255)
             {
                 var glovesDef = ItemDatabase.GetItemDefinition(10, Appearance.GlovesItemIndex);
-                await LoadPartAsync(Gloves, glovesDef?.TexturePath.Replace("Item/", "Player/"));
+                if (glovesDef?.TexturePath != null)
+                {
+                    await LoadPartAsync(Gloves, glovesDef.TexturePath.Replace("Item/", "Player/"));
+                }
                 
                 // Apply item properties for shader effects
                 Gloves.ItemLevel = Appearance.GlovesItemLevel;
@@ -376,7 +388,10 @@ namespace Client.Main.Objects.Player
             if (Appearance.BootsItemIndex != 255)
             {
                 var bootsDef = ItemDatabase.GetItemDefinition(11, Appearance.BootsItemIndex);
-                await LoadPartAsync(Boots, bootsDef?.TexturePath.Replace("Item/", "Player/"));
+                if (bootsDef?.TexturePath != null)
+                {
+                    await LoadPartAsync(Boots, bootsDef.TexturePath.Replace("Item/", "Player/"));
+                }
                 
                 // Apply item properties for shader effects
                 Boots.ItemLevel = Appearance.BootsItemLevel;
@@ -1032,7 +1047,7 @@ namespace Client.Main.Objects.Player
 
         private async Task LoadPartAsync(ModelObject part, string modelPath)
         {
-            if (part != null)
+            if (part != null && !string.IsNullOrEmpty(modelPath))
             {
                 part.Model = await BMDLoader.Instance.Prepare(modelPath);
                 if (part.Model == null)
