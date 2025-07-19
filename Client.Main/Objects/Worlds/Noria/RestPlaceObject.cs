@@ -1,6 +1,7 @@
 using Client.Main.Models;
 using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
+using Client.Data.BMD;
 using System;
 using System.Threading.Tasks;
 
@@ -8,17 +9,25 @@ namespace Client.Main.Objects.Worlds.Noria
 {
     public class RestPlaceObject : ModelObject
     {
-        private bool isActivated = false;
+        private static readonly BMD _dummyBmd = new BMD();
+
+        private bool isWaitingForPlayerArrival = false;
         private Vector2 targetTile;
+        private PlayerObject targetPlayer;
+        private bool hasTriggeredRestAnimation = false;
 
         public RestPlaceObject()
         {
             Interactive = true;
+            BoundingBoxLocal = new BoundingBox(new Vector3(-25, -25, 0), new Vector3(25, 25, 200));
         }
 
         public override async Task Load()
         {
-            await base.Load();
+            Model = _dummyBmd;
+            await base.LoadContent();
+
+            Status = GameControlStatus.Ready;
             targetTile = new Vector2((int)(Position.X / Constants.TERRAIN_SCALE), (int)(Position.Y / Constants.TERRAIN_SCALE));
         }
 
@@ -26,14 +35,13 @@ namespace Client.Main.Objects.Worlds.Noria
         {
             base.OnClick();
 
-            if (World is Controls.WalkableWorldControl control && control.Walker != null)
+            if (World is Controls.WalkableWorldControl control && control.Walker is PlayerObject player)
             {
-                isActivated = true;
-                // Disable resting state before moving
-                if (control.Walker is PlayerObject player)
-                {
-                    player.IsResting = false;
-                }
+                player.IsResting = false;
+                player.RestPlaceTarget = null;
+                hasTriggeredRestAnimation = false;
+                isWaitingForPlayerArrival = true;
+                targetPlayer = player;
                 control.Walker.MoveTo(targetTile);
             }
         }
@@ -42,22 +50,28 @@ namespace Client.Main.Objects.Worlds.Noria
         {
             base.Update(gameTime);
 
-            if (isActivated && World is Controls.WalkableWorldControl control && control.Walker != null)
+            if (isWaitingForPlayerArrival && targetPlayer != null)
             {
-                // Calculate the distance from the walker's current location to the target tile
-                float distance = Vector2.Distance(control.Walker.Location, targetTile);
-                if (distance < 0.1f)
+                float distance = Vector2.Distance(targetPlayer.Location, targetTile);
+                if (distance < 0.1f && !targetPlayer.IsMoving && !hasTriggeredRestAnimation)
                 {
-                    isActivated = false;
-                    if (control.Walker is PlayerObject player)
-                    {
-                        player.IsResting = true;
-                        player.RestPlaceTarget = targetTile;
-                        player.Direction = DirectionExtensions.GetDirectionFromAngle(this.Angle.Z);
-                    }
-                }
+                    hasTriggeredRestAnimation = true;
+                    isWaitingForPlayerArrival = false;
 
+                    targetPlayer.IsResting = true;
+                    targetPlayer.RestPlaceTarget = targetTile;
+                    targetPlayer.Direction = DirectionExtensions.GetDirectionFromAngle(this.Angle.Z);
+
+                    targetPlayer = null;
+                }
+                else if (distance > 5.0f || (!targetPlayer.IsMoving && distance > 1.0f))
+                {
+                    isWaitingForPlayerArrival = false;
+                    hasTriggeredRestAnimation = false;
+                    targetPlayer = null;
+                }
             }
+            DrawBoundingBox3D();
         }
     }
 }

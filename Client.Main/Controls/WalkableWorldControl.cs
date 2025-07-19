@@ -120,6 +120,10 @@ namespace Client.Main.Controls
                 if (!IsWalkable(newTile))
                     return;
 
+                // Don't allow movement if player is dead
+                if (!Walker.IsAlive())
+                    return;
+
                 float worldX = newTile.X * Constants.TERRAIN_SCALE;
                 float worldY = newTile.Y * Constants.TERRAIN_SCALE;
                 float height = Terrain.RequestTerrainHeight(worldX, worldY) + ExtraHeight;

@@ -2,6 +2,7 @@ using Client.Main.Controls;
 using Client.Main.Core.Utilities;
 using Client.Main.Objects.Worlds.Icarus;
 using Microsoft.Xna.Framework;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
@@ -12,20 +13,28 @@ namespace Client.Main.Worlds
         private static readonly Color CLEAR_COLOR = new Color(3f / 256f, 25f / 256f, 44f / 256f, 1f);
         // private CloudLightEffect _cloudLight;
         // private JointThunderEffect _jointThunder;
+        private SkyCloudSystem _skyCloudSystem;
 
         public IcarusWorld() : base(worldIndex: 11)
         {
-            Terrain.TextureMappingFiles.Clear();
-            //Terrain.TextureMappingFiles[10] = "TileRock04.OZJ";
+            EnableShadows = false;
+            Terrain.TextureMappingFiles = new Dictionary<int, string>
+            {
+                { 10, "TileRock04.OZJ" }
+            };
             ExtraHeight = 0f;
             BackgroundMusicPath = "Music/icarus.mp3";
         }
 
         public override async Task Load()
         {
-            // await AddObjectAsync(_cloudLight = new CloudLightEffect());
-            // await AddObjectAsync(_jointThunder = new JointThunderEffect());
-            // await AddObjectAsync(new CloudObject());
+            // Objects.Add(_cloudLight = new CloudLightEffect());
+            // Objects.Add(_jointThunder = new JointThunderEffect());
+            
+            // Create sky-wide cloud system instead of individual objects
+            _skyCloudSystem = new SkyCloudSystem();
+            Objects.Add(_skyCloudSystem);
+            
             await base.Load();
         }
 
@@ -57,7 +66,7 @@ namespace Client.Main.Worlds
         {
             base.CreateMapTileObjects();
 
-            MapTileObjects[5] = typeof(CloudObject);
+            // Remove cloud objects from tiles - now handled by sky system
             MapTileObjects[10] = typeof(WallObject);
         }
 

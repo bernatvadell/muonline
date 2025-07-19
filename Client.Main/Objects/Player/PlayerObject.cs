@@ -330,12 +330,22 @@ namespace Client.Main.Objects.Player
             {
                 var helmDef = ItemDatabase.GetItemDefinition(7, Appearance.HelmItemIndex);
                 await LoadPartAsync(Helm, helmDef?.TexturePath.Replace("Item/", "Player/"));
+                
+                // Apply item properties for shader effects
+                Helm.ItemLevel = Appearance.HelmItemLevel;
+                Helm.IsExcellentItem = Appearance.HelmExcellent;
+                Helm.IsAncientItem = Appearance.HelmAncient;
             }
             // Armor
             if (Appearance.ArmorItemIndex != 255)
             {
                 var armorDef = ItemDatabase.GetItemDefinition(8, Appearance.ArmorItemIndex);
                 await LoadPartAsync(Armor, armorDef?.TexturePath.Replace("Item/", "Player/"));
+                
+                // Apply item properties for shader effects
+                Armor.ItemLevel = Appearance.ArmorItemLevel;
+                Armor.IsExcellentItem = Appearance.ArmorExcellent;
+                Armor.IsAncientItem = Appearance.ArmorAncient;
             }
 
             // Pants
@@ -343,6 +353,11 @@ namespace Client.Main.Objects.Player
             {
                 var pantsDef = ItemDatabase.GetItemDefinition(9, Appearance.PantsItemIndex);
                 await LoadPartAsync(Pants, pantsDef?.TexturePath.Replace("Item/", "Player/"));
+                
+                // Apply item properties for shader effects
+                Pants.ItemLevel = Appearance.PantsItemLevel;
+                Pants.IsExcellentItem = Appearance.PantsExcellent;
+                Pants.IsAncientItem = Appearance.PantsAncient;
             }
 
             // Gloves
@@ -350,6 +365,11 @@ namespace Client.Main.Objects.Player
             {
                 var glovesDef = ItemDatabase.GetItemDefinition(10, Appearance.GlovesItemIndex);
                 await LoadPartAsync(Gloves, glovesDef?.TexturePath.Replace("Item/", "Player/"));
+                
+                // Apply item properties for shader effects
+                Gloves.ItemLevel = Appearance.GlovesItemLevel;
+                Gloves.IsExcellentItem = Appearance.GlovesExcellent;
+                Gloves.IsAncientItem = Appearance.GlovesAncient;
             }
 
             // Boots
@@ -357,12 +377,17 @@ namespace Client.Main.Objects.Player
             {
                 var bootsDef = ItemDatabase.GetItemDefinition(11, Appearance.BootsItemIndex);
                 await LoadPartAsync(Boots, bootsDef?.TexturePath.Replace("Item/", "Player/"));
+                
+                // Apply item properties for shader effects
+                Boots.ItemLevel = Appearance.BootsItemLevel;
+                Boots.IsExcellentItem = Appearance.BootsExcellent;
+                Boots.IsAncientItem = Appearance.BootsAncient;
             }
 
             // Wings
             if (Appearance.WingInfo.HasWings)
             {
-                EquippedWings.Type = (short)(Appearance.WingInfo.Type * Appearance.WingInfo.Level);
+                EquippedWings.Type = (short)(Appearance.WingInfo.Type + Appearance.WingInfo.Level + 1);
                 EquippedWings.Hidden = false;
                 EquippedWings.LinkParentAnimation = false;
             }
@@ -382,6 +407,11 @@ namespace Client.Main.Objects.Player
                     Weapon1.Model = await BMDLoader.Instance.Prepare(leftHandDef.TexturePath);
                     Weapon1.ParentBoneLink = 33;
                     Weapon1.LinkParentAnimation = false;
+                    
+                    // Apply item properties for shader effects
+                    Weapon1.ItemLevel = Appearance.LeftHandItemLevel;
+                    Weapon1.IsExcellentItem = Appearance.LeftHandExcellent;
+                    Weapon1.IsAncientItem = Appearance.LeftHandAncient;
                 }
                 else
                 {
@@ -401,6 +431,11 @@ namespace Client.Main.Objects.Player
                     Weapon2.Model = await BMDLoader.Instance.Prepare(rightHandDef.TexturePath);
                     Weapon2.ParentBoneLink = 42;
                     Weapon2.LinkParentAnimation = false;
+                    
+                    // Apply item properties for shader effects
+                    Weapon2.ItemLevel = Appearance.RightHandItemLevel;
+                    Weapon2.IsExcellentItem = Appearance.RightHandExcellent;
+                    Weapon2.IsAncientItem = Appearance.RightHandAncient;
                 }
                 else
                 {
@@ -655,6 +690,15 @@ namespace Client.Main.Objects.Player
             }
         }
 
+        public new void Reset()
+        {
+            // Call base reset first
+            base.Reset();
+            
+            // Reset player-specific states
+            ResetRestSitStates();
+        }
+
         // --------------- UTILITIES ----------------
         public ushort GetCorrectIdleAction()
         {
@@ -695,6 +739,9 @@ namespace Client.Main.Objects.Player
         public void Attack(MonsterObject target)
         {
             if (target == null || World == null) return;
+
+            // Don't attack dead monsters
+            if (target.IsDead) return;
 
             float rangeTiles = GetAttackRangeTiles();
             if (Vector2.Distance(Location, target.Location) > rangeTiles)

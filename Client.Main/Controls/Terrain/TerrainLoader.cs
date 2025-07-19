@@ -27,6 +27,11 @@ namespace Client.Main.Controls.Terrain
             _terrainData = new TerrainData();
         }
 
+        public void SetTextureMapping(Dictionary<int, string> textureMapping)
+        {
+            _terrainData.TextureMappingFiles = new Dictionary<int, string>(textureMapping);
+        }
+
         public async Task<TerrainData> LoadAsync()
         {
             var terrainReader = new ATTReader();

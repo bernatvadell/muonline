@@ -83,11 +83,13 @@ namespace Client.Main.Controls
         public override async Task Load()
         {
             _loader = new TerrainLoader(WorldIndex);
+            
+            if (_pendingTextureMap.Count > 0)
+            {
+                _loader.SetTextureMapping(_pendingTextureMap);
+            }
+            
             _data = await _loader.LoadAsync();
-
-            foreach (var kvp in _pendingTextureMap)
-                _data.TextureMappingFiles[kvp.Key] = kvp.Value;
-
             _pendingTextureMap.Clear();
 
             if (_data == null)

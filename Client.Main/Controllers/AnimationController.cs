@@ -78,6 +78,33 @@ namespace Client.Main.Controllers
 
         public void PlayAnimation(ushort idx) => PlayAnimation(idx, false);
 
+        public void Reset()
+        {
+            // Cancel any running timers
+            _timer?.Cancel();
+            _timer?.Dispose();
+            _timer = null;
+
+            // Reset all state variables
+            _oneShotEnded = false;
+            _forceReturnToIdle = false;
+            _currentOneShot = null;
+            _serverControlled = false;
+
+            // Force return to idle animation
+            if (_owner.Status != GameControlStatus.Disposed)
+            {
+                ushort idle = _owner switch
+                {
+                    PlayerObject p => p.GetCorrectIdleAction(),
+                    _ => (ushort)MonsterActionType.Stop1
+                };
+
+                _owner.CurrentAction = idle;
+                _owner.InvalidateBuffers();
+            }
+        }
+
         private void StartBackupTimer(ushort idx)
         {
             if (!TryGetDuration(idx, out var real)) return;

@@ -1,0 +1,71 @@
+name: Build and Publish
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            project: MuWin/MuWin.csproj
+            runtime: win-x64
+            artifact: muonline-windows
+            zip: powershell -Command "Compress-Archive -Path publish\* -DestinationPath muonline-windows.zip"
+          - os: ubuntu-latest
+            project: MuLinux/MuLinux.csproj
+            runtime: linux-x64
+            artifact: muonline-linux
+            zip: zip -r muonline-linux.zip publish
+          - os: macos-latest
+            project: MuLinux/MuLinux.csproj
+            runtime: osx-x64
+            artifact: muonline-macos
+            zip: zip -r muonline-macos.zip publish
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Restore tools
+        run: dotnet tool restore
+      - name: Restore workloads
+        run: dotnet workload restore
+      - name: Publish
+        run: dotnet publish ${{ matrix.project }} -c Release -r ${{ matrix.runtime }} -o publish
+      - name: Create Zip
+        run: ${{ matrix.zip }}
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.zip
+
+  pages:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Prepare site
+        run: |
+          mkdir -p site
+          cp artifacts/*/*.zip site/
+          cd site
+          echo '<html><body><h1>MuOnline Builds</h1>' > index.html
+          for f in *.zip; do echo "<a href=\"$f\">$f</a><br/>" >> index.html; done
+          echo '</body></html>' >> index.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Reflection;
+using Client.Main.Controls;
 
 namespace Client.Main.Objects
 {
@@ -92,22 +93,22 @@ namespace Client.Main.Objects
         private static readonly Vector3[] _cachedLightColors = new Vector3[16];
         private static readonly float[] _cachedLightRadii = new float[16];
         private static readonly float[] _cachedLightIntensities = new float[16];
-        
+
         // Cache for Environment.TickCount to reduce system calls
         private static float _cachedTime = 0f;
         private static int _lastTickCount = 0;
-        
+
         // Cached common Vector3 instances to avoid allocations
         private static readonly Vector3 _ambientLightVector = new Vector3(0.8f, 0.8f, 0.8f);
         private static readonly Vector3 _redHighlight = new Vector3(1, 0, 0);
         private static readonly Vector3 _greenHighlight = new Vector3(0, 1, 0);
         private static readonly Vector3 _maxValueVector = new Vector3(float.MaxValue);
         private static readonly Vector3 _minValueVector = new Vector3(float.MinValue);
-        
+
         // Cache common graphics states to avoid repeated property access
         private static readonly RasterizerState _cullClockwise = RasterizerState.CullClockwise;
         private static readonly RasterizerState _cullNone = RasterizerState.CullNone;
-        
+
         private static float GetCachedTime()
         {
             int currentTick = Environment.TickCount;
@@ -263,9 +264,9 @@ namespace Client.Main.Objects
                 : Light;
 
             // Add dynamic lighting to currentLight for CPU-based lighting
-            bool hasDynamicLightingShader = Constants.ENABLE_DYNAMIC_LIGHTING_SHADER && 
+            bool hasDynamicLightingShader = Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
                                            GraphicsManager.Instance.DynamicLightingEffect != null;
-            
+
             if (!hasDynamicLightingShader && LightEnabled && World?.Terrain != null)
             {
                 currentLight += World.Terrain.EvaluateDynamicLight(new Vector2(WorldPosition.Translation.X, WorldPosition.Translation.Y));
@@ -425,20 +426,20 @@ namespace Client.Main.Objects
                 var gd = GraphicsDevice;
 
                 // Use dynamic lighting effect if shader is enabled and available
-                bool useDynamicLighting = Constants.ENABLE_DYNAMIC_LIGHTING_SHADER && 
+                bool useDynamicLighting = Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
                                         GraphicsManager.Instance.DynamicLightingEffect != null;
-                
+
                 // Debug: Force dynamic lighting for testing pulsing
                 // useDynamicLighting = useDynamicLighting || (GraphicsManager.Instance.DynamicLightingEffect != null);
 
                 // Use item material effect only for items with level 7+, excellent, or ancient
-                bool useItemMaterial = Constants.ENABLE_ITEM_MATERIAL_SHADER && 
-                                     (ItemLevel >= 7 || IsExcellentItem || IsAncientItem) && 
+                bool useItemMaterial = Constants.ENABLE_ITEM_MATERIAL_SHADER &&
+                                     (ItemLevel >= 7 || IsExcellentItem || IsAncientItem) &&
                                      GraphicsManager.Instance.ItemMaterialEffect != null;
 
                 // Use monster material effect if custom shader is enabled
-                bool useMonsterMaterial = Constants.ENABLE_MONSTER_MATERIAL_SHADER && 
-                                        EnableCustomShader && 
+                bool useMonsterMaterial = Constants.ENABLE_MONSTER_MATERIAL_SHADER &&
+                                        EnableCustomShader &&
                                         GraphicsManager.Instance.MonsterMaterialEffect != null;
 
                 if (useDynamicLighting && !useItemMaterial && !useMonsterMaterial)
@@ -765,7 +766,7 @@ namespace Client.Main.Objects
                 }
                 // Set ambient lighting for dynamic lighting shader
                 effect.Parameters["AmbientLight"]?.SetValue(_ambientLightVector);
-                
+
                 // Ensure terrain light is reasonable - don't divide by 255 as it makes it too dark
                 terrainLight = Vector3.Clamp(terrainLight / 255f, Vector3.Zero, Vector3.One);
                 effect.Parameters["TerrainLight"]?.SetValue(terrainLight);
@@ -799,7 +800,7 @@ namespace Client.Main.Objects
                     effect.Parameters["ActiveLightCount"]?.SetValue(0);
                     effect.Parameters["MaxLightsToProcess"]?.SetValue(Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16);
                 }
-                
+
                 // Set debug lighting areas parameter
                 effect.Parameters["DebugLightingAreas"]?.SetValue(Constants.DEBUG_LIGHTING_AREAS);
 
@@ -942,6 +943,10 @@ namespace Client.Main.Objects
         {
             try
             {
+                // Skip shadow rendering if shadows are disabled for this world
+                if (MuGame.Instance.ActiveScene?.World is WorldControl world && !world.EnableShadows)
+                    return;
+
                 if (IsHiddenMesh(mesh) || _boneVertexBuffers == null)
                     return;
 
@@ -1373,11 +1378,12 @@ namespace Client.Main.Objects
                         byte b = (byte)MathF.Min(colorB * meshLight.Z, 255f);
                         Color bodyColor = new Color(r, g, b);
 
-                        // Generate buffers (like old code)
+                        // Generate buffers
                         BMDLoader.Instance.GetModelBuffers(
                             Model, meshIndex, bodyColor, bones,
                             ref _boneVertexBuffers[meshIndex],
-                            ref _boneIndexBuffers[meshIndex]);
+                            ref _boneIndexBuffers[meshIndex],
+                            false);
 
                         // Load textures only if needed (avoid redundant loading)
                         if (_boneTextures[meshIndex] == null)

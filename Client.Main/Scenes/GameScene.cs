@@ -30,7 +30,7 @@ namespace Client.Main.Scenes
     public class GameScene : BaseScene
     {
         // ──────────────────────────── Fields ────────────────────────────
-        private readonly PlayerObject _hero = new();
+        private readonly PlayerObject _hero;
         private readonly MainControl _main;
         private WorldControl _nextWorld; // Used for map changes
         private LoadingScreenControl _loadingScreen; // For initial load and map changes
@@ -41,7 +41,7 @@ namespace Client.Main.Scenes
         private InventoryControl _inventoryControl;
         private NotificationManager _notificationManager;
         private PartyPanelControl _partyPanel;
-        private readonly (string Name, CharacterClassNumber Class, ushort Level) _characterInfo;
+        private readonly (string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance) _characterInfo;
         private KeyboardState _previousKeyboardState;
         private bool _isChangingWorld = false;
         private readonly List<(ServerMessage.MessageType Type, string Message)> _pendingNotifications = new();
@@ -87,10 +87,13 @@ namespace Client.Main.Scenes
         };
 
         // ──────────────────────── Constructors ────────────────────────
-        public GameScene((string Name, CharacterClassNumber Class, ushort Level) characterInfo)
+        public GameScene((string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance) characterInfo)
         {
             _characterInfo = characterInfo;
             _logger?.LogDebug($"GameScene constructor called for Character: {_characterInfo.Name} ({_characterInfo.Class})");
+
+            // Create the hero with the appearance data from the character list
+            _hero = new PlayerObject(new AppearanceData(characterInfo.Appearance));
 
             _main = new MainControl(MuGame.Network.GetCharacterState());
             Controls.Add(_main);
@@ -151,22 +154,24 @@ namespace Client.Main.Scenes
             Cursor.BringToFront();
         }
 
-        public GameScene() : this(GetCharacterInfoFromState()) { }
+        public GameScene() : this(GetCharacterInfoFromState())
+        {
+        }
 
-        public GameScene((string Name, CharacterClassNumber Class, ushort Level) characterInfo, NetworkManager networkManager)
+        public GameScene((string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance) characterInfo, NetworkManager networkManager)
             : this(characterInfo)
         {
             // Optionally store networkManager if needed in the future
         }
 
-        private static (string Name, CharacterClassNumber Class, ushort Level) GetCharacterInfoFromState()
+        private static (string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance) GetCharacterInfoFromState()
         {
             var state = MuGame.Network?.GetCharacterState();
             if (state != null)
             {
-                return (state.Name ?? "Unknown", state.Class, state.Level);
+                return (state.Name ?? "Unknown", state.Class, state.Level, Array.Empty<byte>());
             }
-            return ("Unknown", CharacterClassNumber.DarkKnight, 1);
+            return ("Unknown", CharacterClassNumber.DarkKnight, 1, Array.Empty<byte>());
         }
 
         // ───────────────────── Content Loading (Progressive) ─────────────────────
@@ -769,7 +774,7 @@ namespace Client.Main.Scenes
                 MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
                 MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released) // Fresh press
             {
-                if (Hero != null)
+                if (Hero != null && !targetMonster.IsDead)
                 {
                     Hero.Attack(targetMonster);
                     SetMouseInputConsumed(); // Consume the click

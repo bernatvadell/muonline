@@ -49,6 +49,7 @@ namespace Client.Main.Objects
 
             // Ensure the monster stops moving while the death animation plays
             StopMovement();
+            Interactive = false; // prevent dead monsters from blocking selection
             _isFading = true;
             _fadeDuration = duration;
             _fadeTimer = 0f;
@@ -218,7 +219,7 @@ namespace Client.Main.Objects
             foreach (var kv in map)
             {
                 int dst = kv.Key;
-                int src = kv.Value; 
+                int src = kv.Value;
                 if (src >= 0 && src < srcModel.Actions.Length)
                     actions[dst] = srcModel.Actions[src];
             }

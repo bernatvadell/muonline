@@ -68,7 +68,7 @@ namespace Client.Main.Worlds
 #endif
         }
 
-        public async Task CreateCharacterObjects(List<(string Name, CharacterClassNumber Class, ushort Level)> characters)
+        public async Task CreateCharacterObjects(List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)> characters)
         {
             _logger.LogInformation("Creating {Count} character objects…", characters.Count);
 
@@ -99,9 +99,9 @@ namespace Client.Main.Worlds
 
             for (int i = 0; i < characters.Count && i < pos.Length; i++)
             {
-                var (name, cls, lvl) = characters[i];
+                var (name, cls, lvl, appearanceBytes) = characters[i];
 
-                var player = new PlayerObject
+                var player = new PlayerObject(new AppearanceData(appearanceBytes))
                 {
                     Name = name,
                     CharacterClass = cls,

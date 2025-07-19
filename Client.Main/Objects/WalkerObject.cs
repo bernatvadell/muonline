@@ -115,6 +115,9 @@ namespace Client.Main.Objects
         {
             _currentPath = null;
             MoveTargetPosition = Vector3.Zero;
+            
+            // Reset animation state to clear any stuck death animations
+            _animationController?.Reset();
         }
 
         /// <summary>
@@ -305,6 +308,9 @@ namespace Client.Main.Objects
         public virtual void MoveTo(Vector2 targetLocation, bool sendToServer = true)
         {
             if (World == null) return;
+            
+            // Don't allow movement if player is dead
+            if (!this.IsAlive()) return;
 
             if (this is PlayerObject player)
             {
