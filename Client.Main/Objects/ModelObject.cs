@@ -458,6 +458,16 @@ namespace Client.Main.Objects
             return 0f; // Default - no bias for terrain and other objects
         }
 
+        /// <summary>
+        /// Determines if item material effect should be applied to a specific mesh
+        /// </summary>
+        protected virtual bool ShouldApplyItemMaterial(int meshIndex)
+        {
+            // By default, apply to all meshes
+            // Override in specific classes to exclude certain meshes
+            return true;
+        }
+
         public virtual void DrawMesh(int mesh)
         {
             if (_boneVertexBuffers?[mesh] == null ||
@@ -493,9 +503,11 @@ namespace Client.Main.Objects
                 // useDynamicLighting = useDynamicLighting || (GraphicsManager.Instance.DynamicLightingEffect != null);
 
                 // Use item material effect only for items with level 7+, excellent, or ancient
+                // but exclude certain meshes (like face mesh on helmets)
                 bool useItemMaterial = Constants.ENABLE_ITEM_MATERIAL_SHADER &&
                                      (ItemLevel >= 7 || IsExcellentItem || IsAncientItem) &&
-                                     GraphicsManager.Instance.ItemMaterialEffect != null;
+                                     GraphicsManager.Instance.ItemMaterialEffect != null &&
+                                     ShouldApplyItemMaterial(mesh);
 
                 // Use monster material effect if custom shader is enabled
                 bool useMonsterMaterial = Constants.ENABLE_MONSTER_MATERIAL_SHADER &&

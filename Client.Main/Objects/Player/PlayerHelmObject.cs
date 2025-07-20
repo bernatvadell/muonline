@@ -32,6 +32,15 @@ namespace Client.Main.Objects.Player
             // Initial class might be set later by PlayerObject
         }
 
+        /// <summary>
+        /// Override to exclude face mesh (mesh 1) from item material effects
+        /// </summary>
+        protected override bool ShouldApplyItemMaterial(int meshIndex)
+        {
+            // Apply item material only to mesh 0 (helmet part), not mesh 1 (face part)
+            return meshIndex == 0;
+        }
+
         // Now returns Task, not void
         private async Task OnChangePlayerClass()
         {

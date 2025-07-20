@@ -30,7 +30,7 @@ sampler2D DiffuseSampler = sampler_state
 
 int ItemOptions = 0;
 float Time = 0;
-float3 GlowColor = float3(1.0, 0.8, 0.0); // Default gold, can be overridden
+float3 GlowColor = float3(0.6, 0.5, 0.0); // Dimmer gold to reduce brightness
 bool IsAncient = false;
 bool IsExcellent = false;
 
@@ -112,29 +112,29 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     if (itemLevel < 7)
     {
         // Level 0-6: no effects
-        brightness = 8.0;
+        brightness = 1.2;
         ghostIntensity = 0.0;
     }
     else if (itemLevel < 9)
     {
         // Level 7-8: low ghosting
         effectColor = GlowColor;
-        brightness = 2.6;
+        brightness = 1.6;
         ghostIntensity = 0.3;
     }
     else if (itemLevel < 10)
     {
         // Level 9: medium ghosting
         effectColor = GlowColor;
-        brightness = 3.4;
+        brightness = 1.8;
         ghostIntensity = 0.6;
     }
     else
     {
         // Level 10+: full ghosting with increasing brightness per level
         effectColor = GlowColor;
-        brightness = 4.0 + (itemLevel - 10) * 0.5; // Higher base + more per level
-        ghostIntensity = 1.0;
+        brightness = 1.8 + (itemLevel - 10) * 0.2;
+        ghostIntensity = 0.8;
     }
     
     // Pre-calculate all values to avoid flow control issues
@@ -169,8 +169,8 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     // Apply effects based on level
     if (itemLevel >= 7)
     {
-        // Apply metallic effect for +7 and higher
-        float3 metallic = effectColor * 3.0;
+        // Apply metallic effect for +7 and higher  
+        float3 metallic = effectColor * 0.8;
         color.rgb = color.rgb * metallic * brightness * subtlePulse;
         color.rgb += ghost1.rgb * (0.8 * ghostIntensity) * shimmer;
         color.rgb += ghost2.rgb * (0.6 * ghostIntensity) * shimmer;
@@ -184,8 +184,8 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     
     // Additional brightness boost for higher levels
     float level10Mask = step(10.0, itemLevel);
-    float extraGlow = (itemLevel - 9.0) * 1.2;
-    float glowEffect = (1.0 + sin(Time * 1.0)) * 0.1 + 0.8;
+    float extraGlow = (itemLevel - 9.0) * 0.1;
+    float glowEffect = (1.0 + sin(Time * 1.0)) * 0.03 + 0.2;
     color.rgb += effectColor * glowEffect * extraGlow * level10Mask;
     
     // Ancient item effect - sweeping white-blue light wave

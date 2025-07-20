@@ -35,6 +35,15 @@ namespace Client.Main.Objects.Player
             RenderShadow = true; // Or false if it shouldn't cast shadows
         }
 
+        /// <summary>
+        /// Override to exclude face mesh from item material effects
+        /// </summary>
+        protected override bool ShouldApplyItemMaterial(int meshIndex)
+        {
+            // Apply item material only to mesh 0 (mask part), not other meshes (face parts)
+            return meshIndex == 0;
+        }
+
         // Now returns Task, not void
         private async Task OnChangePlayerClass()
         {
