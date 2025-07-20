@@ -11,7 +11,7 @@ namespace Client.Main
         // Fields
         private float _aspectRatio = 1.4f;
         private float _fov = 35f;
-        private float _viewNear = 1f;
+        private float _viewNear = 10f;  // Increased from 1f to improve depth precision
         private float _viewFar = 1800f;
         private Vector3 _position = Vector3.Zero;
         private Vector3 _target = Vector3.Zero;

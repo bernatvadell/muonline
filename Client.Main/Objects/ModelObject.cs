@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Reflection;
 using Client.Main.Controls;
 using Client.Main.Models;
+using Client.Main.Objects.Player;
 
 namespace Client.Main.Objects
 {
@@ -439,6 +440,24 @@ namespace Client.Main.Objects
             return BlendMesh == mesh || BlendMesh == -2 || _meshBlendByScript[mesh];
         }
 
+        /// <summary>
+        /// Gets depth bias for different object types to reduce Z-fighting
+        /// </summary>
+        protected virtual float GetDepthBias()
+        {
+            // Small bias values - negative values bring objects closer to camera
+            var objectType = GetType();
+            
+            if (objectType == typeof(PlayerObject))
+                return -0.00001f;  // Players slightly closer
+            if (objectType == typeof(DroppedItemObject))
+                return -0.00002f;  // Items even closer  
+            if (objectType == typeof(NPCObject))
+                return -0.000005f; // NPCs slightly closer than terrain
+            
+            return 0f; // Default - no bias for terrain and other objects
+        }
+
         public virtual void DrawMesh(int mesh)
         {
             if (_boneVertexBuffers?[mesh] == null ||
@@ -450,6 +469,21 @@ namespace Client.Main.Objects
             try
             {
                 var gd = GraphicsDevice;
+                
+                // Apply small depth bias based on object type to reduce Z-fighting
+                var prevRasterizer = gd.RasterizerState;
+                var depthBias = GetDepthBias();
+                if (depthBias != 0f)
+                {
+                    var customRasterizer = new RasterizerState
+                    {
+                        CullMode = prevRasterizer.CullMode,
+                        FillMode = prevRasterizer.FillMode,
+                        DepthBias = depthBias,
+                        SlopeScaleDepthBias = depthBias * 0.1f
+                    };
+                    gd.RasterizerState = customRasterizer;
+                }
 
                 // Use dynamic lighting effect if shader is enabled and available
                 bool useDynamicLighting = Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
@@ -495,8 +529,8 @@ namespace Client.Main.Objects
                 var indexBuffer = _boneIndexBuffers[mesh];
                 var texture = _boneTextures[mesh];
 
-                // Batch state changes - save current states
-                var prevCull = gd.RasterizerState;
+                // Batch state changes - save current states  
+                var originalRasterizer = gd.RasterizerState;
                 var prevBlend = gd.BlendState;
                 float prevAlpha = effect.Alpha;
 
@@ -517,7 +551,23 @@ namespace Client.Main.Objects
                     }
                 }
 
-                gd.RasterizerState = isTwoSided ? _cullNone : _cullClockwise;
+                // Apply final rasterizer state (considering depth bias and culling)
+                if (depthBias != 0f)
+                {
+                    // Keep the custom rasterizer with depth bias but update culling
+                    var finalRasterizer = new RasterizerState
+                    {
+                        CullMode = isTwoSided ? CullMode.None : CullMode.CullClockwiseFace,
+                        FillMode = originalRasterizer.FillMode,
+                        DepthBias = depthBias,
+                        SlopeScaleDepthBias = depthBias * 0.1f
+                    };
+                    gd.RasterizerState = finalRasterizer;
+                }
+                else
+                {
+                    gd.RasterizerState = isTwoSided ? _cullNone : _cullClockwise;
+                }
                 gd.BlendState = customBlendState ?? (isBlendMesh ? BlendMeshState : BlendState);
                 //
 
@@ -546,7 +596,7 @@ namespace Client.Main.Objects
                 // Restore states in batch
                 effect.Alpha = prevAlpha;
                 gd.BlendState = prevBlend;
-                gd.RasterizerState = prevCull;
+                gd.RasterizerState = originalRasterizer;
             }
             catch (Exception ex)
             {
