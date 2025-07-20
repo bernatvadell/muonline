@@ -24,7 +24,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         private static readonly List<(ServerMessage.MessageType Type, string Message)> _pendingServerMessages = new();
         private static readonly object _pendingServerMessagesLock = new();
         private static readonly Regex _leadingZerosRegex = new Regex(
-            @"^0+(?=[a-zA-Z])",
+            @"^0+(?=\S)",  // Remove leading zeros followed by any non-whitespace character
             RegexOptions.Compiled);
 
         // ───────────────────────── Constructors ─────────────────────────
