@@ -11,6 +11,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Reflection;
 using Client.Main.Controls;
+using Client.Main.Models;
 
 namespace Client.Main.Objects
 {
@@ -43,7 +44,24 @@ namespace Client.Main.Objects
         public Matrix[] GetBoneTransforms() => BoneTransform;
         public int CurrentAction { get; set; }
         public int ParentBoneLink { get; set; } = -1;
-        public BMD Model { get; set; }
+        private BMD _model;
+        public BMD Model
+        {
+            get => _model;
+            set
+            {
+                if (_model != value)
+                {
+                    _model = value;
+                    // If the model changes after the object has already been loaded,
+                    // we need to re-run the content loading logic to update buffers, textures, etc.
+                    if (Status != GameControlStatus.Disposed)
+                    {
+                        _ = LoadContent();
+                    }
+                }
+            }
+        }
 
         public Matrix ParentBodyOrigin
         {
@@ -153,8 +171,16 @@ namespace Client.Main.Objects
 
             if (Model == null)
             {
-                _logger?.LogDebug($"Model is not assigned for {ObjectName} -> Type: {Type}");
-                Status = Models.GameControlStatus.Error;
+                // This is a valid state, e.g., when an item is unequipped.
+                // Clear out graphics resources to ensure it becomes invisible.
+                _boneVertexBuffers = null;
+                _boneIndexBuffers = null;
+                _boneTextures = null;
+                _scriptTextures = null;
+                _dataTextures = null;
+                _logger?.LogDebug($"Model is null for {ObjectName}. Clearing buffers. This is likely an unequip action.");
+                // Set to Ready because it's a valid, though non-renderable, state.
+                Status = GameControlStatus.Ready;
                 return;
             }
 

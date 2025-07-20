@@ -266,7 +266,8 @@ namespace Client.Main.Content
                     int ti = tri.TexCoordIndex[j];
                     var uv = mesh.TexCoords[ti];
 
-                    Vector3 pos = Vector3.Transform(vert.Position, boneMatrix[vert.Node]);
+                    Vector3 pos = Vector3.Transform(vert.Position, 
+                        vert.Node < boneMatrix.Length ? boneMatrix[vert.Node] : Matrix.Identity);
 
                     vertices[v] = new VertexPositionColorNormalTexture(
                         pos,

@@ -323,7 +323,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
             var spawnTasks = new List<Task>();
             int currentPacketOffset = firstOffset;
-            
+
             for (int i = 0; i < npcCount; i++)
             {
                 if (currentPacketOffset + dataSize > packet.Length)
@@ -342,7 +342,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                 // Process NPC/Monster spawning asynchronously without blocking
                 spawnTasks.Add(ProcessNpcSpawnAsync(maskedId, rawId, x, y, direction, type, name));
-                
+
                 // Process in batches to avoid overwhelming the system
                 if (spawnTasks.Count >= 10)
                 {
@@ -352,7 +352,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     await Task.Delay(1);
                 }
             }
-            
+
             // Process remaining tasks
             if (spawnTasks.Count > 0)
             {
@@ -427,7 +427,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 if (worldRef.WalkerObjectsById.TryGetValue(maskedId, out WalkerObject existingWalker))
                 {
                     _logger.LogWarning($"ScopeHandler: Stale/Duplicate NPC/Monster ID {maskedId:X4} ({existingWalker.GetType().Name}) found in WalkerObjectsById. Removing it before adding new {name} (Type: {type}).");
-                    
+
                     // Remove and dispose asynchronously to avoid blocking
                     _ = Task.Run(() =>
                     {
@@ -461,6 +461,133 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     obj.Position = obj.MoveTargetPosition;
                 }
             });
+        }
+
+        [PacketHandler(0x25, PacketRouter.NoSubCode)]
+        public async Task HandleAppearanceChangedAsync(Memory<byte> packet)
+        {
+            try
+            {
+                const int EXPECTED_MIN_LENGTH = 13;
+                const byte UNEQUIP_MARKER = 0xFF;
+                const ushort ID_MASK = 0x7FFF;
+                const int OBJECT_ID_OFFSET = 3;
+                const int ITEM_GROUP_OFFSET = 5;
+                const int SLOT_AND_GLOW_OFFSET = 6;
+                const int ITEM_OPTIONS_OFFSET = 8;
+                const int EXCELLENT_FLAGS_OFFSET = 9;
+                const int ANCIENT_DISCRIMINATOR_OFFSET = 10;
+                const int ANCIENT_SET_COMPLETE_OFFSET = 11;
+                const int WEAPON_SLOT_THRESHOLD = 2;
+                const int WEAPON_GROUP = 0;
+                const int ARMOR_GROUP_OFFSET = 5;
+
+                if (packet.Length < EXPECTED_MIN_LENGTH)
+                {
+                    _logger.LogWarning("AppearanceChanged packet has invalid length: {Length}. Expected at least {Expected}.", packet.Length, EXPECTED_MIN_LENGTH);
+                        }
+
+                var span = packet.Span;
+                ushort rawKey = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(span.Slice(OBJECT_ID_OFFSET));
+                ushort maskedId = (ushort)(rawKey & ID_MASK);
+
+                bool isUnequip = span[ITEM_GROUP_OFFSET] == UNEQUIP_MARKER;
+                byte itemSlot = (byte)((span[SLOT_AND_GLOW_OFFSET] >> 4) & 0x0F);
+
+                if (isUnequip)
+                {
+                    await HandleUnequipAsync(maskedId, itemSlot);
+                    return;
+                }
+
+                byte glowLevel = (byte)(span[SLOT_AND_GLOW_OFFSET] & 0x0F);
+                byte itemGroup = itemSlot < WEAPON_SLOT_THRESHOLD ? (byte)WEAPON_GROUP : (byte)(itemSlot + ARMOR_GROUP_OFFSET);
+                byte itemNumber = (byte)(span[ITEM_GROUP_OFFSET] & 0x0F);
+                byte itemLevel = ConvertGlowToItemLevel(glowLevel);
+
+                byte itemOptions = span[ITEM_OPTIONS_OFFSET];
+                byte excellentFlags = span[EXCELLENT_FLAGS_OFFSET];
+                byte ancientDiscriminator = span[ANCIENT_DISCRIMINATOR_OFFSET];
+                bool isAncientSetComplete = span[ANCIENT_SET_COMPLETE_OFFSET] != 0;
+
+                bool hasExcellent = excellentFlags != 0;
+                bool hasAncient = ancientDiscriminator != 0 && excellentFlags != 0;
+
+                const int MAX_ITEM_INDEX = 512;
+                int finalItemType = (itemGroup * MAX_ITEM_INDEX) + itemNumber;
+
+                _logger.LogDebug("Parsed AppearanceChanged for ID {Id:X4}: Slot={Slot}, Group={Group}, Number={Number}, Type={Type}, Level={Level}",
+                    maskedId, itemSlot, itemGroup, itemNumber, finalItemType, itemLevel);
+
+                await HandleEquipAsync(maskedId, itemSlot, itemGroup, itemNumber, finalItemType, itemLevel, 
+                    itemOptions, hasExcellent ? excellentFlags : (byte)0, 
+                    hasAncient ? ancientDiscriminator : (byte)0, isAncientSetComplete);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing AppearanceChanged (0x25).");
+            }
+        }
+
+        private Task HandleUnequipAsync(ushort maskedId, byte itemSlot)
+        {
+            MuGame.ScheduleOnMainThread(async () =>
+            {
+                if (MuGame.Instance.ActiveScene?.World is not WorldControl world)
+                {
+                    _logger.LogWarning("No world available for unequip operation");
+                    return;
+                }
+
+                if (world.TryGetWalkerById(maskedId, out var walker) && walker is PlayerObject player)
+                {
+                    try
+                    {
+                        await player.UpdateEquipmentSlotAsync(itemSlot, null);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error unequipping item from slot {Slot}", itemSlot);
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("Player with ID {Id:X4} not found for unequip operation", maskedId);
+                }
+            });
+            return Task.CompletedTask;
+        }
+
+        private Task HandleEquipAsync(ushort maskedId, byte itemSlot, byte itemGroup, byte itemNumber, 
+            int finalItemType, byte itemLevel, byte itemOptions, byte excellentFlags, 
+            byte ancientDiscriminator, bool isAncientSetComplete)
+        {
+            MuGame.ScheduleOnMainThread(async () =>
+            {
+                if (MuGame.Instance.ActiveScene?.World is not WorldControl world) return;
+
+                if (world.TryGetWalkerById(maskedId, out var walker) && walker is PlayerObject player)
+                {
+                    var equipmentData = new EquipmentSlotData
+                    {
+                        ItemGroup = itemGroup,
+                        ItemNumber = itemNumber,
+                        ItemType = finalItemType,
+                        ItemLevel = itemLevel,
+                        ItemOptions = itemOptions,
+                        ExcellentFlags = excellentFlags,
+                        AncientDiscriminator = ancientDiscriminator,
+                        IsAncientSetComplete = isAncientSetComplete
+                    };
+
+                    await player.UpdateEquipmentSlotAsync(itemSlot, equipmentData);
+                }
+                else
+                {
+                    _logger.LogWarning("Player with ID {Id:X4} not found in scope.", maskedId);
+                }
+            });
+            return Task.CompletedTask;
         }
 
         [PacketHandler(0x11, PacketRouter.NoSubCode)] // ObjectHit / ObjectGotHit
@@ -685,10 +812,10 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             {
                                 byte[] dataCopy = item.ItemData.ToArray();
                                 string itemName = ItemDatabase.GetItemName(dataCopy) ?? string.Empty;
-                                string soundPath = itemName.StartsWith("Jewel", StringComparison.OrdinalIgnoreCase) 
-                                    ? "Sound/pGem.wav" 
+                                string soundPath = itemName.StartsWith("Jewel", StringComparison.OrdinalIgnoreCase)
+                                    ? "Sound/pGem.wav"
                                     : "Sound/pDropItem.wav";
-                                
+
                                 await ProcessDroppedItemAsync(dropObj, maskedId, soundPath);
                             }
                             catch (Exception ex)
@@ -754,10 +881,10 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                                 {
                                     var newScopeObject = new ItemScopeObject(maskedId, rawId, x, y, data);
                                     string itemName = ItemDatabase.GetItemName(data) ?? string.Empty;
-                                    string soundPath = itemName.StartsWith("Jewel", StringComparison.OrdinalIgnoreCase) 
-                                        ? "Sound/pGem.wav" 
+                                    string soundPath = itemName.StartsWith("Jewel", StringComparison.OrdinalIgnoreCase)
+                                        ? "Sound/pGem.wav"
                                         : "Sound/pDropItem.wav";
-                                    
+
                                     await ProcessDroppedItemAsync(newScopeObject, maskedId, soundPath);
                                 }
                                 catch (Exception ex)
@@ -825,7 +952,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             _ = Task.Run(() =>
             {
                 var objectsToRemove = new List<ushort>();
-                
+
                 for (int i = 0; i < count; i++)
                 {
                     try
@@ -1353,20 +1480,20 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         {
             // Add to world on main thread first, then load assets
             var tcs = new TaskCompletionSource<bool>();
-            
+
             MuGame.ScheduleOnMainThread(() =>
             {
                 ProcessDroppedItemOnMainThread(dropObj, maskedId, soundPath, tcs);
             });
-            
+
             await tcs.Task;
         }
-        
+
         private async void ProcessDroppedItemOnMainThread(ScopeObject dropObj, ushort maskedId, string soundPath, TaskCompletionSource<bool> tcs)
         {
             try
             {
-                if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl world) 
+                if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl world)
                 {
                     tcs.SetResult(false);
                     return;
@@ -1385,7 +1512,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                 // Set World property before adding to world objects
                 obj.World = world;
-                
+
                 // Add to world so World.Scene is available
                 world.Objects.Add(obj);
 
@@ -1405,11 +1532,11 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                 // Play drop sound
                 SoundController.Instance.PlayBufferWithAttenuation(soundPath, obj.Position, world.Walker.Position);
-                
+
                 // Initial visibility check
                 obj.Hidden = !world.IsObjectInView(obj);
                 _logger.LogDebug($"Spawned dropped item ({obj.DisplayName}) at {obj.Position.X},{obj.Position.Y},{obj.Position.Z}. RawId: {obj.RawId:X4}, MaskedId: {obj.NetworkId:X4}");
-                
+
                 tcs.SetResult(true);
             }
             catch (Exception ex)
@@ -1417,6 +1544,22 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 _logger.LogError(ex, $"Error processing dropped item on main thread for {maskedId:X4}");
                 tcs.SetResult(false);
             }
+        }
+
+        private static byte ConvertGlowToItemLevel(byte glowLevel)
+        {
+            return glowLevel switch
+            {
+                0 => 0,
+                1 => 3,
+                2 => 5,
+                3 => 7,
+                4 => 9,
+                5 => 11,
+                6 => 13,
+                7 => 15,
+                _ => 0
+            };
         }
     }
 }

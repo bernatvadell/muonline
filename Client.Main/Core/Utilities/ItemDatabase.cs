@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Threading.Tasks;
 using Client.Data.BMD;
 using Client.Main.Controls.UI.Game.Inventory;
+using Microsoft.Extensions.Logging;
 
 namespace Client.Main.Core.Utilities
 {
@@ -14,6 +15,7 @@ namespace Client.Main.Core.Utilities
     {
         /// <summary>Lookup cache: (Group, Id) → item definition.</summary>
         private static readonly Dictionary<(byte Group, short Id), ItemDefinition> _definitions;
+        private static readonly ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger("ItemDatabase");
 
         static ItemDatabase() => _definitions = InitializeItemData();
 
@@ -125,6 +127,7 @@ namespace Client.Main.Core.Utilities
         public static ItemDefinition GetItemDefinition(byte group, short id)
         {
             _definitions.TryGetValue((group, id), out var def);
+            
             return def;
         }
 

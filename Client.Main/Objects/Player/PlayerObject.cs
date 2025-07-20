@@ -323,7 +323,7 @@ namespace Client.Main.Objects.Player
             if (Appearance.RawData.IsEmpty) return; // No appearance data to process
 
             // Update CharacterClass based on appearance data
-            CharacterClass = Appearance.CharacterClass;
+            //CharacterClass = Appearance.CharacterClass; // TODO: Wrong character class?
 
             // Helm
             if (Appearance.HelmItemIndex != 255)
@@ -375,7 +375,13 @@ namespace Client.Main.Objects.Player
                 var glovesDef = ItemDatabase.GetItemDefinition(10, Appearance.GlovesItemIndex);
                 if (glovesDef?.TexturePath != null)
                 {
-                    await LoadPartAsync(Gloves, glovesDef.TexturePath.Replace("Item/", "Player/"));
+                    var playerTexturePath = glovesDef.TexturePath.Replace("Item/", "Player/");
+                    _logger?.LogInformation($"[PlayerObject] Loading gloves: Group=10, ID={Appearance.GlovesItemIndex}, ItemTexturePath={glovesDef.TexturePath}, PlayerTexturePath={playerTexturePath}");
+                    await LoadPartAsync(Gloves, playerTexturePath);
+                }
+                else
+                {
+                    _logger?.LogWarning($"[PlayerObject] No gloves definition found for Group=10, ID={Appearance.GlovesItemIndex}");
                 }
                 
                 // Apply item properties for shader effects
@@ -390,7 +396,13 @@ namespace Client.Main.Objects.Player
                 var bootsDef = ItemDatabase.GetItemDefinition(11, Appearance.BootsItemIndex);
                 if (bootsDef?.TexturePath != null)
                 {
-                    await LoadPartAsync(Boots, bootsDef.TexturePath.Replace("Item/", "Player/"));
+                    var playerTexturePath = bootsDef.TexturePath.Replace("Item/", "Player/");
+                    _logger?.LogInformation($"[PlayerObject] Loading boots: Group=11, ID={Appearance.BootsItemIndex}, ItemTexturePath={bootsDef.TexturePath}, PlayerTexturePath={playerTexturePath}");
+                    await LoadPartAsync(Boots, playerTexturePath);
+                }
+                else
+                {
+                    _logger?.LogWarning($"[PlayerObject] No boots definition found for Group=11, ID={Appearance.BootsItemIndex}");
                 }
                 
                 // Apply item properties for shader effects
@@ -860,6 +872,40 @@ namespace Client.Main.Objects.Player
                 (int)mapped);
         }
 
+        private async Task ResetBodyPartToClassDefaultAsync(ModelObject bodyPart, string partPrefix)
+        {
+            Console.WriteLine($"[PlayerObject] ResetBodyPartToClassDefaultAsync called: partPrefix={partPrefix}");
+            
+            PlayerClass mapped = MapNetworkClassToModelClass(_characterClass);
+            string fileSuffix = ((int)mapped).ToString("D2");
+            string modelPath = $"Player/{partPrefix}{fileSuffix}.bmd";
+            
+            Console.WriteLine($"[PlayerObject] Resetting body part: CharClass={_characterClass}, MappedClass={mapped}, Path={modelPath}");
+            _logger?.LogDebug("Resetting body part to class default: CharClass={CharClass}, MappedClass={Mapped}, Path={Path}", 
+                _characterClass, mapped, modelPath);
+            
+            try
+            {
+                await LoadPartAsync(bodyPart, modelPath);
+                Console.WriteLine($"[PlayerObject] LoadPartAsync completed successfully for {modelPath}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[PlayerObject] LoadPartAsync failed: {ex.Message}");
+                throw;
+            }
+        }
+
+        private string GetPartPrefix(ModelObject bodyPart)
+        {
+            if (bodyPart == Helm) return "HelmClass";
+            if (bodyPart == Armor) return "ArmorClass";
+            if (bodyPart == Pants) return "PantClass";
+            if (bodyPart == Gloves) return "GloveClass";
+            if (bodyPart == Boots) return "BootClass";
+            return "";
+        }
+
         // ────────────────────────────── SERVER COMMUNICATION ──────────────────────────────
         private void SendActionToServer(ServerPlayerActionType serverAction)
         {
@@ -1049,11 +1095,23 @@ namespace Client.Main.Objects.Player
         {
             if (part != null && !string.IsNullOrEmpty(modelPath))
             {
+                Console.WriteLine($"[PlayerObject] LoadPartAsync: Loading model {modelPath} for {part.GetType().Name}");
+                _logger?.LogInformation($"[PlayerObject] LoadPartAsync: Loading model {modelPath} for {part.GetType().Name}");
                 part.Model = await BMDLoader.Instance.Prepare(modelPath);
                 if (part.Model == null)
                 {
-                    _logger?.LogDebug("Model part not found (this is often normal for NPCs): {Path}", modelPath);
+                    Console.WriteLine($"[PlayerObject] LoadPartAsync: FAILED to load model {modelPath} for {part.GetType().Name}");
+                    _logger?.LogWarning($"[PlayerObject] LoadPartAsync: Failed to load model {modelPath} for {part.GetType().Name}");
                 }
+                else
+                {
+                    Console.WriteLine($"[PlayerObject] LoadPartAsync: SUCCESSFULLY loaded model {modelPath} for {part.GetType().Name}");
+                    _logger?.LogInformation($"[PlayerObject] LoadPartAsync: Successfully loaded model {modelPath} for {part.GetType().Name}");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"[PlayerObject] LoadPartAsync: Skipped - part is null or modelPath is empty. Part={part?.GetType().Name}, Path='{modelPath}'");
             }
         }
 
@@ -1084,6 +1142,226 @@ namespace Client.Main.Objects.Player
             {
                 BoundingBoxWorld = BoundingBox.CreateFromPoints(allCorners);
             }
+        }
+
+        /// <summary>
+        /// Updates a specific equipment slot based on AppearanceChanged packet data
+        /// </summary>
+        public async Task UpdateEquipmentSlotAsync(byte itemSlot, EquipmentSlotData? equipmentData)
+        {
+            Console.WriteLine($"[PlayerObject] UpdateEquipmentSlotAsync called: slot={itemSlot}, equipmentData={(equipmentData == null ? "NULL" : "NOT NULL")}");
+            _logger?.LogInformation("UpdateEquipmentSlotAsync called: slot={Slot}, equipmentData={Data}", itemSlot, equipmentData == null ? "NULL" : "NOT NULL");
+            
+            if (equipmentData == null)
+            {
+                // Item is being unequipped
+                Console.WriteLine($"[PlayerObject] UNEQUIPPING SLOT {itemSlot} for player {Name}");
+                _logger?.LogDebug("UNEQUIPPING SLOT {Slot} for player {Name}", itemSlot, Name);
+                await UnequipSlotAsync(itemSlot);
+                return;
+            }
+            
+            Console.WriteLine($"[PlayerObject] UpdateEquipmentSlotAsync: Past null check, continuing with slot={itemSlot}");
+
+            _logger?.LogDebug($"[PlayerObject] UpdateEquipmentSlotAsync: slot={itemSlot}, data group={equipmentData?.ItemGroup}, data number={equipmentData?.ItemNumber}");
+            
+            try
+            {
+                switch (itemSlot)
+                {
+                    case InventoryConstants.LeftHandSlot: // 0 - Left Hand (Weapon)
+                        await UpdateWeaponSlotAsync(Weapon1, equipmentData, 33);
+                        break;
+
+                    case InventoryConstants.RightHandSlot: // 1 - Right Hand (Shield/Weapon)
+                        await UpdateWeaponSlotAsync(Weapon2, equipmentData, 42);
+                        break;
+
+                    case InventoryConstants.HelmSlot: // 2 - Helm
+                        await UpdateArmorSlotAsync(Helm, equipmentData, equipmentData.ItemGroup, equipmentData.ItemNumber);
+                        break;
+
+                    case InventoryConstants.ArmorSlot: // 3 - Armor
+                        await UpdateArmorSlotAsync(Armor, equipmentData, equipmentData.ItemGroup, equipmentData.ItemNumber);
+                        break;
+
+                    case InventoryConstants.PantsSlot: // 4 - Pants
+                        await UpdateArmorSlotAsync(Pants, equipmentData, equipmentData.ItemGroup, equipmentData.ItemNumber);
+                        break;
+
+                    case InventoryConstants.GlovesSlot: // 5 - Gloves
+                        Console.WriteLine($"[PlayerObject] Processing gloves slot 5, calling UpdateArmorSlotAsync");
+                        _logger?.LogDebug($"[PlayerObject] UpdateEquipmentSlotAsync: Processing gloves slot, calling UpdateArmorSlotAsync");
+                        await UpdateArmorSlotAsync(Gloves, equipmentData, equipmentData.ItemGroup, equipmentData.ItemNumber);
+                        Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync completed for gloves slot 5");
+                        break;
+
+                    case InventoryConstants.BootsSlot: // 6 - Boots
+                        await UpdateArmorSlotAsync(Boots, equipmentData, equipmentData.ItemGroup, equipmentData.ItemNumber);
+                        break;
+
+                    case InventoryConstants.WingsSlot: // 7 - Wings
+                        await UpdateWingsSlotAsync(equipmentData);
+                        break;
+
+                    case InventoryConstants.PetSlot: // 8 - Pet
+                        // Pet handling would go here
+                        _logger?.LogDebug("Pet slot update not implemented yet for slot {Slot}", itemSlot);
+                        break;
+
+                    default:
+                        _logger?.LogWarning("Unknown equipment slot {Slot} in appearance change", itemSlot);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error updating equipment slot {Slot}", itemSlot);
+            }
+        }
+
+        private async Task UnequipSlotAsync(byte itemSlot)
+        {
+            Console.WriteLine($"[PlayerObject] UnequipSlotAsync called for slot {itemSlot}");
+            _logger?.LogDebug("UnequipSlotAsync called for slot {Slot}", itemSlot);
+            
+            switch (itemSlot)
+            {
+                case InventoryConstants.LeftHandSlot:
+                    Weapon1.Model = null;
+                    ClearItemProperties(Weapon1);
+                    break;
+
+                case InventoryConstants.RightHandSlot:
+                    Weapon2.Model = null;
+                    ClearItemProperties(Weapon2);
+                    break;
+
+                case InventoryConstants.HelmSlot:
+                    await ResetBodyPartToClassDefaultAsync(Helm, "HelmClass");
+                    ClearItemProperties(Helm);
+                    break;
+
+                case InventoryConstants.ArmorSlot:
+                    Console.WriteLine($"[PlayerObject] ARMOR CASE: slot={itemSlot}, ArmorSlot={InventoryConstants.ArmorSlot}");
+                    _logger?.LogDebug("ARMOR CASE: calling ResetBodyPartToClassDefaultAsync");
+                    await ResetBodyPartToClassDefaultAsync(Armor, "ArmorClass");
+                    ClearItemProperties(Armor);
+                    break;
+
+                case InventoryConstants.PantsSlot:
+                    await ResetBodyPartToClassDefaultAsync(Pants, "PantClass");
+                    ClearItemProperties(Pants);
+                    break;
+
+                case InventoryConstants.GlovesSlot:
+                    await ResetBodyPartToClassDefaultAsync(Gloves, "GloveClass");
+                    ClearItemProperties(Gloves);
+                    break;
+
+                case InventoryConstants.BootsSlot:
+                    await ResetBodyPartToClassDefaultAsync(Boots, "BootClass");
+                    ClearItemProperties(Boots);
+                    break;
+
+                case InventoryConstants.WingsSlot:
+                    EquippedWings.Hidden = true;
+                    EquippedWings.Type = 0;
+                    break;
+
+                default:
+                    Console.WriteLine($"[PlayerObject] DEFAULT CASE: Unknown slot {itemSlot}");
+                    _logger?.LogWarning("Unknown equipment slot {Slot} in unequip", itemSlot);
+                    break;
+            }
+        }
+
+        private async Task UpdateWeaponSlotAsync(WeaponObject weapon, EquipmentSlotData equipmentData, int boneLink)
+        {
+            var itemDef = ItemDatabase.GetItemDefinition(equipmentData.ItemGroup, (short)equipmentData.ItemNumber);
+            if (itemDef != null && !string.IsNullOrEmpty(itemDef.TexturePath))
+            {
+                weapon.Model = await BMDLoader.Instance.Prepare(itemDef.TexturePath);
+                weapon.ParentBoneLink = boneLink;
+                weapon.LinkParentAnimation = false;
+                SetItemPropertiesFromEquipmentData(weapon, equipmentData);
+            }
+            else
+            {
+                weapon.Model = null;
+                ClearItemProperties(weapon);
+            }
+        }
+
+        private async Task UpdateArmorSlotAsync(ModelObject armorPart, EquipmentSlotData equipmentData, byte itemGroup, ushort itemNumber)
+        {
+            Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync START: Part={armorPart.GetType().Name}, Group={itemGroup}, Number={itemNumber}");
+            _logger?.LogDebug($"[PlayerObject] UpdateArmorSlotAsync: Part={armorPart.GetType().Name}, Group={itemGroup}, Number={itemNumber}");
+            
+            var itemDef = ItemDatabase.GetItemDefinition(itemGroup, (short)itemNumber);
+            Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: ItemDef {(itemDef == null ? "NULL" : "FOUND")}");
+            if (itemDef != null && !string.IsNullOrEmpty(itemDef.TexturePath))
+            {
+                string playerTexturePath = itemDef.TexturePath.Replace("Item/", "Player/");
+                Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: Converting texture path: {itemDef.TexturePath} -> {playerTexturePath}");
+                _logger?.LogDebug($"[PlayerObject] UpdateArmorSlotAsync: ItemDef found. Original={itemDef.TexturePath}, Player={playerTexturePath}");
+                
+                // Clear old model first
+                var oldModel = armorPart.Model;
+                armorPart.Model = null;
+                Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: Cleared old model for {armorPart.GetType().Name}");
+                _logger?.LogDebug($"[PlayerObject] UpdateArmorSlotAsync: Cleared old model for {armorPart.GetType().Name}");
+                
+                Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: About to call LoadPartAsync with: {playerTexturePath}");
+                await LoadPartAsync(armorPart, playerTexturePath);
+                Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: LoadPartAsync completed");
+                SetItemPropertiesFromEquipmentData(armorPart, equipmentData);
+                
+                Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: Model loading completed. New model null? {armorPart.Model == null}");
+                _logger?.LogDebug($"[PlayerObject] UpdateArmorSlotAsync: Model loading completed. New model null? {armorPart.Model == null}");
+            }
+            else
+            {
+                // If item not found, determine which part to reset based on the armor part
+                string partPrefix = GetPartPrefix(armorPart);
+                if (!string.IsNullOrEmpty(partPrefix))
+                {
+                    await ResetBodyPartToClassDefaultAsync(armorPart, partPrefix);
+                }
+                ClearItemProperties(armorPart);
+            }
+        }
+
+        private Task UpdateWingsSlotAsync(EquipmentSlotData equipmentData)
+        {
+            var itemDef = ItemDatabase.GetItemDefinition(equipmentData.ItemGroup, (short)equipmentData.ItemNumber);
+            if (itemDef != null)
+            {
+                EquippedWings.Hidden = false;
+                // Wing type calculation may need adjustment based on your wing system
+                EquippedWings.Type = (short)(equipmentData.ItemType + equipmentData.ItemLevel + 1);
+                EquippedWings.LinkParentAnimation = false;
+            }
+            else
+            {
+                EquippedWings.Hidden = true;
+                EquippedWings.Type = 0;
+            }
+            return Task.CompletedTask;
+        }
+
+        private void SetItemPropertiesFromEquipmentData(ModelObject part, EquipmentSlotData equipmentData)
+        {
+            part.ItemLevel = equipmentData.ItemLevel;
+            part.IsExcellentItem = equipmentData.ExcellentFlags > 0;
+            part.IsAncientItem = equipmentData.AncientDiscriminator > 0;
+        }
+
+        private void ClearItemProperties(ModelObject part)
+        {
+            part.ItemLevel = 0;
+            part.IsExcellentItem = false;
+            part.IsAncientItem = false;
         }
     }
 }
