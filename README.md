@@ -1,12 +1,12 @@
 # MuOnline Clone (MonoGame)
 
-A cross-platform MuOnline client implementation built with .NET 9.0 and MonoGame framework. Supports Windows, Android, iOS, and Linux platforms.
+A cross-platform MuOnline client implementation built with .NET 9.0 and MonoGame framework. Supports Windows, Android, iOS, Linux, and macOS platforms.
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bernatvadell/muonline)
 
 ## Features
 
-- Cross-platform support (Windows, Android, iOS, Linux)
+- Cross-platform support (Windows, Android, iOS, Linux, macOS)
 - Full 3D rendering with MonoGame
 - Original MuOnline data file compatibility
 - Multiplayer networking support
@@ -45,6 +45,7 @@ The solution contains these main projects:
 - **MuAndroid** - Android platform executable
 - **MuIos** - iOS platform executable
 - **MuLinux** - Linux platform executable
+- **MuMac** - macOS platform executable
 
 ## Quick Start
 
@@ -101,9 +102,16 @@ The server will be available at `localhost:44405` (Connect Server) which matches
    dotnet tool restore
    ```
 
-6. **Build and Run (Windows):**
+6. **Build and Run:**
    ```bash
+   # Windows
    dotnet run --project ./MuWin/MuWin.csproj -f net9.0-windows -c Debug
+   
+   # macOS
+   dotnet run --project ./MuMac/MuMac.csproj -f net9.0 -c Debug
+   
+   # Linux
+   dotnet run --project ./MuLinux/MuLinux.csproj -f net9.0 -c Debug
    ```
 
 ## Building the Project
@@ -116,6 +124,7 @@ dotnet build
 # Build and run specific platforms
 dotnet run --project ./MuWin/MuWin.csproj -f net9.0-windows -c Debug     # Windows
 dotnet run --project ./MuLinux/MuLinux.csproj -f net9.0 -c Debug         # Linux
+dotnet run --project ./MuMac/MuMac.csproj -f net9.0 -c Debug             # macOS
 dotnet run --project ./MuIos/MuIos.csproj -f net9.0-ios -c Debug         # iOS (macOS only)
 ```
 
@@ -134,6 +143,9 @@ dotnet publish ./MuAndroid/MuAndroid.csproj -f net9.0-android -c Release \
 
 # Linux  
 dotnet publish ./MuLinux/MuLinux.csproj -f net9.0 -c Release -r linux-x64
+
+# macOS
+dotnet publish ./MuMac/MuMac.csproj -f net9.0 -c Release
 
 # iOS (macOS only, requires Xcode and signing certificates)
 dotnet publish ./MuIos/MuIos.csproj -f net9.0-ios -c Release
