@@ -217,7 +217,9 @@ namespace Client.Main
             if (AppSettings == null || !ValidateSettings(AppSettings, bootLogger)) // Add validation
             {
                 bootLogger.LogCritical("❌ Invalid application settings found in appsettings.json. Shutting down.");
+#if !IOS
                 Exit(); // Stop the game if settings are invalid
+#endif
                 return;
             }
             bootLogger.LogInformation("✅ Configuration loaded.");
