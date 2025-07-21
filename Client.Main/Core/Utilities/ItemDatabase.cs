@@ -108,6 +108,7 @@ namespace Client.Main.Core.Utilities
                         RequiredEnergy = item.ReqEne,
                         RequiredLevel = item.ReqLvl,
                         TwoHanded = item.TwoHands != 0,
+                        Group = item.ItemSubGroup,
                         AllowedClasses = BuildAllowedClasses(item)
                     };
 

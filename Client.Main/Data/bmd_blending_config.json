@@ -36,6 +36,16 @@
     "Item/Mace05.bmd": {
     "0": "Opaque",
     "1": "Additive"
+  },
+    "comment_11" : "Guardian Angel",
+    "Item/helper01.bmd": {
+    "0": "AlphaBlend",
+    "1": "AlphaBlend"
+  },
+    "comment_12" : "Imp",
+    "Item/helper02.bmd": {
+    "0": "AlphaBlend",
+    "1": "AlphaBlend"
   }
 }
  

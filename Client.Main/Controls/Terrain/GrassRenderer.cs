@@ -20,7 +20,7 @@ namespace Client.Main.Controls.Terrain
         private const float GrassMidSq = 4000f * 4000f;   // two tufts
         private const float GrassFarSq = 5000f * 5000f;   // one tuft
         private const int GrassBatchQuads = 16384;       // 4096 tufts per batch
-        private const int GrassBatchVerts = GrassBatchQuads * 6;
+        private const int GrassBatchVerts = GrassBatchQuads * 12;
 
         private readonly GraphicsDevice _graphicsDevice;
         private readonly TerrainData _data;

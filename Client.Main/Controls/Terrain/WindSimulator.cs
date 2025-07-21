@@ -9,7 +9,7 @@ namespace Client.Main.Controls.Terrain
     /// </summary>
     public class WindSimulator
     {
-        private const float WindScale = 10f;
+        private const float WindScale = 15f;
         private const int UpdateIntervalMs = 32;
 
         private readonly TerrainData _data;

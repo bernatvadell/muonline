@@ -73,6 +73,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
         private Point _dragOffset;
         private DateTime _lastClickTime = DateTime.MinValue;
 
+        // GameTime for animated previews
+        private GameTime _currentGameTime;
+
         private void InitializeGrid()
         {
             _itemGrid = new InventoryItem[Columns, Rows];
@@ -225,7 +228,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 AddItem(itemToReturn); // Put it back in the inventory
                 _pickedItemRenderer.ReleaseItem(); // Clear the picked item
             }
-            
+
             Visible = false;
             if (Scene.FocusControl == this)
                 Scene.FocusControl = null;
@@ -401,6 +404,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         public override void Update(GameTime gameTime)
         {
+            _currentGameTime = gameTime;
             // Check for ESC key press (not hold)
             if (MuGame.Instance.Keyboard.IsKeyDown(Keys.Escape) && MuGame.Instance.PrevKeyboard.IsKeyUp(Keys.Escape))
             {
@@ -770,7 +774,16 @@ namespace Client.Main.Controls.UI.Game.Inventory
                         {
                             int w = item.Definition.Width * INVENTORY_SQUARE_WIDTH;
                             int h = item.Definition.Height * INVENTORY_SQUARE_HEIGHT;
-                            itemTexture = BmdPreviewRenderer.GetPreview(item.Definition, w, h);
+
+                            // Use animated preview for hovered items
+                            if (item == _hoveredItem)
+                            {
+                                itemTexture = BmdPreviewRenderer.GetAnimatedPreview(item.Definition, w, h, _currentGameTime);
+                            }
+                            else
+                            {
+                                itemTexture = BmdPreviewRenderer.GetPreview(item.Definition, w, h);
+                            }
                         }
                         catch (InvalidOperationException ex) when (ex.Message.Contains("UI thread"))
                         {
@@ -800,7 +813,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     Vector2 textSize = font.MeasureString(quantityText);
                     float textScale = 0.4f; // Small text
                     Vector2 scaledTextSize = textSize * textScale;
-                    
+
                     // Position in upper right corner of the item (not just first slot)
                     Vector2 textPosition = new Vector2(
                         itemRect.Right - scaledTextSize.X - 2, // 2px margin from right edge
@@ -920,10 +933,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
             w += 12; h += 8;
 
             Point m = MuGame.Instance.Mouse.Position;
-            
+
             // Get screen bounds
             Rectangle screenBounds = MuGame.Instance.GraphicsDevice.Viewport.Bounds;
-            
+
             // Calculate hovered item screen position to avoid covering it
             Point gridTopLeft = new Point(DisplayRectangle.X + _gridOffset.X, DisplayRectangle.Y + _gridOffset.Y);
             Rectangle hoveredItemRect = new Rectangle(
@@ -934,20 +947,20 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             // Start with tooltip to the right of the cursor
             Rectangle r = new(m.X + 15, m.Y + 15, w, h);
-            
+
             // If tooltip would cover the hovered item, try different positions
             if (r.Intersects(hoveredItemRect))
             {
                 // Try positioning tooltip to the left of the item
                 r.X = hoveredItemRect.X - w - 10;
                 r.Y = hoveredItemRect.Y;
-                
+
                 // If still intersecting or goes off screen, try above the item
                 if (r.Intersects(hoveredItemRect) || r.X < screenBounds.X + 10)
                 {
                     r.X = hoveredItemRect.X;
                     r.Y = hoveredItemRect.Y - h - 10;
-                    
+
                     // If still intersecting or goes off screen, try below the item
                     if (r.Intersects(hoveredItemRect) || r.Y < screenBounds.Y + 10)
                     {
@@ -956,7 +969,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     }
                 }
             }
-            
+
             // Ensure tooltip stays within screen bounds
             if (r.Right > screenBounds.Right - 10) r.X = screenBounds.Right - 10 - r.Width;
             if (r.Bottom > screenBounds.Bottom - 10) r.Y = screenBounds.Bottom - 10 - r.Height;
