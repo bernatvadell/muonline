@@ -105,7 +105,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             float rotationAngle = (float)(gameTime.TotalGameTime.TotalSeconds * rotationSpeed) % 360f;
 
             // Round to 5-degree increments for smoother animation but still cache-friendly
-            rotationAngle = MathF.Round(rotationAngle / 5f) * 5f;
+            rotationAngle = MathF.Round(rotationAngle);
 
             return GetPreview(definition, width, height, rotationAngle);
         }
@@ -194,7 +194,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 {
                     baseRotation = MuRotationConverter.ConvertToMonoGame(25f, 45f, 0f);
                 }
-                else if(def.Group == 6)
+                else if (def.Group == 6)
                 {
                     baseRotation = MuRotationConverter.ConvertToMonoGame(270f, 270f, 0f);
                 }
@@ -486,18 +486,19 @@ namespace Client.Main.Controls.UI.Game.Inventory
         /// <returns>MonoGame rotation matrix</returns>
         public static Matrix ConvertToMonoGame(float muX, float muY, float muZ)
         {
-            // DISCOVERED PATTERN:
-            // - Tarcza (270°, 270°, 0°) → MonoGame (270°, -270°, 0°) ✅
-            // - Small Axe (25°, 45°, 0°) → MonoGame (25°, -45°, 180°) ✅
-
             // Rule: If any angle >= 180°, don't add Z flip. Otherwise, add Z+180°
             bool hasLargeAngle = (Math.Abs(muX) >= 180f || Math.Abs(muY) >= 180f || Math.Abs(muZ) >= 180f);
 
             float monoX = muX;
-            float monoY = -muY;  // Always flip Y direction
-            float monoZ = hasLargeAngle ? muZ : muZ + 180f;  // Add Z+180° for small angles
+            float monoY = -muY;
+            float monoZ = hasLargeAngle ? muZ : muZ + 180f;
 
-            return CreateRotationMatrix(monoX, monoY, monoZ);
+            var m = CreateRotationMatrix(monoX, monoY, monoZ);
+
+            if (muX >= 180f && muY >= 180f && Math.Abs(muZ) < 1f)
+                m *= Matrix.CreateRotationY(MathHelper.Pi);
+
+            return m;
         }
 
         /// <summary>
