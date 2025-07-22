@@ -172,7 +172,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 // Set appropriate render states for 3D preview
                 gd.BlendState = BlendState.AlphaBlend;
                 gd.DepthStencilState = DepthStencilState.Default;
-                gd.RasterizerState = RasterizerState.CullCounterClockwise;
+                gd.RasterizerState = RasterizerState.CullNone; // Show both sides for inventory items
 
                 // ── basic effect ──────────────────────────────────────────────────────
                 var effect = GraphicsManager.Instance.BasicEffect3D;
