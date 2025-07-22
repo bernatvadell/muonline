@@ -163,7 +163,7 @@ namespace Client.Main.Objects
                     _cullingCheckTimer = 0;
                     bool wasOutOfView = OutOfView;
                     OutOfView = !World.IsObjectInView(this);
-                    
+
                     // If object was just marked as out of view, give it another chance next frame
                     // This prevents flickering at screen edges
                     if (!wasOutOfView && OutOfView)
@@ -196,19 +196,30 @@ namespace Client.Main.Objects
                 LowQuality = false;
             }
 
+            // Determine if UI should block hover detection for world objects
+            bool uiBlockingHover = false;
+            if (World?.Scene != null)
+            {
+                var scene = World.Scene;
+                if (scene.MouseHoverControl != null && scene.MouseHoverControl != scene.World)
+                {
+                    uiBlockingHover = true; // a UI element is hovered, ignore world hover
+                }
+            }
+
             // Cache parent's mouse hover state
             bool parentIsMouseHover = Parent?.IsMouseHover ?? false;
 
-            // Only calculate intersections if needed
+            // Only calculate intersections if needed and not blocked by UI
             bool wouldBeMouseHover = parentIsMouseHover;
-            if (!parentIsMouseHover && (Interactive || Constants.DRAW_BOUNDING_BOXES))
+            if (!parentIsMouseHover && !uiBlockingHover && (Interactive || Constants.DRAW_BOUNDING_BOXES))
             {
                 float? intersectionDistance = MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld);
                 ContainmentType contains = BoundingBoxWorld.Contains(MuGame.Instance.MouseRay.Position);
                 wouldBeMouseHover = intersectionDistance.HasValue || contains == ContainmentType.Contains;
             }
 
-            IsMouseHover = wouldBeMouseHover;
+            IsMouseHover = !uiBlockingHover && wouldBeMouseHover;
 
             if (!parentIsMouseHover && IsMouseHover)
                 World.Scene.MouseHoverObject = this;
