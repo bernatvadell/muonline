@@ -39,6 +39,32 @@ namespace Client.Main.Objects
         private Texture2D _whiteTexture;
         private float _cullingCheckTimer = 0;
         private const float CullingCheckInterval = 0.1f; // Check culling every 100ms instead of every frame
+        
+        // Advanced update optimization for invisible objects
+        private float _lowPriorityUpdateTimer = 0;
+        private const float LowPriorityUpdateInterval = 0.25f; // Update invisible objects every 250ms
+        private const float FarObjectUpdateInterval = 0.5f; // Update very far objects every 500ms
+        private float _lastDistanceToCamera = float.MaxValue;
+        private bool _wasOutOfView = true;
+        private const int MaxSkipFrames = 15; // Skip up to 15 frames for very distant objects
+        
+        // Static frame counter for staggered updates
+        private static int _globalFrameCounter = 0;
+        private readonly int _updateOffset; // Unique offset for each object to stagger updates
+        
+        // Debug counters
+        public static int TotalSkippedUpdates { get; private set; } = 0;
+        public static int TotalUpdatesPerformed { get; private set; } = 0;
+        private static int _lastResetTime = Environment.TickCount;
+        
+        public static string GetOptimizationStats()
+        {
+            int total = TotalSkippedUpdates + TotalUpdatesPerformed;
+            if (total == 0) return "No updates tracked yet";
+            
+            float skipPercentage = (TotalSkippedUpdates / (float)total) * 100f;
+            return $"Updates: {TotalUpdatesPerformed}, Skipped: {TotalSkippedUpdates} ({skipPercentage:F1}%)";
+        }
 
         public bool LinkParentAnimation { get; set; }
         public bool OutOfView { get; private set; } = true;
@@ -87,6 +113,9 @@ namespace Client.Main.Objects
             Children.ControlAdded += Children_ControlAdded;
 
             _font = GraphicsManager.Instance.Font;
+            
+            // Initialize update offset for staggered updates - spread objects across frames
+            _updateOffset = GetHashCode() % 60; // Spread across ~1 second at 60fps
         }
 
         public virtual void OnClick()
@@ -154,28 +183,126 @@ namespace Client.Main.Objects
             }
             if (Status != GameControlStatus.Ready) return;
 
-            // Update OutOfView flag, but not every frame to reduce overhead
+            // Increment global frame counter for staggered updates
+            _globalFrameCounter++;
+
+            float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            
+            // Update OutOfView flag with intelligent frequency based on object state
+            bool shouldCheckCulling = false;
             if (World != null)
             {
-                _cullingCheckTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
-                if (_cullingCheckTimer >= CullingCheckInterval)
+                _cullingCheckTimer += deltaTime;
+                
+                // Adjust culling check frequency based on object state
+                float checkInterval = _wasOutOfView ? CullingCheckInterval * 2f : CullingCheckInterval;
+                if (_cullingCheckTimer >= checkInterval)
                 {
-                    _cullingCheckTimer = 0;
-                    bool wasOutOfView = OutOfView;
-                    OutOfView = !World.IsObjectInView(this);
+                    shouldCheckCulling = true;
+                }
+            }
 
-                    // If object was just marked as out of view, give it another chance next frame
-                    // This prevents flickering at screen edges
-                    if (!wasOutOfView && OutOfView)
+            if (shouldCheckCulling)
+            {
+                _cullingCheckTimer = 0;
+                _wasOutOfView = OutOfView;
+                OutOfView = World != null && !World.IsObjectInView(this);
+
+                // If object was just marked as out of view, give it another chance soon
+                if (!_wasOutOfView && OutOfView)
+                {
+                    _cullingCheckTimer = CullingCheckInterval - 0.016f; // Check again in ~1 frame
+                }
+            }
+
+            // AGGRESSIVE: Skip most updates for invisible objects
+            if (OutOfView)
+            {
+                _lowPriorityUpdateTimer += deltaTime;
+                
+                // Much more aggressive - update invisible objects only every 1 second!
+                if (_lowPriorityUpdateTimer < 1.0f && _globalFrameCounter % 60 != (_updateOffset % 60))
+                {
+                    TotalSkippedUpdates++;
+                    return; // Skip this frame entirely for invisible objects - VERY aggressive
+                }
+                
+                _lowPriorityUpdateTimer = 0;
+
+                // Only update critical children for invisible objects
+                for (int i = 0; i < Children.Count; i++)
+                {
+                    var child = Children[i];
+                    // Only update if it's a player or monster - skip everything else
+                    if (child is Player.PlayerObject || child is MonsterObject)
                     {
-                        _cullingCheckTimer = CullingCheckInterval - 0.016f; // Check again in ~1 frame
+                        child.Update(gameTime);
+                    }
+                }
+                return;
+            }
+
+            // Reset low priority timer when object becomes visible
+            _lowPriorityUpdateTimer = 0;
+
+            // Simplified distance-based optimization for visible objects
+            float distanceToCamera = float.MaxValue;
+            if (World != null && Camera.Instance != null)
+            {
+                distanceToCamera = Vector3.Distance(Camera.Instance.Position, WorldPosition.Translation);
+                _lastDistanceToCamera = distanceToCamera;
+
+                // AGGRESSIVE: Skip every other frame for very distant visible objects
+                if (distanceToCamera > Constants.LOW_QUALITY_DISTANCE * 2f)
+                {
+                    if (_globalFrameCounter % 2 != (_updateOffset % 2))
+                    {
+                        TotalSkippedUpdates++;
+                        return; // Skip every other frame for distant objects
                     }
                 }
             }
 
-            // OPTIMIZATION: Early exit if the object is not in the camera's view.
-            if (OutOfView) return;
+            // Full update for all visible objects (simplified)
+            PerformFullUpdate(gameTime, distanceToCamera);
+        }
 
+        private void UpdateChildrenSelectively(GameTime gameTime)
+        {
+            // Only update children that are likely to be important (players, animated objects, etc.)
+            for (int i = 0; i < Children.Count; i++)
+            {
+                var child = Children[i];
+                
+                // Always update players and important objects
+                if (child is Player.PlayerObject || 
+                    child is MonsterObject ||
+                    child.Interactive ||
+                    !child.OutOfView)
+                {
+                    child.Update(gameTime);
+                }
+                // For other children, use staggered updates
+                else if (((_globalFrameCounter + child._updateOffset) % (MaxSkipFrames * 2)) == 0)
+                {
+                    child.Update(gameTime);
+                }
+            }
+        }
+
+        private void PerformFullUpdate(GameTime gameTime, float distanceToCamera)
+        {
+            TotalUpdatesPerformed++;
+            
+            // Reset debug counters every 5 seconds
+            if (Environment.TickCount - _lastResetTime > 5000)
+            {
+                _lastResetTime = Environment.TickCount;
+                // log these values or display them in debug UI
+                //Console.WriteLine($"WorldObject Optimization: {TotalSkippedUpdates} skipped, {TotalUpdatesPerformed} performed");
+                TotalSkippedUpdates = 0;
+                TotalUpdatesPerformed = 0;
+            }
             // Determine whether the object should be rendered in low quality based on distance to the camera
             if (World != null)
             {
@@ -187,8 +314,7 @@ namespace Client.Main.Objects
                 }
                 else
                 {
-                    float dist = Vector3.Distance(Camera.Instance.Position, WorldPosition.Translation);
-                    LowQuality = dist > Constants.LOW_QUALITY_DISTANCE;
+                    LowQuality = distanceToCamera > Constants.LOW_QUALITY_DISTANCE;
                 }
             }
             else
@@ -196,35 +322,45 @@ namespace Client.Main.Objects
                 LowQuality = false;
             }
 
-            // Determine if UI should block hover detection for world objects
-            bool uiBlockingHover = false;
-            if (World?.Scene != null)
+            // Mouse hover detection optimization - skip for very distant objects
+            bool shouldCheckMouseHover = distanceToCamera < Constants.LOW_QUALITY_DISTANCE * 3f;
+            
+            if (shouldCheckMouseHover)
             {
-                var scene = World.Scene;
-                if (scene.MouseHoverControl != null && scene.MouseHoverControl != scene.World)
+                // Determine if UI should block hover detection for world objects
+                bool uiBlockingHover = false;
+                if (World?.Scene != null)
                 {
-                    uiBlockingHover = true; // a UI element is hovered, ignore world hover
+                    var scene = World.Scene;
+                    if (scene.MouseHoverControl != null && scene.MouseHoverControl != scene.World)
+                    {
+                        uiBlockingHover = true; // a UI element is hovered, ignore world hover
+                    }
                 }
+
+                // Cache parent's mouse hover state
+                bool parentIsMouseHover = Parent?.IsMouseHover ?? false;
+
+                // Only calculate intersections if needed and not blocked by UI
+                bool wouldBeMouseHover = parentIsMouseHover;
+                if (!parentIsMouseHover && !uiBlockingHover && (Interactive || Constants.DRAW_BOUNDING_BOXES))
+                {
+                    float? intersectionDistance = MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld);
+                    ContainmentType contains = BoundingBoxWorld.Contains(MuGame.Instance.MouseRay.Position);
+                    wouldBeMouseHover = intersectionDistance.HasValue || contains == ContainmentType.Contains;
+                }
+
+                IsMouseHover = !uiBlockingHover && wouldBeMouseHover;
+
+                if (!parentIsMouseHover && IsMouseHover)
+                    World.Scene.MouseHoverObject = this;
             }
-
-            // Cache parent's mouse hover state
-            bool parentIsMouseHover = Parent?.IsMouseHover ?? false;
-
-            // Only calculate intersections if needed and not blocked by UI
-            bool wouldBeMouseHover = parentIsMouseHover;
-            if (!parentIsMouseHover && !uiBlockingHover && (Interactive || Constants.DRAW_BOUNDING_BOXES))
+            else
             {
-                float? intersectionDistance = MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld);
-                ContainmentType contains = BoundingBoxWorld.Contains(MuGame.Instance.MouseRay.Position);
-                wouldBeMouseHover = intersectionDistance.HasValue || contains == ContainmentType.Contains;
+                IsMouseHover = false; // Distant objects can't be hovered
             }
 
-            IsMouseHover = !uiBlockingHover && wouldBeMouseHover;
-
-            if (!parentIsMouseHover && IsMouseHover)
-                World.Scene.MouseHoverObject = this;
-
-            // Direct indexing instead of foreach to avoid enumerator allocation
+            // Update all children for visible objects
             for (int i = 0; i < Children.Count; i++)
                 Children[i].Update(gameTime);
         }

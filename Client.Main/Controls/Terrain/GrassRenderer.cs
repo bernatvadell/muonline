@@ -22,10 +22,12 @@ namespace Client.Main.Controls.Terrain
         private const int GrassBatchQuads = 16384;
         private const int GrassBatchVerts = GrassBatchQuads * 6;
 
-        // Optimization: Caching for expensive calculations
-        private static readonly Dictionary<(int, int, int), float> _randomCache = new();
-        private static int _cacheFrameCounter = 0;
-        private const int CacheClearInterval = 1000; // Clear cache every 1000 frames to prevent memory bloat
+        // Pre-generated random lookup tables for grass properties
+        private static readonly float[] _grassRandomU = new float[256 * 256 * 16]; // 16 values per tile
+        private static readonly float[] _grassRandomXY = new float[256 * 256 * 32]; // 32 position values per tile  
+        private static readonly float[] _grassRandomScale = new float[256 * 256 * 16]; // 16 scale values per tile
+        private static readonly float[] _grassRandomRotation = new float[256 * 256 * 16]; // 16 rotation values per tile
+        private static bool _grassRandomTablesInitialized = false;
 
         private readonly GraphicsDevice _graphicsDevice;
         private readonly TerrainData _data;
@@ -49,6 +51,13 @@ namespace Client.Main.Controls.Terrain
             _data = data;
             _physics = physics;
             _wind = wind;
+            
+            // Initialize random lookup tables once
+            if (!_grassRandomTablesInitialized)
+            {
+                InitializeGrassRandomTables();
+                _grassRandomTablesInitialized = true;
+            }
         }
 
         public async void LoadContent(short worldIndex)
@@ -119,23 +128,27 @@ namespace Client.Main.Controls.Terrain
             const float windRadians = 0.35f;
             float windZBase = MathHelper.ToRadians(windBase * windRadians);
 
+            int tileIndex = yi * Constants.TERRAIN_SIZE + xi;
+            
             for (int i = 0; i < grassPerTile; i++)
             {
-                // Use cached random values for better performance
-                float u0 = GetCachedRandom(xi, yi, 123 + i) * (1f - GrassUWidth);
+                // Use pre-generated lookup tables for maximum performance
+                int baseIdx = tileIndex * 16 + i;
+                int posIdx = tileIndex * 32 + (i * 2);
+                
+                float u0 = _grassRandomU[baseIdx] * (1f - GrassUWidth);
                 float u1 = u0 + GrassUWidth;
-                float halfUV = GrassUWidth * 0.5f;
-                float maxOffset = 0.5f - halfUV;
+                float maxOffset = 0.5f - (GrassUWidth * 0.5f);
 
-                float rx = (GetCachedRandom(xi, yi, 17 + i) * 2f - 1f) * maxOffset;
-                float ry = (GetCachedRandom(xi, yi, 91 + i) * 2f - 1f) * maxOffset;
+                float rx = (_grassRandomXY[posIdx] * 2f - 1f) * maxOffset;
+                float ry = (_grassRandomXY[posIdx + 1] * 2f - 1f) * maxOffset;
 
                 float worldX = (xf + 0.5f * lodFactor + rx * lodFactor) * Constants.TERRAIN_SCALE;
                 float worldY = (yf + 0.5f * lodFactor + ry * lodFactor) * Constants.TERRAIN_SCALE;
                 float h = _physics.RequestTerrainHeight(worldX, worldY);
 
-                float scale = MathHelper.Lerp(ScaleMin, ScaleMax, GetCachedRandom(xi, yi, 33 + i));
-                float jitter = MathHelper.ToRadians((GetCachedRandom(xi, yi, 57 + i) - 0.5f) * 2f * RotJitterDeg);
+                float scale = MathHelper.Lerp(ScaleMin, ScaleMax, _grassRandomScale[baseIdx]);
+                float jitter = MathHelper.ToRadians((_grassRandomRotation[baseIdx] - 0.5f) * 2f * RotJitterDeg);
                 float windZ = windZBase + jitter;
 
                 RenderGrassQuad(
@@ -214,12 +227,6 @@ namespace Client.Main.Controls.Terrain
                 || _grassEffect == null) // Added null check for _grassEffect
                 return;
 
-            // Optimization: Clear cache periodically to prevent memory bloat
-            if (++_cacheFrameCounter > CacheClearInterval)
-            {
-                _randomCache.Clear();
-                _cacheFrameCounter = 0;
-            }
 
             var dev = _graphicsDevice;
             var prevBlend = dev.BlendState;
@@ -286,21 +293,43 @@ namespace Client.Main.Controls.Terrain
             tex.SetData(px);
         }
 
-        // Cached random values for performance
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static float GetCachedRandom(int x, int y, int salt = 0)
+        private static void InitializeGrassRandomTables()
         {
-            var key = (x, y, salt);
-            if (!_randomCache.TryGetValue(key, out float value))
+            // Pre-generate all random values for grass rendering
+            int totalTiles = Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE;
+            
+            for (int tileIdx = 0; tileIdx < totalTiles; tileIdx++)
             {
-                value = PseudoRandom(x, y, salt);
-                if (_randomCache.Count < 10000) // Limit cache size
-                    _randomCache[key] = value;
+                int xi = tileIdx % Constants.TERRAIN_SIZE;
+                int yi = tileIdx / Constants.TERRAIN_SIZE;
+                
+                // Generate U texture coordinates (16 per tile)
+                for (int i = 0; i < 16; i++)
+                {
+                    _grassRandomU[tileIdx * 16 + i] = PseudoRandom(xi, yi, 123 + i);
+                }
+                
+                // Generate XY positions (32 per tile - 16 pairs)
+                for (int i = 0; i < 32; i++)
+                {
+                    _grassRandomXY[tileIdx * 32 + i] = PseudoRandom(xi, yi, 17 + i);
+                }
+                
+                // Generate scales (16 per tile)  
+                for (int i = 0; i < 16; i++)
+                {
+                    _grassRandomScale[tileIdx * 16 + i] = PseudoRandom(xi, yi, 33 + i);
+                }
+                
+                // Generate rotations (16 per tile)
+                for (int i = 0; i < 16; i++)
+                {
+                    _grassRandomRotation[tileIdx * 16 + i] = PseudoRandom(xi, yi, 57 + i);
+                }
             }
-            return value;
         }
 
-        // 32-bit Xorshift* hash → float [0..1]
+        // 32-bit Xorshift* hash → float [0..1] (kept for initialization)
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static float PseudoRandom(int x, int y, int salt = 0)
         {

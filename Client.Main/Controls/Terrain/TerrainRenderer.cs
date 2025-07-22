@@ -3,6 +3,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Buffers;
+using System.Collections.Generic;
 
 namespace Client.Main.Controls.Terrain
 {
@@ -31,6 +32,16 @@ namespace Client.Main.Controls.Terrain
         private readonly Vector2[] _terrainTextureCoords = new Vector2[4];
         private readonly Vector3[] _tempTerrainVertex = new Vector3[4];
         private readonly Color[] _tempTerrainLights = new Color[4];
+
+        // Vertex lighting cache
+        private readonly Dictionary<int, Color> _vertexLightCache = new Dictionary<int, Color>(2048);
+        private readonly Dictionary<int, Vector3> _vertexPositionCache = new Dictionary<int, Vector3>(2048);
+        private int _lastCacheUpdateFrame = -1;
+        private const int CacheValidFrames = 2; // Cache valid for 2 frames to balance performance vs accuracy
+        
+        // State tracking for GPU optimization
+        private Texture2D _lastBoundTexture = null;
+        private BlendState _lastBlendState = null;
 
         private Vector2 _waterFlowDir = Vector2.UnitX;
         private float _waterTotal = 0f;
@@ -93,6 +104,18 @@ namespace Client.Main.Controls.Terrain
         public void Update(GameTime time)
         {
             _waterTotal += (float)time.ElapsedGameTime.TotalSeconds * WaterSpeed;
+            
+            // Invalidate vertex light cache when lights change significantly
+            if (_lightManager.ActiveLights.Count > 0)
+            {
+                int currentFrame = (int)(time.TotalGameTime.TotalMilliseconds / 16.67);
+                if (currentFrame - _lastCacheUpdateFrame > CacheValidFrames)
+                {
+                    _vertexLightCache.Clear();
+                    _vertexPositionCache.Clear();
+                    _lastCacheUpdateFrame = currentFrame;
+                }
+            }
         }
 
         public void Draw(bool after)
@@ -120,7 +143,8 @@ namespace Client.Main.Controls.Terrain
                     RenderTerrainBlock(
                         block.Xi, block.Yi,
                         after,
-                        _visibility.LodSteps[block.LODLevel]);
+                        _visibility.LodSteps[block.LODLevel],
+                        block); // Pass block for hierarchical culling
                 }
             }
 
@@ -134,9 +158,13 @@ namespace Client.Main.Controls.Terrain
             DrawnTriangles = 0;
             DrawnBlocks = 0;
             DrawnCells = 0;
+            
+            // Reset state tracking for new frame
+            _lastBoundTexture = null;
+            _lastBlendState = null;
         }
 
-        private void RenderTerrainBlock(int xi, int yi, bool after, int lodStep)
+        private void RenderTerrainBlock(int xi, int yi, bool after, int lodStep, TerrainBlock block = null)
         {
             if (!after) DrawnBlocks++;
 
@@ -146,10 +174,24 @@ namespace Client.Main.Controls.Terrain
             {
                 for (int j = 0; j < 4; j += lodStep)
                 {
-                    RenderTerrainTile(
-                        xi + j, yi + i,
-                        (float)lodStep, lodStep,
-                        after);
+                    // Use hierarchical culling if available
+                    bool shouldRender = true;
+                    if (block != null && !block.FullyVisible)
+                    {
+                        int tileIdx = i * 4 + j;
+                        if (tileIdx < block.TileVisibility.Length)
+                        {
+                            shouldRender = block.TileVisibility[tileIdx];
+                        }
+                    }
+                    
+                    if (shouldRender)
+                    {
+                        RenderTerrainTile(
+                            xi + j, yi + i,
+                            (float)lodStep, lodStep,
+                            after);
+                    }
                 }
             }
         }
@@ -293,6 +335,30 @@ namespace Client.Main.Controls.Terrain
         {
             if (_data.FinalLightMap == null) return Color.White; // Added null check for _data.FinalLightMap
 
+            // Check cache validity - clear if too old
+            int currentFrame = (int)(MuGame.Instance.GameTime.TotalGameTime.TotalMilliseconds / 16.67);
+            if (currentFrame - _lastCacheUpdateFrame > CacheValidFrames)
+            {
+                _vertexLightCache.Clear();
+                _vertexPositionCache.Clear();
+                _lastCacheUpdateFrame = currentFrame;
+            }
+
+            // Try to get cached result
+            if (_vertexLightCache.TryGetValue(index, out Color cachedColor))
+            {
+                // Verify position hasn't changed significantly (for dynamic terrain)
+                if (_vertexPositionCache.TryGetValue(index, out Vector3 cachedPos))
+                {
+                    float distSq = Vector3.DistanceSquared(pos, cachedPos);
+                    if (distSq < 1f) // Position threshold - 1 unit squared
+                    {
+                        return cachedColor;
+                    }
+                }
+            }
+
+            // Calculate lighting (expensive operation)
             Vector3 baseColor = index < _data.FinalLightMap.Length
                 ? new Vector3(_data.FinalLightMap[index].R, _data.FinalLightMap[index].G, _data.FinalLightMap[index].B)
                 : Vector3.Zero;
@@ -301,7 +367,16 @@ namespace Client.Main.Controls.Terrain
             baseColor += _lightManager.EvaluateDynamicLight(new Vector2(pos.X, pos.Y));
             baseColor = Vector3.Clamp(baseColor, Vector3.Zero, new Vector3(255f));
 
-            return new Color((int)baseColor.X, (int)baseColor.Y, (int)baseColor.Z);
+            Color result = new Color((int)baseColor.X, (int)baseColor.Y, (int)baseColor.Z);
+
+            // Cache the result (limit cache size to prevent memory bloat)
+            if (_vertexLightCache.Count < 2000)
+            {
+                _vertexLightCache[index] = result;
+                _vertexPositionCache[index] = pos;
+            }
+
+            return result;
         }
 
         private void ApplyAlphaToLights(byte a1, byte a2, byte a3, byte a4)
@@ -338,8 +413,21 @@ namespace Client.Main.Controls.Terrain
             if (effect == null || effect.CurrentTechnique == null) return; // Added null checks for effect and effect.CurrentTechnique
             if (_data.Textures[texIndex] == null) return; // Added null check for texture
 
-            effect.Texture = _data.Textures[texIndex];
-            _graphicsDevice.BlendState = alphaLayer ? BlendState.AlphaBlend : BlendState.Opaque;
+            var texture = _data.Textures[texIndex];
+            var blendState = alphaLayer ? BlendState.AlphaBlend : BlendState.Opaque;
+            
+            // Avoid unnecessary state changes
+            if (_lastBoundTexture != texture)
+            {
+                effect.Texture = texture;
+                _lastBoundTexture = texture;
+            }
+            
+            if (_lastBlendState != blendState)
+            {
+                _graphicsDevice.BlendState = blendState;
+                _lastBlendState = blendState;
+            }
 
             foreach (var pass in effect.CurrentTechnique.Passes)
             {
@@ -359,16 +447,23 @@ namespace Client.Main.Controls.Terrain
 
         private void FlushAllTileBatches()
         {
+            // IMPORTANT: For proper terrain blending, we must render ALL opaque layers first,
+            // then ALL alpha layers. This preserves the correct depth/blend order.
+            
+            // First pass: render all opaque batches
             for (int t = 0; t < 256; t++)
             {
                 if (_tileBatchCounts[t] > 0)
                     FlushSingleTexture(t, alphaLayer: false);
             }
+            
+            // Second pass: render all alpha batches
             for (int t = 0; t < 256; t++)
             {
                 if (_tileAlphaCounts[t] > 0)
                     FlushSingleTexture(t, alphaLayer: true);
             }
+            
             _graphicsDevice.BlendState = BlendState.Opaque;
         }
 

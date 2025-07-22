@@ -35,7 +35,7 @@ namespace Client.Main.Objects
 
         private bool _renderShadow = false;
         protected int _priorAction = 0;
-        private bool _invalidatedBuffers = true;
+        private uint _invalidatedBufferFlags = uint.MaxValue; // Start with all flags set
         private float _blendMeshLight = 1f;
         protected double _animTime = 0.0;
         private bool _contentLoaded = false;
@@ -90,7 +90,7 @@ namespace Client.Main.Objects
             set
             {
                 _blendMeshLight = value;
-                _invalidatedBuffers = true;
+                InvalidateBuffers(BUFFER_FLAG_MATERIAL);
             }
         }
         public bool RenderShadow { get => _renderShadow; set { _renderShadow = value; OnRenderShadowChanged(); } }
@@ -152,11 +152,54 @@ namespace Client.Main.Objects
 
         // Animation and buffer optimization
 
-        // Cache for bone matrix calculations
+        // Enhanced animation caching system
         private Matrix[] _cachedBoneMatrix = null;
         private int _lastCachedAction = -1;
         private float _lastCachedAnimTime = -1;
         private bool _boneMatrixCacheValid = false;
+        
+        // Local animation optimization - per object only
+        private struct LocalAnimationState
+        {
+            public int ActionIndex;
+            public int Frame0;
+            public int Frame1; 
+            public float InterpolationFactor;
+            public double AnimTime;
+            
+            public bool Equals(LocalAnimationState other)
+            {
+                return ActionIndex == other.ActionIndex &&
+                       Frame0 == other.Frame0 &&
+                       Frame1 == other.Frame1 &&
+                       Math.Abs(InterpolationFactor - other.InterpolationFactor) < 0.001f; // More strict
+            }
+        }
+        
+        private LocalAnimationState _lastAnimationState;
+        private bool _animationStateValid = false;
+        private Matrix[] _tempBoneTransforms = null; // Reusable temp array
+        
+
+        // Buffer invalidation flags
+        private const uint BUFFER_FLAG_ANIMATION = 1u << 0;      // Animation/bones changed
+        private const uint BUFFER_FLAG_LIGHTING = 1u << 1;      // Lighting changed  
+        private const uint BUFFER_FLAG_TRANSFORM = 1u << 2;     // World transform changed
+        private const uint BUFFER_FLAG_MATERIAL = 1u << 3;      // Material properties changed
+        private const uint BUFFER_FLAG_TEXTURE = 1u << 4;       // Texture changed
+        private const uint BUFFER_FLAG_ALL = uint.MaxValue;     // Force full rebuild
+
+        // Per-mesh buffer cache
+        private struct MeshBufferCache
+        {
+            public DynamicVertexBuffer VertexBuffer;
+            public DynamicIndexBuffer IndexBuffer;
+            public Vector3 CachedLight;
+            public Color CachedBodyColor;
+            public uint LastUpdateFrame;
+            public bool IsValid;
+        }
+        private MeshBufferCache[] _meshBufferCache;
 
         public ModelObject()
         {
@@ -216,8 +259,15 @@ namespace Client.Main.Objects
             }
 
             _blendMeshIndicesScratch = new int[meshCount];
+            
+            // Initialize mesh buffer cache
+            _meshBufferCache = new MeshBufferCache[meshCount];
+            for (int i = 0; i < meshCount; i++)
+            {
+                _meshBufferCache[i] = new MeshBufferCache { IsValid = false };
+            }
 
-            _invalidatedBuffers = true;
+            InvalidateBuffers(BUFFER_FLAG_ALL);
             _contentLoaded = true;
 
             if (Model?.Bones != null && Model.Bones.Length > 0)
@@ -276,7 +326,7 @@ namespace Client.Main.Objects
 
                             if (this._isBlending || this.BoneTransform != null)
                             {
-                                childModel.InvalidateBuffers();
+                                childModel.InvalidateBuffers(BUFFER_FLAG_ANIMATION);
                             }
                         }
                     }
@@ -304,7 +354,7 @@ namespace Client.Main.Objects
                 bool lightChanged = Vector3.DistanceSquared(currentLight, _lastFrameLight) > 0.0001f;
                 if (lightChanged)
                 {
-                    _invalidatedBuffers = true;
+                    InvalidateBuffers(BUFFER_FLAG_LIGHTING);
                     _lastFrameLight = currentLight;
                 }
             }
@@ -1151,11 +1201,14 @@ namespace Client.Main.Objects
 
             Model = null;
             BoneTransform = null;
-            _invalidatedBuffers = true;
+            _invalidatedBufferFlags = 0;
 
             // Clear cache references
             _cachedBoneMatrix = null;
             _boneMatrixCacheValid = false;
+            _meshBufferCache = null;
+            _tempBoneTransforms = null;
+            _animationStateValid = false;
         }
 
         private void OnRenderShadowChanged()
@@ -1239,7 +1292,7 @@ namespace Client.Main.Objects
                 {
                     GenerateBoneMatrix(currentActionIndex, 0, 0, 0);
                     _priorAction = currentActionIndex;
-                    InvalidateBuffers();
+                    InvalidateBuffers(BUFFER_FLAG_ANIMATION);
                 }
                 return;
             }
@@ -1294,7 +1347,7 @@ namespace Client.Main.Objects
                     _blendFromAction = -1;
                 }
 
-                InvalidateBuffers();
+                InvalidateBuffers(BUFFER_FLAG_ANIMATION);
             }
 
             _priorAction = currentActionIndex;
@@ -1302,78 +1355,174 @@ namespace Client.Main.Objects
 
         protected void GenerateBoneMatrix(int actionIdx, int frame0, int frame1, float t)
         {
-            if (Model?.Bones == null || Model.Actions == null || Model.Actions.Length == 0) return;
-
-            Matrix[] transforms = BoneTransform ??= new Matrix[Model.Bones.Length];
-            var bones = Model.Bones;
+            if (Model?.Bones == null || Model.Actions == null || Model.Actions.Length == 0) 
+            {
+                // Reset animation cache for invalid models
+                _animationStateValid = false;
+                return;
+            }
 
             actionIdx = Math.Clamp(actionIdx, 0, Model.Actions.Length - 1);
             var action = Model.Actions[actionIdx];
+            var bones = Model.Bones;
 
-            bool changedAny = false;
+            // Create animation state for comparison - only for animated objects
+            LocalAnimationState currentAnimState = default;
+            bool shouldCheckCache = !LinkParentAnimation && ParentBoneLink < 0 && 
+                                   action.NumAnimationKeys > 1; // Only cache animated objects
+            
+            if (shouldCheckCache)
+            {
+                currentAnimState = new LocalAnimationState
+                {
+                    ActionIndex = actionIdx,
+                    Frame0 = frame0,
+                    Frame1 = frame1,
+                    InterpolationFactor = t,
+                    AnimTime = _animTime
+                };
+
+                // Check if we can skip expensive calculation using local cache
+                // But be more conservative - only skip if frames and interpolation are identical
+                if (_animationStateValid && currentAnimState.Equals(_lastAnimationState) && 
+                    BoneTransform != null && BoneTransform.Length == bones.Length)
+                {
+                    // Animation state hasn't changed - no need to recalculate
+                    return;
+                }
+            }
+
+            // Initialize or resize bone transform array if needed
+            if (BoneTransform == null || BoneTransform.Length != bones.Length)
+                BoneTransform = new Matrix[bones.Length];
+
+            // Initialize temp array for safer calculations - only when needed
+            if (_tempBoneTransforms == null || _tempBoneTransforms.Length != bones.Length)
+                _tempBoneTransforms = new Matrix[bones.Length];
+
             bool lockPositions = action.LockPositions;
             float bodyHeight = BodyHeight;
+            bool anyBoneChanged = false;
 
+            // Pre-clamp frame indices to valid ranges
+            int maxFrameIndex = action.NumAnimationKeys - 1;
+            frame0 = Math.Clamp(frame0, 0, maxFrameIndex);
+            frame1 = Math.Clamp(frame1, 0, maxFrameIndex);
+            
+            // If frames are the same, no interpolation needed
+            if (frame0 == frame1) t = 0f;
+
+            // Process bones in order (parents before children)
             for (int i = 0; i < bones.Length; i++)
             {
                 var bone = bones[i];
 
+                // Skip invalid bones
                 if (bone == BMDTextureBone.Dummy || bone.Matrixes == null || actionIdx >= bone.Matrixes.Length)
+                {
+                    _tempBoneTransforms[i] = Matrix.Identity;
+                    if (BoneTransform[i] != Matrix.Identity)
+                        anyBoneChanged = true;
                     continue;
+                }
 
                 var bm = bone.Matrixes[actionIdx];
                 int numPosKeys = bm.Position?.Length ?? 0;
                 int numQuatKeys = bm.Quaternion?.Length ?? 0;
-
-                if (numPosKeys == 0 || numQuatKeys == 0) continue;
-
-                // Clamp frame indices
-                int maxValidIndex = Math.Min(numPosKeys, numQuatKeys) - 1;
-                frame0 = Math.Clamp(frame0, 0, maxValidIndex);
-                frame1 = Math.Clamp(frame1, 0, maxValidIndex);
-
-                if (frame0 == frame1) t = 0f;
-
-                // Optimized quaternion and position interpolation
-                Quaternion q = (t == 0f) ? bm.Quaternion[frame0] : Quaternion.Slerp(bm.Quaternion[frame0], bm.Quaternion[frame1], t);
-                Matrix m = Matrix.CreateFromQuaternion(q);
-
-                if (t == 0f)
+                
+                if (numPosKeys == 0 || numQuatKeys == 0)
                 {
-                    m.Translation = bm.Position[frame0];
+                    _tempBoneTransforms[i] = Matrix.Identity;
+                    if (BoneTransform[i] != Matrix.Identity)
+                        anyBoneChanged = true;
+                    continue;
+                }
+
+                // Ensure frame indices are valid for this specific bone
+                int boneMaxFrame = Math.Min(numPosKeys, numQuatKeys) - 1;
+                int boneFrame0 = Math.Min(frame0, boneMaxFrame);
+                int boneFrame1 = Math.Min(frame1, boneMaxFrame);
+                float boneT = (boneFrame0 == boneFrame1) ? 0f : t;
+
+                Matrix localTransform;
+
+                // Optimize for common case: no interpolation needed
+                if (boneT == 0f)
+                {
+                    // Direct keyframe - no interpolation
+                    localTransform = Matrix.CreateFromQuaternion(bm.Quaternion[boneFrame0]);
+                    localTransform.Translation = bm.Position[boneFrame0];
                 }
                 else
                 {
-                    Vector3 p0 = bm.Position[frame0];
-                    Vector3 p1 = bm.Position[frame1];
-                    m.Translation = Vector3.Lerp(p0, p1, t);
+                    // Interpolated keyframe - use more efficient linear interpolation for position
+                    Quaternion q = Quaternion.Slerp(bm.Quaternion[boneFrame0], bm.Quaternion[boneFrame1], boneT);
+                    Vector3 p0 = bm.Position[boneFrame0];
+                    Vector3 p1 = bm.Position[boneFrame1];
+                    
+                    localTransform = Matrix.CreateFromQuaternion(q);
+                    localTransform.M41 = p0.X + (p1.X - p0.X) * boneT;
+                    localTransform.M42 = p0.Y + (p1.Y - p0.Y) * boneT;
+                    localTransform.M43 = p0.Z + (p1.Z - p0.Z) * boneT;
                 }
 
                 // Apply position locking for root bone
-                if (i == 0 && lockPositions)
+                if (i == 0 && lockPositions && bm.Position.Length > 0)
                 {
-                    var basePos = bm.Position[0];
-                    m.Translation = new Vector3(basePos.X, basePos.Y, m.Translation.Z + bodyHeight);
+                    var rootPos = bm.Position[0];
+                    localTransform.Translation = new Vector3(rootPos.X, rootPos.Y, localTransform.M43 + bodyHeight);
                 }
 
-                // Apply parent transformation
-                Matrix world = (bone.Parent != -1 && bone.Parent < transforms.Length)
-                    ? m * transforms[bone.Parent]
-                    : m;
-
-                if (world != transforms[i])
+                // Apply parent transformation with safety checks
+                Matrix worldTransform;
+                if (bone.Parent >= 0 && bone.Parent < _tempBoneTransforms.Length)
                 {
-                    transforms[i] = world;
-                    changedAny = true;
+                    worldTransform = localTransform * _tempBoneTransforms[bone.Parent];
+                }
+                else
+                {
+                    worldTransform = localTransform;
+                }
+
+                // Store in temp array
+                _tempBoneTransforms[i] = worldTransform;
+                
+                // Check if this bone actually changed (simple comparison for performance)
+                if (BoneTransform[i] != worldTransform)
+                {
+                    anyBoneChanged = true;
                 }
             }
 
-            if (changedAny)
+            // For static objects (single frame) or first-time setup, always update
+            bool forceUpdate = action.NumAnimationKeys <= 1 || !_animationStateValid;
+            
+            // Only update final transforms and invalidate if something actually changed OR force update
+            if (anyBoneChanged || forceUpdate)
             {
-                InvalidateBuffers();
-                UpdateBoundings();
+                Array.Copy(_tempBoneTransforms, BoneTransform, bones.Length);
+                
+                // Always invalidate for static objects or when forced
+                if (anyBoneChanged || forceUpdate)
+                {
+                    InvalidateBuffers(BUFFER_FLAG_ANIMATION);
+                    UpdateBoundings();
+                }
             }
-        }
+
+            // Always update cache for objects that should use it
+            if (shouldCheckCache)
+            {
+                _lastAnimationState = currentAnimState;
+                _animationStateValid = true;
+            }
+            else if (action.NumAnimationKeys <= 1)
+            {
+                // Mark static objects as having valid animation state
+                _animationStateValid = true;
+            }
+         }
+
 
         private void ComputeBoneMatrixTo(int actionIdx, int frame0, int frame1, float t, Matrix[] output)
         {
@@ -1432,7 +1581,7 @@ namespace Client.Main.Objects
 
         private void SetDynamicBuffers()
         {
-            if (!_invalidatedBuffers || Model?.Meshes == null)
+            if (_invalidatedBufferFlags == 0 || Model?.Meshes == null)
                 return;
 
             try
@@ -1440,17 +1589,30 @@ namespace Client.Main.Objects
                 int meshCount = Model.Meshes.Length;
                 if (meshCount == 0) return;
 
-                // Ensure arrays only once with optimized allocation
-                EnsureArraySize(ref _boneVertexBuffers, meshCount);
-                EnsureArraySize(ref _boneIndexBuffers, meshCount);
-                EnsureArraySize(ref _boneTextures, meshCount);
-                EnsureArraySize(ref _scriptTextures, meshCount);
-                EnsureArraySize(ref _dataTextures, meshCount);
-                EnsureArraySize(ref _meshIsRGBA, meshCount);
-                EnsureArraySize(ref _meshHiddenByScript, meshCount);
-                EnsureArraySize(ref _meshBlendByScript, meshCount);
-                EnsureArraySize(ref _meshTexturePath, meshCount);
-                EnsureArraySize(ref _blendMeshIndicesScratch, meshCount);
+                // Early exit if not visible - huge optimization
+                if (!Visible || OutOfView)
+                {
+                    _invalidatedBufferFlags = 0;
+                    return;
+                }
+
+                uint currentFrame = (uint)(MuGame.Instance.GameTime.TotalGameTime.TotalMilliseconds / 16.67f);
+                
+                // Ensure arrays only when needed
+                bool needArrayResize = _boneVertexBuffers?.Length != meshCount;
+                if (needArrayResize)
+                {
+                    EnsureArraySize(ref _boneVertexBuffers, meshCount);
+                    EnsureArraySize(ref _boneIndexBuffers, meshCount);
+                    EnsureArraySize(ref _boneTextures, meshCount);
+                    EnsureArraySize(ref _scriptTextures, meshCount);
+                    EnsureArraySize(ref _dataTextures, meshCount);
+                    EnsureArraySize(ref _meshIsRGBA, meshCount);
+                    EnsureArraySize(ref _meshHiddenByScript, meshCount);
+                    EnsureArraySize(ref _meshBlendByScript, meshCount);
+                    EnsureArraySize(ref _meshTexturePath, meshCount);
+                    EnsureArraySize(ref _blendMeshIndicesScratch, meshCount);
+                }
 
                 // Get bone transforms with caching
                 Matrix[] bones = GetCachedBoneTransforms();
@@ -1460,11 +1622,17 @@ namespace Client.Main.Objects
                     return;
                 }
 
-                // Always recalculate current lighting (like old working code)
-                Vector3 worldTranslation = WorldPosition.Translation;
-                Vector3 baseLight = LightEnabled && World?.Terrain != null
-                    ? World.Terrain.EvaluateTerrainLight(worldTranslation.X, worldTranslation.Y) + Light
-                    : Light;
+                // Calculate lighting only once if lighting flags are set
+                Vector3 baseLight = Vector3.Zero;
+                bool needLightCalculation = (_invalidatedBufferFlags & BUFFER_FLAG_LIGHTING) != 0;
+                
+                if (needLightCalculation)
+                {
+                    Vector3 worldTranslation = WorldPosition.Translation;
+                    baseLight = LightEnabled && World?.Terrain != null
+                        ? World.Terrain.EvaluateTerrainLight(worldTranslation.X, worldTranslation.Y) + Light
+                        : Light;
+                }
 
                 // Pre-calculate common color components
                 float colorR = Color.R;
@@ -1473,32 +1641,61 @@ namespace Client.Main.Objects
                 float totalAlpha = TotalAlpha;
                 float blendMeshLight = BlendMeshLight;
 
-                // Process meshes with optimized loops
+                // Process only meshes that need updates
                 for (int meshIndex = 0; meshIndex < meshCount; meshIndex++)
                 {
                     try
                     {
+                        ref var cache = ref _meshBufferCache[meshIndex];
                         var mesh = Model.Meshes[meshIndex];
+
+                        // Skip if mesh is hidden and we're not doing texture updates
+                        if (IsHiddenMesh(meshIndex) && (_invalidatedBufferFlags & BUFFER_FLAG_TEXTURE) == 0)
+                            continue;
 
                         // Calculate mesh-specific lighting
                         bool isBlend = IsBlendMesh(meshIndex);
-                        Vector3 meshLight = isBlend ? baseLight * blendMeshLight : baseLight * totalAlpha;
+                        Vector3 meshLight = needLightCalculation 
+                            ? (isBlend ? baseLight * blendMeshLight : baseLight * totalAlpha)
+                            : cache.CachedLight;
 
-                        // Optimized color calculation with clamping (like old code)
+                        // Check if this specific mesh needs update
+                        bool meshNeedsUpdate = !cache.IsValid ||
+                                             currentFrame - cache.LastUpdateFrame > 2 || // Refresh every few frames
+                                             (needLightCalculation && Vector3.DistanceSquared(meshLight, cache.CachedLight) > 0.01f) ||
+                                             (_invalidatedBufferFlags & (BUFFER_FLAG_ANIMATION | BUFFER_FLAG_TRANSFORM)) != 0;
+
+                        if (!meshNeedsUpdate)
+                            continue;
+
+                        // Optimized color calculation with clamping
                         byte r = (byte)MathF.Min(colorR * meshLight.X, 255f);
                         byte g = (byte)MathF.Min(colorG * meshLight.Y, 255f);
                         byte b = (byte)MathF.Min(colorB * meshLight.Z, 255f);
                         Color bodyColor = new Color(r, g, b);
 
-                        // Generate buffers
+                        // Skip expensive buffer generation if color hasn't changed much
+                        bool colorChanged = Math.Abs(cache.CachedBodyColor.PackedValue - bodyColor.PackedValue) > 0;
+                        if (!colorChanged && cache.IsValid && (_invalidatedBufferFlags & BUFFER_FLAG_ANIMATION) == 0)
+                            continue;
+
+                        // Generate buffers only when necessary
                         BMDLoader.Instance.GetModelBuffers(
                             Model, meshIndex, bodyColor, bones,
                             ref _boneVertexBuffers[meshIndex],
                             ref _boneIndexBuffers[meshIndex],
                             false);
 
+                        // Update cache
+                        cache.VertexBuffer = _boneVertexBuffers[meshIndex];
+                        cache.IndexBuffer = _boneIndexBuffers[meshIndex];
+                        cache.CachedLight = meshLight;
+                        cache.CachedBodyColor = bodyColor;
+                        cache.LastUpdateFrame = currentFrame;
+                        cache.IsValid = true;
+
                         // Load textures only if needed (avoid redundant loading)
-                        if (_boneTextures[meshIndex] == null)
+                        if (_boneTextures[meshIndex] == null || (_invalidatedBufferFlags & BUFFER_FLAG_TEXTURE) != 0)
                         {
                             string texturePath = _meshTexturePath[meshIndex]
                                 ?? BMDLoader.Instance.GetTexturePath(Model, mesh.TexturePath);
@@ -1522,7 +1719,7 @@ namespace Client.Main.Objects
                     }
                 }
 
-                _invalidatedBuffers = false;
+                _invalidatedBufferFlags = 0; // Clear all flags
             }
             catch (Exception ex)
             {
@@ -1593,15 +1790,15 @@ namespace Client.Main.Objects
                 array = new T[size];
         }
 
-        public void InvalidateBuffers()
+        public void InvalidateBuffers(uint flags = BUFFER_FLAG_ALL)
         {
-            _invalidatedBuffers = true;
+            _invalidatedBufferFlags |= flags;
 
             for (int i = 0; i < Children.Count; i++)
             {
                 if (Children[i] is ModelObject modelObject && (modelObject.LinkParentAnimation || modelObject.ParentBoneLink >= 0))
                 {
-                    modelObject.InvalidateBuffers();
+                    modelObject.InvalidateBuffers(flags);
                 }
             }
         }
@@ -1625,7 +1822,7 @@ namespace Client.Main.Objects
             if (WorldPosition != newWorldPosition)
             {
                 WorldPosition = newWorldPosition;
-                _invalidatedBuffers = true;
+                InvalidateBuffers(BUFFER_FLAG_TRANSFORM);
             }
         }
     }
