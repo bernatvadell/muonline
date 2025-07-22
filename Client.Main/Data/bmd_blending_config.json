@@ -46,6 +46,11 @@
     "Item/helper02.bmd": {
     "0": "AlphaBlend",
     "1": "AlphaBlend"
+  },
+    "comment_13" : "Elf Lala (Elf Wizard)",
+    "NPC/ElfWizard01.bmd": {
+    "0": "Opaque",
+    "1": "Additive"
   }
 }
  

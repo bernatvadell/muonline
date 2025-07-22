@@ -4,8 +4,10 @@ using Client.Main.Controls;
 using Client.Main.Controls.UI.Game;
 using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Threading.Tasks;
+using System.Reflection;
 
 namespace Client.Main.Objects.NPCS
 {
@@ -16,7 +18,6 @@ namespace Client.Main.Objects.NPCS
         public override async Task Load()
         {
             ExtraHeight = 90f;
-            BlendMesh = 1;
             Model = await BMDLoader.Instance.Prepare($"NPC/ElfWizard01.bmd");
             await base.Load();
         }
@@ -38,6 +39,33 @@ namespace Client.Main.Objects.NPCS
         protected override void HandleClick()
         {
             NpcShopControl.Instance.Visible = true;
+        }
+
+        public override void DrawMesh(int mesh)
+        {
+            // For wings (mesh 1)
+            if (mesh == 1)
+            {
+                var gd = GraphicsDevice;
+                var originalDepth = gd.DepthStencilState;
+                var noWriteDepth = new DepthStencilState
+                {
+                    DepthBufferEnable = true,
+                    DepthBufferWriteEnable = false
+                };
+                gd.DepthStencilState = noWriteDepth;
+
+                // Call base implementation
+                base.DrawMesh(mesh);
+
+                // Restore original state
+                gd.DepthStencilState = originalDepth;
+            }
+            else
+            {
+                // Normal rendering for other meshes
+                base.DrawMesh(mesh);
+            }
         }
 
     }

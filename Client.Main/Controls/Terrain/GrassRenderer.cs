@@ -19,8 +19,13 @@ namespace Client.Main.Controls.Terrain
         private const float GrassNearSq = 3000f * 3000f;   // full density
         private const float GrassMidSq = 4000f * 4000f;   // two tufts
         private const float GrassFarSq = 5000f * 5000f;   // one tuft
-        private const int GrassBatchQuads = 16384;       // 4096 tufts per batch
-        private const int GrassBatchVerts = GrassBatchQuads * 12;
+        private const int GrassBatchQuads = 16384;
+        private const int GrassBatchVerts = GrassBatchQuads * 6;
+
+        // Optimization: Caching for expensive calculations
+        private static readonly Dictionary<(int, int, int), float> _randomCache = new();
+        private static int _cacheFrameCounter = 0;
+        private const int CacheClearInterval = 1000; // Clear cache every 1000 frames to prevent memory bloat
 
         private readonly GraphicsDevice _graphicsDevice;
         private readonly TerrainData _data;
@@ -94,6 +99,10 @@ namespace Client.Main.Controls.Terrain
             int grassPerTile = GrassCount(distSq);
             if (grassPerTile == 0) return;
 
+            // Optimization: Simple distance-based culling (skip very far tiles)
+            if (distSq > GrassFarSq * 1.5f) // Skip tiles beyond 1.5x far distance
+                return;
+
             int terrainIndex = yi * Constants.TERRAIN_SIZE + xi;
             var tileLight = terrainIndex < _data.FinalLightMap.Length
                           ? _data.FinalLightMap[terrainIndex]
@@ -106,23 +115,28 @@ namespace Client.Main.Controls.Terrain
             const float RotJitterDeg = 90f;
             const float HeightOffset = 55f;
 
+            // Optimization: Pre-calculate common values
+            const float windRadians = 0.35f;
+            float windZBase = MathHelper.ToRadians(windBase * windRadians);
+
             for (int i = 0; i < grassPerTile; i++)
             {
-                float u0 = PseudoRandom(xi, yi, 123 + i) * (1f - GrassUWidth);
+                // Use cached random values for better performance
+                float u0 = GetCachedRandom(xi, yi, 123 + i) * (1f - GrassUWidth);
                 float u1 = u0 + GrassUWidth;
                 float halfUV = GrassUWidth * 0.5f;
                 float maxOffset = 0.5f - halfUV;
 
-                float rx = (PseudoRandom(xi, yi, 17 + i) * 2f - 1f) * maxOffset;
-                float ry = (PseudoRandom(xi, yi, 91 + i) * 2f - 1f) * maxOffset;
+                float rx = (GetCachedRandom(xi, yi, 17 + i) * 2f - 1f) * maxOffset;
+                float ry = (GetCachedRandom(xi, yi, 91 + i) * 2f - 1f) * maxOffset;
 
                 float worldX = (xf + 0.5f * lodFactor + rx * lodFactor) * Constants.TERRAIN_SCALE;
                 float worldY = (yf + 0.5f * lodFactor + ry * lodFactor) * Constants.TERRAIN_SCALE;
                 float h = _physics.RequestTerrainHeight(worldX, worldY);
 
-                float scale = MathHelper.Lerp(ScaleMin, ScaleMax, PseudoRandom(xi, yi, 33 + i));
-                float jitter = MathHelper.ToRadians((PseudoRandom(xi, yi, 57 + i) - 0.5f) * 2f * RotJitterDeg);
-                float windZ = MathHelper.ToRadians(windBase * 0.05f) + jitter;
+                float scale = MathHelper.Lerp(ScaleMin, ScaleMax, GetCachedRandom(xi, yi, 33 + i));
+                float jitter = MathHelper.ToRadians((GetCachedRandom(xi, yi, 57 + i) - 0.5f) * 2f * RotJitterDeg);
+                float windZ = windZBase + jitter;
 
                 RenderGrassQuad(
                     new Vector3(worldX, worldY, h + HeightOffset),
@@ -142,13 +156,15 @@ namespace Client.Main.Controls.Terrain
             float u0,
             float u1)
         {
-            const float BaseW = 130f, BaseH = 30f;
+            const float BaseW = 130f, BaseH = 45f;  // Adjusted height: 60f -> 45f
             float w = BaseW * (u1 - u0) * lodFactor;
             float h = BaseH * lodFactor;
             float hw = w * 0.5f;
 
+            // Base vertices (bottom of grass - no wind effect)
             var p1 = new Vector3(-hw, 0, 0);
             var p2 = new Vector3(hw, 0, 0);
+            // Top vertices (top of grass - wind effect applied)
             var p3 = new Vector3(-hw, 0, h);
             var p4 = new Vector3(hw, 0, h);
 
@@ -157,13 +173,21 @@ namespace Client.Main.Controls.Terrain
             var t3 = new Vector2(u0, 0);
             var t4 = new Vector2(u1, 0);
 
-            var world = Matrix.CreateRotationZ(MathHelper.ToRadians(45f) + windRotationZ)
-                      * Matrix.CreateTranslation(position);
+            // Base transform (no wind for positioning)
+            var baseWorld = Matrix.CreateRotationZ(MathHelper.ToRadians(45f))
+                          * Matrix.CreateTranslation(position);
 
-            var wp1 = Vector3.Transform(p1, world);
-            var wp2 = Vector3.Transform(p2, world);
-            var wp3 = Vector3.Transform(p3, world);
-            var wp4 = Vector3.Transform(p4, world);
+            // Wind transform (for top vertices only)
+            var windWorld = Matrix.CreateRotationZ(MathHelper.ToRadians(45f) + windRotationZ)
+                          * Matrix.CreateTranslation(position);
+
+            // Bottom vertices stay fixed to original position
+            var wp1 = Vector3.Transform(p1, baseWorld);
+            var wp2 = Vector3.Transform(p2, baseWorld);
+
+            // Top vertices get wind effect
+            var wp3 = Vector3.Transform(p3, windWorld);
+            var wp4 = Vector3.Transform(p4, windWorld);
 
             var finalColor = new Color(
                 (byte)Math.Min(lightColor.R * GrassBrightness, 255f),
@@ -189,6 +213,13 @@ namespace Client.Main.Controls.Terrain
                 || _grassSpriteTexture == null
                 || _grassEffect == null) // Added null check for _grassEffect
                 return;
+
+            // Optimization: Clear cache periodically to prevent memory bloat
+            if (++_cacheFrameCounter > CacheClearInterval)
+            {
+                _randomCache.Clear();
+                _cacheFrameCounter = 0;
+            }
 
             var dev = _graphicsDevice;
             var prevBlend = dev.BlendState;
@@ -230,9 +261,9 @@ namespace Client.Main.Controls.Terrain
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static int GrassCount(float distSq)
         {
-            if (distSq < GrassNearSq) return 6;
-            if (distSq < GrassMidSq) return 2;
-            if (distSq < GrassFarSq) return 1;
+            if (distSq < GrassNearSq) return 10;  //
+            if (distSq < GrassMidSq) return 4;   //
+            if (distSq < GrassFarSq) return 2;   //
             return 0;
         }
 
@@ -255,7 +286,22 @@ namespace Client.Main.Controls.Terrain
             tex.SetData(px);
         }
 
+        // Cached random values for performance
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static float GetCachedRandom(int x, int y, int salt = 0)
+        {
+            var key = (x, y, salt);
+            if (!_randomCache.TryGetValue(key, out float value))
+            {
+                value = PseudoRandom(x, y, salt);
+                if (_randomCache.Count < 10000) // Limit cache size
+                    _randomCache[key] = value;
+            }
+            return value;
+        }
+
         // 32-bit Xorshift* hash → float [0..1]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static float PseudoRandom(int x, int y, int salt = 0)
         {
             uint h = (uint)(x * 73856093 ^ y * 19349663 ^ salt * 83492791);

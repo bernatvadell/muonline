@@ -536,7 +536,6 @@ namespace Client.Main.Objects
 
                 // Cache frequently used values
                 bool isBlendMesh = IsBlendMesh(mesh);
-                bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
                 var vertexBuffer = _boneVertexBuffers[mesh];
                 var indexBuffer = _boneIndexBuffers[mesh];
                 var texture = _boneTextures[mesh];
@@ -549,6 +548,13 @@ namespace Client.Main.Objects
                 // for custom blending from json
                 // Apply new states from config first
                 var meshConf = Model.Meshes[mesh];
+                
+                // Check if mesh should be two-sided based on RGBA, blend mesh, or JSON config
+                bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
+                if (meshConf.BlendingMode != null && meshConf.BlendingMode != "Opaque")
+                {
+                    isTwoSided = true;
+                }
                 BlendState customBlendState = null;
                 if (meshConf.BlendingMode != null)
                 {
@@ -636,7 +642,6 @@ namespace Client.Main.Objects
                 }
 
                 bool isBlendMesh = IsBlendMesh(mesh);
-                bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
                 var vertexBuffer = _boneVertexBuffers[mesh];
                 var indexBuffer = _boneIndexBuffers[mesh];
                 var texture = _boneTextures[mesh];
@@ -645,6 +650,13 @@ namespace Client.Main.Objects
                 var prevBlend = gd.BlendState;
 
                 var meshConf = Model.Meshes[mesh];
+                
+                // Check if mesh should be two-sided based on RGBA, blend mesh, or JSON config
+                bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
+                if (meshConf.BlendingMode != null && meshConf.BlendingMode != "Opaque")
+                {
+                    isTwoSided = true;
+                }
                 BlendState customBlendState = null;
                 if (meshConf.BlendingMode != null)
                 {
@@ -725,7 +737,6 @@ namespace Client.Main.Objects
                 }
 
                 bool isBlendMesh = IsBlendMesh(mesh);
-                bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
                 var vertexBuffer = _boneVertexBuffers[mesh];
                 var indexBuffer = _boneIndexBuffers[mesh];
                 var texture = _boneTextures[mesh];
@@ -734,6 +745,13 @@ namespace Client.Main.Objects
                 var prevBlend = gd.BlendState;
 
                 var meshConf = Model.Meshes[mesh];
+                
+                // Check if mesh should be two-sided based on RGBA, blend mesh, or JSON config
+                bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
+                if (meshConf.BlendingMode != null && meshConf.BlendingMode != "Opaque")
+                {
+                    isTwoSided = true;
+                }
                 BlendState customBlendState = null;
                 if (meshConf.BlendingMode != null)
                 {
@@ -807,7 +825,6 @@ namespace Client.Main.Objects
                 }
 
                 bool isBlendMesh = IsBlendMesh(mesh);
-                bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
                 var vertexBuffer = _boneVertexBuffers[mesh];
                 var indexBuffer = _boneIndexBuffers[mesh];
                 var texture = _boneTextures[mesh];
@@ -816,6 +833,13 @@ namespace Client.Main.Objects
                 var prevBlend = gd.BlendState;
 
                 var meshConf = Model.Meshes[mesh];
+                
+                // Check if mesh should be two-sided based on RGBA, blend mesh, or JSON config
+                bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
+                if (meshConf.BlendingMode != null && meshConf.BlendingMode != "Opaque")
+                {
+                    isTwoSided = true;
+                }
                 BlendState customBlendState = null;
                 if (meshConf.BlendingMode != null)
                 {
