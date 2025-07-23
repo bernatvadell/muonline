@@ -4,7 +4,8 @@
       "Bash(dotnet build)",
       "Bash(dotnet mgcb:*)",
       "Bash(cp:*)",
-      "Bash(dotnet build:*)"
+      "Bash(dotnet build:*)",
+      "Bash(find:*)"
     ],
     "deny": []
   }

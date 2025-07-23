@@ -20,7 +20,7 @@ namespace Client.Main
                 public static bool DRAW_BOUNDING_BOXES_INTERACTIVES = false;
                 public static bool DRAW_GRASS = true;
                 public static bool ENABLE_LOW_QUALITY_SWITCH = true;
-                public static bool ENABLE_LOW_QUALITY_IN_LOGIN_SCENE = true;
+                public static bool ENABLE_LOW_QUALITY_IN_LOGIN_SCENE = false;
                 public static bool MSAA_ENABLED = false;
                 /// <summary>
                 /// Enables GPU-based dynamic lighting shader for 3D objects.
@@ -57,7 +57,7 @@ namespace Client.Main
                 public static bool DRAW_BOUNDING_BOXES_INTERACTIVES = false;
                 public static bool DRAW_GRASS = true;
                 public static bool ENABLE_LOW_QUALITY_SWITCH = true;
-                public static bool ENABLE_LOW_QUALITY_IN_LOGIN_SCENE = true;
+                public static bool ENABLE_LOW_QUALITY_IN_LOGIN_SCENE = false;
                 public static bool MSAA_ENABLED = false;
                 /// <summary>
                 /// Enables GPU-based dynamic lighting shader for 3D objects.

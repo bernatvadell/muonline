@@ -57,6 +57,9 @@ namespace Client.Main.Worlds
             Terrain.WaterSpeed = 0.05f;             // Example: faster water movement
             Terrain.DistortionAmplitude = 0.1f;      // Example: stronger distortion
             Terrain.DistortionFrequency = 2.0f;      // Example: lower frequency for distortion
+            
+            // Configure grass settings for Noria - brighter grass for desert-like environment
+            Terrain.ConfigureGrass(brightness: 1.0f, textureIndices: new byte[] { 0, 2 });
 
             base.AfterLoad();
         }

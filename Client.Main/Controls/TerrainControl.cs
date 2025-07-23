@@ -51,6 +51,29 @@ namespace Client.Main.Controls
         public float GrassBrightness { get => _grassRenderer.GrassBrightness; set => _grassRenderer.GrassBrightness = value; }
         public Vector2 WaterFlowDirection { get => _renderer.WaterFlowDirection; set => _renderer.WaterFlowDirection = value; }
         public HashSet<byte> GrassTextureIndices => _grassRenderer.GrassTextureIndices;
+        
+        /// <summary>
+        /// Configures grass settings for specific world requirements.
+        /// This should be called in world's AfterLoad() method.
+        /// </summary>
+        /// <param name="brightness">Grass brightness multiplier (default: 1.0f)</param>
+        /// <param name="textureIndices">Valid texture indices for grass rendering (default: {0})</param>
+        public void ConfigureGrass(float brightness = 1f, params byte[] textureIndices)
+        {
+            var oldBrightness = _grassRenderer.GrassBrightness;
+            _grassRenderer.GrassBrightness = brightness;
+            
+            if (textureIndices != null && textureIndices.Length > 0)
+            {
+                _grassRenderer.GrassTextureIndices.Clear();
+                foreach (var index in textureIndices)
+                {
+                    _grassRenderer.GrassTextureIndices.Add(index);
+                }
+            }
+            
+            Console.WriteLine($"[TerrainControl] ConfigureGrass for World{WorldIndex} - Brightness: {oldBrightness:F2} → {brightness:F2}, TextureIndices: [{string.Join(", ", textureIndices ?? new byte[] { 0 })}]");
+        }
 
         /// <summary>
         /// Exposes frame-specific rendering metrics for debugging or performance monitoring.
@@ -113,6 +136,8 @@ namespace Client.Main.Controls
             _lightManager.CreateTerrainNormals();
             _lightManager.CreateFinalLightmap(LightDirection);
             _renderer.CreateHeightMapTexture();
+            
+            // Reset grass to defaults before loading world-specific content
             _grassRenderer.LoadContent(WorldIndex);
 
             Camera.Instance.AspectRatio = GraphicsDevice.Viewport.AspectRatio;

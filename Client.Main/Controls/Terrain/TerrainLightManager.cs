@@ -23,7 +23,6 @@ namespace Client.Main.Controls.Terrain
         private const int LightGridSize = 16; // Grid cells per side (16x16 = 256 cells for 256x256 terrain)
         private const float LightGridCellSize = Constants.TERRAIN_SIZE * Constants.TERRAIN_SCALE / LightGridSize;
         private readonly List<DynamicLight>[,] _lightGrid = new List<DynamicLight>[LightGridSize, LightGridSize];
-        private bool _lightGridDirty = true;
         
         // Light influence cache
         private readonly Dictionary<int, Vector3> _lightInfluenceCache = new(1024);
@@ -50,14 +49,12 @@ namespace Client.Main.Controls.Terrain
         public void AddDynamicLight(DynamicLight light) 
         {
             _dynamicLights.Add(light);
-            _lightGridDirty = true;
             InvalidateLightCache();
         }
         
         public void RemoveDynamicLight(DynamicLight light) 
         {
             _dynamicLights.Remove(light);
-            _lightGridDirty = true;
             InvalidateLightCache();
         }
 
@@ -146,7 +143,6 @@ namespace Client.Main.Controls.Terrain
             
             // Always rebuild spatial grid when lights are updated (lights can move/change)
             RebuildLightGrid();
-            _lightGridDirty = false;
             
             // Invalidate cache on light updates to ensure fresh calculations
             InvalidateLightCache();

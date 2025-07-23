@@ -40,6 +40,8 @@ namespace Client.Main.Worlds
             Walker.MoveTargetPosition = Walker.TargetPosition;
             Walker.Position = Walker.TargetPosition;
 
+            Terrain.ConfigureGrass(brightness: 1.0f, textureIndices: new byte[] { 1 });
+
             base.AfterLoad();
         }
 
