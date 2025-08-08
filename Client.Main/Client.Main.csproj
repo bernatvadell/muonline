@@ -1,46 +1,46 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net9.0;net9.0-windows;net9.0-android;net9.0-ios</TargetFrameworks>
+    <BaseTFMs>net9.0</BaseTFMs>
+    <WindowsTFM Condition="'$(OS)'=='Windows_NT'">;net9.0-windows</WindowsTFM>
+    <MobileTFMs Condition="'$(EnableMobileTargets)'=='true'">;net9.0-android;net9.0-ios</MobileTFMs>
+    <TargetFrameworks>$(BaseTFMs)$(WindowsTFM)$(MobileTFMs)</TargetFrameworks>
+    <OutputType>Library</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <!-- MONOGAME -->
+  <ItemGroup Condition="'$(TargetFramework)'!='net9.0-android' AND '$(TargetFramework)'!='net9.0-ios'">
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4" />
+  </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)'=='net9.0-android'">
     <PackageReference Include="MonoGame.Framework.Android" Version="3.8.4" />
   </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)'=='net9.0-windows'">
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4">
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)'=='net9.0'">
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4">
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-  </ItemGroup>
-
   <ItemGroup Condition="'$(TargetFramework)'=='net9.0-ios'">
     <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.4" />
   </ItemGroup>
 
+  <!-- Microsoft.Extensions* -->
   <ItemGroup>
-    <PackageReference Include="MUnique.OpenMU.Network" Version="0.9.6" />
-    <PackageReference Include="MUnique.OpenMU.Network.Packets" Version="0.9.6" />
-    <PackageReference Include="NLayer" Version="1.16.0" />
-    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="2.2.16" />
-
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.5" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.5" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.5" />
-    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.5" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.5" />
-    <PackageReference Include="System.IO.Pipelines" Version="9.0.5" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.8" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.8" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.8" />
   </ItemGroup>
 
   <ItemGroup>
-    <TrimmerRootAssembly Include="MonoGame.Framework" />
-    <TrimmerRootAssembly Include="mscorlib" />
+    <PackageReference Include="Pipelines.Sockets.Unofficial" Version="2.2.16" />
+    <PackageReference Include="MUnique.OpenMU.Network" Version="0.9.8" />
+    <PackageReference Include="MUnique.OpenMU.Network.Packets" Version="0.9.8" />
+    <PackageReference Include="NLayer" Version="1.16.0" />
+  </ItemGroup>
+
+  <!-- appsettings.json -->
+  <ItemGroup Condition="'$(TargetFramework)'=='net9.0-android'">
+    <AndroidAsset Include="appsettings.json" />
   </ItemGroup>
 
   <ItemGroup>
@@ -50,19 +50,13 @@
     <EmbeddedResource Include="Data\skills.json" />
     <EmbeddedResource Include="Data\bmd_blending_config.json" />
   </ItemGroup>
-
   <ItemGroup Condition="'$(TargetFramework)'!='net9.0-android'">
     <None Update="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)'=='net9.0-android'">
-    <AndroidAsset Include="appsettings.json" />
-  </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\Client.Data\Client.Data.csproj" />
   </ItemGroup>
-
 </Project>

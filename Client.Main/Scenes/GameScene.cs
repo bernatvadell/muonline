@@ -39,7 +39,7 @@ namespace Client.Main.Scenes
         private MoveCommandWindow _moveCommandWindow;
         private ChatInputBoxControl _chatInput;
         private InventoryControl _inventoryControl;
-        private NotificationManager _notificationManager;
+        private Client.Main.Controls.UI.NotificationManager _notificationManager;
         private PartyPanelControl _partyPanel;
         private readonly (string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance) _characterInfo;
         private KeyboardState _previousKeyboardState;
@@ -50,7 +50,7 @@ namespace Client.Main.Scenes
         private MapNameControl _currentMapNameControl; // Track active map name display
         private LabelControl _pingLabel; // Displays current ping
         private double _pingTimer = 0;
-        
+
         // Cache expensive enum values to avoid allocations
         private static readonly Keys[] _allKeys = (Keys[])System.Enum.GetValues(typeof(Keys));
 
@@ -117,7 +117,7 @@ namespace Client.Main.Scenes
             Controls.Add(_chatInput);
 
             _pendingNotifications.AddRange(ChatMessageHandler.TakePendingServerMessages());
-            _notificationManager = new NotificationManager();
+            _notificationManager = new Client.Main.Controls.UI.NotificationManager();
             Controls.Add(_notificationManager);
             _notificationManager.BringToFront();
 
@@ -524,7 +524,7 @@ namespace Client.Main.Scenes
             if (World is not WalkableWorldControl w) return;
             var list = ScopeHandler.TakePendingNpcsMonsters();
             if (list.Count == 0) return;
-            
+
             foreach (var s in list)
             {
                 // Quick check to avoid expensive LINQ operation
@@ -545,7 +545,7 @@ namespace Client.Main.Scenes
                     npcMonster.Location = new Vector2(s.PositionX, s.PositionY);
                     npcMonster.Direction = (Models.Direction)s.Direction;
                     npcMonster.World = w;
-                    
+
                     try
                     {
                         await npcMonster.Load();
@@ -565,7 +565,7 @@ namespace Client.Main.Scenes
         {
             if (World is not WalkableWorldControl w) return;
             var list = ScopeHandler.TakePendingPlayers();
-            
+
             foreach (var s in list)
             {
                 if (s.Id == MuGame.Network.GetCharacterState().Id) continue;
@@ -614,7 +614,7 @@ namespace Client.Main.Scenes
                 // Load and add dropped items on main thread to ensure World.Scene is available
                 MuGame.ScheduleOnMainThread(async () =>
                 {
-                    if (w.Status != GameControlStatus.Ready || 
+                    if (w.Status != GameControlStatus.Ready ||
                         w.Objects.OfType<DroppedItemObject>().Any(d => d.NetworkId == s.Id))
                         return;
 
@@ -626,7 +626,7 @@ namespace Client.Main.Scenes
 
                     // Set World property before loading
                     obj.World = w;
-                    
+
                     // Add to world so World.Scene is available
                     w.Objects.Add(obj);
 
@@ -643,7 +643,7 @@ namespace Client.Main.Scenes
                     }
                 });
             }
-            
+
             return Task.CompletedTask;
         }
 
