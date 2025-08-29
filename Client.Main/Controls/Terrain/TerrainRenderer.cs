@@ -199,10 +199,39 @@ namespace Client.Main.Controls.Terrain
                     bool shouldRender = true;
                     if (block != null && !block.FullyVisible)
                     {
-                        int tileIdx = i * 4 + j;
-                        if (tileIdx < block.TileVisibility.Length)
+                        if (lodStep >= 4)
                         {
-                            shouldRender = block.TileVisibility[tileIdx];
+                            // Rendering the whole 4x4 block as one tile: render if any subtile is visible
+                            shouldRender = block.VisibleTileCount > 0;
+                        }
+                        else if (lodStep == 2)
+                        {
+                            // Rendering a 2x2 super-tile: render if any of the 4 subtiles are visible
+                            bool anyVisible = false;
+                            for (int dy = 0; dy < 2 && !anyVisible; dy++)
+                            {
+                                for (int dx = 0; dx < 2; dx++)
+                                {
+                                    int ii = i + dy;
+                                    int jj = j + dx;
+                                    int idx = ii * 4 + jj;
+                                    if (idx >= 0 && idx < block.TileVisibility.Length && block.TileVisibility[idx])
+                                    {
+                                        anyVisible = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            shouldRender = anyVisible;
+                        }
+                        else
+                        {
+                            // lodStep == 1: per-tile visibility
+                            int tileIdx = i * 4 + j;
+                            if (tileIdx < block.TileVisibility.Length)
+                            {
+                                shouldRender = block.TileVisibility[tileIdx];
+                            }
                         }
                     }
                     
