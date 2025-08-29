@@ -844,23 +844,6 @@ namespace Client.Main.Scenes
             _characterInfoWindow?.BringToFront();
         }
 
-        /// <summary>
-        /// Preloads textures for NPCs and monsters currently present in the world.
-        /// </summary>
-        private async Task PreloadNpcTextures()
-        {
-            if (World is not WalkableWorldControl world) return;
-
-            foreach (var walker in world.Objects.OfType<WalkerObject>())
-            {
-                if (walker is PlayerObject) continue;
-                if (walker is ModelObject modelObject)
-                {
-                    // Skip preloading to avoid blocking
-                }
-            }
-        }
-
         private void PreloadSounds()
         {
             SoundController.Instance.PreloadSound("Sound/pDropItem.wav");

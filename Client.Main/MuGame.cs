@@ -13,6 +13,7 @@ using Client.Main.Configuration;
 using Client.Main.Networking;
 using System.Collections.Concurrent;
 using Client.Main.Core.Client;
+using Client.Main.Content;
 #if ANDROID
 using Android.App;
 using System.IO;
@@ -341,6 +342,9 @@ namespace Client.Main
         {
             try
             {
+                // Initialize frame-based optimizations
+                BMDLoader.Instance.BeginFrame();
+                
                 FPSCounter.Instance.CalcFPS(gameTime);
                 DrawSceneToMainRenderTarget(gameTime);
                 ApplyPostProcessingEffects();

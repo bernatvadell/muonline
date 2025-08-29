@@ -28,6 +28,10 @@ namespace Client.Main.Content
         private readonly Dictionary<string, (DynamicVertexBuffer vertexBuffer, DynamicIndexBuffer indexBuffer)> _bufferCache = [];
         private readonly Dictionary<string, BufferCacheEntry> _bufferCacheState = [];
         
+        // Frame tracking for DISCARD/NoOverwrite optimization
+        private uint _currentFrame = 0;
+        private readonly Dictionary<string, uint> _lastWriteFrame = [];
+        
         private struct BufferCacheEntry
         {
             public Color LastColor;
@@ -112,6 +116,14 @@ namespace Client.Main.Content
         public void SetGraphicsDevice(GraphicsDevice graphicsDevice)
         {
             _graphicsDevice = graphicsDevice;
+        }
+        
+        /// <summary>
+        /// Call this at the start of each frame to enable DISCARD/NoOverwrite optimization
+        /// </summary>
+        public void BeginFrame()
+        {
+            _currentFrame++;
         }
 
         public Task<BMD> Prepare(string path, string textureFolder = null)
@@ -280,8 +292,15 @@ namespace Client.Main.Content
                 }
             }
 
-            vertexBuffer.SetData(vertices, 0, totalVertices, SetDataOptions.Discard);
-            indexBuffer.SetData(indices, 0, totalIndices, SetDataOptions.Discard);
+            // Optimize SetData with DISCARD/NoOverwrite based on frame tracking
+            bool isFirstWriteThisFrame = !_lastWriteFrame.TryGetValue(cacheKey, out uint lastFrame) || lastFrame != _currentFrame;
+            var setDataOptions = isFirstWriteThisFrame ? SetDataOptions.Discard : SetDataOptions.NoOverwrite;
+            
+            vertexBuffer.SetData(vertices, 0, totalVertices, setDataOptions);
+            indexBuffer.SetData(indices, 0, totalIndices, setDataOptions);
+            
+            // Update frame tracking
+            _lastWriteFrame[cacheKey] = _currentFrame;
 
             ArrayPool<VertexPositionColorNormalTexture>.Shared.Return(vertices);
             ArrayPool<int>.Shared.Return(indices, clearArray: true);
@@ -301,7 +320,14 @@ namespace Client.Main.Content
 
             for (int i = 0; i < boneMatrix.Length; i++)
             {
-                hash = hash * 31 + boneMatrix[i].Translation.GetHashCode();
+                // Include translation, rotation components, and scale for proper cache validation
+                ref var matrix = ref boneMatrix[i];
+                hash = hash * 31 + matrix.Translation.GetHashCode();
+                hash = hash * 31 + matrix.M11.GetHashCode(); // Scale/rotation X
+                hash = hash * 31 + matrix.M22.GetHashCode(); // Scale/rotation Y  
+                hash = hash * 31 + matrix.M33.GetHashCode(); // Scale/rotation Z
+                hash = hash * 31 + matrix.M12.GetHashCode(); // Rotation component
+                hash = hash * 31 + matrix.M21.GetHashCode(); // Rotation component
             }
             return hash;
         }

@@ -40,6 +40,16 @@ namespace Client.Main.Controllers
         public Effect ItemMaterialEffect { get; private set; }
         public Effect MonsterMaterialEffect { get; private set; }
         public Effect DynamicLightingEffect { get; private set; }
+        
+        // RasterizerState cache to avoid per-mesh allocations
+        private static readonly Dictionary<(float bias, CullMode cull), RasterizerState> _rasterizerCache = new();
+        
+        // Cached DepthStencilState for highlight rendering to avoid allocations
+        public static readonly DepthStencilState ReadOnlyDepth = new DepthStencilState
+        {
+            DepthBufferEnable = true,
+            DepthBufferWriteEnable = false
+        };
 
         public void Init(GraphicsDevice graphicsDevice, ContentManager content)
         {
@@ -185,6 +195,39 @@ namespace Client.Main.Controllers
             AlphaTestEffect3D?.Dispose();
             BoundingBoxEffect3D?.Dispose();
             BasicEffect3D?.Dispose();
+            
+            // Dispose cached rasterizer states
+            foreach (var state in _rasterizerCache.Values)
+                state.Dispose();
+            _rasterizerCache.Clear();
+        }
+        
+        /// <summary>
+        /// Gets a cached RasterizerState with the specified depth bias and cull mode to avoid per-mesh allocations.
+        /// PERFORMANCE: This eliminates expensive RasterizerState creation during rendering.
+        /// </summary>
+        public static RasterizerState GetCachedRasterizerState(float depthBias, CullMode cullMode, RasterizerState template = null)
+        {
+            // Normalize depth bias to common values to improve cache hit rate
+            float normalizedBias = depthBias == 0f ? 0f : 
+                                 Math.Abs(depthBias) < 0.00001f ? -0.00002f : depthBias;
+            
+            var key = (normalizedBias, cullMode);
+            
+            if (_rasterizerCache.TryGetValue(key, out var cachedState))
+                return cachedState;
+
+            // Create new state and cache it
+            var newState = new RasterizerState
+            {
+                CullMode = cullMode,
+                FillMode = template?.FillMode ?? FillMode.Solid,
+                DepthBias = normalizedBias,
+                SlopeScaleDepthBias = normalizedBias * 0.1f
+            };
+            
+            _rasterizerCache[key] = newState;
+            return newState;
         }
     }
 }

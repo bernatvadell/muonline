@@ -85,22 +85,26 @@ namespace Client.Main.Controls.Terrain
             int i3 = (xi + 1) + (yi + 1) * Constants.TERRAIN_SIZE;
             int i4 = xi + (yi + 1) * Constants.TERRAIN_SIZE;
 
-            if (new[] { i1, i2, i3, i4 }.Any(i => i < 0 || i >= _data.FinalLightMap.Length))
+            if ((uint)i1 >= (uint)_data.FinalLightMap.Length ||
+                (uint)i2 >= (uint)_data.FinalLightMap.Length ||
+                (uint)i3 >= (uint)_data.FinalLightMap.Length ||
+                (uint)i4 >= (uint)_data.FinalLightMap.Length)
                 return Vector3.Zero;
 
-            float[] rgb = new float[3];
-            for (int c = 0; c < 3; c++)
-            {
-                float left = MathHelper.Lerp(GetChannel(_data.FinalLightMap[i1], c),
-                                              GetChannel(_data.FinalLightMap[i4], c),
-                                              yd);
-                float right = MathHelper.Lerp(GetChannel(_data.FinalLightMap[i2], c),
-                                              GetChannel(_data.FinalLightMap[i3], c),
-                                              yd);
-                rgb[c] = MathHelper.Lerp(left, right, xd);
-            }
+            // Avoid array allocation - calculate channels directly
+            float r = MathHelper.Lerp(
+                MathHelper.Lerp(GetChannel(_data.FinalLightMap[i1], 0), GetChannel(_data.FinalLightMap[i4], 0), yd),
+                MathHelper.Lerp(GetChannel(_data.FinalLightMap[i2], 0), GetChannel(_data.FinalLightMap[i3], 0), yd), xd);
+            
+            float g = MathHelper.Lerp(
+                MathHelper.Lerp(GetChannel(_data.FinalLightMap[i1], 1), GetChannel(_data.FinalLightMap[i4], 1), yd),
+                MathHelper.Lerp(GetChannel(_data.FinalLightMap[i2], 1), GetChannel(_data.FinalLightMap[i3], 1), yd), xd);
+            
+            float b = MathHelper.Lerp(
+                MathHelper.Lerp(GetChannel(_data.FinalLightMap[i1], 2), GetChannel(_data.FinalLightMap[i4], 2), yd),
+                MathHelper.Lerp(GetChannel(_data.FinalLightMap[i2], 2), GetChannel(_data.FinalLightMap[i3], 2), yd), xd);
 
-            var result = new Vector3(rgb[0], rgb[1], rgb[2])
+            var result = new Vector3(r, g, b)
                        + new Vector3(ambientLight * 255f)
                        + _lightManager.EvaluateDynamicLight(new Vector2(xf * Constants.TERRAIN_SCALE, yf * Constants.TERRAIN_SCALE));
             result = Vector3.Clamp(result, Vector3.Zero, new Vector3(255f));

@@ -37,7 +37,7 @@ namespace Client.Main.Controls.Terrain
         private readonly Dictionary<int, Color> _vertexLightCache = new Dictionary<int, Color>(2048);
         private readonly Dictionary<int, Vector3> _vertexPositionCache = new Dictionary<int, Vector3>(2048);
         private int _lastCacheUpdateFrame = -1;
-        private const int CacheValidFrames = 2; // Cache valid for 2 frames to balance performance vs accuracy
+        private const int CacheValidFrames = 4; // Increased from 2 to 4 frames for better cache utilization
         
         // State tracking for GPU optimization
         private Texture2D _lastBoundTexture = null;
@@ -45,6 +45,9 @@ namespace Client.Main.Controls.Terrain
 
         private Vector2 _waterFlowDir = Vector2.UnitX;
         private float _waterTotal = 0f;
+
+        // Precomputed UV scales to avoid divisions per tile
+        private readonly Vector2[] _tileUvScale = new Vector2[256];
 
         public float WaterSpeed { get; set; } = 0f;
         public float DistortionAmplitude { get; set; } = 0f;
@@ -77,6 +80,20 @@ namespace Client.Main.Controls.Terrain
             {
                 _tileBatches[i] = new VertexPositionColorTexture[TileBatchVerts];
                 _tileAlphaBatches[i] = new VertexPositionColorTexture[TileBatchVerts];
+            }
+            
+            // Precompute UV scales for all textures
+            PrecomputeUVScales();
+        }
+
+        private void PrecomputeUVScales()
+        {
+            for (int t = 0; t < _data.Textures.Length; t++)
+            {
+                if (_data.Textures[t] != null)
+                {
+                    _tileUvScale[t] = new Vector2(64f / _data.Textures[t].Width, 64f / _data.Textures[t].Height);
+                }
             }
         }
 
@@ -168,7 +185,11 @@ namespace Client.Main.Controls.Terrain
         {
             if (!after) DrawnBlocks++;
 
-            _graphicsDevice.BlendState = BlendState.Opaque;
+            if (_lastBlendState != BlendState.Opaque)
+            {
+                _graphicsDevice.BlendState = BlendState.Opaque;
+                _lastBlendState = BlendState.Opaque;
+            }
 
             for (int i = 0; i < 4; i += lodStep)
             {
@@ -242,14 +263,16 @@ namespace Client.Main.Controls.Terrain
                 return;
 
             var texture = _data.Textures[textureIndex];
-            float baseW = 64f / texture.Width;
-            float baseH = 64f / texture.Height;
+            var uvScale = _tileUvScale[textureIndex];
+            float baseW = uvScale.X;
+            float baseH = uvScale.Y;
             float suf = xf * baseW;
             float svf = yf * baseH;
             float uvW = baseW * lodScale;
             float uvH = baseH * lodScale;
 
-            if (textureIndex == 5) // Water
+            bool noFlow = WaterSpeed == 0f && DistortionAmplitude == 0f;
+            if (textureIndex == 5 && !noFlow) // Water with flow/distortion
             {
                 var flowOff = _waterFlowDir * _waterTotal;
                 float wrapPeriod = 2 * (float)Math.PI / Math.Max(0.01f, DistortionFrequency);
@@ -399,7 +422,13 @@ namespace Client.Main.Controls.Terrain
                 dstOff = 0;
             }
 
-            Array.Copy(verts, 0, batch, dstOff, 6);
+            // Manual unroll for better performance than Array.Copy
+            batch[dstOff + 0] = verts[0];
+            batch[dstOff + 1] = verts[1];
+            batch[dstOff + 2] = verts[2];
+            batch[dstOff + 3] = verts[3];
+            batch[dstOff + 4] = verts[4];
+            batch[dstOff + 5] = verts[5];
             counters[texIndex] = dstOff + 6;
         }
 
@@ -464,7 +493,11 @@ namespace Client.Main.Controls.Terrain
                     FlushSingleTexture(t, alphaLayer: true);
             }
             
-            _graphicsDevice.BlendState = BlendState.Opaque;
+            if (_lastBlendState != BlendState.Opaque)
+            {
+                _graphicsDevice.BlendState = BlendState.Opaque;
+                _lastBlendState = BlendState.Opaque;
+            }
         }
 
         private static int GetTerrainIndex(int x, int y)

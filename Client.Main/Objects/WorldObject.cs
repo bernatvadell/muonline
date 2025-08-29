@@ -48,6 +48,17 @@ namespace Client.Main.Objects
         private bool _wasOutOfView = true;
         private const int MaxSkipFrames = 15; // Skip up to 15 frames for very distant objects
         
+        // PERFORMANCE: Static bbox indices to avoid per-frame allocation
+        private static readonly int[] BoundingBoxIndices = new int[]
+        {
+            0, 1, 1, 2, 2, 3, 3, 0,
+            4, 5, 5, 6, 6, 7, 7, 4,
+            0, 4, 1, 5, 2, 6, 3, 7
+        };
+        
+        // Reusable vertices for 3D bbox (avoid per-frame allocations)
+        private readonly VertexPositionColor[] _bboxVerts = new VertexPositionColor[8];
+        
         // Static frame counter for staggered updates
         private static int _globalFrameCounter = 0;
         private readonly int _updateOffset; // Unique offset for each object to stagger updates
@@ -183,8 +194,8 @@ namespace Client.Main.Objects
             }
             if (Status != GameControlStatus.Ready) return;
 
-            // Increment global frame counter for staggered updates
-            _globalFrameCounter++;
+            // Increment once per *frame time*, not per object update
+            _globalFrameCounter = (int)(gameTime.TotalGameTime.TotalSeconds * 60.0);
 
             float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
             
@@ -538,16 +549,8 @@ namespace Client.Main.Objects
 
             Vector3[] corners = BoundingBoxWorld.GetCorners();
 
-            int[] indices =
-            [
-                0, 1, 1, 2, 2, 3, 3, 0,
-                4, 5, 5, 6, 6, 7, 7, 4,
-                0, 4, 1, 5, 2, 6, 3, 7
-            ];
-
-            var vertexData = new VertexPositionColor[8];
-            for (int i = 0; i < corners.Length; i++)
-                vertexData[i] = new VertexPositionColor(corners[i], BoundingBoxColor);
+            for (int i = 0; i < 8; i++)
+                _bboxVerts[i] = new VertexPositionColor(corners[i], BoundingBoxColor);
 
             GraphicsManager.Instance.BoundingBoxEffect3D.View = Camera.Instance.View;
             GraphicsManager.Instance.BoundingBoxEffect3D.Projection = Camera.Instance.Projection;
@@ -556,7 +559,10 @@ namespace Client.Main.Objects
             foreach (var pass in GraphicsManager.Instance.BoundingBoxEffect3D.CurrentTechnique.Passes)
             {
                 pass.Apply();
-                GraphicsDevice.DrawUserIndexedPrimitives(PrimitiveType.LineList, vertexData, 0, 8, indices, 0, indices.Length / 2);
+                GraphicsDevice.DrawUserIndexedPrimitives(
+                    PrimitiveType.LineList,
+                    _bboxVerts, 0, 8,
+                    BoundingBoxIndices, 0, BoundingBoxIndices.Length / 2);
             }
 
             GraphicsDevice.DepthStencilState = previousDepthState;

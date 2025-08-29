@@ -30,13 +30,7 @@ namespace Client.Main.Objects.Worlds.Login
 
             if (mesh == 1 || mesh == 21)
             {
-                var customRasterizerState = new RasterizerState
-                {
-                    CullMode = CullMode.None,
-                    DepthBias = 0.0000005f,
-                    SlopeScaleDepthBias = 0.1f
-                };
-                GraphicsDevice.RasterizerState = customRasterizerState;
+                GraphicsDevice.RasterizerState = GraphicsManager.GetCachedRasterizerState(0.0000005f, CullMode.None);
 
                 var depthState = new DepthStencilState
                 {

@@ -22,10 +22,7 @@ namespace Client.Main.Controls.Terrain
         private const int GrassBatchQuads = 16384;
         private const int GrassBatchVerts = GrassBatchQuads * 6;
 
-        // Optimization: Caching for expensive calculations
-        private static readonly Dictionary<(int, int, int), float> _randomCache = new();
-        private static int _cacheFrameCounter = 0;
-        private const int CacheClearInterval = 1000; // Clear cache every 1000 frames to prevent memory bloat
+        // Optimization: Direct pseudo-random calculation is faster than dictionary lookups
 
         private readonly GraphicsDevice _graphicsDevice;
         private readonly TerrainData _data;
@@ -102,7 +99,7 @@ namespace Client.Main.Controls.Terrain
             float dx = camPos.X - tileCx, dy = camPos.Y - tileCy;
             float distSq = dx * dx + dy * dy;
 
-            int grassPerTile = GrassCount(distSq);
+            int grassPerTile = GrassCount(distSq, lodFactor);
             if (grassPerTile == 0) return;
 
             // Optimization: Simple distance-based culling (skip very far tiles)
@@ -128,20 +125,20 @@ namespace Client.Main.Controls.Terrain
             for (int i = 0; i < grassPerTile; i++)
             {
                 // Use cached random values for better performance
-                float u0 = GetCachedRandom(xi, yi, 123 + i) * (1f - GrassUWidth);
+                float u0 = PseudoRandom(xi, yi, 123 + i) * (1f - GrassUWidth);
                 float u1 = u0 + GrassUWidth;
                 float halfUV = GrassUWidth * 0.5f;
                 float maxOffset = 0.5f - halfUV;
 
-                float rx = (GetCachedRandom(xi, yi, 17 + i) * 2f - 1f) * maxOffset;
-                float ry = (GetCachedRandom(xi, yi, 91 + i) * 2f - 1f) * maxOffset;
+                float rx = (PseudoRandom(xi, yi, 17 + i) * 2f - 1f) * maxOffset;
+                float ry = (PseudoRandom(xi, yi, 91 + i) * 2f - 1f) * maxOffset;
 
                 float worldX = (xf + 0.5f * lodFactor + rx * lodFactor) * Constants.TERRAIN_SCALE;
                 float worldY = (yf + 0.5f * lodFactor + ry * lodFactor) * Constants.TERRAIN_SCALE;
                 float h = _physics.RequestTerrainHeight(worldX, worldY);
 
-                float scale = MathHelper.Lerp(ScaleMin, ScaleMax, GetCachedRandom(xi, yi, 33 + i));
-                float jitter = MathHelper.ToRadians((GetCachedRandom(xi, yi, 57 + i) - 0.5f) * 2f * RotJitterDeg);
+                float scale = MathHelper.Lerp(ScaleMin, ScaleMax, PseudoRandom(xi, yi, 33 + i));
+                float jitter = MathHelper.ToRadians((PseudoRandom(xi, yi, 57 + i) - 0.5f) * 2f * RotJitterDeg);
                 float windZ = windZBase + jitter;
 
                 RenderGrassQuad(
@@ -220,12 +217,6 @@ namespace Client.Main.Controls.Terrain
                 || _grassEffect == null) // Added null check for _grassEffect
                 return;
 
-            // Optimization: Clear cache periodically to prevent memory bloat
-            if (++_cacheFrameCounter > CacheClearInterval)
-            {
-                _randomCache.Clear();
-                _cacheFrameCounter = 0;
-            }
 
             var dev = _graphicsDevice;
             var prevBlend = dev.BlendState;
@@ -265,12 +256,16 @@ namespace Client.Main.Controls.Terrain
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int GrassCount(float distSq)
+        private static int GrassCount(float distSq, float lodFactor = 1.0f)
         {
-            if (distSq < GrassNearSq) return 10;  //
-            if (distSq < GrassMidSq) return 4;   //
-            if (distSq < GrassFarSq) return 2;   //
-            return 0;
+            int baseCount;
+            if (distSq < GrassNearSq) baseCount = 10;
+            else if (distSq < GrassMidSq) baseCount = 4;
+            else if (distSq < GrassFarSq) baseCount = 2;
+            else return 0;
+            
+            // Reduce grass count for higher LOD levels
+            return lodFactor > 1.0f ? Math.Max(1, baseCount / 2) : baseCount;
         }
 
         private static void PremultiplyAlpha(Texture2D tex)
@@ -292,19 +287,6 @@ namespace Client.Main.Controls.Terrain
             tex.SetData(px);
         }
 
-        // Cached random values for performance
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static float GetCachedRandom(int x, int y, int salt = 0)
-        {
-            var key = (x, y, salt);
-            if (!_randomCache.TryGetValue(key, out float value))
-            {
-                value = PseudoRandom(x, y, salt);
-                if (_randomCache.Count < 10000) // Limit cache size
-                    _randomCache[key] = value;
-            }
-            return value;
-        }
 
         // 32-bit Xorshift* hash → float [0..1]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
