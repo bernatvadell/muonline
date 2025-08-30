@@ -333,8 +333,10 @@ namespace Client.Main.Objects
                 LowQuality = false;
             }
 
-            // Mouse hover detection optimization - skip for very distant objects
-            bool shouldCheckMouseHover = distanceToCamera < Constants.LOW_QUALITY_DISTANCE * 3f;
+            // Mouse hover detection optimization - skip for distant/out-of-view objects
+            bool withinHoverRange = distanceToCamera < Constants.LOW_QUALITY_DISTANCE * 1.5f;
+            bool inFrustum = withinHoverRange && (Camera.Instance?.Frustum.Contains(BoundingBoxWorld) != ContainmentType.Disjoint);
+            bool shouldCheckMouseHover = inFrustum;
             
             if (shouldCheckMouseHover)
             {

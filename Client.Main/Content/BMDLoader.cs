@@ -24,13 +24,36 @@ namespace Client.Main.Content
         private readonly Dictionary<BMD, Dictionary<string, string>> _texturePathMap = [];
         private Dictionary<string, Dictionary<int, string>> _blendingConfig;
         
-        // Enhanced cache for GetModelBuffers to avoid redundant calculations
-        private readonly Dictionary<string, (DynamicVertexBuffer vertexBuffer, DynamicIndexBuffer indexBuffer)> _bufferCache = [];
+        // Enhanced cache state for GetModelBuffers to avoid redundant calculations
         private readonly Dictionary<string, BufferCacheEntry> _bufferCacheState = [];
+        // Per-mesh optimization: track which bones influence a mesh
+        private readonly Dictionary<string, short[]> _meshUsedBones = [];
+        // Cache per (asset,mesh) vertex count to avoid per-frame summing
+        private readonly Dictionary<string, int> _meshVertexCountCache = [];
+        // Track if index data has been uploaded for this (asset,mesh) so we can skip re-upload
+        private readonly HashSet<string> _indexInitialized = [];
         
         // Frame tracking for DISCARD/NoOverwrite optimization
         private uint _currentFrame = 0;
         private readonly Dictionary<string, uint> _lastWriteFrame = [];
+        // Track chosen index element size per mesh (true => 16-bit)
+        private readonly Dictionary<string, bool> _indexIs16Bit = [];
+
+        // Per-frame instrumentation (queried by DebugPanel)
+        public int FrameVBUpdates { get; private set; }
+        public int FrameIBUploads { get; private set; }
+        public int FrameVerticesTransformed { get; private set; }
+        public int FrameMeshesProcessed { get; private set; }
+        public int FrameCacheHits { get; private set; }
+        public int FrameCacheMisses { get; private set; }
+
+        // Snapshot of previous frame (stable for UI)
+        public int LastFrameVBUpdates { get; private set; }
+        public int LastFrameIBUploads { get; private set; }
+        public int LastFrameVerticesTransformed { get; private set; }
+        public int LastFrameMeshesProcessed { get; private set; }
+        public int LastFrameCacheHits { get; private set; }
+        public int LastFrameCacheMisses { get; private set; }
         
         private struct BufferCacheEntry
         {
@@ -123,7 +146,33 @@ namespace Client.Main.Content
         /// </summary>
         public void BeginFrame()
         {
+            // Snapshot previous frame for UI stability
+            LastFrameVBUpdates = FrameVBUpdates;
+            LastFrameIBUploads = FrameIBUploads;
+            LastFrameVerticesTransformed = FrameVerticesTransformed;
+            LastFrameMeshesProcessed = FrameMeshesProcessed;
+            LastFrameCacheHits = FrameCacheHits;
+            LastFrameCacheMisses = FrameCacheMisses;
+
+            // Reset counters for the new frame
             _currentFrame++;
+            FrameVBUpdates = 0;
+            FrameIBUploads = 0;
+            FrameVerticesTransformed = 0;
+            FrameMeshesProcessed = 0;
+            FrameCacheHits = 0;
+            FrameCacheMisses = 0;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static Vector3 FastTransformPosition(in Matrix m, in System.Numerics.Vector3 p)
+        {
+            // Row-major transform (matching XNA):
+            // x' = p.x*m.M11 + p.y*m.M21 + p.z*m.M31 + m.M41, etc.
+            return new Vector3(
+                p.X * m.M11 + p.Y * m.M21 + p.Z * m.M31 + m.M41,
+                p.X * m.M12 + p.Y * m.M22 + p.Z * m.M32 + m.M42,
+                p.X * m.M13 + p.Y * m.M23 + p.Z * m.M33 + m.M43);
         }
 
         public Task<BMD> Prepare(string path, string textureFolder = null)
@@ -144,7 +193,7 @@ namespace Client.Main.Content
         {
             try
             {
-                path = Path.Combine(Constants.DataPath, path);
+                // 'path' is already resolved to an absolute path in Prepare(); don't re-combine here.
 
                 if (!File.Exists(path))
                 {
@@ -173,9 +222,9 @@ namespace Client.Main.Content
                 lock (_texturePathMap)
                     _texturePathMap.Add(asset, texturePathMap);
 
-                var dir = string.IsNullOrEmpty(textureFolder)
-                    ? Path.GetRelativePath(Constants.DataPath, Path.GetDirectoryName(path))
-                    : null;
+                var dir = !string.IsNullOrEmpty(textureFolder)
+                    ? textureFolder
+                    : Path.GetRelativePath(Constants.DataPath, Path.GetDirectoryName(path));
 
                 var tasks = new List<Task>();
                 foreach (var mesh in asset.Meshes)
@@ -209,7 +258,13 @@ namespace Client.Main.Content
          ref DynamicIndexBuffer indexBuffer,
          bool skipCache = false)
         {
-            if (boneMatrix == null)
+            if (asset == null || boneMatrix == null || _graphicsDevice == null)
+            {
+                vertexBuffer = null;
+                indexBuffer = null;
+                return;
+            }
+            if (meshIndex < 0 || asset.Meshes == null || meshIndex >= asset.Meshes.Length)
             {
                 vertexBuffer = null;
                 indexBuffer = null;
@@ -217,14 +272,40 @@ namespace Client.Main.Content
             }
 
             var mesh = asset.Meshes[meshIndex];
-            int totalVertices = mesh.Triangles.Sum(t => t.Polygon);
+            // Use cached vertex count where possible to avoid per-frame LINQ Sum
+            string cacheKey = $"{RuntimeHelpers.GetHashCode(asset)}_{meshIndex}";
+            if (!_meshVertexCountCache.TryGetValue(cacheKey, out int totalVertices))
+            {
+                int vcount = 0;
+                var tris = mesh.Triangles;
+                for (int i = 0; i < tris.Length; i++) vcount += tris[i].Polygon;
+                totalVertices = vcount;
+                _meshVertexCountCache[cacheKey] = vcount;
+            }
             int totalIndices = totalVertices;
+            bool prefer16Bit = totalIndices <= ushort.MaxValue;
 
             // Create cache key based on asset and mesh
-            string cacheKey = $"{asset.GetHashCode()}_{meshIndex}";
+            // (reusing cacheKey defined above)
             
             // Calculate bone matrix hash for cache validation
-            int boneMatrixHash = CalculateBoneMatrixHash(boneMatrix);
+            // Build or get the set of bones used by this mesh (distinct node indices)
+            if (!_meshUsedBones.TryGetValue(cacheKey, out short[] usedBones))
+            {
+                var verts = mesh.Vertices;
+                // Use HashSet to gather distinct nodes, then convert to array
+                var set = new HashSet<short>();
+                for (int i = 0; i < verts.Length; i++)
+                {
+                    short node = verts[i].Node;
+                    if (node >= 0) set.Add(node);
+                }
+                usedBones = set.Count > 0 ? set.ToArray() : Array.Empty<short>();
+                _meshUsedBones[cacheKey] = usedBones;
+            }
+
+            // Calculate a hash over only the bones influencing this mesh
+            int boneMatrixHash = CalculateBoneMatrixHashSubset(boneMatrix, usedBones);
             
             // Check if we can use cached data (only if caching is enabled)
             if (!skipCache && 
@@ -236,8 +317,11 @@ namespace Client.Main.Content
                 indexBuffer != null)
             {
                 // Cache hit - reuse existing buffers
+                FrameCacheHits++;
                 return;
             }
+            FrameCacheMisses++;
+            FrameMeshesProcessed++;
 
             // Ensure buffers are properly sized
             if (vertexBuffer == null || vertexBuffer.VertexCount < totalVertices)
@@ -247,47 +331,66 @@ namespace Client.Main.Content
                     _graphicsDevice,
                     VertexPositionColorNormalTexture.VertexDeclaration,
                     totalVertices,
-                    BufferUsage.None);
+                    BufferUsage.WriteOnly);
             }
 
-            if (indexBuffer == null || indexBuffer.IndexCount < totalIndices)
+            bool createdOrResizedIndex = false;
+            bool mismatchIndexSize = false;
+            if (_indexIs16Bit.TryGetValue(cacheKey, out bool prevIs16) && prevIs16 != prefer16Bit)
+                mismatchIndexSize = true;
+
+            if (indexBuffer == null || indexBuffer.IndexCount < totalIndices || mismatchIndexSize)
             {
                 indexBuffer?.Dispose();
                 indexBuffer = new DynamicIndexBuffer(
                     _graphicsDevice,
-                    IndexElementSize.ThirtyTwoBits,
+                    prefer16Bit ? IndexElementSize.SixteenBits : IndexElementSize.ThirtyTwoBits,
                     totalIndices,
-                    BufferUsage.None);
+                    BufferUsage.WriteOnly);
+                createdOrResizedIndex = true;
+                _indexIs16Bit[cacheKey] = prefer16Bit;
             }
 
-            // Build vertex and index data
+            // Build vertex data with unique-vertex transform caching
             var vertices = ArrayPool<VertexPositionColorNormalTexture>.Shared.Rent(totalVertices);
-            var indices = ArrayPool<int>.Shared.Rent(totalIndices);
+            var posCache = ArrayPool<Vector3>.Shared.Rent(mesh.Vertices.Length);
+            var visited = ArrayPool<bool>.Shared.Rent(mesh.Vertices.Length);
+            Array.Clear(visited, 0, mesh.Vertices.Length);
 
             int v = 0;
+            int uniqueTransformed = 0;
             foreach (var tri in mesh.Triangles)
             {
                 for (int j = 0; j < tri.Polygon; j++)
                 {
                     int vi = tri.VertexIndex[j];
-                    var vert = mesh.Vertices[vi];
+
+                    if (!visited[vi])
+                    {
+                        visited[vi] = true;
+                        uniqueTransformed++;
+                        var vert = mesh.Vertices[vi];
+                        if (vert.Node < boneMatrix.Length)
+                        {
+                            posCache[vi] = FastTransformPosition(in boneMatrix[vert.Node], in vert.Position);
+                        }
+                        else
+                        {
+                            posCache[vi] = vert.Position;
+                        }
+                    }
 
                     int ni = tri.NormalIndex[j];
-                    var normal = mesh.Normals[ni].Normal;
+                    var normal = mesh.Normals[ni].Normal; // keep as-is (object space path)
 
                     int ti = tri.TexCoordIndex[j];
                     var uv = mesh.TexCoords[ti];
 
-                    Vector3 pos = Vector3.Transform(vert.Position, 
-                        vert.Node < boneMatrix.Length ? boneMatrix[vert.Node] : Matrix.Identity);
-
                     vertices[v] = new VertexPositionColorNormalTexture(
-                        pos,
+                        posCache[vi],
                         color,
                         normal,
                         new Vector2(uv.U, uv.V));
-
-                    indices[v] = v;
                     v++;
                 }
             }
@@ -297,13 +400,36 @@ namespace Client.Main.Content
             var setDataOptions = isFirstWriteThisFrame ? SetDataOptions.Discard : SetDataOptions.NoOverwrite;
             
             vertexBuffer.SetData(vertices, 0, totalVertices, setDataOptions);
-            indexBuffer.SetData(indices, 0, totalIndices, setDataOptions);
+            FrameVBUpdates++;
+            FrameVerticesTransformed += uniqueTransformed;
+            
+            // Upload index data only if needed (new or resized buffer or not yet initialized)
+            if (createdOrResizedIndex || !_indexInitialized.Contains(cacheKey))
+            {
+                if (prefer16Bit)
+                {
+                    var indices16 = ArrayPool<ushort>.Shared.Rent(totalIndices);
+                    for (int i = 0; i < totalIndices; i++) indices16[i] = (ushort)i;
+                    indexBuffer.SetData(indices16, 0, totalIndices, SetDataOptions.Discard);
+                    ArrayPool<ushort>.Shared.Return(indices16, clearArray: true);
+                }
+                else
+                {
+                    var indices32 = ArrayPool<int>.Shared.Rent(totalIndices);
+                    for (int i = 0; i < totalIndices; i++) indices32[i] = i;
+                    indexBuffer.SetData(indices32, 0, totalIndices, SetDataOptions.Discard);
+                    ArrayPool<int>.Shared.Return(indices32, clearArray: true);
+                }
+                _indexInitialized.Add(cacheKey);
+                FrameIBUploads++;
+            }
             
             // Update frame tracking
             _lastWriteFrame[cacheKey] = _currentFrame;
 
             ArrayPool<VertexPositionColorNormalTexture>.Shared.Return(vertices);
-            ArrayPool<int>.Shared.Return(indices, clearArray: true);
+            ArrayPool<Vector3>.Shared.Return(posCache);
+            ArrayPool<bool>.Shared.Return(visited, clearArray: true);
             
             // Update cache entry only if caching is enabled
             if (!skipCache)
@@ -312,22 +438,26 @@ namespace Client.Main.Content
             }
         }
 
-        private int CalculateBoneMatrixHash(Matrix[] boneMatrix)
+        private int CalculateBoneMatrixHashSubset(Matrix[] boneMatrix, short[] usedBones)
         {
-            if (boneMatrix == null) return 0;
-
+            if (boneMatrix == null || usedBones == null || usedBones.Length == 0) return 0;
             int hash = 17;
-
-            for (int i = 0; i < boneMatrix.Length; i++)
+            for (int i = 0; i < usedBones.Length; i++)
             {
-                // Include translation, rotation components, and scale for proper cache validation
-                ref var matrix = ref boneMatrix[i];
-                hash = hash * 31 + matrix.Translation.GetHashCode();
-                hash = hash * 31 + matrix.M11.GetHashCode(); // Scale/rotation X
-                hash = hash * 31 + matrix.M22.GetHashCode(); // Scale/rotation Y  
-                hash = hash * 31 + matrix.M33.GetHashCode(); // Scale/rotation Z
-                hash = hash * 31 + matrix.M12.GetHashCode(); // Rotation component
-                hash = hash * 31 + matrix.M21.GetHashCode(); // Rotation component
+                int idx = usedBones[i];
+                if ((uint)idx >= (uint)boneMatrix.Length) continue;
+                ref var m = ref boneMatrix[idx];
+                hash = hash * 31 + m.Translation.GetHashCode();
+                // Include more rotation/scale components to reduce false cache hits
+                hash = hash * 31 + m.M11.GetHashCode();
+                hash = hash * 31 + m.M12.GetHashCode();
+                hash = hash * 31 + m.M13.GetHashCode();
+                hash = hash * 31 + m.M21.GetHashCode();
+                hash = hash * 31 + m.M22.GetHashCode();
+                hash = hash * 31 + m.M23.GetHashCode();
+                hash = hash * 31 + m.M31.GetHashCode();
+                hash = hash * 31 + m.M32.GetHashCode();
+                hash = hash * 31 + m.M33.GetHashCode();
             }
             return hash;
         }

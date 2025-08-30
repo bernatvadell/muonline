@@ -30,8 +30,8 @@ namespace Client.Main.Objects.Worlds.Lorencia
             {
                 Owner = this,
                 Color = new Vector3(1f, 0.9f, 0.7f), // Warm white light
-                Radius = 300f,
-                Intensity = 2.8f,
+                Radius = 300f,   // wider reach so it’s noticeable on terrain/grass
+                Intensity = 1.5f,
                 Position = Vector3.Zero
             };
 
@@ -46,7 +46,8 @@ namespace Client.Main.Objects.Worlds.Lorencia
             if (_dynamicLight != null && World?.Terrain != null)
             {
                 // Position light slightly above the lamp (adjust Y offset as needed)
-                _dynamicLight.Position = WorldPosition.Translation + new Vector3(0f, 100f, 0f);
+                // Raise light above ground along Z (height) axis
+                _dynamicLight.Position = WorldPosition.Translation + new Vector3(0f, 0f, 200f);
 
                 // Add to terrain lighting system once
                 if (!_lightAdded)

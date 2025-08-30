@@ -387,9 +387,9 @@ namespace Client.Main.Controls.Terrain
         {
             if (_data.FinalLightMap == null) return Color.White; // Added null check for _data.FinalLightMap
 
-            // Check cache validity - clear if too old
-            int currentFrame = (int)(MuGame.Instance.GameTime.TotalGameTime.TotalMilliseconds / 16.67);
-            if (currentFrame - _lastCacheUpdateFrame > CacheValidFrames)
+            // Update per-frame cache using MuGame.FrameIndex to avoid time quantization artefacts
+            int currentFrame = MuGame.FrameIndex;
+            if (currentFrame != _lastCacheUpdateFrame)
             {
                 _vertexLightCache.Clear();
                 _vertexPositionCache.Clear();

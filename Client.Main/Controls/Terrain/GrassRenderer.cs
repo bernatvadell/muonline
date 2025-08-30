@@ -22,15 +22,22 @@ namespace Client.Main.Controls.Terrain
         private const int GrassBatchQuads = 16384;
         private const int GrassBatchVerts = GrassBatchQuads * 6;
 
+        // Optimization constants
+        private static readonly float Cos45 = 0.70710678f;
+        private static readonly float Sin45 = 0.70710678f;
+        private volatile bool _texReady;
+
         // Optimization: Direct pseudo-random calculation is faster than dictionary lookups
 
         private readonly GraphicsDevice _graphicsDevice;
         private readonly TerrainData _data;
         private readonly TerrainPhysics _physics;
+        private readonly TerrainLightManager _lightManager;
         private readonly WindSimulator _wind;
 
         private Texture2D _grassSpriteTexture;
         private AlphaTestEffect _grassEffect;
+        private string _grassSpritePath;
 
         private readonly VertexPositionColorTexture[] _grassBatch = new VertexPositionColorTexture[GrassBatchVerts];
         private int _grassBatchCount = 0;
@@ -40,12 +47,13 @@ namespace Client.Main.Controls.Terrain
         public int Flushes { get; private set; }
         public int DrawnTriangles { get; private set; }
 
-        public GrassRenderer(GraphicsDevice graphicsDevice, TerrainData data, TerrainPhysics physics, WindSimulator wind)
+        public GrassRenderer(GraphicsDevice graphicsDevice, TerrainData data, TerrainPhysics physics, WindSimulator wind, TerrainLightManager lightManager)
         {
             _graphicsDevice = graphicsDevice;
             _data = data;
             _physics = physics;
             _wind = wind;
+            _lightManager = lightManager;
         }
 
         public async void LoadContent(short worldIndex)
@@ -58,21 +66,25 @@ namespace Client.Main.Controls.Terrain
                     _ => "TileGrass01.ozt"
                 };
 
-                var grassSpritePath = Path.Combine($"World{worldIndex}", textureFile);
+                _grassSpritePath = Path.Combine($"World{worldIndex}", textureFile);
                 try
                 {
-                    _grassSpriteTexture = await TextureLoader.Instance.PrepareAndGetTexture(grassSpritePath);
+                    // Load texture immediately
+                    _grassSpriteTexture = await TextureLoader.Instance.PrepareAndGetTexture(_grassSpritePath);
                     if (_grassSpriteTexture != null)
+                    {
                         PremultiplyAlpha(_grassSpriteTexture);
+                        _texReady = true;
+                    }
                     else
-                        Console.WriteLine($"Warning: Could not load grass sprite texture: {grassSpritePath}");
+                        Console.WriteLine($"Warning: Could not load grass sprite texture yet (queued): {_grassSpritePath}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error loading grass sprite texture '{grassSpritePath}': {ex.Message}");
+                    Console.WriteLine($"Error loading grass sprite texture '{_grassSpritePath}': {ex.Message}");
                 }
-
-                _grassEffect = GraphicsManager.Instance.AlphaTestEffect3D;
+                // Use a dedicated effect instance to avoid state interference
+                _grassEffect = new AlphaTestEffect(_graphicsDevice);
             }
         }
 
@@ -86,11 +98,12 @@ namespace Client.Main.Controls.Terrain
         {
             if (!Constants.DRAW_GRASS
                 || worldIndex == 11
-                || _grassSpriteTexture == null)
+                || !_texReady)
                 return;
 
-            byte baseTex = _physics.GetBaseTextureIndexAt(xi, yi);
-            if (!GrassTextureIndices.Contains(baseTex))
+            // Be robust with LOD: when rendering a super-tile (lodFactor > 1),
+            // check underlying sub-tiles instead of a single top-left sample.
+            if (!IsGrassAllowedForTile(xi, yi, lodFactor))
                 return;
 
             var camPos = Camera.Instance.Position;
@@ -107,10 +120,19 @@ namespace Client.Main.Controls.Terrain
                 return;
 
             int terrainIndex = yi * Constants.TERRAIN_SIZE + xi;
-            var tileLight = terrainIndex < _data.FinalLightMap.Length
+            var staticLight = terrainIndex < _data.FinalLightMap.Length
                           ? _data.FinalLightMap[terrainIndex]
                           : Color.White;
             float windBase = _wind.GetWindValue(xi, yi);
+
+            // Calculate dynamic light once per tile (tile center)
+            var dynTile = _lightManager?.EvaluateDynamicLight(new Vector2(tileCx, tileCy)) ?? Vector3.Zero;
+            var combined = new Vector3(staticLight.R, staticLight.G, staticLight.B) + dynTile;
+            combined = Vector3.Clamp(combined, Vector3.Zero, new Vector3(255f));
+            var tileLight = new Color(
+                (byte)MathF.Min(combined.X * GrassBrightness, 255f),
+                (byte)MathF.Min(combined.Y * GrassBrightness, 255f),
+                (byte)MathF.Min(combined.Z * GrassBrightness, 255f));
 
             const float GrassUWidth = 0.30f;
             const float ScaleMin = 1.0f;
@@ -141,14 +163,23 @@ namespace Client.Main.Controls.Terrain
                 float jitter = MathHelper.ToRadians((PseudoRandom(xi, yi, 57 + i) - 0.5f) * 2f * RotJitterDeg);
                 float windZ = windZBase + jitter;
 
+                // Keep grass size roughly constant across LODs: compensate by 1/lodFactor
+                float sizeFactor = scale / MathF.Max(1f, lodFactor);
+
                 RenderGrassQuad(
                     new Vector3(worldX, worldY, h + HeightOffset),
-                    lodFactor * scale,
+                    sizeFactor,
                     windZ,
                     tileLight,
                     u0, u1
                 );
             }
+        }
+
+        private bool IsGrassAllowedForTile(int xi, int yi, float lodFactor)
+        {
+            byte baseTex = _physics.GetBaseTextureIndexAt(xi, yi);
+            return GrassTextureIndices.Contains(baseTex);
         }
 
         private void RenderGrassQuad(
@@ -159,62 +190,45 @@ namespace Client.Main.Controls.Terrain
             float u0,
             float u1)
         {
-            const float BaseW = 130f, BaseH = 45f;  // Adjusted height: 60f -> 45f
+            const float BaseW = 130f, BaseH = 45f;
             float w = BaseW * (u1 - u0) * lodFactor;
             float h = BaseH * lodFactor;
             float hw = w * 0.5f;
 
-            // Base vertices (bottom of grass - no wind effect)
-            var p1 = new Vector3(-hw, 0, 0);
-            var p2 = new Vector3(hw, 0, 0);
-            // Top vertices (top of grass - wind effect applied)
-            var p3 = new Vector3(-hw, 0, h);
-            var p4 = new Vector3(hw, 0, h);
+            // Fast rotation without matrices: Z-rot by 45° for bottom and (45°+wind) for top
+            float cosA = Cos45, sinA = Sin45;
+            float angB = MathHelper.ToRadians(45f) + windRotationZ;
+            float cosB = MathF.Cos(angB), sinB = MathF.Sin(angB);
+
+            // Bottom vertices (no wind)
+            var wp1 = new Vector3(position.X + (-hw) * cosA, position.Y + (-hw) * sinA, position.Z);
+            var wp2 = new Vector3(position.X + (hw) * cosA, position.Y + (hw) * sinA, position.Z);
+            // Top vertices (with wind)
+            var wp3 = new Vector3(position.X + (-hw) * cosB, position.Y + (-hw) * sinB, position.Z + h);
+            var wp4 = new Vector3(position.X + (hw) * cosB, position.Y + (hw) * sinB, position.Z + h);
 
             var t1 = new Vector2(u0, 1);
             var t2 = new Vector2(u1, 1);
             var t3 = new Vector2(u0, 0);
             var t4 = new Vector2(u1, 0);
 
-            // Base transform (no wind for positioning)
-            var baseWorld = Matrix.CreateRotationZ(MathHelper.ToRadians(45f))
-                          * Matrix.CreateTranslation(position);
-
-            // Wind transform (for top vertices only)
-            var windWorld = Matrix.CreateRotationZ(MathHelper.ToRadians(45f) + windRotationZ)
-                          * Matrix.CreateTranslation(position);
-
-            // Bottom vertices stay fixed to original position
-            var wp1 = Vector3.Transform(p1, baseWorld);
-            var wp2 = Vector3.Transform(p2, baseWorld);
-
-            // Top vertices get wind effect
-            var wp3 = Vector3.Transform(p3, windWorld);
-            var wp4 = Vector3.Transform(p4, windWorld);
-
-            var finalColor = new Color(
-                (byte)Math.Min(lightColor.R * GrassBrightness, 255f),
-                (byte)Math.Min(lightColor.G * GrassBrightness, 255f),
-                (byte)Math.Min(lightColor.B * GrassBrightness, 255f)
-            );
-
             if (_grassBatchCount + 6 >= GrassBatchVerts)
                 Flush();
 
-            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp1, finalColor, t1);
-            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp2, finalColor, t2);
-            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp3, finalColor, t3);
-            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp2, finalColor, t2);
-            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp4, finalColor, t4);
-            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp3, finalColor, t3);
+            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp1, lightColor, t1);
+            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp2, lightColor, t2);
+            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp3, lightColor, t3);
+            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp2, lightColor, t2);
+            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp4, lightColor, t4);
+            _grassBatch[_grassBatchCount++] = new VertexPositionColorTexture(wp3, lightColor, t3);
         }
 
         public void Flush()
         {
             if (!Constants.DRAW_GRASS
                 || _grassBatchCount == 0
-                || _grassSpriteTexture == null
-                || _grassEffect == null) // Added null check for _grassEffect
+                || !_texReady
+                || _grassEffect == null)
                 return;
 
 
@@ -229,10 +243,13 @@ namespace Client.Main.Controls.Terrain
             dev.RasterizerState = RasterizerState.CullNone;
             dev.SamplerStates[0] = SamplerState.PointClamp;
 
+            // Don't block rendering thread with .GetResult() - only draw when _texReady
+
             _grassEffect.World = Matrix.Identity;
             _grassEffect.View = Camera.Instance.View;
             _grassEffect.Projection = Camera.Instance.Projection;
             _grassEffect.Texture = _grassSpriteTexture;
+            _grassEffect.Alpha = 1f; // Force full vertex/diffuse alpha to avoid accidental fade
             _grassEffect.AlphaFunction = CompareFunction.Greater;
             _grassEffect.ReferenceAlpha = 64;
             _grassEffect.VertexColorEnabled = true;
@@ -263,7 +280,7 @@ namespace Client.Main.Controls.Terrain
             else if (distSq < GrassMidSq) baseCount = 4;
             else if (distSq < GrassFarSq) baseCount = 2;
             else return 0;
-            
+
             // Reduce grass count for higher LOD levels
             return lodFactor > 1.0f ? Math.Max(1, baseCount / 2) : baseCount;
         }

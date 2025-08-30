@@ -33,6 +33,7 @@ namespace Client.Main
         public static ILoggerFactory AppLoggerFactory { get; private set; }
         public static MuOnlineSettings AppSettings { get; private set; }
         public static NetworkManager Network { get; private set; }
+        public static int FrameIndex { get; private set; }
 
         // Instance Fields
         private readonly GraphicsDeviceManager _graphics;
@@ -279,6 +280,7 @@ namespace Client.Main
             try // outer try
             {
                 GameTime = gameTime;
+                FrameIndex++;
                 UpdateInputInfo(gameTime);
                 CheckShaderToggles();
 

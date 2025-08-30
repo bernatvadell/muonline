@@ -126,7 +126,7 @@ namespace Client.Main.Controls
             _physics = new TerrainPhysics(_data, _lightManager);
             _wind = new WindSimulator(_data);
             _visibility = new TerrainVisibilityManager(_data);
-            _grassRenderer = new GrassRenderer(GraphicsDevice, _data, _physics, _wind);
+            _grassRenderer = new GrassRenderer(GraphicsDevice, _data, _physics, _wind, _lightManager);
             _renderer = new TerrainRenderer(GraphicsDevice, _data, _visibility, _lightManager, _grassRenderer)
             {
                 WorldIndex = this.WorldIndex

@@ -347,6 +347,30 @@ namespace Client.Main.Objects.Effects
                        (ApproxHeadHeight + PlayerModelTopTextOffsetZ);
             }
 
+            // Prefer bone-based top for smoothness (avoids bbox throttling)
+            if (target is ModelObject model)
+            {
+                var bones = model.GetBoneTransforms();
+                if (bones != null && bones.Length > 0)
+                {
+                    float maxZ = float.MinValue;
+                    for (int i = 0; i < bones.Length; i++)
+                    {
+                        Vector3 local = bones[i].Translation;
+                        Vector3 world = Vector3.Transform(local, model.WorldPosition);
+                        if (world.Z > maxZ)
+                            maxZ = world.Z;
+                    }
+
+                    if (maxZ > float.MinValue)
+                    {
+                        var wp = model.WorldPosition.Translation;
+                        return new Vector3(wp.X, wp.Y, maxZ + MonsterBBoxTopTextOffsetZ);
+                    }
+                }
+            }
+
+            // Fallback to bbox if bones unavailable
             return new Vector3(
                 (target.BoundingBoxWorld.Min.X + target.BoundingBoxWorld.Max.X) * 0.5f,
                 (target.BoundingBoxWorld.Min.Y + target.BoundingBoxWorld.Max.Y) * 0.5f,

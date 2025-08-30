@@ -13,9 +13,9 @@ namespace Client.Main.Objects
         private int _lastActionForIdleSound = -1;
         private bool _isFading = false;
         private float _fadeTimer = 0f;
-        private float _fadeDuration = 2f;
+        private float _fadeDuration = 3.5f; // longer fade for smoother disappearance
         private float _startZ;
-        private const float SinkDistance = 20f;
+        private const float SinkBelowGround = 30f; // how deep to sink below terrain surface
 
         /// <summary>
         /// Determines whether a blood stain should be spawned when the monster dies.
@@ -40,10 +40,10 @@ namespace Client.Main.Objects
         public MonsterObject() : base()
         {
             Interactive = true;
-            AnimationSpeed = 4f;
+            AnimationSpeed = 6f;
         }
 
-        public void StartDeathFade(float duration = 2f)
+        public void StartDeathFade(float duration = 3.5f)
         {
             if (_isFading) return;
 
@@ -51,7 +51,7 @@ namespace Client.Main.Objects
             StopMovement();
             Interactive = false; // prevent dead monsters from blocking selection
             _isFading = true;
-            _fadeDuration = duration;
+            _fadeDuration = Math.Max(1.5f, duration);
             _fadeTimer = 0f;
             _startZ = Position.Z;
 
@@ -78,17 +78,35 @@ namespace Client.Main.Objects
         {
             bool wasMoving = IsMoving;
 
-            base.Update(gameTime);
-
+            // Apply fading BEFORE base.Update so buffers/shaders see updated alpha/color this frame
             if (_isFading)
             {
                 RenderShadow = false;
                 _fadeTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
-                float progress = MathHelper.Clamp(_fadeTimer / _fadeDuration, 0f, 1f);
-                Alpha = MathHelper.Lerp(1f, 0f, progress);
-                Position = new Vector3(Position.X, Position.Y, MathHelper.Lerp(_startZ, _startZ - SinkDistance, progress));
+                float p = MathHelper.Clamp(_fadeTimer / _fadeDuration, 0f, 1f);
 
-                if (progress >= 1f)
+                // Smooth fade (ease-out)
+                float alpha = 1f - p * p; // quadratic ease-out
+                Alpha = MathHelper.Clamp(alpha, 0f, 1f);
+
+                // Also darken body color for shader paths that ignore alpha
+                byte shade = (byte)(255 * Alpha);
+                Color = new Color(shade, shade, shade, (byte)255);
+                InvalidateBuffers();
+
+                // Compute terrain height to sink under ground reliably
+                float groundZ = World?.Terrain?.RequestTerrainHeight(Position.X, Position.Y) ?? _startZ;
+                float targetZ = groundZ - SinkBelowGround;
+
+                // Start sinking after a short delay for better readability
+                const float sinkStart = 0.3f; // start sinking after 30% of fade time
+                float sinkP = p <= sinkStart ? 0f : (p - sinkStart) / (1f - sinkStart);
+                // Ease-in sink for natural fall
+                float sinkEase = sinkP * sinkP;
+                float newZ = MathHelper.Lerp(_startZ, targetZ, sinkEase);
+                Position = new Vector3(Position.X, Position.Y, newZ);
+
+                if (p >= 1f)
                 {
                     _isFading = false;
                     World?.RemoveObject(this);
@@ -96,6 +114,8 @@ namespace Client.Main.Objects
                     return;
                 }
             }
+
+            base.Update(gameTime);
 
 
             // If the monster just stopped moving

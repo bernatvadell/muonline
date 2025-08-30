@@ -28,6 +28,7 @@ namespace Client.Main.Worlds
 
         public SelectWorld() : base(worldIndex: 94)
         {
+            EnableShadows = false;
             _logger = MuGame.AppLoggerFactory?.CreateLogger<SelectWorld>() ?? throw new InvalidOperationException("LoggerFactory not initialized in MuGame");
             Camera.Instance.ViewFar = 5500f;
         }

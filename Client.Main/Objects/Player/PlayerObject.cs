@@ -123,7 +123,7 @@ namespace Client.Main.Objects.Player
             BoundingBoxLocal = new BoundingBox(new Vector3(-40, -40, 0), new Vector3(40, 40, 120));
 
             Scale = 0.85f;
-            AnimationSpeed = 5f;
+            AnimationSpeed = 10f;
             CurrentAction = PlayerAction.PlayerStopMale;
             _characterClass = CharacterClassNumber.DarkWizard;
             _isFemale = PlayerActionMapper.IsCharacterFemale(_characterClass);
@@ -1030,6 +1030,12 @@ namespace Client.Main.Objects.Player
             _footstepTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
             var mode = GetCurrentMovementMode(world);
+            // Do not play footstep sounds while flying
+            if (mode == MovementMode.Fly)
+            {
+                _footstepTimer = 0f;
+                return;
+            }
             float interval = mode == MovementMode.Swim ? 2.0f : 0.4f;
             if (_footstepTimer < interval)
                 return;

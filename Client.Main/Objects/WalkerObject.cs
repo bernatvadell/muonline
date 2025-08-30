@@ -183,8 +183,7 @@ namespace Client.Main.Objects
 
             UpdatePosition(gameTime);
 
-            // Call the animation update method
-            Animation(gameTime);
+            // Animation handled centrally to preserve cross-action blending
 
             if (_currentPath != null && _currentPath.Count > 0 && !IsMoving)
             {

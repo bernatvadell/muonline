@@ -17,7 +17,7 @@ namespace Client.Main.Controls.Terrain
         private readonly TerrainData _data;
         private readonly GameControl _parent;
         private float _lightUpdateTimer = 0;
-        private const float LightUpdateInterval = 0.016f; // Update lights ~60 FPS for smooth pulsing
+        private const float LightUpdateInterval = 0.0f; // Update lights every frame for smoother pulsing
 
         // Spatial partitioning for dynamic lights
         private const int LightGridSize = 16; // Grid cells per side (16x16 = 256 cells for 256x256 terrain)
@@ -151,7 +151,7 @@ namespace Client.Main.Controls.Terrain
         public Vector3 EvaluateDynamicLight(Vector2 position)
         {
             // Use time-based caching to avoid repeated calculations within the same frame
-            int frameKey = (int)(MuGame.Instance.GameTime.TotalGameTime.TotalMilliseconds / 16.67); // ~60 FPS frame timing
+            int frameKey = MuGame.FrameIndex; // stable per-Update frame index
             if (frameKey == _lastLightUpdateFrame)
             {
                 int posKey = GetPositionKey(position);
