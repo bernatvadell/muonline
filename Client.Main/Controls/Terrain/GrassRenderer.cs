@@ -56,6 +56,10 @@ namespace Client.Main.Controls.Terrain
             _lightManager = lightManager;
         }
 
+        // Track which textures have already been premultiplied to avoid repeated darkening across warps
+        private static readonly object _premulLock = new();
+        private static readonly HashSet<string> _premultipliedOnce = new(StringComparer.OrdinalIgnoreCase);
+
         public async void LoadContent(short worldIndex)
         {
             if (Constants.DRAW_GRASS)
@@ -73,7 +77,20 @@ namespace Client.Main.Controls.Terrain
                     _grassSpriteTexture = await TextureLoader.Instance.PrepareAndGetTexture(_grassSpritePath);
                     if (_grassSpriteTexture != null)
                     {
-                        PremultiplyAlpha(_grassSpriteTexture);
+                        // Important: do premultiply only once per texture asset
+                        bool doPremul = false;
+                        lock (_premulLock)
+                        {
+                            if (!_premultipliedOnce.Contains(_grassSpritePath))
+                            {
+                                _premultipliedOnce.Add(_grassSpritePath);
+                                doPremul = true;
+                            }
+                        }
+                        if (doPremul)
+                        {
+                            PremultiplyAlpha(_grassSpriteTexture);
+                        }
                         _texReady = true;
                     }
                     else
