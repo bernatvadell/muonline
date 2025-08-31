@@ -4,9 +4,6 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Input.Touch;
-using System;
-using System.Diagnostics;
-using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Client.Main.Configuration;
@@ -24,6 +21,7 @@ namespace Client.Main
     public class MuGame : Game
     {
         // Static Fields
+        private static Controllers.TaskScheduler _taskScheduler;
         private static readonly ConcurrentQueue<Action> _mainThreadActions = new ConcurrentQueue<Action>();
 
         // Static Properties
@@ -33,6 +31,7 @@ namespace Client.Main
         public static ILoggerFactory AppLoggerFactory { get; private set; }
         public static MuOnlineSettings AppSettings { get; private set; }
         public static NetworkManager Network { get; private set; }
+        public static Controllers.TaskScheduler TaskScheduler => _taskScheduler;
         public static int FrameIndex { get; private set; }
 
         // Instance Fields
@@ -234,6 +233,10 @@ namespace Client.Main
             Network = new NetworkManager(AppLoggerFactory, AppSettings, characterState, scopeManager);
             bootLogger.LogInformation("✅ Network Manager initialized.");
 
+            // Initialize TaskScheduler
+            _taskScheduler = new Controllers.TaskScheduler(AppLoggerFactory);
+            bootLogger.LogInformation("✅ TaskScheduler initialized.");
+
             IsMouseVisible = false; // Keep this if you want a custom cursor
             base.Initialize();
 
@@ -255,27 +258,14 @@ namespace Client.Main
 
         protected override void Update(GameTime gameTime)
         {
-            // --- Process Main Thread Actions ---
-            int actionCount = 0;
-            var queueLogger = AppLoggerFactory?.CreateLogger("MuGame.MainThreadQueue"); // logger for the queue
-
+            // --- Process Main Thread Actions via TaskScheduler ---
             while (_mainThreadActions.TryDequeue(out Action action))
             {
-                actionCount++;
-                //queueLogger?.LogTrace("Dequeued action #{Count}. Attempting execution...", actionCount);
-                try
-                {
-                    action.Invoke();
-                    //queueLogger?.LogTrace("Action #{Count} executed successfully.", actionCount);
-                }
-                catch (Exception)
-                {
-                    //queueLogger?.LogError(ex, "Error executing action #{Count} scheduled on main thread.", actionCount);
-                }
+                _taskScheduler.QueueTask(action, Controllers.TaskScheduler.Priority.Normal);
             }
-            // **** ADD LOGGING ****
-            // if (actionCount > 0) queueLogger?.LogDebug("Processed {Count} actions from queue this frame.", actionCount);
-            // **** END ADD LOGGING ****
+
+            // Process prioritized tasks using the task scheduler
+            _taskScheduler.ProcessFrame();
 
             try // outer try
             {

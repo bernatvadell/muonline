@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading.Tasks;
+﻿using System.Collections.Concurrent;
 using Client.Data;
 using Client.Data.Texture;
 using Microsoft.Xna.Framework;
@@ -17,6 +13,7 @@ namespace Client.Main.Content
 
         private readonly ConcurrentDictionary<string, Task<TextureData>> _textureTasks = new();
         private readonly ConcurrentDictionary<string, ClientTexture> _textures = new();
+        // Note: ConcurrentDictionary does not accept null values; store string.Empty as "not found" sentinel
         private readonly ConcurrentDictionary<string, string> _pathExistsCache = new();
         private GraphicsDevice _graphicsDevice;
 
@@ -34,6 +31,16 @@ namespace Client.Main.Content
 
         private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<TextureLoader>();
 
+        // Precompiled logging messages to minimize overhead in hot paths
+        private static readonly Action<ILogger, string, Exception> _logUnsupportedExt =
+            LoggerMessage.Define<string>(LogLevel.Debug, new EventId(1001, nameof(_logUnsupportedExt)), "Unsupported file extension: {Ext}");
+        private static readonly Action<ILogger, string, Exception> _logFailedLoadData =
+            LoggerMessage.Define<string>(LogLevel.Debug, new EventId(1002, nameof(_logFailedLoadData)), "Failed to load texture data from: {Path}");
+        private static readonly Action<ILogger, string, Exception> _logFileNotFound =
+            LoggerMessage.Define<string>(LogLevel.Debug, new EventId(1003, nameof(_logFileNotFound)), "Texture file not found: {Path}");
+        private static readonly Action<ILogger, string, Exception> _logFailedAsset =
+            LoggerMessage.Define<string>(LogLevel.Debug, new EventId(1004, nameof(_logFailedAsset)), "Failed to load asset {Path}");
+
         public void SetGraphicsDevice(GraphicsDevice graphicsDevice) => _graphicsDevice = graphicsDevice;
 
         public Task<TextureData> Prepare(string path)
@@ -42,13 +49,7 @@ namespace Client.Main.Content
                 throw new ArgumentException("Path cannot be null or whitespace.", nameof(path));
 
             string normalizedKey = path.ToLowerInvariant();
-
-            if (_textureTasks.TryGetValue(normalizedKey, out var task))
-                return task;
-
-            task = InternalPrepare(path);
-            _textureTasks.TryAdd(normalizedKey, task);
-            return task;
+            return _textureTasks.GetOrAdd(normalizedKey, key => InternalPrepare(key));
         }
 
         public async Task<Texture2D> PrepareAndGetTexture(string path)
@@ -66,7 +67,7 @@ namespace Client.Main.Content
 
                 if (!_readers.TryGetValue(ext, out var reader))
                 {
-                    _logger?.LogDebug($"Unsupported file extension: {ext}");
+                    if (_logger != null && _logger.IsEnabled(LogLevel.Debug)) _logUnsupportedExt(_logger, ext ?? string.Empty, null);
                     return null;
                 }
 
@@ -76,7 +77,7 @@ namespace Client.Main.Content
                 var data = await reader.Load(fullPath);
                 if (data == null)
                 {
-                    _logger?.LogDebug($"Failed to load texture data from: {fullPath}");
+                    if (_logger != null && _logger.IsEnabled(LogLevel.Debug)) _logFailedLoadData(_logger, fullPath ?? string.Empty, null);
                     return null;
                 }
 
@@ -89,9 +90,9 @@ namespace Client.Main.Content
                 _textures.TryAdd(path.ToLowerInvariant(), clientTexture);
                 return clientTexture.Info;
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                _logger?.LogDebug($"Failed to load asset {path}: {e.Message}");
+                if (_logger != null && _logger.IsEnabled(LogLevel.Debug)) _logFailedAsset(_logger, path ?? string.Empty, null);
                 return null;
             }
         }
@@ -114,7 +115,7 @@ namespace Client.Main.Content
                     return actualPath;
             }
 
-            _logger?.LogDebug($"Texture file not found: {expectedFilePath}");
+            if (_logger != null && _logger.IsEnabled(LogLevel.Debug)) _logFileNotFound(_logger, expectedFilePath ?? string.Empty, null);
             return null;
         }
 
@@ -122,7 +123,7 @@ namespace Client.Main.Content
         {
             // Check cache first
             if (_pathExistsCache.TryGetValue(path, out var cachedPath))
-                return cachedPath;
+                return string.IsNullOrEmpty(cachedPath) ? null : cachedPath;
 
             string result = null;
             
@@ -148,8 +149,8 @@ namespace Client.Main.Content
                 }
             }
 
-            // Cache the result (including null)
-            _pathExistsCache.TryAdd(path, result);
+            // Cache the result (store empty string for "not found" to avoid null values)
+            _pathExistsCache.TryAdd(path, result ?? string.Empty);
             return result;
         }
 
@@ -223,24 +224,30 @@ namespace Client.Main.Content
 
                 if (components != 3 && components != 4)
                 {
-                    _logger?.LogDebug($"Unsupported texture components: {components} for texture {path}");
+                    _logger?.LogDebug("Unsupported texture components: {Components} for texture {Path}", components, path);
                     return null;
                 }
 
-                Color[] pixelData = new Color[pixelCount];
-                byte[] data = textureInfo.Data;
-
-                for (int i = 0; i < pixelData.Length; i++)
+                var pool = System.Buffers.ArrayPool<Color>.Shared;
+                Color[] pixelData = pool.Rent(pixelCount);
+                try
                 {
-                    int dataIndex = i * components;
-                    byte r = data[dataIndex];
-                    byte g = data[dataIndex + 1];
-                    byte b = data[dataIndex + 2];
-                    byte a = components == 4 ? data[dataIndex + 3] : (byte)255;
-                    pixelData[i] = new Color(r, g, b, a);
+                    byte[] data = textureInfo.Data;
+                    for (int i = 0; i < pixelCount; i++)
+                    {
+                        int dataIndex = i * components;
+                        byte r = data[dataIndex];
+                        byte g = data[dataIndex + 1];
+                        byte b = data[dataIndex + 2];
+                        byte a = components == 4 ? data[dataIndex + 3] : (byte)255;
+                        pixelData[i] = new Color(r, g, b, a);
+                    }
+                    texture.SetData(pixelData, 0, pixelCount);
                 }
-
-                texture.SetData(pixelData);
+                finally
+                {
+                    pool.Return(pixelData);
+                }
             }
 
             clientTexture.Texture = texture;
