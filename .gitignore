@@ -319,3 +319,4 @@ AssetsServer/Data/
 AssetsServer/Assets/
 
 .claude/settings.local.json
+ServerPackets/
