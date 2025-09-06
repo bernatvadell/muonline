@@ -7,16 +7,12 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 using Client.Main.Core.Client;
 using Client.Main.Core.Utilities;
 using System.Text;
 using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Helpers;
 using Client.Main.Content;
-using System.Collections.Generic;
 
 namespace Client.Main.Objects
 {
@@ -33,14 +29,6 @@ namespace Client.Main.Objects
         private const float LabelOffsetZ = 10f;
         private const int LabelPixelGap = 20;
 
-        // Cache for failed texture loads to avoid repeated attempts
-        private static readonly HashSet<string> _failedTextures = new();
-        
-        // Cache for commonly used item textures to avoid repeated loading
-        private static readonly Dictionary<string, WeakReference<Texture2D>> _textureCache = new();
-        private static readonly object _textureCacheLock = new object();
-        private static DateTime _lastCacheCleanup = DateTime.Now;
-
         // ─────────────────── deps / state
         private readonly ScopeObject _scope;
         private readonly ushort _mainPlayerId;
@@ -48,12 +36,10 @@ namespace Client.Main.Objects
         private readonly ILogger<DroppedItemObject> _log;
 
         private SpriteFont _font;
-        private LabelControl _label;
         private bool _pickedUp;
-        private Texture2D _itemTexture;
+        private float _yawRadians;   // Static orientation in world (does not follow camera)
+        private ModelObject _modelObj; // Optional 3D model when available
         private readonly ItemDefinition _definition;
-        private const float SpriteScale = 0.5f;
-        private const float SpriteOffsetZ = 0f;
 
         // ─────────────────── public helpers
         public ushort RawId => _scope.RawId;
@@ -97,23 +83,11 @@ namespace Client.Main.Objects
 
             DisplayName = FormatItemDisplayName(baseName, itemDetails);
 
-            _label = new LabelControl
-            {
-                Text = DisplayName,
-                FontSize = 10f,
-                TextColor = GetLabelColor(scope, itemDetails),
-                HasShadow = true,
-                ShadowColor = Color.Black,
-                ShadowOpacity = 0.8f,
-                UseManualPosition = true,
-                Visible = false,
-                Interactive = true,
-                BackgroundColor = new Color(0, 0, 0, 160),
-                Alpha = 1.0f,
-                Padding = new Margin { Left = 4, Right = 4, Top = 2, Bottom = 2 }
-            };
+            // LabelControl is not used anymore (it rendered above UI).
+            // We draw the item name in the world pass (depth-aware) by overriding DrawHoverName.
 
-            _label.Tag = this;
+            // Initialize a deterministic static yaw based on the raw id to make items look natural but stable
+            _yawRadians = ((RawId & 0xFF) / 255f) * MathHelper.TwoPi;
         }
 
         // =====================================================================
@@ -129,145 +103,32 @@ namespace Client.Main.Objects
 
             _font = GraphicsManager.Instance.Font;
 
-            if (World?.Scene != null)
-            {
-                World.Scene.Controls.Add(_label);
-                _label.Click += OnLabelClicked;
-                await _label.Load();
-            }
-            else
-            {
-                _log.LogWarning("World.Scene == null - label will not be visible.");
-            }
-
             if (_definition != null && !string.IsNullOrEmpty(_definition.TexturePath))
             {
-                // Skip if we already know this texture failed to load
-                if (_failedTextures.Contains(_definition.TexturePath))
-                {
-                    _log.LogDebug("Skipping known failed texture: {Path}", _definition.TexturePath);
-                    return;
-                }
-
-                // Check cache first
-                lock (_textureCacheLock)
-                {
-                    // Clean up cache periodically
-                    if (DateTime.Now - _lastCacheCleanup > TimeSpan.FromMinutes(5))
-                    {
-                        CleanupTextureCache();
-                        _lastCacheCleanup = DateTime.Now;
-                    }
-                    
-                    if (_textureCache.TryGetValue(_definition.TexturePath, out var weakRef) && 
-                        weakRef.TryGetTarget(out var cachedTexture))
-                    {
-                        _itemTexture = cachedTexture;
-                        return;
-                    }
-                }
-
-                // Load texture asynchronously without blocking
-                _ = Task.Run(async () =>
+                // Try to load real 3D model
+                if (_definition.TexturePath.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase))
                 {
                     try
                     {
-                        // Only try to load if it's not a BMD file
-                        if (!_definition.TexturePath.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase))
-                        {
-                            await TextureLoader.Instance.Prepare(_definition.TexturePath);
-                            
-                            // GetTexture2D must run on main thread as it creates GPU resources
-                            var textureTcs = new TaskCompletionSource<Texture2D>();
-                            
-                            MuGame.ScheduleOnMainThread(() =>
-                            {
-                                try
-                                {
-                                    var texture = TextureLoader.Instance.GetTexture2D(_definition.TexturePath);
-                                    textureTcs.SetResult(texture);
-                                }
-                                catch (Exception ex)
-                                {
-                                    _log.LogDebug(ex, "Error creating texture on main thread for {Path}", _definition.TexturePath);
-                                    textureTcs.SetResult(null);
-                                }
-                            });
-                            
-                            _itemTexture = await textureTcs.Task;
-                            
-                            // Cache the texture if loaded successfully
-                            if (_itemTexture != null)
-                            {
-                                lock (_textureCacheLock)
-                                {
-                                    _textureCache[_definition.TexturePath] = new WeakReference<Texture2D>(_itemTexture);
-                                }
-                            }
-                        }
-
-                        // If texture is still null, try BMD preview on main thread
-                        if (_itemTexture == null && _definition.TexturePath.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase))
-                        {
-                            int w = Math.Max(60, _definition.Width * 60);
-                            int h = Math.Max(60, _definition.Height * 60);
-                            
-                            // BMD preview needs to run on main thread for graphics operations
-                            // Schedule it on main thread and wait for result
-                            var tcs = new TaskCompletionSource<Texture2D>();
-                            
-                            MuGame.ScheduleOnMainThread(() =>
-                            {
-                                try
-                                {
-                                    var texture = BmdPreviewRenderer.GetPreview(_definition, w, h);
-                                    tcs.SetResult(texture);
-                                }
-                                catch (Exception ex)
-                                {
-                                    _log.LogDebug(ex, "Error generating BMD preview for {Path}", _definition.TexturePath);
-                                    tcs.SetResult(null);
-                                }
-                            });
-                            
-                            try
-                            {
-                                // Wait for the main thread to complete the operation
-                                _itemTexture = await tcs.Task;
-                                
-                                // Cache BMD preview if loaded successfully
-                                if (_itemTexture != null)
-                                {
-                                    lock (_textureCacheLock)
-                                    {
-                                        _textureCache[_definition.TexturePath] = new WeakReference<Texture2D>(_itemTexture);
-                                    }
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                _log.LogDebug(ex, "Error waiting for BMD preview for {Path}", _definition.TexturePath);
-                            }
-                        }
-
-                        // If still null, mark as failed
-                        if (_itemTexture == null)
-                        {
-                            lock (_failedTextures)
-                            {
-                                _failedTextures.Add(_definition.TexturePath);
-                            }
-                        }
+                        var bmd = await BMDLoader.Instance.Prepare(_definition.TexturePath);
+                        var model = new DroppedItemModel();
+                        model.Model = bmd;
+                        model.Position = new Vector3(0f, 0f, -HeightOffset + 70f); // relative to parent, slightly above ground
+                        // Lay flat, keep static yaw
+                        model.Angle = new Vector3(-MathHelper.PiOver2, MathHelper.PiOver2, _yawRadians);
+                        model.Scale = 0.6f; // tuned size; adjust if needed
+                        Children.Add(model);
+                        await model.Load();
+                        _modelObj = model;
+                        return; // 3D model loaded, skip texture sprite path
                     }
                     catch (Exception ex)
                     {
-                        _log.LogDebug(ex, "Error loading texture for dropped item {Path}", _definition.TexturePath);
-                        lock (_failedTextures)
-                        {
-                            _failedTextures.Add(_definition.TexturePath);
-                        }
+                        _log.LogDebug(ex, "Failed to load BMD model for dropped item: {Path}", _definition.TexturePath);
                     }
-                });
+                }
+
+                // Skip if we already know this texture failed to load\n
             }
         }
 
@@ -276,57 +137,13 @@ namespace Client.Main.Objects
         {
             base.Update(gameTime);
 
-            UpdateLabelVisibility();
-            if (_label.Visible) UpdateLabelPosition();
+            // Label visibility and position are computed in DrawHoverName (depth-aware UI pass).
         }
 
         // =====================================================================
         public override void Draw(GameTime gameTime)
         {
             base.Draw(gameTime);
-
-            if (!Visible || _itemTexture == null || GraphicsDevice == null)
-                return;
-
-            Vector3 anchor = new(Position.X, Position.Y, Position.Z + SpriteOffsetZ);
-            Vector3 screen = GraphicsDevice.Viewport.Project(
-                anchor,
-                Camera.Instance.Projection,
-                Camera.Instance.View,
-                Matrix.Identity);
-
-            if (screen.Z < 0f || screen.Z > 1f)
-                return;
-
-            var sb = GraphicsManager.Instance.Sprite;
-            Vector2 origin = new(_itemTexture.Width / 2f, _itemTexture.Height / 2f);
-
-            void draw()
-            {
-                float pitch = MathHelper.ToRadians(0f);
-                sb.Draw(
-                    _itemTexture,
-                    new Vector2(screen.X, screen.Y),
-                    null,
-                    Color.White,
-                    pitch,
-                    origin,
-                    SpriteScale,
-                    SpriteEffects.None,
-                    screen.Z);
-            }
-
-            if (!SpriteBatchScope.BatchIsBegun)
-            {
-                using (new SpriteBatchScope(sb, SpriteSortMode.BackToFront, BlendState.NonPremultiplied, SamplerState.PointClamp, DepthState))
-                {
-                    draw();
-                }
-            }
-            else
-            {
-                draw();
-            }
         }
 
         // =====================================================================
@@ -381,34 +198,11 @@ namespace Client.Main.Objects
                 return; // Don't send request for unknown types
             }
 
-            _pickedUp = true;
-            _label.Interactive = false; // Prevent further clicks on label while pickup is in progress
+            _pickedUp = true; // Prevent further clicks while pickup is in progress
 
             Task.Run(() => _charSvc.SendPickupItemRequestAsync(RawId, MuGame.Network.TargetVersion));
             _log.LogDebug("Pickup request sent for {RawId:X4} ({DisplayName})", RawId, DisplayName);
         }
-
-        // ─────────────────── texture cache helpers
-        
-        private static void CleanupTextureCache()
-        {
-            // Remove dead weak references from cache
-            var keysToRemove = new List<string>();
-            foreach (var kvp in _textureCache)
-            {
-                if (!kvp.Value.TryGetTarget(out _))
-                {
-                    keysToRemove.Add(kvp.Key);
-                }
-            }
-            
-            foreach (var key in keysToRemove)
-            {
-                _textureCache.Remove(key);
-            }
-        }
-
-        // ─────────────────── label helpers
 
         private string FormatItemDisplayName(string baseName, ItemDatabase.ItemDetails details)
         {
@@ -449,43 +243,95 @@ namespace Client.Main.Objects
             return Color.Gray; // +0
         }
 
-        private void UpdateLabelVisibility()
+        // We override DrawHoverName to render the dropped item label in the world UI pass (depth-aware),
+        // so it never draws above HUD windows.
+        public override void DrawHoverName()
         {
-            bool ready = !Hidden && Status == GameControlStatus.Ready;
-            bool near = false;
+            if (_pickedUp || Hidden || OutOfView)
+                return;
 
+            if (_font == null)
+                _font = GraphicsManager.Instance.Font;
+            if (_font == null || GraphicsDevice == null || Camera.Instance == null)
+                return;
+
+            // Only show when player is reasonably near and scene is ready
+            bool near = false;
             if (World is Controls.WalkableWorldControl w && w.Walker != null)
                 near = Vector3.Distance(w.Walker.Position, Position) <= 2000f;
+            if (!near || World?.Scene?.Status != GameControlStatus.Ready)
+                return;
 
-            _label.Visible = ready && near && !OutOfView
-                              && World?.Scene?.Status == GameControlStatus.Ready;
-            _label.Interactive = _label.Visible && !_pickedUp;
-        }
-
-        private void UpdateLabelPosition()
-        {
-            if (_font == null || GraphicsDevice == null || Camera.Instance == null) return;
-
-            float scale = _label.FontSize / _font.LineSpacing;
+            var scope = _scope; // local ref
+            string text = DisplayName;
+            float scale = 10f / Client.Main.Constants.BASE_FONT_SIZE;
+            ReadOnlySpan<byte> itemSpan = ReadOnlySpan<byte>.Empty;
+            if (scope is ItemScopeObject iso)
+            {
+                itemSpan = iso.ItemData.Span;
+            }
+            var color = GetLabelColor(scope, ItemDatabase.ParseItemDetails(itemSpan));
 
             Vector3 anchor = new(Position.X, Position.Y, Position.Z + LabelOffsetZ);
             Vector3 screen = GraphicsDevice.Viewport.Project(
-                                anchor,
-                                Camera.Instance.Projection,
-                                Camera.Instance.View,
-                                Matrix.Identity);
+                anchor,
+                Camera.Instance.Projection,
+                Camera.Instance.View,
+                Matrix.Identity);
 
-            if (screen.Z is < 0f or > 1f) { _label.Visible = false; return; }
+            if (screen.Z < 0f || screen.Z > 1f)
+                return;
 
-            Vector2 textSize = _font.MeasureString(_label.Text) * scale;
+            var sb = GraphicsManager.Instance.Sprite;
+            Vector2 textSize = _font.MeasureString(text) * scale;
+            int padX = 4, padY = 2;
+            int width = (int)(textSize.X) + padX * 2;
+            int height = (int)(textSize.Y) + padY * 2;
+            var rect = new Rectangle(
+                (int)(screen.X - width / 2f),
+                (int)(screen.Y - height - LabelPixelGap),
+                width, height);
+            float layer = screen.Z;
 
-            int width = (int)(textSize.X + _label.Padding.Left + _label.Padding.Right);
-            int height = (int)(textSize.Y + _label.Padding.Top + _label.Padding.Bottom);
+            void draw()
+            {
+                // Background (with same layer depth as text)
+                sb.Draw(GraphicsManager.Instance.Pixel, rect, null, new Color(0, 0, 0, 160), 0f, Vector2.Zero, SpriteEffects.None, layer);
+                // Border (same depth)
+                sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.X, rect.Y, rect.Width, 1), null, Color.White * 0.3f, 0f, Vector2.Zero, SpriteEffects.None, layer);
+                sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.X, rect.Bottom - 1, rect.Width, 1), null, Color.White * 0.3f, 0f, Vector2.Zero, SpriteEffects.None, layer);
+                sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.X, rect.Y, 1, rect.Height), null, Color.White * 0.3f, 0f, Vector2.Zero, SpriteEffects.None, layer);
+                sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.Right - 1, rect.Y, 1, rect.Height), null, Color.White * 0.3f, 0f, Vector2.Zero, SpriteEffects.None, layer);
+                // Text (original color via GetLabelColor, same layer)
+                sb.DrawString(
+                    _font,
+                    text,
+                    new Vector2(rect.X + padX, rect.Y + padY),
+                    color,
+                    0f,
+                    Vector2.Zero,
+                    scale,
+                    SpriteEffects.None,
+                    layer);
+            }
 
-            _label.ControlSize = new(width, height);
-
-            _label.X = (int)(screen.X - width / 2f);
-            _label.Y = (int)(screen.Y - height - LabelPixelGap);
+            if (!SpriteBatchScope.BatchIsBegun)
+            {
+                using (new SpriteBatchScope(sb, SpriteSortMode.BackToFront, BlendState.NonPremultiplied, SamplerState.PointClamp, DepthStencilState.None))
+                {
+                    draw();
+                }
+            }
+            else
+            {
+                // Temporarily switch to no-depth state to avoid partial occlusion by world geometry
+                sb.End();
+                sb.Begin(SpriteSortMode.BackToFront, BlendState.NonPremultiplied, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
+                draw();
+                sb.End();
+                // Restore the original DepthRead state for the rest of the world overlays
+                sb.Begin(SpriteSortMode.BackToFront, BlendState.NonPremultiplied, SamplerState.PointClamp, DepthStencilState.DepthRead, RasterizerState.CullNone);
+            }
         }
 
         private static Color GetLabelColor(ScopeObject s) =>
@@ -502,7 +348,6 @@ namespace Client.Main.Objects
         public void ResetPickupState()
         {
             _pickedUp = false;
-            _label.Interactive = _label.Visible;
         }
 
         // =====================================================================
@@ -511,14 +356,23 @@ namespace Client.Main.Objects
         // =====================================================================
         public override void Dispose()
         {
-            // Remove the label from whichever parent currently holds it
-            if (_label != null)
-            {
-                _label.Click -= OnLabelClicked;
-                _label.Parent?.Controls.Remove(_label);
-                _label.Dispose();
-            }
             base.Dispose();
         }
     }
+
+    // Minimal model subclass used for dropped items
+    internal class DroppedItemModel : ModelObject
+    {
+        public override async Task Load()
+        {
+            await base.Load();
+        }
+    }
 }
+
+
+
+
+
+
+
