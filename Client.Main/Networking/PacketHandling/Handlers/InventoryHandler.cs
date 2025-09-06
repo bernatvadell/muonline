@@ -248,6 +248,120 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
+        [PacketHandler(0x24, PacketRouter.NoSubCode)]  // ItemMoved / ItemMoveRequestFailed
+        public Task HandleItemMovedOrFailedAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var span = packet.Span;
+                if (span.Length < 5)
+                {
+                    _logger.LogWarning("ItemMoved/Failed packet too short: {Length}", packet.Length);
+                    return Task.CompletedTask;
+                }
+
+                bool isFailed = span[0] == 0xC3 && span.Length >= 4 && span[3] == 0xFF;
+                if (isFailed)
+                {
+                    var failed = new ItemMoveRequestFailed(packet);
+                    var itemData = failed.ItemData.ToArray();
+                    if (_characterState.TryConsumePendingInventoryMove(out var fromSlot, out var toSlot))
+                    {
+                        // Restore the item at original location
+                        _characterState.AddOrUpdateInventoryItem(fromSlot, itemData);
+                        // Ensure the temporary target slot is clean
+                        if (fromSlot != toSlot)
+                        {
+                            _characterState.RemoveInventoryItem(toSlot);
+                        }
+                        _logger.LogWarning("Item move failed. Restored item at slot {From}", fromSlot);
+                        // Inform user
+                        MuGame.ScheduleOnMainThread(() =>
+                        {
+                            var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
+                            gameScene?.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>()
+                                .FirstOrDefault()?.AddMessage("System", "Przeniesienie przedmiotu nieudane.", Client.Main.Models.MessageType.Error);
+                        });
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Item move failed, but no pending move was stashed by client.");
+                        MuGame.ScheduleOnMainThread(() =>
+                        {
+                            var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
+                            gameScene?.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>()
+                                .FirstOrDefault()?.AddMessage("System", "Przeniesienie przedmiotu nieudane.", Client.Main.Models.MessageType.Error);
+                        });
+                    }
+                }
+                else
+                {
+                    var moved = new ItemMoved(packet);
+                    byte toSlot = moved.TargetSlot;
+                    var itemData = moved.ItemData.ToArray();
+                    if (_characterState.TryConsumePendingInventoryMove(out var fromSlot, out var pendingTo))
+                    {
+                        if (fromSlot != toSlot)
+                        {
+                            _characterState.RemoveInventoryItem(fromSlot);
+                        }
+                        _characterState.AddOrUpdateInventoryItem(toSlot, itemData);
+                        _logger.LogInformation("Item moved: {From} -> {To}", fromSlot, toSlot);
+                    }
+                    else
+                    {
+                        // No pending move stashed; best effort update
+                        _characterState.AddOrUpdateInventoryItem(toSlot, itemData);
+                        _logger.LogInformation("Item moved to slot {To}, no pending move available.", toSlot);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing ItemMoved/Failed (0x24) packet.");
+            }
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0x23, PacketRouter.NoSubCode)]  // DropItemRequest result (ack)
+        public Task HandleDropItemAckAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var span = packet.Span;
+                if (span.Length < 5 || span[0] != 0xC1 || span[2] != 0x23)
+                {
+                    _logger.LogWarning("Unexpected DropItem ack format. Data: {Data}", Convert.ToHexString(span));
+                    return Task.CompletedTask;
+                }
+
+                bool success = span[3] != 0;
+                byte slot = span[4];
+                if (success)
+                {
+                    _characterState.RemoveInventoryItem(slot);
+                    _logger.LogInformation("DropItem ACK: Removed slot {Slot} from inventory.", slot);
+                }
+                else
+                {
+                    _logger.LogWarning("DropItem ACK: Server reported failure for slot {Slot}", slot);
+                    // Force refresh to re-show the item and inform user
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        _characterState.RaiseInventoryChanged();
+                        var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
+                        gameScene?.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>()
+                            .FirstOrDefault()?.AddMessage("System", "Upuszczenie przedmiotu nieudane.", Client.Main.Models.MessageType.Error);
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing DropItem ack (0x23).");
+            }
+            return Task.CompletedTask;
+        }
+
         [PacketHandler(0x2A, PacketRouter.NoSubCode)]  // ItemDurabilityChanged
         public Task HandleItemDurabilityChangedAsync(Memory<byte> packet)
         {

@@ -147,6 +147,8 @@ namespace Client.Main.Core.Client
         public event Action InventoryChanged;
 
         private byte[] _pendingPickedItem;
+        private byte? _pendingMoveFromSlot;
+        private byte? _pendingMoveToSlot;
 
         /// <summary>
         /// Gets the raw ID of the item currently being picked up, if any.
@@ -202,6 +204,58 @@ namespace Client.Main.Core.Client
                 _pendingPickedItem = null;
             }
         }
+
+        /// <summary>
+        /// Stashes the last requested inventory move (fromSlot -> toSlot) until the server confirms or rejects it.
+        /// </summary>
+        public void StashPendingInventoryMove(byte fromSlot, byte toSlot)
+        {
+            _pendingMoveFromSlot = fromSlot;
+            _pendingMoveToSlot = toSlot;
+            _logger.LogTrace("Stashed pending inventory move: {From} -> {To}", fromSlot, toSlot);
+        }
+
+        /// <summary>
+        /// Tries to consume the stashed inventory move. Returns true if there was one.
+        /// </summary>
+        public bool TryConsumePendingInventoryMove(out byte fromSlot, out byte toSlot)
+        {
+            if (_pendingMoveFromSlot.HasValue && _pendingMoveToSlot.HasValue)
+            {
+                fromSlot = _pendingMoveFromSlot.Value;
+                toSlot = _pendingMoveToSlot.Value;
+                _pendingMoveFromSlot = null;
+                _pendingMoveToSlot = null;
+                _logger.LogTrace("Consumed pending inventory move: {From} -> {To}", fromSlot, toSlot);
+                return true;
+            }
+
+            fromSlot = 0;
+            toSlot = 0;
+            return false;
+        }
+
+        /// <summary>
+        /// Returns true if a pending inventory move matches the provided slots.
+        /// </summary>
+        public bool IsInventoryMovePending(byte fromSlot, byte toSlot)
+            => _pendingMoveFromSlot.HasValue && _pendingMoveToSlot.HasValue &&
+               _pendingMoveFromSlot.Value == fromSlot && _pendingMoveToSlot.Value == toSlot;
+
+        /// <summary>
+        /// Triggers the InventoryChanged event without modifying items.
+        /// Useful to force UI refresh on client-side optimistic UI fallback.
+        /// </summary>
+        public void RaiseInventoryChanged()
+        {
+            InventoryChanged?.Invoke();
+            _logger.LogTrace("InventoryChanged event raised explicitly.");
+        }
+
+        /// <summary>
+        /// Checks if an item exists at the given slot in the current state.
+        /// </summary>
+        public bool HasInventoryItem(byte slot) => _inventoryItems.ContainsKey(slot);
 
         private void RaiseHealth() => HealthChanged?.Invoke(CurrentHealth, MaximumHealth);
         private void RaiseMana() => ManaChanged?.Invoke(CurrentMana, MaximumMana);

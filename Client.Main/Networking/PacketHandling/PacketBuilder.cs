@@ -200,6 +200,29 @@ namespace Client.Main.Networking.PacketHandling
         }
 
         /// <summary>
+        /// Builds a packet requesting to drop an inventory item onto the ground at the specified map tile.
+        /// </summary>
+        /// <param name="writer">The buffer writer.</param>
+        /// <param name="tileX">Target tile X on the map.</param>
+        /// <param name="tileY">Target tile Y on the map.</param>
+        /// <param name="inventorySlot">Inventory slot index (including server offset).</param>
+        /// <returns>The length of the built packet.</returns>
+        public static int BuildDropItemRequestPacket(
+            IBufferWriter<byte> writer,
+            byte tileX,
+            byte tileY,
+            byte inventorySlot)
+        {
+            int length = DropItemRequest.Length;
+            var memory = writer.GetMemory(length).Slice(0, length);
+            var packet = new DropItemRequest(memory);
+            packet.TargetX = tileX;
+            packet.TargetY = tileY;
+            packet.ItemSlot = inventorySlot;
+            return length;
+        }
+
+        /// <summary>
         /// Builds a packet to request an animation or rotation.
         /// </summary>
         public static int BuildAnimationRequestPacket(
@@ -213,6 +236,57 @@ namespace Client.Main.Networking.PacketHandling
 
             packet.Rotation = rotation;
             packet.AnimationNumber = animationNumber;
+            return length;
+        }
+
+        /// <summary>
+        /// Builds an ItemMoveRequest (with item data), typically for Season 6.
+        /// </summary>
+        /// <param name="writer">Output writer.</param>
+        /// <param name="fromStorage">Source storage kind.</param>
+        /// <param name="fromSlot">Source slot.</param>
+        /// <param name="itemData">Item raw data (expected length 12 for S6).</param>
+        /// <param name="toStorage">Target storage kind.</param>
+        /// <param name="toSlot">Target slot.</param>
+        /// <returns>Packet length.</returns>
+        public static int BuildItemMoveRequestPacket(
+            IBufferWriter<byte> writer,
+            ItemStorageKind fromStorage,
+            byte fromSlot,
+            ReadOnlySpan<byte> itemData,
+            ItemStorageKind toStorage,
+            byte toSlot)
+        {
+            int length = ItemMoveRequest.Length;
+            var memory = writer.GetMemory(length).Slice(0, length);
+            var packet = new ItemMoveRequest(memory);
+            packet.FromStorage = fromStorage;
+            packet.FromSlot = fromSlot;
+            // ItemData must fit into the packet span (12 bytes expected on S6)
+            var dest = packet.ItemData;
+            itemData.Slice(0, Math.Min(dest.Length, itemData.Length)).CopyTo(dest);
+            packet.ToStorage = toStorage;
+            packet.ToSlot = toSlot;
+            return length;
+        }
+
+        /// <summary>
+        /// Builds a short ItemMoveRequestExtended (storages + slots only).
+        /// </summary>
+        public static int BuildItemMoveRequestExtendedPacket(
+            IBufferWriter<byte> writer,
+            ItemStorageKind fromStorage,
+            byte fromSlot,
+            ItemStorageKind toStorage,
+            byte toSlot)
+        {
+            int length = ItemMoveRequestExtended.Length;
+            var memory = writer.GetMemory(length).Slice(0, length);
+            var packet = new ItemMoveRequestExtended(memory);
+            packet.FromStorage = fromStorage;
+            packet.FromSlot = fromSlot;
+            packet.ToStorage = toStorage;
+            packet.ToSlot = toSlot;
             return length;
         }
 

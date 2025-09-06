@@ -123,6 +123,7 @@ namespace Client.Main.Scenes
 
             _inventoryControl = new InventoryControl(MuGame.Network, MuGame.AppLoggerFactory);
             Controls.Add(_inventoryControl);
+            _inventoryControl.HookEvents();
 
             _loadingScreen = new LoadingScreenControl { Visible = true, Message = "Loading Game..." };
             Controls.Add(_loadingScreen);

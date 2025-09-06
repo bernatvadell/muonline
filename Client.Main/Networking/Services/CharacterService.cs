@@ -27,6 +27,33 @@ namespace Client.Main.Networking.Services
         }
 
         /// <summary>
+        /// Sends a request to drop an item from inventory onto the ground at the specified tile.
+        /// </summary>
+        /// <param name="tileX">Target tile X.</param>
+        /// <param name="tileY">Target tile Y.</param>
+        /// <param name="inventorySlot">Inventory slot index (including server offset, e.g. 12 + y*8 + x).</param>
+        public async Task SendDropItemRequestAsync(byte tileX, byte tileY, byte inventorySlot)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send drop item request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending drop item request: Slot={Slot}, Pos=({X},{Y})...", inventorySlot, tileX, tileY);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                    PacketBuilder.BuildDropItemRequestPacket(_connectionManager.Connection.Output, tileX, tileY, inventorySlot));
+                _logger.LogInformation("Drop item request sent: Slot={Slot}, Pos=({X},{Y}).", inventorySlot, tileX, tileY);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending drop item request for slot {Slot} at ({X},{Y}).", inventorySlot, tileX, tileY);
+            }
+        }
+
+        /// <summary>
         /// Requests the list of characters for the current account.
         /// </summary>
         public async Task RequestCharacterListAsync()
@@ -436,7 +463,7 @@ namespace Client.Main.Networking.Services
             ushort itemIdMasked = (ushort)(itemId & 0x7FFF);
             if (!_connectionManager.IsConnected)
             {
-                _logger.LogError("Not connected — cannot send pickup item request.");
+                _logger.LogError("Not connected - cannot send pickup item request.");
                 return;
             }
 
@@ -459,6 +486,61 @@ namespace Client.Main.Networking.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending pickup item request for itemId {ItemId}.", itemIdMasked);
+            }
+        }
+
+        /// <summary>
+        /// Sends an inventory item move request (drag & drop within inventory).
+        /// Selects packet format based on protocol version.
+        /// </summary>
+        /// <param name="fromSlot">Source slot index (including server offset).</param>
+        /// <param name="toSlot">Destination slot index (including server offset).</param>
+        /// <param name="version">Target protocol version.</param>
+        /// <param name="itemData">Raw item data for Season6 (12 bytes expected). Optional for other versions.</param>
+        public async Task SendItemMoveRequestAsync(byte fromSlot, byte toSlot, TargetProtocolVersion version, byte[]? itemData)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send item move request.");
+                return;
+            }
+
+            const ItemStorageKind store = ItemStorageKind.Inventory;
+
+            try
+            {
+                switch (version)
+                {
+                    case TargetProtocolVersion.Season6:
+                        if (itemData == null || itemData.Length < 12)
+                        {
+                            _logger.LogWarning("Season6 item move missing 12-byte item data. Falling back to extended packet.");
+                            await _connectionManager.Connection.SendAsync(() =>
+                                PacketBuilder.BuildItemMoveRequestExtendedPacket(
+                                    _connectionManager.Connection.Output, store, fromSlot, store, toSlot));
+                        }
+                        else
+                        {
+                            await _connectionManager.Connection.SendAsync(() =>
+                                PacketBuilder.BuildItemMoveRequestPacket(
+                                    _connectionManager.Connection.Output, store, fromSlot, itemData, store, toSlot));
+                        }
+                        break;
+
+                    case TargetProtocolVersion.Version097:
+                    case TargetProtocolVersion.Version075:
+                    default:
+                        await _connectionManager.Connection.SendAsync(() =>
+                            PacketBuilder.BuildItemMoveRequestExtendedPacket(
+                                _connectionManager.Connection.Output, store, fromSlot, store, toSlot));
+                        break;
+                }
+
+                _logger.LogInformation("Item move request sent: {From} -> {To}", fromSlot, toSlot);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending item move request from {From} to {To}.", fromSlot, toSlot);
             }
         }
 

@@ -63,6 +63,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
         private readonly NetworkManager _networkManager;
         private InventoryItem _hoveredItem = null;
         private Point _hoveredSlot = new Point(-1, -1);
+        private Point _pickedItemOriginalGrid = new Point(-1, -1);
 
         private SpriteFont _font; // Font for tooltips
 
@@ -472,7 +473,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 Y = mousePos.Y - _dragOffset.Y;
             }
 
-            // Picking up/dropping logic (only if not dragging window)
+            // Picking up/dropping logic within inventory (only if not dragging window)
             if (IsMouseOver && !_isDragging) // Checks if mouse is over the entire InventoryControl
             {
                 Point gridSlot = GetSlotAtScreenPosition(mousePos);
@@ -489,20 +490,103 @@ namespace Client.Main.Controls.UI.Game.Inventory
                             if (CanPlaceItem(_pickedItemRenderer.Item, gridSlot))
                             {
                                 InventoryItem itemToPlace = _pickedItemRenderer.Item;
+                                // If dropping on the same slot as originally picked, treat as no-op (no server call)
+                                if (_pickedItemOriginalGrid.X >= 0 && gridSlot == _pickedItemOriginalGrid)
+                                {
+                                    itemToPlace.GridPosition = gridSlot;
+                                    AddItem(itemToPlace);
+                                    _pickedItemRenderer.ReleaseItem();
+                                    _pickedItemOriginalGrid = new Point(-1, -1);
+                                    return; // No further processing
+                                }
+
+                                // Compute from/to slot indices for server
+                                const int inventorySlotOffset = 12;
+                                byte fromSlot = 0;
+                                if (_pickedItemOriginalGrid.X >= 0)
+                                {
+                                    fromSlot = (byte)(inventorySlotOffset + (_pickedItemOriginalGrid.Y * Columns) + _pickedItemOriginalGrid.X);
+                                }
+                                byte toSlot = (byte)(inventorySlotOffset + (gridSlot.Y * Columns) + gridSlot.X);
+
                                 itemToPlace.GridPosition = gridSlot;
                                 AddItem(itemToPlace); // Adds to _items and _itemGrid
+                                // Send move request to server (inventory -> inventory)
+                                if (_networkManager != null)
+                                {
+                                    var svc = _networkManager.GetCharacterService();
+                                    var version = _networkManager.TargetVersion;
+                                    var raw = itemToPlace.RawData ?? Array.Empty<byte>();
+                                    // Stash the pending move so the handler can update CharacterState precisely on server response
+                                    var state = _networkManager.GetCharacterState();
+                                    state.StashPendingInventoryMove(fromSlot, toSlot);
+                                    _ = System.Threading.Tasks.Task.Run(async () =>
+                                    {
+                                        await svc.SendItemMoveRequestAsync(fromSlot, toSlot, version, raw);
+                                        // Optimistic UI fallback: if no server response within 1200ms, refresh UI back to state
+                                        await System.Threading.Tasks.Task.Delay(1200);
+                                        if (_networkManager != null && state.IsInventoryMovePending(fromSlot, toSlot))
+                                        {
+                                            MuGame.ScheduleOnMainThread(() => state.RaiseInventoryChanged());
+                                        }
+                                    });
+                                }
                                 _pickedItemRenderer.ReleaseItem();
+                                _pickedItemOriginalGrid = new Point(-1, -1);
                             }
                             // If cannot drop, the item remains picked up
                         }
                         else if (_hoveredItem != null) // We don't have a picked up item -> trying to pick up
                         {
                             _pickedItemRenderer.PickUpItem(_hoveredItem);
+                            _pickedItemOriginalGrid = _hoveredItem.GridPosition;
                             RemoveItemFromGrid(_hoveredItem);
                             _items.Remove(_hoveredItem);
                             _hoveredItem = null; // No longer hovering over it, because it's picked up
                         }
                     }
+                }
+            }
+
+            // If we released the mouse while dragging an item OUTSIDE of the inventory grid,
+            // interpret it as a drop-to-terrain request.
+            if (leftJustReleased && _pickedItemRenderer.Item != null && !_isDragging && !IsMouseOverGrid())
+            {
+                var item = _pickedItemRenderer.Item;
+                // Compute the original inventory slot index (server indexing starts at 12)
+                const int inventorySlotOffset = 12;
+                byte slotIndex = (byte)(inventorySlotOffset + (item.GridPosition.Y * Columns) + item.GridPosition.X);
+
+                // Determine target tile from the active world
+                if (Scene?.World is Controls.WalkableWorldControl world && _networkManager != null)
+                {
+                    byte tileX = world.MouseTileX;
+                    byte tileY = world.MouseTileY;
+                    // Fire-and-forget send; server will handle success/failure and update inventory accordingly.
+                    // Add optimistic UI fallback to refresh inventory if no ACK arrives.
+                    _ = System.Threading.Tasks.Task.Run(async () =>
+                    {
+                        var svc = _networkManager.GetCharacterService();
+                        await svc.SendDropItemRequestAsync(tileX, tileY, slotIndex);
+                        await System.Threading.Tasks.Task.Delay(1200);
+                        // If item still present at slot, force refresh to show it back
+                        var state = _networkManager.GetCharacterState();
+                        if (state.HasInventoryItem(slotIndex))
+                        {
+                            MuGame.ScheduleOnMainThread(() => state.RaiseInventoryChanged());
+                        }
+                    });
+
+                    // We already removed the item from the UI grid when it was picked up; just clear the picked state
+                    _pickedItemRenderer.ReleaseItem();
+                    _pickedItemOriginalGrid = new Point(-1, -1);
+                }
+                else
+                {
+                    // No world or network available - revert the item back into the inventory UI
+                    AddItem(item);
+                    _pickedItemRenderer.ReleaseItem();
+                    _pickedItemOriginalGrid = new Point(-1, -1);
                 }
             }
 
