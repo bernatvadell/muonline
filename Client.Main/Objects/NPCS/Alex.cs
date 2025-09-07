@@ -1,5 +1,5 @@
 using Client.Main.Content;
-using Client.Main.Controls.UI.Game;
+using Client.Main.Networking;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.NPCS
@@ -15,7 +15,11 @@ namespace Client.Main.Objects.NPCS
         }
         protected override void HandleClick()
         {
-            NpcShopControl.Instance.Visible = true;
+            var svc = MuGame.Network?.GetCharacterService();
+            if (svc != null)
+            {
+                _ = svc.SendTalkToNpcRequestAsync(NetworkId);
+            }
         }
     }
 }

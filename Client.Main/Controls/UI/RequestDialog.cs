@@ -22,6 +22,8 @@ namespace Client.Main.Controls.UI
         private readonly ButtonControl _acceptButton;
         private readonly ButtonControl _rejectButton;
 
+        private bool _infoOnly = false; // single OK button mode
+
         private static readonly ILogger _logger
             = MuGame.AppLoggerFactory?.CreateLogger<RequestDialog>();
 
@@ -43,6 +45,7 @@ namespace Client.Main.Controls.UI
 
         private RequestDialog()
         {
+            Interactive = true; // consume mouse interactions over the dialog
             Align = ControlAlign.HorizontalCenter | ControlAlign.VerticalCenter;
             AutoViewSize = false;
             BorderColor = Color.Gray * 0.7f;
@@ -87,6 +90,14 @@ namespace Client.Main.Controls.UI
             UpdateWrappedText();
             AdjustSizeAndLayout();
         }
+
+        private void SetInfoMode()
+        {
+            _infoOnly = true;
+            _acceptButton.Text = "OK";
+            _rejectButton.Visible = false;
+            AdjustSizeAndLayout();
+        }
         private void AdjustSizeAndLayout()
         {
             int width = BASE_BG_WIDTH;
@@ -106,15 +117,23 @@ namespace Client.Main.Controls.UI
             _label.X = (width - _label.ControlSize.X) / 2;
             _label.Y = TOP_PAD;
 
-            int totalBtnsWidth = _acceptButton.ViewSize.X + _rejectButton.ViewSize.X + BTN_GAP;
-            int startX = (width - totalBtnsWidth) / 2;
             int btnY = height - _acceptButton.ViewSize.Y - 20;
-
-            _acceptButton.X = startX;
-            _acceptButton.Y = btnY;
-
-            _rejectButton.X = startX + _acceptButton.ViewSize.X + BTN_GAP;
-            _rejectButton.Y = btnY;
+            if (_infoOnly)
+            {
+                // Center single OK button
+                int startX = (width - _acceptButton.ViewSize.X) / 2;
+                _acceptButton.X = startX;
+                _acceptButton.Y = btnY;
+            }
+            else
+            {
+                int totalBtnsWidth = _acceptButton.ViewSize.X + _rejectButton.ViewSize.X + BTN_GAP;
+                int startX = (width - totalBtnsWidth) / 2;
+                _acceptButton.X = startX;
+                _acceptButton.Y = btnY;
+                _rejectButton.X = startX + _acceptButton.ViewSize.X + BTN_GAP;
+                _rejectButton.Y = btnY;
+            }
         }
 
         private void UpdateWrappedText()
@@ -194,6 +213,29 @@ namespace Client.Main.Controls.UI
             return dlg;
         }
 
+        /// <summary>
+        /// Shows a simple informational dialog with a centered OK button.
+        /// </summary>
+        public static RequestDialog ShowInfo(string text)
+        {
+            var scene = MuGame.Instance?.ActiveScene;
+            if (scene == null)
+            {
+                _logger?.LogDebug("[RequestDialog.ShowInfo] Error: ActiveScene is null.");
+                return null;
+            }
+
+            // Close existing dialogs
+            foreach (var r in scene.Controls.OfType<RequestDialog>().ToList())
+                r.Close();
+
+            var dlg = new RequestDialog { Text = text };
+            dlg.SetInfoMode();
+            dlg.ShowDialog();
+            dlg.BringToFront();
+            return dlg;
+        }
+
         public override void Draw(GameTime gameTime)
         {
             if (Status != GameControlStatus.Ready || !Visible) return;
@@ -202,6 +244,12 @@ namespace Client.Main.Controls.UI
             DrawBorder();
 
             base.Draw(gameTime);
+        }
+
+        // Consume clicks anywhere on the dialog (background or label), so they don't reach the world.
+        public override bool OnClick()
+        {
+            return true; // don't propagate; buttons will handle their own click events
         }
     }
 }

@@ -223,8 +223,8 @@ namespace Client.Main.Scenes
             _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: _hero.NetworkId set to {charState.Id:X4}, Location set to ({charState.PositionX}, {charState.PositionY}).");
 
             UpdateLoadProgress("Hero info applied.", 0.1f);
-            _hero.PlayerMoved += OnHeroAction;
-            _hero.PlayerTookDamage += OnHeroAction;
+            _hero.PlayerMoved += OnHeroMoved;
+            _hero.PlayerTookDamage += OnHeroTookDamage;
 
             // 2. Determine Initial World (Quick)
             UpdateLoadProgress("Determining initial world...", 0.15f);
@@ -394,13 +394,23 @@ namespace Client.Main.Scenes
             }
         }
 
-        private void OnHeroAction(object sender, EventArgs e)
+        private void OnHeroMoved(object sender, EventArgs e)
         {
             if (NpcShopControl.Instance.Visible)
             {
-                _logger.LogInformation("Hero action detected, closing NPC shop window.");
+                _logger?.LogInformation("Hero moved, closing NPC shop window.");
                 NpcShopControl.Instance.Visible = false;
+                var svc = MuGame.Network?.GetCharacterService();
+                if (svc != null)
+                {
+                    _ = svc.SendCloseNpcRequestAsync();
+                }
             }
+        }
+
+        private void OnHeroTookDamage(object sender, EventArgs e)
+        {
+            // Intentionally do not close NPC shop on damage unless explicitly desired.
         }
 
         // ─────────────────── Map Change Logic (Remains largely the same) ───────────────────
@@ -727,12 +737,17 @@ namespace Client.Main.Scenes
                 }
                 if (currentKeyboardState.IsKeyDown(Keys.V) && !_previousKeyboardState.IsKeyDown(Keys.V))
                 {
+                    // Only close shop (and notify server); opening should go through NPC interaction
                     if (NpcShopControl.Instance.Visible)
+                    {
                         NpcShopControl.Instance.Visible = false;
-                    else
-                        NpcShopControl.Instance.Visible = true;
-
-                    SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
+                        var svc = MuGame.Network?.GetCharacterService();
+                        if (svc != null)
+                        {
+                            _ = svc.SendCloseNpcRequestAsync();
+                        }
+                        SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
+                    }
                 }
                 if (currentKeyboardState.IsKeyDown(Keys.C) && !_previousKeyboardState.IsKeyDown(Keys.C))
                 {
@@ -905,8 +920,8 @@ namespace Client.Main.Scenes
         {
             if (_hero != null)
             {
-                _hero.PlayerMoved -= OnHeroAction;
-                _hero.PlayerTookDamage -= OnHeroAction;
+                _hero.PlayerMoved -= OnHeroMoved;
+                _hero.PlayerTookDamage -= OnHeroTookDamage;
             }
             base.Dispose();
         }

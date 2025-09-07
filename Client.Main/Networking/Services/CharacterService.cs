@@ -490,6 +490,123 @@ namespace Client.Main.Networking.Services
         }
 
         /// <summary>
+        /// Sends a talk-to-NPC request to the server for the specified NPC network id (masked).
+        /// </summary>
+        public async Task SendTalkToNpcRequestAsync(ushort npcNetworkId)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send talk to NPC request.");
+                return;
+            }
+
+            // Ensure masked id (server expects 0x7FFF range)
+            ushort masked = (ushort)(npcNetworkId & 0x7FFF);
+            _logger.LogInformation("Sending TalkToNpcRequest for NPC {NpcId:X4}...", masked);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var len = TalkToNpcRequest.Length;
+                    var packet = new TalkToNpcRequest(_connectionManager.Connection.Output.GetMemory(len).Slice(0, len));
+                    packet.NpcId = masked; // BigEndian is handled by the struct
+                    return len;
+                });
+                _logger.LogInformation("TalkToNpcRequest sent for NPC {NpcId:X4}.", masked);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending TalkToNpcRequest for NPC {NpcId:X4}.", masked);
+            }
+        }
+
+        /// <summary>
+        /// Sends a close-NPC dialog request to the server.
+        /// </summary>
+        public async Task SendCloseNpcRequestAsync()
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send close NPC request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending CloseNpcRequest (0x31) ...");
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var len = CloseNpcRequest.Length;
+                    var packet = new CloseNpcRequest(_connectionManager.Connection.Output.GetMemory(len).Slice(0, len));
+                    return len;
+                });
+                _logger.LogInformation("CloseNpcRequest sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending CloseNpcRequest.");
+            }
+        }
+
+        /// <summary>
+        /// Sends a buy request for the given NPC shop slot.
+        /// </summary>
+        public async Task SendBuyItemFromNpcRequestAsync(byte shopSlot)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send buy item request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending BuyItemFromNpcRequest for slot {Slot}...", shopSlot);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var len = BuyItemFromNpcRequest.Length;
+                    var packet = new BuyItemFromNpcRequest(_connectionManager.Connection.Output.GetMemory(len).Slice(0, len));
+                    packet.ItemSlot = shopSlot;
+                    return len;
+                });
+                _logger.LogInformation("BuyItemFromNpcRequest sent for slot {Slot}.", shopSlot);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending BuyItemFromNpcRequest for slot {Slot}.", shopSlot);
+            }
+        }
+
+        /// <summary>
+        /// Sends a request to sell an item from the inventory to the currently opened NPC merchant.
+        /// </summary>
+        public async Task SendSellItemToNpcRequestAsync(byte inventorySlot)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send sell item request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending SellItemToNpcRequest for inv slot {Slot}...", inventorySlot);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var len = SellItemToNpcRequest.Length;
+                    var packet = new SellItemToNpcRequest(_connectionManager.Connection.Output.GetMemory(len).Slice(0, len));
+                    packet.ItemSlot = inventorySlot;
+                    return len;
+                });
+                _logger.LogInformation("SellItemToNpcRequest sent for slot {Slot}.", inventorySlot);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending SellItemToNpcRequest for inv slot {Slot}.", inventorySlot);
+            }
+        }
+
+        /// <summary>
         /// Sends an inventory item move request (drag & drop within inventory).
         /// Selects packet format based on protocol version.
         /// </summary>

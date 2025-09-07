@@ -54,6 +54,8 @@ namespace Client.Main.Objects
         public override void OnClick()
         {
             base.OnClick();
+            // Prevent world click-to-move from triggering on NPC clicks
+            MuGame.Instance?.ActiveScene?.SetMouseInputConsumed();
             HandleClick();
         }
         protected abstract void HandleClick();

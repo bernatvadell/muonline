@@ -2,6 +2,7 @@
 using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Controls.UI.Game;
+using Client.Main.Networking;
 using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -38,7 +39,11 @@ namespace Client.Main.Objects.NPCS
         }
         protected override void HandleClick()
         {
-            NpcShopControl.Instance.Visible = true;
+            var svc = MuGame.Network?.GetCharacterService();
+            if (svc != null)
+            {
+                _ = svc.SendTalkToNpcRequestAsync(NetworkId);
+            }
         }
 
         public override void DrawMesh(int mesh)

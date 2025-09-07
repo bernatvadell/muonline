@@ -574,9 +574,15 @@ namespace Client.Main.Objects
         // Fast path draw for standard alpha-tested meshes (no special shaders)
         private void DrawMeshFastAlpha(int mesh)
         {
-            if (_boneVertexBuffers?[mesh] == null ||
-                _boneIndexBuffers?[mesh] == null ||
-                _boneTextures?[mesh] == null ||
+            if (_boneVertexBuffers == null || _boneIndexBuffers == null || _boneTextures == null)
+                return;
+            if (mesh < 0 ||
+                mesh >= _boneVertexBuffers.Length ||
+                mesh >= _boneIndexBuffers.Length ||
+                mesh >= _boneTextures.Length ||
+                _boneVertexBuffers[mesh] == null ||
+                _boneIndexBuffers[mesh] == null ||
+                _boneTextures[mesh] == null ||
                 IsHiddenMesh(mesh))
                 return;
 
@@ -663,7 +669,19 @@ namespace Client.Main.Objects
         private void DrawMeshesHighlight(List<int> meshIndices, Matrix highlightMatrix, Vector3 highlightColor)
         {
             for (int n = 0; n < meshIndices.Count; n++)
-                DrawMeshHighlight(meshIndices[n], highlightMatrix, highlightColor);
+            {
+                int mi = meshIndices[n];
+                if (_boneVertexBuffers == null || _boneIndexBuffers == null || _boneTextures == null)
+                    return;
+                if (mi < 0 ||
+                    mi >= _boneVertexBuffers.Length ||
+                    mi >= _boneIndexBuffers.Length ||
+                    mi >= _boneTextures.Length)
+                {
+                    continue;
+                }
+                DrawMeshHighlight(mi, highlightMatrix, highlightColor);
+            }
         }
 
         private bool IsHiddenMesh(int mesh)
@@ -1173,6 +1191,15 @@ namespace Client.Main.Objects
         {
             if (IsHiddenMesh(mesh) || _boneVertexBuffers == null || _boneIndexBuffers == null || _boneTextures == null)
                 return;
+
+            // Defensive range checks to avoid races when buffers are swapped during async loads
+            if (mesh < 0 ||
+                mesh >= _boneVertexBuffers.Length ||
+                mesh >= _boneIndexBuffers.Length ||
+                mesh >= _boneTextures.Length)
+            {
+                return;
+            }
 
             VertexBuffer vertexBuffer = _boneVertexBuffers[mesh];
             IndexBuffer indexBuffer = _boneIndexBuffers[mesh];

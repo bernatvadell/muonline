@@ -18,7 +18,6 @@ namespace Client.Main.Core.Utilities
         {
             LoginResponse.Code, // F1 - Login response packet
             CharacterList.Code, // F3 - Character list packet
-            NpcItemBuyFailed.Code, // 32 - NPC item buy failed response (Note: ItemBought uses 32 without subcode)
             TradeMoneySetResponse.Code, // 3A - Trade money set response packet
             PlayerShopSetItemPriceResponse.Code, // 3F - Player shop set item price response packet
             CurrentHealthAndShield.Code, // 26 - Current health and shield status packet

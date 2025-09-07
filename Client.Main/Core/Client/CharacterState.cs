@@ -97,6 +97,12 @@ namespace Client.Main.Core.Client
         private readonly ConcurrentDictionary<byte, byte[]> _inventoryItems = new();
         public byte InventoryExpansionState { get; set; } = 0;
         public uint InventoryZen { get; set; } = 0;
+        public event Action MoneyChanged;
+        private byte? _pendingSellSlot;
+
+        // NPC Shop items
+        private readonly ConcurrentDictionary<byte, byte[]> _shopItems = new();
+        public event Action ShopItemsChanged;
 
         // Constants for Item Data Parsing (based on ItemSerializer.cs, Season 6 assumed)
         private const byte LuckFlagBit = 4;
@@ -250,6 +256,66 @@ namespace Client.Main.Core.Client
         {
             InventoryChanged?.Invoke();
             _logger.LogTrace("InventoryChanged event raised explicitly.");
+        }
+
+        /// <summary>
+        /// Stashes the inventory slot of an item for which a sell request was sent, until the server responds.
+        /// </summary>
+        public void StashPendingSellSlot(byte slot)
+        {
+            _pendingSellSlot = slot;
+            _logger.LogTrace("Stashed pending sell for slot {Slot}", slot);
+        }
+
+        /// <summary>
+        /// Tries to consume the stashed sell slot; returns true if one was available.
+        /// </summary>
+        public bool TryConsumePendingSellSlot(out byte slot)
+        {
+            if (_pendingSellSlot.HasValue)
+            {
+                slot = _pendingSellSlot.Value;
+                _pendingSellSlot = null;
+                _logger.LogTrace("Consumed pending sell for slot {Slot}", slot);
+                return true;
+            }
+            slot = 0;
+            return false;
+        }
+
+        /// <summary>
+        /// Clears the current NPC shop items and notifies listeners.
+        /// </summary>
+        public void ClearShopItems()
+        {
+            _shopItems.Clear();
+            ShopItemsChanged?.Invoke();
+            _logger.LogTrace("ShopItemsChanged raised after ClearShopItems.");
+        }
+
+        /// <summary>
+        /// Adds or updates an item in the NPC shop list (by local shop slot).
+        /// </summary>
+        public void AddOrUpdateShopItem(byte slot, byte[] itemData)
+        {
+            _shopItems[slot] = itemData;
+        }
+
+        /// <summary>
+        /// Notifies that shop items were updated. Call after bulk updates.
+        /// </summary>
+        public void RaiseShopItemsChanged()
+        {
+            ShopItemsChanged?.Invoke();
+            _logger.LogTrace("ShopItemsChanged event raised.");
+        }
+
+        /// <summary>
+        /// Snapshot of current NPC shop items.
+        /// </summary>
+        public IReadOnlyDictionary<byte, byte[]> GetShopItems()
+        {
+            return new ReadOnlyDictionary<byte, byte[]>(_shopItems.ToDictionary(k => k.Key, v => v.Value));
         }
 
         /// <summary>
@@ -429,6 +495,7 @@ namespace Client.Main.Core.Client
         {
             InventoryZen = zen;
             _logger.LogDebug("Inventory Zen updated to: {Zen}", zen);
+            MoneyChanged?.Invoke();
         }
 
         /// <summary>

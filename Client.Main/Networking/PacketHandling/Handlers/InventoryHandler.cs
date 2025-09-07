@@ -280,7 +280,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         {
                             var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
                             gameScene?.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>()
-                                .FirstOrDefault()?.AddMessage("System", "Przeniesienie przedmiotu nieudane.", Client.Main.Models.MessageType.Error);
+                                .FirstOrDefault()?.AddMessage("System", "Moving the item failed.", Client.Main.Models.MessageType.Error);
                         });
                     }
                     else
@@ -290,7 +290,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         {
                             var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
                             gameScene?.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>()
-                                .FirstOrDefault()?.AddMessage("System", "Przeniesienie przedmiotu nieudane.", Client.Main.Models.MessageType.Error);
+                                .FirstOrDefault()?.AddMessage("System", "Moving the item failed.", Client.Main.Models.MessageType.Error);
                         });
                     }
                 }
@@ -351,7 +351,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         _characterState.RaiseInventoryChanged();
                         var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
                         gameScene?.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>()
-                            .FirstOrDefault()?.AddMessage("System", "Upuszczenie przedmiotu nieudane.", Client.Main.Models.MessageType.Error);
+                            .FirstOrDefault()?.AddMessage("System", "Dropping the item failed.", Client.Main.Models.MessageType.Error);
                     });
                 }
             }

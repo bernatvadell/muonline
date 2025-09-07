@@ -37,6 +37,7 @@ namespace Client.Main.Networking.PacketHandling
         private readonly ConnectServerHandler _connectServerHandler;
         private readonly MiscGamePacketHandler _miscGamePacketHandler;
         private readonly PartyHandler _partyHandler;
+        private readonly ShopHandler _shopHandler;
 
         private readonly Dictionary<(byte MainCode, byte SubCode), Func<Memory<byte>, Task>> _packetHandlers
             = new();
@@ -71,6 +72,7 @@ namespace Client.Main.Networking.PacketHandling
             _connectServerHandler = new ConnectServerHandler(loggerFactory, networkManager);
             _miscGamePacketHandler = new MiscGamePacketHandler(loggerFactory, networkManager, characterService, characterState, scopeManager, targetVersion);
             _partyHandler = new PartyHandler(loggerFactory, partyManager, characterService, scopeManager, characterState);
+            _shopHandler = new ShopHandler(loggerFactory, characterState, networkManager, targetVersion);
 
             RegisterAttributeBasedHandlers();
             RegisterConnectServerHandlers();
@@ -209,7 +211,8 @@ namespace Client.Main.Networking.PacketHandling
                 _scopeHandler,
                 _chatMessageHandler,
                 _miscGamePacketHandler,
-                _partyHandler
+                _partyHandler,
+                _shopHandler
             };
 
             int registered = 0;

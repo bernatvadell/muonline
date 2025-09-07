@@ -97,6 +97,14 @@ namespace Client.Main.Controls
                 MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
                 _cursorNextMoveTime <= 0f)
             {
+                // If an NPC is under the cursor, consume click and don't trigger move
+                if (Scene.MouseHoverObject is NPCObject)
+                {
+                    if (Scene is Client.Main.Scenes.BaseScene bs)
+                        bs.SetMouseInputConsumed();
+                    _cursorNextMoveTime = 250f;
+                    return;
+                }
                 if (Walker is PlayerObject player)
                 {
                     MonsterObject monster = hoveredMonster ?? FindMonsterAtTile(MouseTileX, MouseTileY);
