@@ -513,12 +513,22 @@ namespace Client.Main.Scenes
             // UI visibility will be handled by HandleConnectionStateChange when state changes to RequestingConnectionInfo
             _ = _networkManager.RequestGameServerConnectionAsync(e.Index);
 
-            // On Android the state change might be delayed; show the dialog immediately
+            // Show the dialog immediately and ensure it's on top.
+            // On some Android devices the state change event can be delayed,
+            // leaving the server list visible and drawn above the dialog.
             if (_loginDialog != null)
             {
                 _loginDialog.Visible = true;
+                _loginDialog.BringToFront();
                 _loginDialog.FocusUsername();
             }
+
+            // Proactively hide server selection UI right away to avoid overlap if the
+            // connection state change is delayed (observed on Android builds).
+            _serverList?.GetType(); // no-op to avoid nullable warnings below
+            if (_serverList != null) _serverList.Visible = false;
+            if (_nonEventGroup != null) _nonEventGroup.Visible = false;
+            if (_eventGroup != null) _eventGroup.Visible = false;
         }
 
         // --- Helper Methods ---

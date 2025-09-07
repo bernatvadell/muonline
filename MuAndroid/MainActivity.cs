@@ -5,10 +5,10 @@ using Android.Content.PM;
 using Android.OS;
 using Android.Provider;
 using Android.Views;
-using Client.Main.Platform.Android;
-using Microsoft.Xna.Framework;
+using AndroidGameActivity = Microsoft.Xna.Framework.AndroidGameActivity;
 using System;
 using System.IO;
+using Client.Main.Platform.Android;
 
 namespace MuAndroid
 {
@@ -54,7 +54,7 @@ namespace MuAndroid
                             .AbsolutePath;
             var filePath = Path.Combine(dirPath, name);
 
-             try
+            try
             {
                 Directory.CreateDirectory(dirPath);
                 File.AppendAllText(filePath, text + System.Environment.NewLine);

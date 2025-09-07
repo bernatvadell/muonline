@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Client.Main\Client.Main.csproj" />
+    <ProjectReference Include="..\Client.Main\Client.Main.csproj" AdditionalProperties="TargetFramework=net9.0-android;EnableMobileTargets=true" />
   </ItemGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">

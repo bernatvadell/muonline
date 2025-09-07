@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup Condition="'$(MSBuildProjectName)'=='MuAndroid' Or '$(MSBuildProjectName)'=='MuIos' Or '$(MSBuildProjectName)'=='Client.Main' Or '$(MSBuildProjectName)'=='Client.Data'">
+    <EnableMobileTargets>true</EnableMobileTargets>
+  </PropertyGroup>
+</Project>
