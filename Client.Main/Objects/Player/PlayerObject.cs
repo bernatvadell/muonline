@@ -173,7 +173,8 @@ namespace Client.Main.Objects.Player
         {
             if (_networkManager != null)
             {
-                _networkManager.GetCharacterState().InventoryChanged += OnInventoryChanged;
+                // Subscribe to equipment-only changes to avoid reloading on pure inventory grid moves
+                _networkManager.GetCharacterState().EquipmentChanged += OnEquipmentChanged;
             }
         }
 
@@ -182,7 +183,7 @@ namespace Client.Main.Objects.Player
             if (_networkManager == null) return;
             try
             {
-                _networkManager.GetCharacterState().InventoryChanged -= OnInventoryChanged;
+                _networkManager.GetCharacterState().EquipmentChanged -= OnEquipmentChanged;
             }
             catch (Exception ex)
             {
@@ -190,7 +191,7 @@ namespace Client.Main.Objects.Player
             }
         }
 
-        private void OnInventoryChanged()
+        private void OnEquipmentChanged()
         {
             if (!IsMainWalker) return;
             // Fire-and-forget the async update method
@@ -1153,7 +1154,7 @@ namespace Client.Main.Objects.Player
         /// <summary>
         /// Updates a specific equipment slot based on AppearanceChanged packet data
         /// </summary>
-        public async Task UpdateEquipmentSlotAsync(byte itemSlot, EquipmentSlotData? equipmentData)
+        public async Task UpdateEquipmentSlotAsync(byte itemSlot, EquipmentSlotData equipmentData)
         {
             Console.WriteLine($"[PlayerObject] UpdateEquipmentSlotAsync called: slot={itemSlot}, equipmentData={(equipmentData == null ? "NULL" : "NOT NULL")}");
             _logger?.LogInformation("UpdateEquipmentSlotAsync called: slot={Slot}, equipmentData={Data}", itemSlot, equipmentData == null ? "NULL" : "NOT NULL");

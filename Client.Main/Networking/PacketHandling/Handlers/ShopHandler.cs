@@ -20,6 +20,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         private readonly CharacterState _characterState;
         private readonly NetworkManager _networkManager;
         private readonly TargetProtocolVersion _targetVersion;
+        private NpcWindowResponse.NpcWindow? _lastWindow;
 
         public ShopHandler(
             ILoggerFactory loggerFactory,
@@ -42,6 +43,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             try
             {
                 var resp = new NpcWindowResponse(packet);
+                _lastWindow = resp.Window;
+
                 if (resp.Window == NpcWindowResponse.NpcWindow.Merchant || resp.Window == NpcWindowResponse.NpcWindow.Merchant1)
                 {
                     _characterState.ClearShopItems();
@@ -52,6 +55,19 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         shop.BringToFront();
 
                         // Also open the inventory side-by-side
+                        var scene = MuGame.Instance?.ActiveScene;
+                        var inv = scene?.Controls?.OfType<InventoryControl>().FirstOrDefault();
+                        inv?.Show();
+                    });
+                }
+                else if (resp.Window == NpcWindowResponse.NpcWindow.VaultStorage)
+                {
+                    _characterState.ClearVaultItems();
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        var vault = VaultControl.Instance;
+                        vault.Visible = true;
+                        vault.BringToFront();
                         var scene = MuGame.Instance?.ActiveScene;
                         var inv = scene?.Controls?.OfType<InventoryControl>().FirstOrDefault();
                         inv?.Show();
@@ -93,7 +109,16 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                 _logger.LogInformation("StoreItemList received: Type={Type}, Count={Count}, DataSize={Size}", list.Type, count, dataSize);
 
-                _characterState.ClearShopItems();
+                bool toVault = _lastWindow == NpcWindowResponse.NpcWindow.VaultStorage;
+
+                if (toVault)
+                {
+                    _characterState.ClearVaultItems();
+                }
+                else
+                {
+                    _characterState.ClearShopItems();
+                }
 
                 for (int i = 0; i < count; i++)
                 {
@@ -107,10 +132,12 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         _logger.LogWarning("Shop item index {Index} has unexpected data length {Len} (expected {Exp}).", i, data.Length, dataSize);
                     }
 
-                    _characterState.AddOrUpdateShopItem(slot, data);
+                    if (toVault) _characterState.AddOrUpdateVaultItem(slot, data);
+                    else _characterState.AddOrUpdateShopItem(slot, data);
                 }
 
-                _characterState.RaiseShopItemsChanged();
+                if (toVault) _characterState.RaiseVaultItemsChanged();
+                else _characterState.RaiseShopItemsChanged();
             }
             catch (Exception ex)
             {

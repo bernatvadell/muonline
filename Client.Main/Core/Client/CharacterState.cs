@@ -99,10 +99,14 @@ namespace Client.Main.Core.Client
         public uint InventoryZen { get; set; } = 0;
         public event Action MoneyChanged;
         private byte? _pendingSellSlot;
+        private byte? _pendingVaultMoveFrom;
+        private byte? _pendingVaultMoveTo;
 
         // NPC Shop items
         private readonly ConcurrentDictionary<byte, byte[]> _shopItems = new();
         public event Action ShopItemsChanged;
+        private readonly ConcurrentDictionary<byte, byte[]> _vaultItems = new();
+        public event Action VaultItemsChanged;
 
         // Constants for Item Data Parsing (based on ItemSerializer.cs, Season 6 assumed)
         private const byte LuckFlagBit = 4;
@@ -151,6 +155,7 @@ namespace Client.Main.Core.Client
         public ushort TotalLeadership => (ushort)(Leadership + AddedLeadership);
 
         public event Action InventoryChanged;
+        public event Action EquipmentChanged; // Raised only when slots 0-11 change
 
         private byte[] _pendingPickedItem;
         private byte? _pendingMoveFromSlot;
@@ -259,6 +264,15 @@ namespace Client.Main.Core.Client
         }
 
         /// <summary>
+        /// Raises EquipmentChanged event.
+        /// </summary>
+        public void RaiseEquipmentChanged()
+        {
+            EquipmentChanged?.Invoke();
+            _logger.LogTrace("EquipmentChanged event raised.");
+        }
+
+        /// <summary>
         /// Stashes the inventory slot of an item for which a sell request was sent, until the server responds.
         /// </summary>
         public void StashPendingSellSlot(byte slot)
@@ -282,6 +296,39 @@ namespace Client.Main.Core.Client
             slot = 0;
             return false;
         }
+
+        /// <summary>
+        /// Stashes a pending vault move (from->to). 'to' may be 0xFF when moving out to inventory.
+        /// </summary>
+        public void StashPendingVaultMove(byte fromSlot, byte toSlot)
+        {
+            _pendingVaultMoveFrom = fromSlot;
+            _pendingVaultMoveTo = toSlot;
+            _logger.LogTrace("Stashed pending vault move: {From} -> {To}", fromSlot, toSlot);
+        }
+
+        public bool TryConsumePendingVaultMove(out byte fromSlot, out byte toSlot)
+        {
+            if (_pendingVaultMoveFrom.HasValue)
+            {
+                fromSlot = _pendingVaultMoveFrom.Value;
+                toSlot = _pendingVaultMoveTo ?? (byte)0xFF;
+                _pendingVaultMoveFrom = null;
+                _pendingVaultMoveTo = null;
+                _logger.LogTrace("Consumed pending vault move: {From} -> {To}", fromSlot, toSlot);
+                return true;
+            }
+            fromSlot = 0; toSlot = 0xFF;
+            return false;
+        }
+
+        /// <summary>
+        /// Returns true if a pending vault move matches the provided slots.
+        /// </summary>
+        public bool IsVaultMovePending(byte fromSlot, byte toSlot)
+            => _pendingVaultMoveFrom.HasValue &&
+               _pendingVaultMoveFrom.Value == fromSlot &&
+               ((_pendingVaultMoveTo.HasValue ? _pendingVaultMoveTo.Value : (byte)0xFF) == toSlot);
 
         /// <summary>
         /// Clears the current NPC shop items and notifies listeners.
@@ -316,6 +363,37 @@ namespace Client.Main.Core.Client
         public IReadOnlyDictionary<byte, byte[]> GetShopItems()
         {
             return new ReadOnlyDictionary<byte, byte[]>(_shopItems.ToDictionary(k => k.Key, v => v.Value));
+        }
+
+        /// <summary>
+        /// Vault items API.
+        /// </summary>
+        public void ClearVaultItems()
+        {
+            _vaultItems.Clear();
+            VaultItemsChanged?.Invoke();
+            _logger.LogTrace("VaultItemsChanged raised after ClearVaultItems.");
+        }
+
+        public void AddOrUpdateVaultItem(byte slot, byte[] itemData)
+        {
+            _vaultItems[slot] = itemData;
+        }
+
+        public void RemoveVaultItem(byte slot)
+        {
+            _vaultItems.TryRemove(slot, out _);
+        }
+
+        public void RaiseVaultItemsChanged()
+        {
+            VaultItemsChanged?.Invoke();
+            _logger.LogTrace("VaultItemsChanged event raised.");
+        }
+
+        public IReadOnlyDictionary<byte, byte[]> GetVaultItems()
+        {
+            return new ReadOnlyDictionary<byte, byte[]>(_vaultItems.ToDictionary(k => k.Key, v => v.Value));
         }
 
         /// <summary>
@@ -525,6 +603,10 @@ namespace Client.Main.Core.Client
         {
             _inventoryItems[slot] = itemData;
             InventoryChanged?.Invoke();
+            if (slot < 12) // equipment slots 0..11
+            {
+                EquipmentChanged?.Invoke();
+            }
             string itemName = ItemDatabase.GetItemName(itemData) ?? "Unknown Item";
             _logger.LogDebug("Inventory item added/updated at slot {Slot}: {ItemName}", slot, itemName);
         }
@@ -538,6 +620,10 @@ namespace Client.Main.Core.Client
             if (removed)
             {
                 InventoryChanged?.Invoke();
+                if (slot < 12) // equipment slots 0..11
+                {
+                    EquipmentChanged?.Invoke();
+                }
                 _logger.LogDebug("Inventory item removed from slot {Slot}", slot);
             }
             else

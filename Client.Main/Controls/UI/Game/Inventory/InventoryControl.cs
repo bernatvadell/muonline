@@ -11,6 +11,7 @@ using System;
 using Client.Main.Networking;
 using Client.Main.Core.Utilities;
 using Microsoft.Extensions.Logging;
+using MUnique.OpenMU.Network.Packets;
 
 namespace Client.Main.Controls.UI.Game.Inventory
 {
@@ -212,6 +213,8 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             UpdateZenLabel();
             RefreshInventoryContent();
+            // Force a UI rebuild from current CharacterState to clear any stale visuals
+            _networkManager?.GetCharacterState()?.RaiseInventoryChanged();
             Visible = true;
             BringToFront();
             Scene.FocusControl = this;
@@ -656,6 +659,45 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     _pickedItemRenderer.ReleaseItem();
                     _pickedItemOriginalGrid = new Point(-1, -1);
                 }
+                // Otherwise, check if cursor is over Vault -> move Inventory -> Vault
+                else if (Client.Main.Controls.UI.Game.VaultControl.Instance is { } vault && vault.Visible && vault.DisplayRectangle.Contains(MuGame.Instance.Mouse.Position) && _networkManager != null)
+                {
+                    var drop = vault.GetSlotAtScreenPosition(MuGame.Instance.Mouse.Position);
+                    if (drop.X >= 0 && vault.CanPlaceAt(drop, item))
+                    {
+                        byte toSlot = (byte)(drop.Y * 8 + drop.X); // vault is 8 columns
+                        var svc = _networkManager.GetCharacterService();
+                        var raw = item.RawData ?? Array.Empty<byte>();
+                        // Stash a self-referencing inventory move so we can restore on failure (server 0x24 fail)
+                        var state = _networkManager.GetCharacterState();
+                        state.StashPendingInventoryMove(slotIndex, slotIndex);
+                        _ = System.Threading.Tasks.Task.Run(async () =>
+                        {
+                            await svc.SendStorageItemMoveAsync(ItemStorageKind.Inventory, slotIndex, ItemStorageKind.Vault, toSlot, _networkManager.TargetVersion, raw);
+                            // Optimistic fallback: if no server response in time, force refresh
+                            await System.Threading.Tasks.Task.Delay(1200);
+                            if (_networkManager != null && state.IsInventoryMovePending(slotIndex, slotIndex))
+                            {
+                                MuGame.ScheduleOnMainThread(() =>
+                                {
+                                    state.RaiseInventoryChanged();
+                                    state.RaiseVaultItemsChanged();
+                                });
+                            }
+                        });
+                        _pickedItemRenderer.ReleaseItem();
+                        _pickedItemOriginalGrid = new Point(-1, -1);
+                    }
+                    else
+                    {
+                        // invalid target, restore item back to inventory UI
+                        AddItem(item);
+                        // Force a small resync to clear any stale visuals
+                        _networkManager?.GetCharacterState()?.RaiseInventoryChanged();
+                        _pickedItemRenderer.ReleaseItem();
+                        _pickedItemOriginalGrid = new Point(-1, -1);
+                    }
+                }
                 // Otherwise, drop to terrain
                 else if (Scene?.World is Controls.WalkableWorldControl world && _networkManager != null)
                 {
@@ -742,7 +784,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 DrawEquippedArea(GraphicsManager.Instance.Sprite, displayRect);
                 DrawGrid(GraphicsManager.Instance.Sprite, displayRect);
                 DrawItems(GraphicsManager.Instance.Sprite, displayRect);
-                _pickedItemRenderer.Draw(GraphicsManager.Instance.Sprite, gameTime);
+                // Drag preview is drawn globally in GameScene to ensure top-most z-order
                 DrawDragArea(GraphicsManager.Instance.Sprite, displayRect);
                 DrawTooltip(GraphicsManager.Instance.Sprite, displayRect);
             }
@@ -934,17 +976,18 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     }
 
                     // Highlight for drag & drop - uses original slotRect
-                    if (_pickedItemRenderer.Item != null && IsMouseOverGrid())
+                    var dragged = _pickedItemRenderer.Item ?? Client.Main.Controls.UI.Game.VaultControl.Instance?.GetDraggedItem();
+                    if (dragged != null && IsMouseOverGrid())
                     {
                         Point currentSlot = new Point(x, y);
-                        Color? highlightColor = GetSlotHighlightColor(currentSlot, _pickedItemRenderer.Item);
+                        Color? highlightColor = GetSlotHighlightColor(currentSlot, dragged);
 
                         if (highlightColor.HasValue)
                         {
                             spriteBatch.Draw(GraphicsManager.Instance.Pixel, slotRect, highlightColor.Value);
                         }
                     }
-                    else if (IsMouseOverGrid() && _pickedItemRenderer.Item == null)
+                    else if (IsMouseOverGrid() && dragged == null)
                     {
                         // Highlight hovered slot
                         if (_hoveredSlot.X == x && _hoveredSlot.Y == y)
@@ -1036,6 +1079,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 Rows * INVENTORY_SQUARE_HEIGHT);
             return gridScreenRect.Contains(mousePos);
         }
+
+        // Public helpers for other controls (e.g., Vault)
+        public Point GetSlotAtScreenPositionPublic(Point screenPos) => GetSlotAtScreenPosition(screenPos);
+        public bool CanPlaceAt(Point gridSlot, InventoryItem item) => CanPlaceItem(item, gridSlot);
 
         private bool IsMouseOverDragArea()
         {

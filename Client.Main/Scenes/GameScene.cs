@@ -98,6 +98,7 @@ namespace Client.Main.Scenes
             _main = new MainControl(MuGame.Network.GetCharacterState());
             Controls.Add(_main);
             Controls.Add(NpcShopControl.Instance);
+            Controls.Add(VaultControl.Instance);
 
             _mapListControl = new MapListControl { Visible = false };
 
@@ -400,6 +401,29 @@ namespace Client.Main.Scenes
             {
                 _logger?.LogInformation("Hero moved, closing NPC shop window.");
                 NpcShopControl.Instance.Visible = false;
+                // Also close inventory when NPC shop closes (similar to vault behavior)
+                var inv = Controls.OfType<InventoryControl>().FirstOrDefault();
+                if (inv != null && inv.Visible)
+                {
+                    inv.Hide();
+                }
+                var svc = MuGame.Network?.GetCharacterService();
+                if (svc != null)
+                {
+                    _ = svc.SendCloseNpcRequestAsync();
+                }
+            }
+
+            // Close Vault (storage) similarly and hide Inventory if it was open together with it
+            if (VaultControl.Instance.Visible)
+            {
+                _logger?.LogInformation("Hero moved, closing Vault (storage) window.");
+                VaultControl.Instance.CloseWindow();
+                var inv = Controls.OfType<InventoryControl>().FirstOrDefault();
+                if (inv != null && inv.Visible)
+                {
+                    inv.Hide();
+                }
                 var svc = MuGame.Network?.GetCharacterService();
                 if (svc != null)
                 {
@@ -410,7 +434,23 @@ namespace Client.Main.Scenes
 
         private void OnHeroTookDamage(object sender, EventArgs e)
         {
-            // Intentionally do not close NPC shop on damage unless explicitly desired.
+            // Do not close NPC shop on damage unless explicitly desired.
+            // But close Vault (storage) and related Inventory when taking damage
+            if (VaultControl.Instance.Visible)
+            {
+                _logger?.LogInformation("Hero took damage, closing Vault (storage) window.");
+                VaultControl.Instance.CloseWindow();
+                var inv = Controls.OfType<InventoryControl>().FirstOrDefault();
+                if (inv != null && inv.Visible)
+                {
+                    inv.Hide();
+                }
+                var svc = MuGame.Network?.GetCharacterService();
+                if (svc != null)
+                {
+                    _ = svc.SendCloseNpcRequestAsync();
+                }
+            }
         }
 
         // ─────────────────── Map Change Logic (Remains largely the same) ───────────────────
@@ -735,20 +775,6 @@ namespace Client.Main.Scenes
                         _inventoryControl.Show();
                     SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
                 }
-                if (currentKeyboardState.IsKeyDown(Keys.V) && !_previousKeyboardState.IsKeyDown(Keys.V))
-                {
-                    // Only close shop (and notify server); opening should go through NPC interaction
-                    if (NpcShopControl.Instance.Visible)
-                    {
-                        NpcShopControl.Instance.Visible = false;
-                        var svc = MuGame.Network?.GetCharacterService();
-                        if (svc != null)
-                        {
-                            _ = svc.SendCloseNpcRequestAsync();
-                        }
-                        SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
-                    }
-                }
                 if (currentKeyboardState.IsKeyDown(Keys.C) && !_previousKeyboardState.IsKeyDown(Keys.C))
                 {
                     if (_characterInfoWindow != null)
@@ -786,7 +812,7 @@ namespace Client.Main.Scenes
             }
 
             // Handle attack clicks on monsters
-            else if (!IsMouseInputConsumedThisFrame && MouseHoverObject is MonsterObject targetMonster &&
+            if (!IsMouseInputConsumedThisFrame && MouseHoverObject is MonsterObject targetMonster &&
                 MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
                 MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released) // Fresh press
             {
@@ -853,10 +879,22 @@ namespace Client.Main.Scenes
                         ctrl.Draw(gameTime);
                 }
 
-                _inventoryControl?._pickedItemRenderer?.Draw(gameTime);
             }
 
             base.Draw(gameTime);
+
+            // Final top-most pass: draw dragged item previews above all UI windows
+            using (new SpriteBatchScope(
+                       GraphicsManager.Instance.Sprite,
+                       SpriteSortMode.Deferred,
+                       BlendState.AlphaBlend,
+                       SamplerState.PointClamp,
+                       DepthStencilState.None))
+            {
+                var sprite = GraphicsManager.Instance.Sprite;
+                _inventoryControl?._pickedItemRenderer?.Draw(sprite, gameTime);
+                Client.Main.Controls.UI.Game.VaultControl.Instance?.DrawPickedPreview(sprite, gameTime);
+            }
             _characterInfoWindow?.BringToFront();
         }
 

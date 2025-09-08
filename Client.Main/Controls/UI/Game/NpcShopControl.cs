@@ -183,6 +183,17 @@ namespace Client.Main.Controls.UI.Game
             return null;
         }
 
+        private Point GetSlotAtScreenPosition(Point screenPos)
+        {
+            Point local = new Point(screenPos.X - DisplayRectangle.X - _gridTopLeft.X,
+                                    screenPos.Y - DisplayRectangle.Y - _gridTopLeft.Y);
+            if (local.X < 0 || local.Y < 0) return new Point(-1, -1);
+            int sx = local.X / SHOP_SQUARE_WIDTH;
+            int sy = local.Y / SHOP_SQUARE_HEIGHT;
+            if (sx < 0 || sx >= SHOP_COLUMNS || sy < 0 || sy >= SHOP_ROWS) return new Point(-1, -1);
+            return new Point(sx, sy);
+        }
+
         private void RefreshShopContent()
         {
             _items.Clear();
@@ -244,6 +255,19 @@ namespace Client.Main.Controls.UI.Game
             _hoveredItem = null;
             var mouse = MuGame.Instance.Mouse.Position;
 
+            // Compute hovered slot to draw slot-level highlight
+            var hoveredSlot = GetSlotAtScreenPosition(mouse);
+
+            // Draw slot-level highlight (yellow) if mouse over a grid cell
+            if (hoveredSlot.X >= 0)
+            {
+                var hoveredRect = new Rectangle(
+                    origin.X + hoveredSlot.X * SHOP_SQUARE_WIDTH,
+                    origin.Y + hoveredSlot.Y * SHOP_SQUARE_HEIGHT,
+                    SHOP_SQUARE_WIDTH, SHOP_SQUARE_HEIGHT);
+                sprite.Draw(GraphicsManager.Instance.Pixel, hoveredRect, Color.Yellow * 0.3f);
+            }
+
             foreach (var item in _items)
             {
                 var rect = new Rectangle(
@@ -256,6 +280,27 @@ namespace Client.Main.Controls.UI.Game
                 if (isHovered)
                 {
                     _hoveredItem = item;
+                }
+
+                // Highlight all slots occupied by the hovered multi-slot item (draw behind item, like Inventory/Vault)
+                if (isHovered)
+                {
+                    for (int y = 0; y < item.Definition.Height; y++)
+                    {
+                        for (int x = 0; x < item.Definition.Width; x++)
+                        {
+                            int gx = item.GridPosition.X + x;
+                            int gy = item.GridPosition.Y + y;
+                            // Keep yellow for directly hovered cell
+                            if (gx == hoveredSlot.X && gy == hoveredSlot.Y) continue;
+                            var slotRect = new Rectangle(
+                                origin.X + gx * SHOP_SQUARE_WIDTH,
+                                origin.Y + gy * SHOP_SQUARE_HEIGHT,
+                                SHOP_SQUARE_WIDTH,
+                                SHOP_SQUARE_HEIGHT);
+                            sprite.Draw(GraphicsManager.Instance.Pixel, slotRect, Color.Blue * 0.3f);
+                        }
+                    }
                 }
 
                 Texture2D tex = null;
@@ -303,9 +348,20 @@ namespace Client.Main.Controls.UI.Game
                 }
             }
 
-                // Tooltip (draw after items)
+                // Items finished
             }
-            DrawTooltip(sprite, DisplayRectangle);
+            // Tooltip moved to DrawAfter to ensure it renders above other windows
+        }
+
+        public override void DrawAfter(GameTime gameTime)
+        {
+            if (!Visible) return;
+            base.DrawAfter(gameTime);
+            var sprite = GraphicsManager.Instance.Sprite;
+            using (new SpriteBatchScope(sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend))
+            {
+                DrawTooltip(sprite, DisplayRectangle);
+            }
         }
 
         private static List<(string txt, Color col)> BuildTooltipLines(InventoryItem it)

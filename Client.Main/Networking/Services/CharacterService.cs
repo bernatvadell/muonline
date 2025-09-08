@@ -614,7 +614,7 @@ namespace Client.Main.Networking.Services
         /// <param name="toSlot">Destination slot index (including server offset).</param>
         /// <param name="version">Target protocol version.</param>
         /// <param name="itemData">Raw item data for Season6 (12 bytes expected). Optional for other versions.</param>
-        public async Task SendItemMoveRequestAsync(byte fromSlot, byte toSlot, TargetProtocolVersion version, byte[]? itemData)
+        public async Task SendItemMoveRequestAsync(byte fromSlot, byte toSlot, TargetProtocolVersion version, byte[] itemData)
         {
             if (!_connectionManager.IsConnected)
             {
@@ -658,6 +658,62 @@ namespace Client.Main.Networking.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending item move request from {From} to {To}.", fromSlot, toSlot);
+            }
+        }
+
+        /// <summary>
+        /// Sends an item move between arbitrary storages (e.g., Inventory <-> Vault, Vault <-> Vault).
+        /// </summary>
+        public async Task SendStorageItemMoveAsync(
+            ItemStorageKind fromStorage,
+            byte fromSlot,
+            ItemStorageKind toStorage,
+            byte toSlot,
+            TargetProtocolVersion version,
+            byte[] itemData)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send storage item move request.");
+                return;
+            }
+
+            try
+            {
+                switch (version)
+                {
+                    case TargetProtocolVersion.Season6:
+                        if (itemData == null || itemData.Length < 12)
+                        {
+                            await _connectionManager.Connection.SendAsync(() =>
+                                PacketBuilder.BuildItemMoveRequestExtendedPacket(
+                                    _connectionManager.Connection.Output,
+                                    fromStorage, fromSlot, toStorage, toSlot));
+                        }
+                        else
+                        {
+                            await _connectionManager.Connection.SendAsync(() =>
+                                PacketBuilder.BuildItemMoveRequestPacket(
+                                    _connectionManager.Connection.Output,
+                                    fromStorage, fromSlot, itemData, toStorage, toSlot));
+                        }
+                        break;
+
+                    default:
+                        await _connectionManager.Connection.SendAsync(() =>
+                            PacketBuilder.BuildItemMoveRequestExtendedPacket(
+                                _connectionManager.Connection.Output,
+                                fromStorage, fromSlot, toStorage, toSlot));
+                        break;
+                }
+
+                _logger.LogInformation("Storage item move sent: {FromStore}[{From}] -> {ToStore}[{To}]",
+                    fromStorage, fromSlot, toStorage, toSlot);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending storage item move {FromStore}[{From}] -> {ToStore}[{To}]",
+                    fromStorage, fromSlot, toStorage, toSlot);
             }
         }
 

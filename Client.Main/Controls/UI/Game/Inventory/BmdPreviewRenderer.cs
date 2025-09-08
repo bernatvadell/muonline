@@ -93,6 +93,27 @@ namespace Client.Main.Controls.UI.Game.Inventory
         }
 
         /// <summary>
+        /// Tries to retrieve a cached preview without rendering a new one. Returns null if not cached.
+        /// </summary>
+        public static Texture2D TryGetCachedPreview(ItemDefinition definition, int width, int height, float rotationAngle = 0f)
+        {
+            if (definition == null || string.IsNullOrWhiteSpace(definition.TexturePath))
+                return null;
+
+            string baseKey = $"{definition.TexturePath}:{width}x{height}";
+            string key = rotationAngle == 0f ? baseKey : $"{baseKey}:{rotationAngle:F0}";
+
+            if (rotationAngle == 0f)
+            {
+                return _cache.TryGetValue(key, out var cached) ? cached : null;
+            }
+            else
+            {
+                return _rotatingCache.TryGetValue(key, out var cached) ? cached : null;
+            }
+        }
+
+        /// <summary>
         /// Creates an animated rotating preview for mouse hover effect
         /// </summary>
         public static Texture2D GetAnimatedPreview(ItemDefinition definition, int width, int height, GameTime gameTime)

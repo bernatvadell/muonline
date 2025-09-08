@@ -10,6 +10,7 @@ using Client.Main.Controls.UI;
 using Client.Main.Models;
 using Client.Main.Controls;
 using Client.Main.Objects;
+using MUnique.OpenMU.Network.Packets;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
@@ -265,6 +266,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     var failed = new ItemMoveRequestFailed(packet);
                     var itemData = failed.ItemData.ToArray();
+                    // First, try restore inventory<->inventory failed move
                     if (_characterState.TryConsumePendingInventoryMove(out var fromSlot, out var toSlot))
                     {
                         // Restore the item at original location
@@ -278,6 +280,24 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         // Inform user
                         MuGame.ScheduleOnMainThread(() =>
                         {
+                            var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
+                            gameScene?.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>()
+                                .FirstOrDefault()?.AddMessage("System", "Moving the item failed.", Client.Main.Models.MessageType.Error);
+                        });
+                    }
+                    // Then, try restore any pending storage move (vault <-> inventory)
+                    else if (_characterState.TryConsumePendingVaultMove(out var vFrom, out var vTo))
+                    {
+                        // If the move originated from vault -> inventory, vFrom represents the vault slot and vTo == 0xFF
+                        // Restore the item back into the vault at its original slot.
+                        _characterState.AddOrUpdateVaultItem(vFrom, itemData);
+                        _characterState.RaiseVaultItemsChanged();
+                        _logger.LogWarning("Storage move failed. Restored vault item at slot {From}", vFrom);
+
+                        // As a best-effort, also refresh inventory UI so any temporary visuals get reset.
+                        MuGame.ScheduleOnMainThread(() =>
+                        {
+                            _characterState.RaiseInventoryChanged();
                             var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
                             gameScene?.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>()
                                 .FirstOrDefault()?.AddMessage("System", "Moving the item failed.", Client.Main.Models.MessageType.Error);
@@ -297,22 +317,53 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 else
                 {
                     var moved = new ItemMoved(packet);
+                    var targetStore = moved.TargetStorageType;
                     byte toSlot = moved.TargetSlot;
                     var itemData = moved.ItemData.ToArray();
-                    if (_characterState.TryConsumePendingInventoryMove(out var fromSlot, out var pendingTo))
+
+                    if (targetStore == ItemStorageKind.Vault)
                     {
-                        if (fromSlot != toSlot)
+                        // Clear any pending storage move information
+                        if (_characterState.TryConsumePendingVaultMove(out var from, out var to))
                         {
-                            _characterState.RemoveInventoryItem(fromSlot);
+                            if (from != to)
+                            {
+                                _characterState.RemoveVaultItem(from);
+                            }
                         }
-                        _characterState.AddOrUpdateInventoryItem(toSlot, itemData);
-                        _logger.LogInformation("Item moved: {From} -> {To}", fromSlot, toSlot);
+                        // If the move originated from Inventory -> Vault, remove the source inventory slot now.
+                        if (_characterState.TryConsumePendingInventoryMove(out var invFrom, out var _))
+                        {
+                            _characterState.RemoveInventoryItem(invFrom);
+                        }
+
+                        _characterState.AddOrUpdateVaultItem(toSlot, itemData);
+                        _characterState.RaiseVaultItemsChanged();
+                        _logger.LogInformation("Vault item moved to slot {To}.", toSlot);
                     }
-                    else
+                    else // Inventory or others -> inventory fallback
                     {
-                        // No pending move stashed; best effort update
-                        _characterState.AddOrUpdateInventoryItem(toSlot, itemData);
-                        _logger.LogInformation("Item moved to slot {To}, no pending move available.", toSlot);
+                        // If we had a pending vault->inventory move, remove from vault
+                        if (_characterState.TryConsumePendingVaultMove(out var vf, out var vt))
+                        {
+                            _characterState.RemoveVaultItem(vf);
+                            _characterState.RaiseVaultItemsChanged();
+                        }
+                        if (_characterState.TryConsumePendingInventoryMove(out var fromSlot, out var pendingTo))
+                        {
+                            if (fromSlot != toSlot)
+                            {
+                                _characterState.RemoveInventoryItem(fromSlot);
+                            }
+                            _characterState.AddOrUpdateInventoryItem(toSlot, itemData);
+                            _logger.LogInformation("Item moved: {From} -> {To}", fromSlot, toSlot);
+                        }
+                        else
+                        {
+                            // No pending move stashed; best effort update
+                            _characterState.AddOrUpdateInventoryItem(toSlot, itemData);
+                            _logger.LogInformation("Item moved to slot {To}, no pending move available.", toSlot);
+                        }
                     }
                 }
             }
