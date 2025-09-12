@@ -53,6 +53,15 @@ namespace Client.Main.Scenes
 
         // Cache expensive enum values to avoid allocations
         private static readonly Keys[] _allKeys = (Keys[])System.Enum.GetValues(typeof(Keys));
+        
+        // Performance optimization fields - track object IDs for O(1) lookups
+        private readonly HashSet<ushort> _activePlayerIds = new();
+        private readonly HashSet<ushort> _activeMonsterIds = new();
+        private readonly HashSet<ushort> _activeNpcIds = new();
+        private readonly HashSet<ushort> _activeItemIds = new();
+        
+        // Cache for movement-related keys to reduce keyboard processing overhead
+        private static readonly Keys[] _moveCommandKeys = { Keys.Up, Keys.Down, Keys.Left, Keys.Right, Keys.Enter, Keys.Escape };
 
         // ───────────────────────── Properties ─────────────────────────
         public PlayerObject Hero => _hero;
@@ -258,11 +267,7 @@ namespace Client.Main.Scenes
                 walkable.Walker = _hero;
                 _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: Assigned _hero ({_hero.NetworkId:X4}) to walkableWorld.Walker.");
 
-                if (walkable.Walker.NetworkId != charState.Id)
-                {
-                    _logger?.LogWarning($"GameScene.LoadSceneContentWithProgress: Walker.NetworkId ({walkable.Walker.NetworkId:X4}) doesn't match expected ({charState.Id:X4}). Re-setting.");
-                    walkable.Walker.NetworkId = charState.Id;
-                }
+                EnsureWalkerNetworkId(walkable, charState.Id, "after assignment and verification");
 
                 _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: Walker.NetworkId after assignment and verification: {walkable.Walker?.NetworkId:X4}");
             }
@@ -280,12 +285,8 @@ namespace Client.Main.Scenes
             {
                 _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: Walker.NetworkId after world initialization: {walkableAfterInit.Walker?.NetworkId:X4}");
 
-                if (walkableAfterInit.Walker?.NetworkId != charState.Id)
-                {
-                    _logger?.LogWarning($"GameScene.LoadSceneContentWithProgress: Walker.NetworkId was reset during world initialization. Fixing from {walkableAfterInit.Walker?.NetworkId:X4} to {charState.Id:X4}");
-                    walkableAfterInit.Walker.NetworkId = charState.Id;
-                    _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: Walker.NetworkId after fix: {walkableAfterInit.Walker?.NetworkId:X4}");
-                }
+                EnsureWalkerNetworkId(walkableAfterInit, charState.Id, "after world initialization");
+                _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: Walker.NetworkId after fix: {walkableAfterInit.Walker?.NetworkId:X4}");
             }
 
             // 4. Load Hero Assets
@@ -298,11 +299,7 @@ namespace Client.Main.Scenes
                 await _hero.Load();
 
                 _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: _hero.NetworkId after Load(): {_hero.NetworkId:X4}");
-                if (_hero.NetworkId != expectedNetworkId)
-                {
-                    _logger?.LogWarning($"GameScene.LoadSceneContentWithProgress: _hero.NetworkId was changed during Load(). Restoring from {_hero.NetworkId:X4} to {expectedNetworkId:X4}");
-                    _hero.NetworkId = expectedNetworkId;
-                }
+                EnsureHeroNetworkId(expectedNetworkId, "after hero Load()");
             }
             UpdateLoadProgress("Hero assets loaded.", 0.80f);
 
@@ -340,12 +337,8 @@ namespace Client.Main.Scenes
                 _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: FINAL CHECK - Walker.NetworkId: {finalWalkable.Walker?.NetworkId:X4}, CharState.Id: {charState.Id:X4}");
 
                 // One last check and fix if needed
-                if (finalWalkable.Walker?.NetworkId != charState.Id)
-                {
-                    _logger?.LogError($"GameScene.LoadSceneContentWithProgress: FINAL MISMATCH DETECTED! Attempting final fix...");
-                    finalWalkable.Walker.NetworkId = charState.Id;
-                    _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: After final fix - Walker.NetworkId: {finalWalkable.Walker?.NetworkId:X4}");
-                }
+                EnsureWalkerNetworkId(finalWalkable, charState.Id, "final verification");
+                _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: After final fix - Walker.NetworkId: {finalWalkable.Walker?.NetworkId:X4}");
             }
 
             // Finalize
@@ -402,15 +395,24 @@ namespace Client.Main.Scenes
                 _logger?.LogInformation("Hero moved, closing NPC shop window.");
                 NpcShopControl.Instance.Visible = false;
                 // Also close inventory when NPC shop closes (similar to vault behavior)
-                var inv = Controls.OfType<InventoryControl>().FirstOrDefault();
-                if (inv != null && inv.Visible)
+                if (_inventoryControl?.Visible == true)
                 {
-                    inv.Hide();
+                    _inventoryControl.Hide();
                 }
                 var svc = MuGame.Network?.GetCharacterService();
                 if (svc != null)
                 {
-                    _ = svc.SendCloseNpcRequestAsync();
+                    Task.Run(async () => 
+                    {
+                        try 
+                        {
+                            await svc.SendCloseNpcRequestAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.LogError(ex, "Failed to send close NPC request");
+                        }
+                    });
                 }
             }
 
@@ -419,15 +421,24 @@ namespace Client.Main.Scenes
             {
                 _logger?.LogInformation("Hero moved, closing Vault (storage) window.");
                 VaultControl.Instance.CloseWindow();
-                var inv = Controls.OfType<InventoryControl>().FirstOrDefault();
-                if (inv != null && inv.Visible)
+                if (_inventoryControl?.Visible == true)
                 {
-                    inv.Hide();
+                    _inventoryControl.Hide();
                 }
                 var svc = MuGame.Network?.GetCharacterService();
                 if (svc != null)
                 {
-                    _ = svc.SendCloseNpcRequestAsync();
+                    Task.Run(async () => 
+                    {
+                        try 
+                        {
+                            await svc.SendCloseNpcRequestAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.LogError(ex, "Failed to send close NPC request");
+                        }
+                    });
                 }
             }
         }
@@ -440,15 +451,24 @@ namespace Client.Main.Scenes
             {
                 _logger?.LogInformation("Hero took damage, closing Vault (storage) window.");
                 VaultControl.Instance.CloseWindow();
-                var inv = Controls.OfType<InventoryControl>().FirstOrDefault();
-                if (inv != null && inv.Visible)
+                if (_inventoryControl?.Visible == true)
                 {
-                    inv.Hide();
+                    _inventoryControl.Hide();
                 }
                 var svc = MuGame.Network?.GetCharacterService();
                 if (svc != null)
                 {
-                    _ = svc.SendCloseNpcRequestAsync();
+                    Task.Run(async () => 
+                    {
+                        try 
+                        {
+                            await svc.SendCloseNpcRequestAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.LogError(ex, "Failed to send close NPC request");
+                        }
+                    });
                 }
             }
         }
@@ -457,6 +477,9 @@ namespace Client.Main.Scenes
         public async Task ChangeMap(Type worldType)
         {
             _isChangingWorld = true;
+            
+            // Clear object tracking for new map
+            ClearObjectTracking();
 
             if (_loadingScreen == null) // Recreate if disposed, or handle if just hidden
             {
@@ -578,17 +601,9 @@ namespace Client.Main.Scenes
 
             foreach (var s in list)
             {
-                // Quick check to avoid expensive LINQ operation
-                bool exists = false;
-                foreach (var obj in w.Objects)
-                {
-                    if (obj is WalkerObject walker && walker.NetworkId == s.Id)
-                    {
-                        exists = true;
-                        break;
-                    }
-                }
-                if (exists) continue;
+                // Use HashSet for O(1) lookup instead of expensive LINQ
+                if (_activeNpcIds.Contains(s.Id) || _activeMonsterIds.Contains(s.Id)) continue;
+                
                 if (!NpcDatabase.TryGetNpcType(s.TypeNumber, out Type objectType)) continue;
                 if (Activator.CreateInstance(objectType) is WalkerObject npcMonster)
                 {
@@ -601,6 +616,12 @@ namespace Client.Main.Scenes
                     {
                         await npcMonster.Load();
                         w.Objects.Add(npcMonster);
+                        
+                        // Track the added object
+                        if (npcMonster is MonsterObject)
+                            _activeMonsterIds.Add(s.Id);
+                        else
+                            _activeNpcIds.Add(s.Id);
                     }
                     catch (Exception ex)
                     {
@@ -617,10 +638,13 @@ namespace Client.Main.Scenes
             if (World is not WalkableWorldControl w) return;
             var list = ScopeHandler.TakePendingPlayers();
 
+            var heroId = MuGame.Network.GetCharacterState().Id;
             foreach (var s in list)
             {
-                if (s.Id == MuGame.Network.GetCharacterState().Id) continue;
-                if (w.Objects.OfType<PlayerObject>().Any(p => p.NetworkId == s.Id)) continue;
+                if (s.Id == heroId) continue;
+                
+                // Use HashSet for O(1) lookup instead of expensive LINQ
+                if (_activePlayerIds.Contains(s.Id)) continue;
 
                 // Preserve appearance data so remote players show correct equipment
                 var remote = new PlayerObject(new AppearanceData(s.AppearanceData))
@@ -636,6 +660,9 @@ namespace Client.Main.Scenes
                 {
                     await remote.Load();
                     w.Objects.Add(remote);
+                    
+                    // Track the added player
+                    _activePlayerIds.Add(s.Id);
                 }
                 catch (Exception ex)
                 {
@@ -659,14 +686,15 @@ namespace Client.Main.Scenes
 
             foreach (var s in allDrops)
             {
-                if (w.Objects.OfType<DroppedItemObject>().Any(d => d.NetworkId == s.Id))
+                // Use HashSet for O(1) lookup instead of expensive LINQ
+                if (_activeItemIds.Contains(s.Id))
                     continue;
 
                 // Load and add dropped items on main thread to ensure World.Scene is available
                 MuGame.ScheduleOnMainThread(async () =>
                 {
                     if (w.Status != GameControlStatus.Ready ||
-                        w.Objects.OfType<DroppedItemObject>().Any(d => d.NetworkId == s.Id))
+                        _activeItemIds.Contains(s.Id))
                         return;
 
                     var obj = new DroppedItemObject(
@@ -680,6 +708,9 @@ namespace Client.Main.Scenes
 
                     // Add to world so World.Scene is available
                     w.Objects.Add(obj);
+                    
+                    // Track the added item
+                    _activeItemIds.Add(s.Id);
 
                     try
                     {
@@ -690,12 +721,83 @@ namespace Client.Main.Scenes
                     {
                         _logger?.LogError(ex, $"Error loading pending dropped item {s.Id:X4}");
                         w.Objects.Remove(obj);
+                        _activeItemIds.Remove(s.Id);
                         obj.Dispose();
                     }
                 });
             }
 
             return Task.CompletedTask;
+        }
+
+        // ─────────────────── NetworkId Fix Helper ───────────────────
+        private void EnsureHeroNetworkId(ushort expectedId, string context = "")
+        {
+            if (_hero.NetworkId != expectedId)
+            {
+                _logger?.LogWarning($"NetworkId mismatch in {context}. Fixing: {_hero.NetworkId:X4} -> {expectedId:X4}");
+                _hero.NetworkId = expectedId;
+            }
+        }
+
+        private void EnsureWalkerNetworkId(WalkableWorldControl walkable, ushort expectedId, string context = "")
+        {
+            if (walkable?.Walker?.NetworkId != expectedId)
+            {
+                _logger?.LogWarning($"Walker NetworkId mismatch in {context}. Fixing: {walkable.Walker?.NetworkId:X4} -> {expectedId:X4}");
+                if (walkable.Walker != null)
+                {
+                    walkable.Walker.NetworkId = expectedId;
+                }
+            }
+        }
+
+        // ─────────────────── Generic Object Import Helper ───────────────────
+        private async Task ImportObjects<T>(
+            ICollection<ScopeObject> objects, 
+            HashSet<ushort> trackingSet,
+            Func<ScopeObject, T> createFunc,
+            string objectTypeName) where T : WorldObject
+        {
+            if (World is not WalkableWorldControl w) return;
+            if (objects.Count == 0) return;
+
+            foreach (var s in objects)
+            {
+                if (trackingSet.Contains(s.Id)) continue;
+
+                try
+                {
+                    var gameObject = createFunc(s);
+                    if (gameObject == null) continue;
+
+                    gameObject.World = w;
+                    await gameObject.Load();
+                    w.Objects.Add(gameObject);
+                    trackingSet.Add(s.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, $"Error loading {objectTypeName} {s.Id:X4}");
+                }
+            }
+        }
+
+        // ─────────────────── Object Tracking Helpers ───────────────────
+        private void ClearObjectTracking()
+        {
+            _activePlayerIds.Clear();
+            _activeMonsterIds.Clear();
+            _activeNpcIds.Clear();
+            _activeItemIds.Clear();
+        }
+
+        private void RemoveObjectFromTracking(ushort networkId)
+        {
+            _activePlayerIds.Remove(networkId);
+            _activeMonsterIds.Remove(networkId);
+            _activeNpcIds.Remove(networkId);
+            _activeItemIds.Remove(networkId);
         }
 
         // ─────────────────── Notification Handling ───────────────────
@@ -728,11 +830,11 @@ namespace Client.Main.Scenes
                 }
                 else
                 {
-                    Controls.OfType<ChatLogWindow>().FirstOrDefault()?.AddMessage(string.Empty, pending.Message, Models.MessageType.System);
+                    _chatLog?.AddMessage(string.Empty, pending.Message, Models.MessageType.System);
                 }
                 if (pending.Type == ServerMessage.MessageType.BlueNormal)
                 {
-                    Controls.OfType<ChatLogWindow>().FirstOrDefault()?.AddMessage(string.Empty, pending.Message, Models.MessageType.System);
+                    _chatLog?.AddMessage(string.Empty, pending.Message, Models.MessageType.System);
                 }
             }
         }
@@ -752,7 +854,8 @@ namespace Client.Main.Scenes
 
             if (FocusControl == _moveCommandWindow && _moveCommandWindow.Visible)
             {
-                foreach (Keys key in _allKeys)
+                // Only check relevant keys for move command window instead of all keys
+                foreach (Keys key in _moveCommandKeys)
                 {
                     if (currentKeyboardState.IsKeyDown(key) && _previousKeyboardState.IsKeyUp(key))
                     {
@@ -811,12 +914,16 @@ namespace Client.Main.Scenes
                 return;
             }
 
-            // Handle attack clicks on monsters
-            if (!IsMouseInputConsumedThisFrame && MouseHoverObject is MonsterObject targetMonster &&
+            // Handle attack clicks on monsters with proper validation
+            if (!IsMouseInputConsumedThisFrame && 
+                MouseHoverObject is MonsterObject targetMonster &&
                 MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
                 MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released) // Fresh press
             {
-                if (Hero != null && !targetMonster.IsDead)
+                if (Hero != null && 
+                    !targetMonster.IsDead && 
+                    targetMonster.World == World && // Ensure same world
+                    Vector2.Distance(Hero.Location, targetMonster.Location) <= Hero.GetAttackRangeTiles()) // Check range
                 {
                     Hero.Attack(targetMonster);
                     SetMouseInputConsumed(); // Consume the click
@@ -934,11 +1041,39 @@ namespace Client.Main.Scenes
             }
             if (e.MessageType == MessageType.Whisper)
             {
-                _ = MuGame.Network.SendWhisperMessageAsync(e.Receiver, e.Message);
+                Task.Run(async () => 
+                {
+                    try 
+                    {
+                        await MuGame.Network.SendWhisperMessageAsync(e.Receiver, e.Message);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "Failed to send whisper message");
+                        MuGame.ScheduleOnMainThread(() => 
+                        {
+                            _chatLog?.AddMessage("System", "Failed to send whisper message.", MessageType.Error);
+                        });
+                    }
+                });
             }
             else
             {
-                _ = MuGame.Network.SendPublicChatMessageAsync(e.Message);
+                Task.Run(async () => 
+                {
+                    try 
+                    {
+                        await MuGame.Network.SendPublicChatMessageAsync(e.Message);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "Failed to send chat message");
+                        MuGame.ScheduleOnMainThread(() => 
+                        {
+                            _chatLog?.AddMessage("System", "Failed to send message.", MessageType.Error);
+                        });
+                    }
+                });
             }
         }
 

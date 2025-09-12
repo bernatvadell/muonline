@@ -226,6 +226,7 @@ namespace Client.Main.Objects.Player
             }
 
             // ALWAYS load the default class-specific body parts first.
+            // This will clear shader properties and load defaults
             await UpdateBodyPartClassesAsync();
 
             ItemDefinition GetItemDef(byte slot)
@@ -867,6 +868,13 @@ namespace Client.Main.Objects.Player
 
         public async Task UpdateBodyPartClassesAsync()
         {
+            // Clear shader properties from all body parts before loading defaults
+            ClearItemProperties(Helm);
+            ClearItemProperties(Armor);
+            ClearItemProperties(Pants);
+            ClearItemProperties(Gloves);
+            ClearItemProperties(Boots);
+            
             PlayerClass mapped = MapNetworkClassToModelClass(_characterClass);
             await SetBodyPartsAsync("Player/",
                 "HelmClass", "ArmorClass", "PantClass", "GloveClass", "BootClass",
@@ -876,6 +884,9 @@ namespace Client.Main.Objects.Player
         private async Task ResetBodyPartToClassDefaultAsync(ModelObject bodyPart, string partPrefix)
         {
             Console.WriteLine($"[PlayerObject] ResetBodyPartToClassDefaultAsync called: partPrefix={partPrefix}");
+            
+            // Clear item shader properties first
+            ClearItemProperties(bodyPart);
             
             PlayerClass mapped = MapNetworkClassToModelClass(_characterClass);
             string fileSuffix = ((int)mapped).ToString("D2");
@@ -1369,6 +1380,9 @@ namespace Client.Main.Objects.Player
             part.ItemLevel = 0;
             part.IsExcellentItem = false;
             part.IsAncientItem = false;
+            
+            // Force shader to update by invalidating buffers
+            part.InvalidateBuffers();
         }
     }
 }

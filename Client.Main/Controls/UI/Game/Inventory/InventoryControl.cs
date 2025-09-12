@@ -148,10 +148,13 @@ namespace Client.Main.Controls.UI.Game.Inventory
         {
             if (_zenLabel != null && _zenLabel.Status == GameControlStatus.Ready)
             {
+                // Position ZEN label below equipment area
+                const int equipRows = 2;
                 int gridBottomY = _gridOffset.Y + (Rows * INVENTORY_SQUARE_HEIGHT);
+                int equipAreaBottomY = gridBottomY + 20 + (equipRows * INVENTORY_SQUARE_HEIGHT);
 
                 _zenLabel.X = _gridOffset.X; // Align with left side of grid
-                _zenLabel.Y = gridBottomY + 10; // 10 pixels below the grid
+                _zenLabel.Y = equipAreaBottomY + 10; // 10 pixels below equipment area
             }
         }
 
@@ -810,8 +813,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
         private Point GetEquipAreaTopLeft()
         {
             const int equipRows = 2;
+            // Move equipment area to bottom of inventory grid with some padding
+            int gridBottomY = DisplayRectangle.Y + _gridOffset.Y + (Rows * INVENTORY_SQUARE_HEIGHT);
             return new Point(DisplayRectangle.X + _gridOffset.X,
-                             DisplayRectangle.Y + _gridOffset.Y - (INVENTORY_SQUARE_HEIGHT * equipRows + 16));
+                             gridBottomY + 20); // 20px padding below the grid
         }
 
         private int GetEquipSlotAtScreenPosition(Point screenPos)
