@@ -623,6 +623,11 @@ namespace Client.Main.Objects
 
         private void GroupMeshesByState(bool isAfterDraw)
         {
+            if (Model?.Meshes == null)
+            {
+                foreach (var list in _meshGroups.Values) list.Clear();
+                return;
+            }
             // Clear previous groups and reuse lists
             foreach (var list in _meshGroups.Values)
                 list.Clear();
@@ -634,12 +639,17 @@ namespace Client.Main.Objects
                 if (IsHiddenMesh(i)) continue;
 
                 bool isBlend = IsBlendMesh(i);
-                bool isRGBA = _meshIsRGBA[i];
+                bool isRGBA = _meshIsRGBA != null && i < _meshIsRGBA.Length && _meshIsRGBA[i];
 
                 // Skip based on pass and low quality settings
                 if (LowQuality && isBlend) continue;
                 bool shouldDraw = isAfterDraw ? (isRGBA || isBlend) : (!isRGBA && !isBlend);
                 if (!shouldDraw) continue;
+
+                if (_boneTextures == null || i >= _boneTextures.Length)
+                {
+                    continue;
+                }
 
                 var tex = _boneTextures[i];
                 var meshConf = Model.Meshes[i];
@@ -647,10 +657,10 @@ namespace Client.Main.Objects
 
                 // Determine blend state
                 BlendState blend = BlendState.Opaque;
-                if (meshConf.BlendingMode != null && _blendStateCache?.TryGetValue(meshConf.BlendingMode, out var custom) == true)
+                if (meshConf.BlendingMode != null && _blendStateCache != null && _blendStateCache.TryGetValue(meshConf.BlendingMode, out var custom))
                     blend = custom;
                 else if (isBlend)
-                    blend = _meshIsRGBA[i] ? BlendState.AlphaBlend : BlendState.Additive;
+                    blend = isRGBA ? BlendState.AlphaBlend : BlendState.Additive;
 
                 var key = new MeshStateKey(tex, blend, twoSided);
                 if (!_meshGroups.TryGetValue(key, out var list))
@@ -730,6 +740,8 @@ namespace Client.Main.Objects
 
         public virtual void DrawMesh(int mesh)
         {
+            if (Model?.Meshes == null || mesh < 0 || mesh >= Model.Meshes.Length)
+                return;
             if (_boneVertexBuffers?[mesh] == null ||
                 _boneIndexBuffers?[mesh] == null ||
                 _boneTextures?[mesh] == null ||
@@ -872,6 +884,8 @@ namespace Client.Main.Objects
 
         public virtual void DrawMeshWithItemMaterial(int mesh)
         {
+            if (Model?.Meshes == null || mesh < 0 || mesh >= Model.Meshes.Length)
+                return;
             if (_boneVertexBuffers?[mesh] == null ||
                 _boneIndexBuffers?[mesh] == null ||
                 _boneTextures?[mesh] == null ||
@@ -968,6 +982,8 @@ namespace Client.Main.Objects
 
         public virtual void DrawMeshWithMonsterMaterial(int mesh)
         {
+            if (Model?.Meshes == null || mesh < 0 || mesh >= Model.Meshes.Length)
+                return;
             if (_boneVertexBuffers?[mesh] == null ||
                 _boneIndexBuffers?[mesh] == null ||
                 _boneTextures?[mesh] == null ||
@@ -1057,6 +1073,8 @@ namespace Client.Main.Objects
 
         public virtual void DrawMeshWithDynamicLighting(int mesh)
         {
+            if (Model?.Meshes == null || mesh < 0 || mesh >= Model.Meshes.Length)
+                return;
             if (_boneVertexBuffers?[mesh] == null ||
                 _boneIndexBuffers?[mesh] == null ||
                 _boneTextures?[mesh] == null ||
@@ -1402,6 +1420,19 @@ namespace Client.Main.Objects
             Model = null;
             BoneTransform = null;
             _invalidatedBufferFlags = 0;
+
+            // Release graphics resources and mark content as unloaded
+            _boneVertexBuffers = null;
+            _boneIndexBuffers = null;
+            _boneTextures = null;
+            _scriptTextures = null;
+            _dataTextures = null;
+            _meshIsRGBA = null;
+            _meshHiddenByScript = null;
+            _meshBlendByScript = null;
+            _meshTexturePath = null;
+            _blendMeshIndicesScratch = null;
+            _contentLoaded = false;
 
             // Clear cache references
             _cachedBoneMatrix = null;

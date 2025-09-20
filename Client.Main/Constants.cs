@@ -16,6 +16,9 @@ namespace Client.Main
                 public static Type ENTRY_SCENE = typeof(Scenes.LoadScene);
                 public static bool BACKGROUND_MUSIC = false;
                 public static bool SOUND_EFFECTS = true;
+                public static float BACKGROUND_MUSIC_VOLUME = 50f;
+                public static float SOUND_EFFECTS_VOLUME = 100f;
+                public static bool SHOW_DEBUG_PANEL = true;
                 public static bool DRAW_BOUNDING_BOXES = false;
                 public static bool DRAW_BOUNDING_BOXES_INTERACTIVES = false;
                 public static bool DRAW_GRASS = true;
@@ -53,6 +56,9 @@ namespace Client.Main
                 public static Type ENTRY_SCENE = typeof(Scenes.LoadScene);
                 public static bool BACKGROUND_MUSIC = true;
                 public static bool SOUND_EFFECTS = true;
+                public static float BACKGROUND_MUSIC_VOLUME = 50f;
+                public static float SOUND_EFFECTS_VOLUME = 100f;
+                public static bool SHOW_DEBUG_PANEL = false;
                 public static bool DRAW_BOUNDING_BOXES = false;
                 public static bool DRAW_BOUNDING_BOXES_INTERACTIVES = false;
                 public static bool DRAW_GRASS = true;

@@ -192,6 +192,22 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
+        [PacketHandler(0xF1, 0x02)]  // LogoutResponse
+        public async Task HandleLogoutResponseAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var response = new LogoutResponse(packet);
+                _logger.LogInformation("Received LogoutResponse with type {Type}.", response.Type);
+                await _networkManager.ProcessLogoutResponseAsync(response.Type);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing LogoutResponse packet.");
+            }
+            return;
+        }
+
         [PacketHandler(0xF3, 0x00)]  // CharacterList
         public Task HandleCharacterListAsync(Memory<byte> packet)
         {

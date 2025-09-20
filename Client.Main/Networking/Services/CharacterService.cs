@@ -274,6 +274,30 @@ namespace Client.Main.Networking.Services
             }
         }
 
+        /// <summary>
+        /// Sends a logout request instructing the server how to transition the client out of the current game session.
+        /// </summary>
+        public async Task SendLogoutRequestAsync(LogOutType type)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send logout request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending logout request with type {Type}...", type);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                    PacketBuilder.BuildLogoutRequestPacket(_connectionManager.Connection.Output, type));
+                _logger.LogInformation("Logout request ({Type}) sent.", type);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending logout request ({Type}).", type);
+            }
+        }
+
         public async Task SendClientReadyAfterMapChangeAsync()
         {
             if (!_connectionManager.IsConnected)

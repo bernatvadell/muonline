@@ -108,7 +108,9 @@ namespace Client.Main.Controls.Terrain
             _activeLights.Clear();
             if (_dynamicLights.Count == 0 || _parent.World == null) return;
 
-            foreach (var light in _dynamicLights)
+            var lightsSnapshot = _dynamicLights.ToArray();
+
+            foreach (var light in lightsSnapshot)
             {
                 if (light.Intensity <= 0.001f) continue;
 

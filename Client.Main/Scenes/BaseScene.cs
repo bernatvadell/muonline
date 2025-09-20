@@ -38,7 +38,7 @@ namespace Client.Main.Scenes
             AutoViewSize = false;
             ViewSize = new(MuGame.Instance.Width, MuGame.Instance.Height);
 
-            Controls.Add(DebugPanel = new DebugPanel());
+            Controls.Add(DebugPanel = new DebugPanel { Visible = Constants.SHOW_DEBUG_PANEL });
             Controls.Add(Cursor = new CursorControl());
         }
 
@@ -354,11 +354,14 @@ namespace Client.Main.Scenes
                        SamplerState.PointClamp,
                        DepthStencilState.None))
             {
-                for (int i = 0; i < Controls.Count; i++)
+                foreach (var ctrl in Controls.ToArray())
                 {
-                    var ctrl = Controls[i];
-                    if (ctrl != World && ctrl.Visible)
-                        ctrl.Draw(gameTime);
+                    if (ctrl == null || ctrl == World || !ctrl.Visible)
+                    {
+                        continue;
+                    }
+
+                    ctrl.Draw(gameTime);
                 }
             }
         }

@@ -1,4 +1,5 @@
-﻿using Client.Main.Models;
+﻿using Client.Main.Core.Models;
+using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -39,6 +40,22 @@ namespace Client.Main.Controls.UI.Login
         {
             _serverButtons.Clear();
             Controls.Clear();
+        }
+
+        public void SetServers(IReadOnlyList<ServerInfo> servers)
+        {
+            Clear();
+            if (servers == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < servers.Count; i++)
+            {
+                var server = servers[i];
+                byte gauge = server.LoadPercentage;
+                AddServer((byte)server.ServerId, server.ServerName ?? $"Server {server.ServerId}", gauge);
+            }
         }
     }
 }

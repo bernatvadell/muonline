@@ -51,6 +51,7 @@ namespace Client.Main.Controls.UI.Login
 
             Interactive = Available;
             _status.TileWidth = 167 * Gauge;
+            _status.Visible = Gauge > 0;
 
             if (!Available)
                 TileY = 2;

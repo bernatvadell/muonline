@@ -2,7 +2,7 @@
 using Client.Main.Controls.UI;
 using Client.Main.Controls.UI.Login;
 using Client.Main.Core.Client;
-using Client.Main.Core.Models;   // Add using for ServerInfo
+using Client.Main.Core.Models;   // For ServerInfo
 using Client.Main.Models;
 using Client.Main.Networking;
 using Client.Main.Worlds;
@@ -102,11 +102,15 @@ namespace Client.Main.Scenes
             if (_networkManager.CurrentState >= ClientConnectionState.ConnectedToConnectServer)
             {
                 _logger.LogInformation("LoginScene loaded, NetworkManager already connected or connecting. State: {State}", _networkManager.CurrentState);
-                HandleConnectionStateChange(this, _networkManager.CurrentState);
+
                 if (!_uiInitialized && _networkManager.CurrentState >= ClientConnectionState.ReceivedServerList)
                 {
-                    InitializeServerSelectionUI(); // This will add controls, they'll be initialized by BaseScene's main loop if not already
+                    InitializeServerSelectionUI(); // Ensure UI exists before applying visibility rules
                 }
+
+                HandleConnectionStateChange(this, _networkManager.CurrentState);
+
+                EnsureServerListPopulatedFromCache();
             }
             else if (_networkManager.CurrentState == ClientConnectionState.Initial ||
                      _networkManager.CurrentState == ClientConnectionState.Disconnected)
@@ -352,7 +356,39 @@ namespace Client.Main.Scenes
                     InitializeServerSelectionUI();
                 }
                 // Visibility is now handled by HandleConnectionStateChange after state update
+                PopulateServerList(servers);
+                HandleConnectionStateChange(this, _networkManager.CurrentState);
             });
+        }
+
+        private void EnsureServerListPopulatedFromCache()
+        {
+            var cachedServers = _networkManager.GetCachedServerList();
+            if (cachedServers == null || cachedServers.Count == 0)
+            {
+                return;
+            }
+
+            MuGame.ScheduleOnMainThread(() =>
+            {
+                if (!_uiInitialized)
+                {
+                    InitializeServerSelectionUI();
+                }
+
+                PopulateServerList(cachedServers.ToList());
+                HandleConnectionStateChange(this, _networkManager.CurrentState);
+            });
+        }
+
+        private void PopulateServerList(List<ServerInfo> servers)
+        {
+            if (_serverList == null)
+            {
+                return;
+            }
+
+            _serverList.SetServers(servers);
         }
 
         private void HandleCharacterListReceived(object sender,

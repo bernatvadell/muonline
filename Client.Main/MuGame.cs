@@ -389,11 +389,18 @@ namespace Client.Main
             // Initialize/Load the new scene (assuming Initialize/Load is asynchronous)
             try
             {
-                _logger.LogDebug("--- ChangeSceneInternal: Calling Initialize() for {SceneType}...", ActiveScene.GetType().Name);
-                // Ensure the Initialize method exists and is appropriate,
-                // or use await ActiveScene.Load() if that's how your system works.
-                await ActiveScene.Initialize();
-                _logger.LogDebug("--- ChangeSceneInternal: Initialize() completed for {SceneType}.", ActiveScene.GetType().Name);
+                _logger.LogDebug("--- ChangeSceneInternal: Starting initialization for {SceneType}...", ActiveScene.GetType().Name);
+
+                if (ActiveScene is BaseScene baseScene)
+                {
+                    await baseScene.InitializeWithProgressReporting(null);
+                }
+                else
+                {
+                    await ActiveScene.Initialize();
+                }
+
+                _logger.LogDebug("--- ChangeSceneInternal: Initialization completed for {SceneType}.", ActiveScene.GetType().Name);
             }
             catch (Exception ex)
             {
@@ -423,6 +430,19 @@ namespace Client.Main
                 Constants.DRAW_BOUNDING_BOXES = !Constants.DRAW_BOUNDING_BOXES;
             else if (PrevKeyboard.IsKeyDown(Keys.F9) && Keyboard.IsKeyUp(Keys.F9))
                 Constants.DRAW_BOUNDING_BOXES_INTERACTIVES = !Constants.DRAW_BOUNDING_BOXES_INTERACTIVES;
+        }
+
+        public void ApplyGraphicsOptions()
+        {
+#if !(ANDROID || IOS)
+            _graphics.SynchronizeWithVerticalRetrace = !Constants.UNLIMITED_FPS;
+            IsFixedTimeStep = !Constants.UNLIMITED_FPS;
+            TargetElapsedTime = Constants.UNLIMITED_FPS
+                ? TimeSpan.FromMilliseconds(1)
+                : TimeSpan.FromSeconds(1.0 / 60.0);
+#endif
+            _graphics.PreferMultiSampling = Constants.MSAA_ENABLED;
+            _graphics.ApplyChanges();
         }
 
         private async Task ChangeSceneAsync(Type sceneType)

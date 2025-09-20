@@ -277,6 +277,13 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                 // Trigger UI update
                 _networkManager.ProcessCharacterRespawn(mapId, x, y, direction);
+
+                // Heuristic: Some servers don't send CharacterInformation after selection
+                if (_networkManager.CurrentState == ClientConnectionState.SelectingCharacter)
+                {
+                    _logger.LogInformation("Heuristic EnteredGame: SelectingCharacter + RespawnAfterDeath received. Marking InGame.");
+                    _networkManager.ProcessCharacterInformation();
+                }
             }
             catch (Exception ex)
             {
@@ -319,6 +326,13 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             _characterState.UpdateMap(mapId);
             _characterState.UpdateDirection(direction);
             _networkManager.ProcessCharacterRespawn(mapId, x, y, direction);
+
+            // Heuristic: Some servers go directly to MapChanged without sending CharacterInformation
+            if (_networkManager.CurrentState == ClientConnectionState.SelectingCharacter)
+            {
+                _logger.LogInformation("Heuristic EnteredGame: SelectingCharacter + MapChanged received. Marking InGame.");
+                _networkManager.ProcessCharacterInformation();
+            }
 
             return Task.CompletedTask;
         }
@@ -533,6 +547,14 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 _characterState.UpdateCurrentManaAbility(currentMana, currentAbility);
                 if (updatedHealthShield)
                     _characterState.UpdateCurrentHealthShield(currentHp, currentSd);
+
+                // If we're selecting a character and already receive in-game stats,
+                // consider the character entered into game even if CharacterInformation wasn't sent.
+                if (_networkManager.CurrentState == ClientConnectionState.SelectingCharacter)
+                {
+                    _logger.LogInformation("Heuristic EnteredGame: SelectingCharacter + stats received. Marking InGame.");
+                    _networkManager.ProcessCharacterInformation();
+                }
             }
             catch (Exception ex)
             {

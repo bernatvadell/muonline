@@ -50,6 +50,7 @@ namespace Client.Main.Scenes
         private MapNameControl _currentMapNameControl; // Track active map name display
         private LabelControl _pingLabel; // Displays current ping
         private double _pingTimer = 0;
+        private PauseMenuControl _pauseMenu; // ESC menu
 
         // Cache expensive enum values to avoid allocations
         private static readonly Keys[] _allKeys = (Keys[])System.Enum.GetValues(typeof(Keys));
@@ -163,6 +164,11 @@ namespace Client.Main.Scenes
             _chatInput.BringToFront();
             DebugPanel.BringToFront();
             Cursor.BringToFront();
+
+            // Pause/ESC menu
+            _pauseMenu = new PauseMenuControl();
+            Controls.Add(_pauseMenu);
+            _pauseMenu.BringToFront();
         }
 
         public GameScene() : this(GetCharacterInfoFromState())
@@ -850,6 +856,17 @@ namespace Client.Main.Scenes
 
             var currentKeyboardState = Keyboard.GetState();
 
+            // Toggle pause menu on ESC (edge-triggered)
+            if (currentKeyboardState.IsKeyDown(Keys.Escape) && _previousKeyboardState.IsKeyUp(Keys.Escape))
+            {
+                if (_pauseMenu != null)
+                {
+                    _pauseMenu.Visible = !_pauseMenu.Visible;
+                    if (_pauseMenu.Visible)
+                        _pauseMenu.BringToFront();
+                }
+            }
+
             base.Update(gameTime);
 
             if (FocusControl == _moveCommandWindow && _moveCommandWindow.Visible)
@@ -865,7 +882,10 @@ namespace Client.Main.Scenes
             }
 
             // Determine if any UI element that captures typing has focus.
-            bool isUiInputActive = FocusControl is TextFieldControl || (FocusControl == _moveCommandWindow && _moveCommandWindow.Visible);
+            bool isUiInputActive =
+                (FocusControl is TextFieldControl)
+                || (FocusControl == _moveCommandWindow && _moveCommandWindow.Visible)
+                || (_pauseMenu != null && _pauseMenu.Visible);
 
             // Process global hotkeys ONLY if a UI input element is NOT active.
             if (!isUiInputActive)
@@ -979,11 +999,14 @@ namespace Client.Main.Scenes
                        SamplerState.PointClamp,
                        DepthStencilState.None))
             {
-                for (int i = 0; i < Controls.Count; i++)
+                foreach (var ctrl in Controls.ToArray())
                 {
-                    var ctrl = Controls[i];
-                    if (ctrl != World && ctrl.Visible)
-                        ctrl.Draw(gameTime);
+                    if (ctrl == null || ctrl == World || !ctrl.Visible)
+                    {
+                        continue;
+                    }
+
+                    ctrl.Draw(gameTime);
                 }
 
             }

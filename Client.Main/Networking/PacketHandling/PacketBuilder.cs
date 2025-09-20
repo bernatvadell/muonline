@@ -113,6 +113,21 @@ namespace Client.Main.Networking.PacketHandling
             return length;
         }
 
+        /// <summary>
+        /// Builds a logout request packet with the specified logout type.
+        /// </summary>
+        public static int BuildLogoutRequestPacket(
+            IBufferWriter<byte> writer,
+            LogOutType type)
+        {
+            int length = LogOut.Length;
+            var memory = writer.GetMemory(length).Slice(0, length);
+            var packet = new LogOut(memory);
+
+            packet.Type = type;
+            return length;
+        }
+
         public static int BuildClientReadyAfterMapChangePacket(IBufferWriter<byte> writer)
         {
             int length = ClientReadyAfterMapChange.Length;
