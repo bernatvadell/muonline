@@ -8,6 +8,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Reflection;
 using Client.Main.Controls;
@@ -128,6 +129,8 @@ namespace Client.Main.Objects
         private static readonly RasterizerState _cullClockwise = RasterizerState.CullClockwise;
         private static readonly RasterizerState _cullNone = RasterizerState.CullNone;
 
+        private static int _animationStrideSeed = 0;
+
         private static float GetCachedTime()
         {
             int currentTick = Environment.TickCount;
@@ -238,10 +241,15 @@ namespace Client.Main.Objects
         }
         private MeshBufferCache[] _meshBufferCache;
 
+        private readonly int _animationStrideOffset;
+        public int AnimationUpdateStride { get; private set; } = 1;
+        protected virtual bool RequiresPerFrameAnimation => false;
+
         public ModelObject()
         {
             _logger = AppLoggerFactory?.CreateLogger(GetType());
             MatrixChanged += (_s, _e) => UpdateWorldPosition();
+            _animationStrideOffset = Interlocked.Increment(ref _animationStrideSeed) & 31;
         }
 
         private Vector3 _lastFrameLight = Vector3.Zero;
@@ -462,6 +470,11 @@ namespace Client.Main.Objects
             {
                 SetDynamicBuffers();
             }
+        }
+
+        public void SetAnimationUpdateStride(int stride)
+        {
+            AnimationUpdateStride = Math.Max(1, stride);
         }
 
         public override void Draw(GameTime gameTime)
@@ -1766,7 +1779,7 @@ namespace Client.Main.Objects
                 Array.Copy(_tempBoneTransforms, BoneTransform, bones.Length);
 
                 // Always invalidate animation for walkers (players/monsters/NPCs) to preserve smooth pacing
-                bool isImportantObject = this is WalkerObject;
+                bool isImportantObject = RequiresPerFrameAnimation;
                 if (forceUpdate || isImportantObject)
                 {
                     InvalidateBuffers(BUFFER_FLAG_ANIMATION);
@@ -1874,6 +1887,25 @@ namespace Client.Main.Objects
                 // (Reverted) No frame-based throttling here to maintain smooth animations.
 
                 uint currentFrame = (uint)(MuGame.Instance.GameTime.TotalGameTime.TotalMilliseconds / 16.67f);
+
+                // If we only have transform updates we can skip heavy CPU skinning work.
+                if ((_invalidatedBufferFlags & ~BUFFER_FLAG_TRANSFORM) == 0)
+                {
+                    _invalidatedBufferFlags &= ~BUFFER_FLAG_TRANSFORM;
+                    return;
+                }
+
+                // Allow attachments to update at a reduced frequency when only animation is dirty.
+                if ((_invalidatedBufferFlags & BUFFER_FLAG_ANIMATION) != 0 &&
+                    (_invalidatedBufferFlags & ~(BUFFER_FLAG_ANIMATION | BUFFER_FLAG_TRANSFORM)) == 0 &&
+                    AnimationUpdateStride > 1)
+                {
+                    if (((currentFrame + (uint)_animationStrideOffset) % (uint)AnimationUpdateStride) != 0)
+                    {
+                        _invalidatedBufferFlags &= ~BUFFER_FLAG_TRANSFORM;
+                        return;
+                    }
+                }
 
                 // Ensure arrays only when needed
                 bool needArrayResize = _boneVertexBuffers?.Length != meshCount;
@@ -2074,9 +2106,20 @@ namespace Client.Main.Objects
 
             for (int i = 0; i < Children.Count; i++)
             {
-                if (Children[i] is ModelObject modelObject && (modelObject.LinkParentAnimation || modelObject.ParentBoneLink >= 0))
+                if (Children[i] is not ModelObject modelObject)
+                    continue;
+
+                uint childFlags = flags;
+
+                if ((childFlags & BUFFER_FLAG_TRANSFORM) != 0 &&
+                    (modelObject.LinkParentAnimation || modelObject.ParentBoneLink >= 0))
                 {
-                    modelObject.InvalidateBuffers(flags);
+                    childFlags &= ~BUFFER_FLAG_TRANSFORM;
+                }
+
+                if (childFlags != 0)
+                {
+                    modelObject.InvalidateBuffers(childFlags);
                 }
             }
         }

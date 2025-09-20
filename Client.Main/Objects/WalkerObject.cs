@@ -14,6 +14,8 @@ namespace Client.Main.Objects
 {
     public abstract class WalkerObject : ModelObject
     {
+        protected override bool RequiresPerFrameAnimation => true;
+
         // Fields: rotation and movement
         private Vector3 _targetAngle;
         private Direction _direction;

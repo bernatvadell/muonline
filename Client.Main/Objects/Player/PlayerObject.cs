@@ -31,6 +31,7 @@ namespace Client.Main.Objects.Player
 
     public class PlayerObject : WalkerObject
     {
+        protected override bool RequiresPerFrameAnimation => IsMainWalker;
         private CharacterClassNumber _characterClass;
         // Cached gender flag – avoids evaluating gender every frame
         private bool _isFemale;
@@ -44,6 +45,8 @@ namespace Client.Main.Objects.Player
         public WeaponObject Weapon1 { get; private set; }
         public WeaponObject Weapon2 { get; private set; }
         public WingObject EquippedWings { get; private set; }
+
+        private int _lastEquipmentAnimationStride = -1;
 
         // Timer for footstep sound playback
         private float _footstepTimer;
@@ -489,6 +492,8 @@ namespace Client.Main.Objects.Player
         {
             base.Update(gameTime); // movement, camera for main walker, etc.
 
+            UpdateEquipmentAnimationStride();
+
             if (World is not WalkableWorldControl world)
                 return;
 
@@ -496,6 +501,32 @@ namespace Client.Main.Objects.Player
                 UpdateLocalPlayer(world, gameTime);
             else
                 UpdateRemotePlayer(world, gameTime);
+        }
+
+        private void UpdateEquipmentAnimationStride()
+        {
+            int desiredStride = 1;
+
+            if (!IsMainWalker)
+            {
+                desiredStride = LowQuality ? 4 : 2;
+            }
+
+            if (_lastEquipmentAnimationStride == desiredStride)
+                return;
+
+            SetAnimationUpdateStride(desiredStride);
+            HelmMask?.SetAnimationUpdateStride(desiredStride);
+            Helm?.SetAnimationUpdateStride(desiredStride);
+            Armor?.SetAnimationUpdateStride(desiredStride);
+            Pants?.SetAnimationUpdateStride(desiredStride);
+            Gloves?.SetAnimationUpdateStride(desiredStride);
+            Boots?.SetAnimationUpdateStride(desiredStride);
+            Weapon1?.SetAnimationUpdateStride(desiredStride);
+            Weapon2?.SetAnimationUpdateStride(desiredStride);
+            EquippedWings?.SetAnimationUpdateStride(desiredStride);
+
+            _lastEquipmentAnimationStride = desiredStride;
         }
 
         // --------------- Helpers for correct animation selection ----------------
