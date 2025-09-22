@@ -1,4 +1,6 @@
 ﻿using Client.Main.Models;
+using Client.Main.Controllers;
+using Client.Main.Helpers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Extensions.Logging;
@@ -113,11 +115,18 @@ namespace Client.Main.Controls.UI
             if (Status != GameControlStatus.Ready || !Visible)
                 return;
 
-            DrawBackground();
-            DrawBorder();
+            using (new SpriteBatchScope(
+                GraphicsManager.Instance.Sprite,
+                SpriteSortMode.Deferred,
+                BlendState.AlphaBlend,
+                transform: UiScaler.SpriteTransform))
+            {
+                DrawBackground();
+                DrawBorder();
 
-            _label?.Draw(gameTime);
-            _okButton?.Draw(gameTime);
+                _label?.Draw(gameTime);
+                _okButton?.Draw(gameTime);
+            }
         }
     }
 }

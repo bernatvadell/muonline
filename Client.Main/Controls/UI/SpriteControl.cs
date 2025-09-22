@@ -92,16 +92,29 @@ namespace Client.Main.Controls.UI
                 return;
 
             var blend = BlendState ?? BlendState.NonPremultiplied;
+            var sprite = GraphicsManager.Instance.Sprite;
 
-            using (new SpriteBatchScope(
-                GraphicsManager.Instance.Sprite,
-                SpriteSortMode.Deferred,
-                blend,
-                SamplerState.PointClamp))
+            // If a batch is already begun (e.g., by BaseScene with UiScaler transform),
+            // draw directly without creating a new scope to preserve the transform
+            if (SpriteBatchScope.BatchIsBegun)
             {
-                GraphicsManager.Instance.Sprite.Draw(
-                    Texture, DisplayRectangle, SourceRectangle, // SourceRectangle is now updated in Update
+                sprite.Draw(
+                    Texture, DisplayRectangle, SourceRectangle,
                     Color.White * Alpha);
+            }
+            else
+            {
+                // Fallback for when no batch is active
+                using (new SpriteBatchScope(
+                    sprite,
+                    SpriteSortMode.Deferred,
+                    blend,
+                    SamplerState.PointClamp))
+                {
+                    sprite.Draw(
+                        Texture, DisplayRectangle, SourceRectangle,
+                        Color.White * Alpha);
+                }
             }
 
             base.Draw(gameTime);

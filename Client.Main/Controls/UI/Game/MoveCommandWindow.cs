@@ -357,7 +357,7 @@ namespace Client.Main.Controls.UI.Game
                 }
             }
 
-            var mouse = MuGame.Instance.Mouse;
+            var mouse = MuGame.Instance.UiMouseState;
             int oldHoveredMapIndex = _hoveredMapIndex;
             _hoveredMapIndex = -1;
 
@@ -366,7 +366,7 @@ namespace Client.Main.Controls.UI.Game
                 if (_mapClickAreas[i].Contains(mouse.Position))
                 {
                     _hoveredMapIndex = _currentScrollOffset + i;
-                    if (mouse.LeftButton == ButtonState.Pressed && MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released)
+                    if (mouse.LeftButton == ButtonState.Pressed && MuGame.Instance.PrevUiMouseState.LeftButton == ButtonState.Released)
                     {
                         OnMapClicked(i);
                         if (Scene is BaseScene baseScene) baseScene.SetMouseInputConsumed(); // signal consumption

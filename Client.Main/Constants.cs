@@ -125,12 +125,32 @@ namespace Client.Main
                 // Others
 
                 public const float BASE_FONT_SIZE = 25f;
+                public const int BASE_UI_WIDTH = 1280;
+                public const int BASE_UI_HEIGHT = 720;
 
                 /// <summary>
                 /// Distance after which objects are rendered in lower quality and
                 /// dynamic lighting is disabled.
                 /// </summary>
                 public const float LOW_QUALITY_DISTANCE = 3500f;
+
+                /// <summary>
+                /// Render scale for internal resolution.
+                /// Values below 1.0f improve performance at cost of quality.
+                /// Values above 1.0f increase quality at cost of performance (supersampling).
+                /// </summary>
+                public static float RENDER_SCALE = 2.0f;
+
+                /// <summary>
+                /// Enable high quality texture filtering (anisotropic filtering).
+                /// Improves texture quality at distance.
+                /// </summary>
+                public static bool HIGH_QUALITY_TEXTURES = true;
+
+                /// <summary>
+                /// Disable V-Sync for higher framerate. May cause screen tearing.
+                /// </summary>
+                public static bool DISABLE_VSYNC = false;
 
                 /// <summary>
                 /// Enables drawing of object names when hovered with the mouse.

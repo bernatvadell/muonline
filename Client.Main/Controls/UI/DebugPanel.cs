@@ -63,8 +63,12 @@ namespace Client.Main.Controls.UI
                 _sb.Clear().Append("FPS: ").Append((int)FPSCounter.Instance.FPS_AVG);
                 _fpsLabel.Text = _sb.ToString();
 
-                _sb.Clear().Append("Mouse Position - X: ").Append(MuGame.Instance.Mouse.Position.X)
-                   .Append(", Y:").Append(MuGame.Instance.Mouse.Position.Y);
+                Point screenMouse = MuGame.Instance.Mouse.Position;
+                Point uiMouse = MuGame.Instance.UiMouseState.Position;
+                _sb.Clear().Append("Mouse Screen (X:").Append(screenMouse.X)
+                   .Append(", Y:").Append(screenMouse.Y)
+                   .Append(") UI (X:").Append(uiMouse.X)
+                   .Append(", Y:").Append(uiMouse.Y).Append(')');
                 _mousePosLabel.Text = _sb.ToString();
 
                 _sb.Clear().Append("FXAA: ").Append(GraphicsManager.Instance.IsFXAAEnabled ? "ON" : "OFF")

@@ -9,6 +9,15 @@ namespace Client.Main.Configuration
         public bool ShowDamage { get; set; } = true;
     }
 
+    public class GraphicsSettings
+    {
+        public int Width { get; set; } = 1280;
+        public int Height { get; set; } = 720;
+        public bool IsFullScreen { get; set; }
+        public int UiVirtualWidth { get; set; } = 1280;
+        public int UiVirtualHeight { get; set; } = 720;
+    }
+
     public class MuOnlineSettings
     {
         // Connect Server Settings
@@ -21,5 +30,6 @@ namespace Client.Main.Configuration
         public string ClientSerial { get; set; } = "0123456789ABCDEF"; // Example default
         public Dictionary<byte, byte> DirectionMap { get; set; } = new(); // Direction mapping for walk packets
         public PacketLoggingSettings PacketLogging { get; set; } = new();
+        public GraphicsSettings Graphics { get; set; } = new();
     }
 }

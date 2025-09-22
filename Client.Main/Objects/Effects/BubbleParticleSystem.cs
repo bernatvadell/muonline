@@ -143,6 +143,9 @@ namespace Client.Main.Objects.Effects
                 Camera.Instance.View,
                 Matrix.Identity
             );
+
+            // Projected coordinates are already in the correct space
+
             Vector2 baseTextPos = new Vector2(proj.X - textSize.X / 2, proj.Y);
 
             // Save prior GPU states
@@ -208,6 +211,8 @@ namespace Client.Main.Objects.Effects
                 Camera.Instance.View,
                 Matrix.Identity
             );
+
+            // Projected coordinates are already in the correct space
 
             // Skip if behind camera
             if (screenPos.Z < 0f || screenPos.Z > 1f)

@@ -191,6 +191,7 @@ namespace Client.Main.Worlds
                                  Camera.Instance.View,
                                  Matrix.Identity);
 
+                    // Projected coordinates are already in the correct space
                     if (sp.Z is < 0 or > 1)
                     {
                         label.Visible = false;
@@ -198,11 +199,14 @@ namespace Client.Main.Worlds
                     }
 
                     var font = GraphicsManager.Instance.Font;
-                    float k = label.FontSize / Constants.BASE_FONT_SIZE;
+                    float k = label.FontSize / Constants.BASE_FONT_SIZE; // Remove RENDER_SCALE - UI system handles this
                     Vector2 s = font.MeasureString(label.Text) * k;
 
-                    label.X = (int)(sp.X - s.X / 2f);
-                    label.Y = (int)(sp.Y - s.Y - 4);
+                    // Convert screen coordinates to virtual coordinates for UI system
+                    var virtualPos = UiScaler.ToVirtual(new Point((int)sp.X, (int)sp.Y));
+
+                    label.X = (int)(virtualPos.X - s.X / 2f);
+                    label.Y = (int)(virtualPos.Y - s.Y - 4);
                     label.ControlSize = new Point((int)s.X, (int)s.Y);
                     label.Visible = true;
                 }

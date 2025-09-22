@@ -1,5 +1,6 @@
 ﻿using Client.Main.Content;
 using Client.Main.Controllers;
+using Client.Main.Helpers;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -245,14 +246,21 @@ namespace Client.Main.Controls.UI
             if (Status != GameControlStatus.Ready || !Visible)
                 return;
 
-            var spriteBatch = GraphicsManager.Instance.Sprite;
+            using (new SpriteBatchScope(
+                GraphicsManager.Instance.Sprite,
+                SpriteSortMode.Deferred,
+                BlendState.AlphaBlend,
+                transform: UiScaler.SpriteTransform))
+            {
+                var spriteBatch = GraphicsManager.Instance.Sprite;
 
-            if (Skin == TextFieldSkin.NineSlice && _nineSlice[0] != null)
-                DrawNineSliceBackground(spriteBatch);
-            else
-                DrawFlatBackground(spriteBatch);
+                if (Skin == TextFieldSkin.NineSlice && _nineSlice[0] != null)
+                    DrawNineSliceBackground(spriteBatch);
+                else
+                    DrawFlatBackground(spriteBatch);
 
-            DrawTextAndCursor(spriteBatch);
+                DrawTextAndCursor(spriteBatch);
+            }
 
             base.Draw(gameTime);
         }

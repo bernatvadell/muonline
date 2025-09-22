@@ -200,8 +200,8 @@ namespace Client.Main.Controls.UI.Common
             base.Update(gameTime);
             ViewSize = new Point(Width, Height);
 
-            var mouse = MuGame.Instance.Mouse;
-            var prevMouse = MuGame.Instance.PrevMouseState;
+            var mouse = MuGame.Instance.UiMouseState;
+            var prevMouse = MuGame.Instance.PrevUiMouseState;
             Rectangle displayRect = DisplayRectangle;
 
             Rectangle thumbRect = new Rectangle(displayRect.X, displayRect.Y + (int)_thumbY, Width, (int)_thumbHeight);

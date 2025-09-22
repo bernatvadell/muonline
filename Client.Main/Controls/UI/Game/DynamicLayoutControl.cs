@@ -144,20 +144,18 @@ namespace Client.Main.Controls.UI.Game
         // Scales controls according to the current resolution – also takes CustomScale into account
         public virtual void UpdateLayout()
         {
-            int currentWidth = MuGame.Instance.GraphicsDevice.Viewport.Width;
-            int currentHeight = MuGame.Instance.GraphicsDevice.Viewport.Height;
-            float scaleX = (float)currentWidth / DesignWidth;
-            float scaleY = (float)currentHeight / DesignHeight;
-            float uniformScale = Math.Min(scaleX, scaleY) * CustomScale;
+            float layoutScale = MathF.Max(CustomScale, 0.0001f);
 
             foreach (var ctrl in Controls)
             {
                 if (ctrl.Tag is LayoutInfo info)
                 {
-                    ctrl.X = (int)(info.ScreenX * uniformScale);
-                    ctrl.Y = (int)(info.ScreenY * uniformScale);
-                    ctrl.ViewSize = new Point((int)(info.Width * uniformScale), (int)(info.Height * uniformScale));
-                    ctrl.Scale = uniformScale;
+                    ctrl.X = (int)MathF.Round(info.ScreenX * layoutScale);
+                    ctrl.Y = (int)MathF.Round(info.ScreenY * layoutScale);
+                    ctrl.ViewSize = new Point(
+                        (int)MathF.Round(info.Width * layoutScale),
+                        (int)MathF.Round(info.Height * layoutScale));
+                    ctrl.Scale = 1f;
                 }
             }
         }

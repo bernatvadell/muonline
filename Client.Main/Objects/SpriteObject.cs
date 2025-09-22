@@ -56,6 +56,8 @@ namespace Client.Main.Objects
                 Camera.Instance.View,
                 Matrix.Identity);
 
+            // Projected coordinates are already in the correct space
+
             float layerDepth = MathHelper.Clamp(projected.Z, 0f, 1f);
 
             // If SpriteBatch is not begun, open a local SpriteBatchScope
@@ -103,6 +105,8 @@ namespace Client.Main.Objects
                 Camera.Instance.View,
                 Matrix.Identity
             );
+
+            // Projected coordinates are already in the correct space
 
             _screenPosition = new Vector2(screenPosition.X, screenPosition.Y);
 

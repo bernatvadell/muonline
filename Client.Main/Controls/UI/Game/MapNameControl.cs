@@ -105,7 +105,8 @@ namespace Client.Main.Controls.UI.Game
                    sb,
                    SpriteSortMode.Deferred,
                    BlendState.NonPremultiplied,
-                   SamplerState.PointClamp))
+                   SamplerState.PointClamp,
+                   transform: UiScaler.SpriteTransform))
             {
                 sb.Draw(Texture,
                         DisplayRectangle,

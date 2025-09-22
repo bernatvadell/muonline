@@ -26,8 +26,7 @@ namespace Client.Main.Controls.UI
             Visible = true;
             Interactive = false;
 
-            var viewport = GraphicsManager.Instance.GraphicsDevice.Viewport;
-            _spawnCenter = new Vector2(viewport.Width * 0.5f, viewport.Height * 0.75f);
+            _spawnCenter = new Vector2(UiScaler.VirtualSize.X * 0.5f, UiScaler.VirtualSize.Y * 0.75f);
         }
 
         // ────────────────────────── Public API ──────────────────────────

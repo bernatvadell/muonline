@@ -36,7 +36,7 @@ namespace Client.Main.Controls.UI.Game
             _basicEffect = new BasicEffect(GraphicsDevice)
             {
                 VertexColorEnabled = true,
-                Projection = Matrix.CreateOrthographicOffCenter(0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height, 0, 0, 1),
+                Projection = Matrix.CreateOrthographicOffCenter(0, UiScaler.VirtualSize.X, UiScaler.VirtualSize.Y, 0, 0, 1),
                 View = Matrix.Identity,
                 World = Matrix.Identity
             };
@@ -59,9 +59,9 @@ namespace Client.Main.Controls.UI.Game
             if (_basicEffect == null || Progress <= 0f) return; // Don't draw if no progress or effect not ready
 
             var gd = GraphicsManager.Instance.GraphicsDevice;
-            int barWidth = gd.Viewport.Width - (ProgressBarMargin * 2);
+            int barWidth = UiScaler.VirtualSize.X - (ProgressBarMargin * 2);
             int barX = ProgressBarMargin;
-            int barY = gd.Viewport.Height - ProgressBarHeight - ProgressBarYOffset; // Positioned near bottom
+            int barY = UiScaler.VirtualSize.Y - ProgressBarHeight - ProgressBarYOffset; // Positioned near bottom
 
             var bgPos = new Vector2(barX, barY);
             var bgSize = new Vector2(barWidth, ProgressBarHeight);
@@ -97,12 +97,13 @@ namespace Client.Main.Controls.UI.Game
                 BlendState.AlphaBlend,
                 SamplerState.PointClamp,
                 DepthStencilState.None,
-                RasterizerState.CullNone))
+                RasterizerState.CullNone,
+                transform: UiScaler.SpriteTransform))
             {
                 // Background Dim
                 spriteBatch.Draw(
                     GraphicsManager.Instance.Pixel,
-                    new Rectangle(0, 0, gd.Viewport.Width, gd.Viewport.Height),
+                    new Rectangle(0, 0, UiScaler.VirtualSize.X, UiScaler.VirtualSize.Y),
                     Color.Black * 0.75f); // Semi-transparent black background
 
                 // Loading Message
@@ -111,8 +112,8 @@ namespace Client.Main.Controls.UI.Game
                     var text = Message;
                     Vector2 size = _font.MeasureString(text);
                     Vector2 pos = new Vector2(
-                        (gd.Viewport.Width - size.X) * 0.5f,
-                        (gd.Viewport.Height - size.Y) * 0.5f - ProgressBarHeight); // Position text above progress bar
+                        (UiScaler.VirtualSize.X - size.X) * 0.5f,
+                        (UiScaler.VirtualSize.Y - size.Y) * 0.5f - ProgressBarHeight); // Position text above progress bar
 
                     spriteBatch.DrawString(_font, text, pos + Vector2.One, Color.Black * 0.7f); // Shadow
                     spriteBatch.DrawString(_font, text, pos, Color.White);

@@ -264,7 +264,9 @@ namespace Client.Main.Objects
 
             var scope = _scope; // local ref
             string text = DisplayName;
-            float scale = 10f / Client.Main.Constants.BASE_FONT_SIZE;
+            // Scale font based on resolution and render scale
+            float baseScale = 10f / Client.Main.Constants.BASE_FONT_SIZE;
+            float scale = baseScale * UiScaler.Scale * Constants.RENDER_SCALE;
             ReadOnlySpan<byte> itemSpan = ReadOnlySpan<byte>.Empty;
             if (scope is ItemScopeObject iso)
             {

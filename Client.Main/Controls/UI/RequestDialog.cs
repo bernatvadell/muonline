@@ -1,5 +1,7 @@
 using Client.Main.Models;
+using Client.Main.Helpers;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Linq;
@@ -240,8 +242,15 @@ namespace Client.Main.Controls.UI
         {
             if (Status != GameControlStatus.Ready || !Visible) return;
 
-            DrawBackground();
-            DrawBorder();
+            using (new SpriteBatchScope(
+                GraphicsManager.Instance.Sprite,
+                SpriteSortMode.Deferred,
+                BlendState.AlphaBlend,
+                transform: UiScaler.SpriteTransform))
+            {
+                DrawBackground();
+                DrawBorder();
+            }
 
             base.Draw(gameTime);
         }

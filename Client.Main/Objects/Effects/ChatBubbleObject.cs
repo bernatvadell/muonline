@@ -154,6 +154,9 @@ namespace Client.Main.Objects.Effects
                 return;
             }
 
+            // Convert screen coordinates to virtual coordinates for UI system
+            var virtualPos = UiScaler.ToVirtual(new Point((int)screen.X, (int)screen.Y));
+
             Vector2 nameSize = MeasureLabelSize(_nameLabel);
             Vector2 textSize = MeasureLabelSize(_textLabel);
 
@@ -174,10 +177,10 @@ namespace Client.Main.Objects.Effects
 
             int bubbleHeight = nameHeight + textHeight;
 
-            int bubbleX = (int)(screen.X - maxWidth / 2f);
+            int bubbleX = (int)(virtualPos.X - maxWidth / 2f);
 
             _nameLabel.X = bubbleX;
-            _nameLabel.Y = (int)(screen.Y - bubbleHeight - PixelGap);
+            _nameLabel.Y = (int)(virtualPos.Y - bubbleHeight - PixelGap);
 
             _textLabel.X = bubbleX;
             _textLabel.Y = _nameLabel.Y + nameHeight;

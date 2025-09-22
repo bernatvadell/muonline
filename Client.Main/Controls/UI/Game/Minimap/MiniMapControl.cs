@@ -284,7 +284,7 @@ namespace Client.Main.Controls.UI.Game
             }
 
             // Mouse Wheel for Zoom
-            int scrollDelta = MuGame.Instance.Mouse.ScrollWheelValue - MuGame.Instance.PrevMouseState.ScrollWheelValue;
+            int scrollDelta = MuGame.Instance.UiMouseState.ScrollWheelValue - MuGame.Instance.PrevUiMouseState.ScrollWheelValue;
             if (scrollDelta != 0)
             {
                 _currentZoom -= scrollDelta / 120f * ZOOM_STEP; // Divide by 120 (standard wheel delta)
@@ -296,7 +296,7 @@ namespace Client.Main.Controls.UI.Game
         {
             if (!Visible || !_tooltipLabel.Visible) _tooltipLabel.Visible = false; // Default hide
 
-            Point mousePos = MuGame.Instance.Mouse.Position;
+            Point mousePos = MuGame.Instance.UiMouseState.Position;
 
             // Check only if mouse is roughly over the map display area
             Rectangle mapScreenRect = GetMapScreenRect();
@@ -331,9 +331,9 @@ namespace Client.Main.Controls.UI.Game
                 _tooltipLabel.X = mousePos.X + 10;
                 _tooltipLabel.Y = mousePos.Y + 10;
                 // Ensure tooltip stays on screen (basic check)
-                if (_tooltipLabel.X + _tooltipLabel.ViewSize.X > MuGame.Instance.Width)
+                if (_tooltipLabel.X + _tooltipLabel.ViewSize.X > UiScaler.VirtualSize.X)
                     _tooltipLabel.X = mousePos.X - _tooltipLabel.ViewSize.X - 5;
-                if (_tooltipLabel.Y + _tooltipLabel.ViewSize.Y > MuGame.Instance.Height)
+                if (_tooltipLabel.Y + _tooltipLabel.ViewSize.Y > UiScaler.VirtualSize.Y)
                     _tooltipLabel.Y = mousePos.Y - _tooltipLabel.ViewSize.Y - 5;
 
                 _tooltipLabel.BringToFront(); // Make sure tooltip is drawn over other map elements

@@ -115,14 +115,14 @@ namespace Client.Main.Scenes
             _chatLog = new ChatLogWindow
             {
                 X = 5,
-                Y = MuGame.Instance.Height - 160 - ChatInputBoxControl.CHATBOX_HEIGHT
+                Y = UiScaler.VirtualSize.Y - 160 - ChatInputBoxControl.CHATBOX_HEIGHT
             };
             Controls.Add(_chatLog);
 
             _chatInput = new ChatInputBoxControl(_chatLog, MuGame.AppLoggerFactory)
             {
                 X = 5,
-                Y = MuGame.Instance.Height - 65 - ChatInputBoxControl.CHATBOX_HEIGHT
+                Y = UiScaler.VirtualSize.Y - 65 - ChatInputBoxControl.CHATBOX_HEIGHT
             };
             _chatInput.MessageSendRequested += OnChatMessageSendRequested;
             Controls.Add(_chatInput);
@@ -997,7 +997,8 @@ namespace Client.Main.Scenes
                        SpriteSortMode.Deferred,
                        BlendState.AlphaBlend,
                        SamplerState.PointClamp,
-                       DepthStencilState.None))
+                       DepthStencilState.None,
+                       transform: UiScaler.SpriteTransform))
             {
                 foreach (var ctrl in Controls.ToArray())
                 {
@@ -1019,7 +1020,8 @@ namespace Client.Main.Scenes
                        SpriteSortMode.Deferred,
                        BlendState.AlphaBlend,
                        SamplerState.PointClamp,
-                       DepthStencilState.None))
+                       DepthStencilState.None,
+                       transform: UiScaler.SpriteTransform))
             {
                 var sprite = GraphicsManager.Instance.Sprite;
                 _inventoryControl?._pickedItemRenderer?.Draw(sprite, gameTime);

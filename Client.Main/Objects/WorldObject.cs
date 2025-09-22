@@ -437,7 +437,9 @@ namespace Client.Main.Objects
             if (screen.Z < 0f || screen.Z > 1f)
                 return;
 
-            const float scale = 0.5f;
+            // Apply render scale to font scale to maintain consistent size
+            const float baseScale = 0.5f;
+            float scale = baseScale * Constants.RENDER_SCALE;
             Vector2 size = _font.MeasureString(name) * scale;
             var sb = GraphicsManager.Instance.Sprite;
 
@@ -587,27 +589,23 @@ namespace Client.Main.Objects
             sbInfo.Append("DepthStencilState: ").Append(DepthState.Name);
             string objectInfo = sbInfo.ToString();
 
-            float scaleFactor = DebugFontSize / Constants.BASE_FONT_SIZE;
+            float scaleFactor = DebugFontSize / Constants.BASE_FONT_SIZE * Constants.RENDER_SCALE;
             Vector2 textSize = _font.MeasureString(objectInfo) * scaleFactor;
+
+            Vector3 projectedPos = GraphicsDevice.Viewport.Project(
+                new Vector3(
+                    (BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) / 2,
+                    BoundingBoxWorld.Max.Y + 0.5f,
+                    (BoundingBoxWorld.Min.Z + BoundingBoxWorld.Max.Z) / 2),
+                Camera.Instance.Projection,
+                Camera.Instance.View,
+                Matrix.Identity);
+
+            // Projected coordinates are already in the correct space
+
             Vector2 baseTextPos = new Vector2(
-                (int)(GraphicsDevice.Viewport.Project(
-                    new Vector3(
-                        (BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) / 2,
-                        BoundingBoxWorld.Max.Y + 0.5f,
-                        (BoundingBoxWorld.Min.Z + BoundingBoxWorld.Max.Z) / 2),
-                    Camera.Instance.Projection,
-                    Camera.Instance.View,
-                    Matrix.Identity
-                ).X - textSize.X / 2),
-                (int)GraphicsDevice.Viewport.Project(
-                    new Vector3(
-                        (BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) / 2,
-                        BoundingBoxWorld.Max.Y + 0.5f,
-                        (BoundingBoxWorld.Min.Z + BoundingBoxWorld.Max.Z) / 2),
-                    Camera.Instance.Projection,
-                    Camera.Instance.View,
-                    Matrix.Identity
-                ).Y
+                (int)(projectedPos.X - textSize.X / 2),
+                (int)projectedPos.Y
             );
 
             // Save previous states

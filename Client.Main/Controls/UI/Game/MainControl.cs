@@ -84,7 +84,8 @@ namespace Client.Main.Controls.UI.Game
                            sb,
                            SpriteSortMode.Deferred,
                            BlendState.NonPremultiplied,
-                           SamplerState.PointClamp))
+                           SamplerState.PointClamp,
+                           transform: UiScaler.SpriteTransform))
                     {
                         c.Draw(gameTime);
                     }
@@ -93,8 +94,15 @@ namespace Client.Main.Controls.UI.Game
                     c.Draw(gameTime);
             }
 
-            _hp.DrawLabel(gameTime);
-            _mp.DrawLabel(gameTime);
+            using (new SpriteBatchScope(
+                   sb,
+                   SpriteSortMode.Deferred,
+                   BlendState.AlphaBlend,
+                   transform: UiScaler.SpriteTransform))
+            {
+                _hp.DrawLabel(gameTime);
+                _mp.DrawLabel(gameTime);
+            }
         }
     }
 }

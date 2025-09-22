@@ -436,7 +436,7 @@ namespace Client.Main.Controls.UI.Game
 
             base.Draw(gameTime); // Base draw will handle all children including frames
             // Manually draw the info table on top of the background, but under text labels
-            using (new SpriteBatchScope(GraphicsManager.Instance.Sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend))
+            using (new SpriteBatchScope(GraphicsManager.Instance.Sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform))
             {
                 DrawInfoTable(GraphicsManager.Instance.Sprite);
             }

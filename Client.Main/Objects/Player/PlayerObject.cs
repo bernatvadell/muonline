@@ -994,6 +994,8 @@ namespace Client.Main.Objects.Player
                 Camera.Instance.View,
                 Matrix.Identity);
 
+            // Projected coordinates are already in the correct space
+
             if (screen.Z < 0f || screen.Z > 1f)
                 return;
 

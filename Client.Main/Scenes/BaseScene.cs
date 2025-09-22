@@ -36,7 +36,7 @@ namespace Client.Main.Scenes
         public BaseScene()
         {
             AutoViewSize = false;
-            ViewSize = new(MuGame.Instance.Width, MuGame.Instance.Height);
+            ViewSize = new(UiScaler.VirtualSize.X, UiScaler.VirtualSize.Y);
 
             Controls.Add(DebugPanel = new DebugPanel { Visible = Constants.SHOW_DEBUG_PANEL });
             Controls.Add(Cursor = new CursorControl());
@@ -220,7 +220,7 @@ namespace Client.Main.Scenes
             }
 
             // Consume scroll for UI before the world processes input
-            int preScrollChange = MuGame.Instance.Mouse.ScrollWheelValue - MuGame.Instance.PrevMouseState.ScrollWheelValue;
+            int preScrollChange = MuGame.Instance.UiMouseState.ScrollWheelValue - MuGame.Instance.PrevUiMouseState.ScrollWheelValue;
             if (preScrollChange != 0 && MouseControl != null && MouseControl.Interactive && MouseControl != World)
             {
                 IsMouseInputConsumedThisFrame = true;
@@ -252,7 +252,7 @@ namespace Client.Main.Scenes
             // scroll handling - using the MouseControl determined above
             if (MouseControl != null && MouseControl.Interactive) // MouseControl here is the target for scroll
             {
-                int scrollWheelChange = MuGame.Instance.Mouse.ScrollWheelValue - MuGame.Instance.PrevMouseState.ScrollWheelValue;
+                int scrollWheelChange = MuGame.Instance.UiMouseState.ScrollWheelValue - MuGame.Instance.PrevUiMouseState.ScrollWheelValue;
                 if (scrollWheelChange != 0)
                 {
                     int normalizedScrollDelta = scrollWheelChange; // positive for up, negative for down
@@ -265,11 +265,11 @@ namespace Client.Main.Scenes
                     }
                 }
 
-                if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed && !MouseControl.IsMousePressed)
+                if (MuGame.Instance.UiMouseState.LeftButton == ButtonState.Pressed && !MouseControl.IsMousePressed)
                 {
                     MouseControl.IsMousePressed = true;
                 }
-                else if (MouseControl == currentMouseControl && MuGame.Instance.Mouse.LeftButton == ButtonState.Released && MouseControl.IsMousePressed)
+                else if (MouseControl == currentMouseControl && MuGame.Instance.UiMouseState.LeftButton == ButtonState.Released && MouseControl.IsMousePressed)
                 {
                     MouseControl.IsMousePressed = false;
                     MouseControl.OnClick();
@@ -288,7 +288,7 @@ namespace Client.Main.Scenes
             // handle 3D world object clicks if UI didn't consume input
             if (!IsMouseInputConsumedThisFrame && MouseHoverObject != null &&
                 MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Pressed &&
-                MuGame.Instance.Mouse.LeftButton == ButtonState.Released)
+                MuGame.Instance.UiMouseState.LeftButton == ButtonState.Released)
             {
                 MouseHoverObject.OnClick();
             }
@@ -352,7 +352,10 @@ namespace Client.Main.Scenes
                        SpriteSortMode.Deferred,
                        BlendState.AlphaBlend,
                        SamplerState.PointClamp,
-                       DepthStencilState.None))
+                       DepthStencilState.None,
+                       null,
+                       null,
+                       UiScaler.SpriteTransform))
             {
                 foreach (var ctrl in Controls.ToArray())
                 {

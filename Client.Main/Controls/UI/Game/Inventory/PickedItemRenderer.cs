@@ -44,12 +44,15 @@ namespace Client.Main.Controls.UI.Game.Inventory
         {
             if (!Visible || Item == null) return;
 
-            // Position under the cursor, centered
+            // Position under the cursor, centered (use virtual coordinates that match UiScaler.SpriteTransform)
             int widthInPixels = Item.Definition.Width * SquareWidth;
             int heightInPixels = Item.Definition.Height * SquareHeight;
 
-            X = MuGame.Instance.Mouse.X - widthInPixels / 2;
-            Y = MuGame.Instance.Mouse.Y - heightInPixels / 2;
+            // UiMouseState.Position is already in virtual coordinates - use directly
+            var mousePos = MuGame.Instance.UiMouseState.Position;
+
+            X = mousePos.X - widthInPixels / 2;
+            Y = mousePos.Y - heightInPixels / 2;
             ViewSize = new Point(widthInPixels, heightInPixels); // Size for drawing
             ControlSize = ViewSize;
 

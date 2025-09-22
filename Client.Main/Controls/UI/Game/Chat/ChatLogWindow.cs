@@ -332,8 +332,8 @@ namespace Client.Main.Controls.UI
 
             base.Update(gameTime); // Updates IsMouseOver among other things
 
-            var mouse = MuGame.Instance.Mouse;
-            var prevMouse = MuGame.Instance.PrevMouseState;
+            var mouse = MuGame.Instance.UiMouseState;
+            var prevMouse = MuGame.Instance.PrevUiMouseState;
 
             _hoveredMessageGlobalIndex = -1; // Reset hover state
 
@@ -888,13 +888,13 @@ namespace Client.Main.Controls.UI
             if (!Visible || !IsMouseOver) return false; // not handled if not visible or mouse not over
 
             // Check if mouse is over the scrollbar area (not a separate _scrollBar control, but the area/logic is internal)
-            if (_showFrame && !_scrollBarArea.IsEmpty && _scrollBarArea.Contains(MuGame.Instance.Mouse.Position))
+            if (_showFrame && !_scrollBarArea.IsEmpty && _scrollBarArea.Contains(MuGame.Instance.UiMouseState.Position))
             {
                 int lines = scrollDelta / SCROLL_WHEEL_STEP;
                 if (lines == 0)
                     lines = Math.Sign(scrollDelta);
                 // If the thumb is hovered, treat as handled (simulate scrollbar logic)
-                if (!_scrollThumbArea.IsEmpty && _scrollThumbArea.Contains(MuGame.Instance.Mouse.Position))
+                if (!_scrollThumbArea.IsEmpty && _scrollThumbArea.Contains(MuGame.Instance.UiMouseState.Position))
                 {
                     // Simulate thumb scroll: scroll by one line per wheel event
                     _scrollOffset += lines; // one line per wheel step

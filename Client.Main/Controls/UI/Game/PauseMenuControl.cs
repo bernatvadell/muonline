@@ -41,7 +41,7 @@ namespace Client.Main.Controls.UI.Game
             Interactive = true;
             AutoViewSize = false;
             // Cover the full screen; BaseScene will position us at 0,0
-            ViewSize = new Point(MuGame.Instance.Width, MuGame.Instance.Height);
+            ViewSize = new Point(UiScaler.VirtualSize.X, UiScaler.VirtualSize.Y);
             ControlSize = ViewSize;
             BackgroundColor = new Color(0, 0, 0, 180); // semi-transparent overlay
 
@@ -562,7 +562,7 @@ namespace Client.Main.Controls.UI.Game
                 Controls.Add(title);
 
                 int currentY = 60;
-                int rowHeight = 28;
+                int rowHeight = 22;
 
                 AddOption("Background Music", () => Constants.BACKGROUND_MUSIC, value =>
                 {
@@ -590,7 +590,33 @@ namespace Client.Main.Controls.UI.Game
                 AddOption("Draw Grass", () => Constants.DRAW_GRASS, value => Constants.DRAW_GRASS = value, ref currentY, rowHeight);
                 AddOption("Low Quality Switch", () => Constants.ENABLE_LOW_QUALITY_SWITCH, value => Constants.ENABLE_LOW_QUALITY_SWITCH = value, ref currentY, rowHeight);
                 AddOption("Low Quality in Login", () => Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE, value => Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE = value, ref currentY, rowHeight);
-                AddOption("MSAA", () => Constants.MSAA_ENABLED, value => Constants.MSAA_ENABLED = value, ref currentY, rowHeight, _owner.ApplyGraphicsSettings);
+
+                // Render scale options
+                AddOption("Render Scale: 300%", () => Math.Abs(Constants.RENDER_SCALE - 3.0f) < 0.01f, value =>
+                {
+                    if (value) { SetRenderScale(3.0f); }
+                }, ref currentY, rowHeight);
+                AddOption("Render Scale: 200%", () => Math.Abs(Constants.RENDER_SCALE - 2.0f) < 0.01f, value => {
+                    if (value) { SetRenderScale(2.0f); }
+                }, ref currentY, rowHeight);
+                AddOption("Render Scale: 150%", () => Math.Abs(Constants.RENDER_SCALE - 1.5f) < 0.01f, value => {
+                    if (value) { SetRenderScale(1.5f); }
+                }, ref currentY, rowHeight);
+                AddOption("Render Scale: 125%", () => Math.Abs(Constants.RENDER_SCALE - 1.25f) < 0.01f, value => {
+                    if (value) { SetRenderScale(1.25f); }
+                }, ref currentY, rowHeight);
+                AddOption("Render Scale: 100%", () => Math.Abs(Constants.RENDER_SCALE - 1.0f) < 0.01f, value => {
+                    if (value) { SetRenderScale(1.0f); }
+                }, ref currentY, rowHeight);
+                AddOption("Render Scale: 75%", () => Math.Abs(Constants.RENDER_SCALE - 0.75f) < 0.01f, value => {
+                    if (value) { SetRenderScale(0.75f); }
+                }, ref currentY, rowHeight);
+
+                AddOption("High Quality Textures", () => Constants.HIGH_QUALITY_TEXTURES, value => Constants.HIGH_QUALITY_TEXTURES = value, ref currentY, rowHeight);
+                AddOption("Disable V-Sync (Higher FPS)", () => Constants.DISABLE_VSYNC, value => {
+                    Constants.DISABLE_VSYNC = value;
+                    _owner.ApplyGraphicsSettings(); // Apply V-Sync changes
+                }, ref currentY, rowHeight);
                 AddOption("Dynamic Lighting Shader", () => Constants.ENABLE_DYNAMIC_LIGHTING_SHADER, value => Constants.ENABLE_DYNAMIC_LIGHTING_SHADER = value, ref currentY, rowHeight);
                 AddOption("Optimize for Integrated GPU", () => Constants.OPTIMIZE_FOR_INTEGRATED_GPU, value => Constants.OPTIMIZE_FOR_INTEGRATED_GPU = value, ref currentY, rowHeight);
                 AddOption("Debug Lighting Areas", () => Constants.DEBUG_LIGHTING_AREAS, value => Constants.DEBUG_LIGHTING_AREAS = value, ref currentY, rowHeight);
@@ -619,6 +645,21 @@ namespace Client.Main.Controls.UI.Game
                 };
                 _closeButton.Click += (s, e) => _owner.ToggleOptionsPanel();
                 Controls.Add(_closeButton);
+            }
+
+            private void SetRenderScale(float scale)
+            {
+                Constants.RENDER_SCALE = scale;
+                GraphicsManager.Instance.UpdateRenderScale();
+                RefreshOptions();
+            }
+
+            private void RefreshOptions()
+            {
+                foreach (var option in _options)
+                {
+                    option.Refresh();
+                }
             }
 
             private void AddOption(string label, Func<bool> getter, Action<bool> setter, ref int currentY, int rowHeight, Action onChanged = null)
@@ -672,7 +713,7 @@ namespace Client.Main.Controls.UI.Game
                         Text = label,
                         X = 20,
                         Y = y,
-                        FontSize = 14f,
+                        FontSize = 12f,
                         TextColor = Color.White
                     };
 
@@ -686,7 +727,7 @@ namespace Client.Main.Controls.UI.Game
                         BackgroundColor = new Color(50, 50, 80, 200),
                         HoverBackgroundColor = new Color(70, 70, 110, 220),
                         PressedBackgroundColor = new Color(40, 40, 70, 220),
-                        FontSize = 14f,
+                        FontSize = 12f,
                         TextColor = Color.White
                     };
                     _button.Click += (s, e) =>
@@ -733,7 +774,7 @@ namespace Client.Main.Controls.UI.Game
                         Text = label,
                         X = 20,
                         Y = y,
-                        FontSize = 14f,
+                        FontSize = 12f,
                         TextColor = Color.White
                     };
 
@@ -741,7 +782,7 @@ namespace Client.Main.Controls.UI.Game
                     {
                         X = panelWidth - 210,
                         Y = y,
-                        FontSize = 14f,
+                        FontSize = 12f,
                         TextColor = Color.LightGray,
                         Align = Models.ControlAlign.HorizontalCenter,
                         ControlSize = new Point(70, 24),
@@ -759,7 +800,7 @@ namespace Client.Main.Controls.UI.Game
                         BackgroundColor = new Color(50, 50, 80, 200),
                         HoverBackgroundColor = new Color(70, 70, 110, 220),
                         PressedBackgroundColor = new Color(40, 40, 70, 220),
-                        FontSize = 14f,
+                        FontSize = 12f,
                         TextColor = Color.White
                     };
 
@@ -774,7 +815,7 @@ namespace Client.Main.Controls.UI.Game
                         BackgroundColor = new Color(50, 50, 80, 200),
                         HoverBackgroundColor = new Color(70, 70, 110, 220),
                         PressedBackgroundColor = new Color(40, 40, 70, 220),
-                        FontSize = 14f,
+                        FontSize = 12f,
                         TextColor = Color.White
                     };
 

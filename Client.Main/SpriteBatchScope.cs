@@ -44,7 +44,7 @@ namespace Client.Main.Helpers
             _myState = new SavedState(
                 sort,
                 blend ?? BlendState.AlphaBlend,
-                sampler ?? SamplerState.PointClamp,
+                sampler ?? Controllers.GraphicsManager.GetQualitySamplerState(),
                 depth,
                 raster,
                 effect,

@@ -61,6 +61,11 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private Point _gridOffset = new Point(50, 80); // Grid offset with 40px margins and centered
 
+        // Grid properties use DynamicLayoutControl coordinate system (no UiScaler scaling)
+        private Point GridOffset => _gridOffset;
+        private int CellWidth => INVENTORY_SQUARE_WIDTH;
+        private int CellHeight => INVENTORY_SQUARE_HEIGHT;
+
         public PickedItemRenderer _pickedItemRenderer;
         private readonly NetworkManager _networkManager;
         private InventoryItem _hoveredItem = null;
@@ -150,10 +155,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
             {
                 // Position ZEN label below equipment area
                 const int equipRows = 2;
-                int gridBottomY = _gridOffset.Y + (Rows * INVENTORY_SQUARE_HEIGHT);
-                int equipAreaBottomY = gridBottomY + 20 + (equipRows * INVENTORY_SQUARE_HEIGHT);
+                int gridBottomY = GridOffset.Y + (Rows * CellHeight);
+                int equipAreaBottomY = gridBottomY + 20 + (equipRows * CellHeight);
 
-                _zenLabel.X = _gridOffset.X; // Align with left side of grid
+                _zenLabel.X = GridOffset.X; // Align with left side of grid
                 _zenLabel.Y = equipAreaBottomY + 10; // 10 pixels below equipment area
             }
         }
@@ -457,15 +462,15 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             base.Update(gameTime);
 
-            Point mousePos = MuGame.Instance.Mouse.Position;
+            Point mousePos = MuGame.Instance.UiMouseState.Position;
             _hoveredItem = null;
             _hoveredSlot = new Point(-1, -1);
             _hoveredEquipSlot = GetEquipSlotAtScreenPosition(mousePos);
 
             // Window dragging logic
-            bool leftPressed = MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed;
-            bool leftJustPressed = leftPressed && MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released;
-            bool leftJustReleased = !leftPressed && MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Pressed;
+            bool leftPressed = MuGame.Instance.UiMouseState.LeftButton == ButtonState.Pressed;
+            bool leftJustPressed = leftPressed && MuGame.Instance.PrevUiMouseState.LeftButton == ButtonState.Released;
+            bool leftJustReleased = !leftPressed && MuGame.Instance.PrevUiMouseState.LeftButton == ButtonState.Pressed;
 
             if (leftJustPressed && IsMouseOverDragArea() && !_isDragging)
             {
@@ -643,7 +648,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
                 // Check if the cursor is over an open NPC shop -> SELL
                 var shop = Client.Main.Controls.UI.Game.NpcShopControl.Instance;
-                if (shop != null && shop.Visible && shop.DisplayRectangle.Contains(MuGame.Instance.Mouse.Position) && _networkManager != null)
+                if (shop != null && shop.Visible && shop.DisplayRectangle.Contains(MuGame.Instance.UiMouseState.Position) && _networkManager != null)
                 {
                     var svc = _networkManager.GetCharacterService();
                     _networkManager.GetCharacterState().StashPendingSellSlot(slotIndex);
@@ -663,9 +668,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     _pickedItemOriginalGrid = new Point(-1, -1);
                 }
                 // Otherwise, check if cursor is over Vault -> move Inventory -> Vault
-                else if (Client.Main.Controls.UI.Game.VaultControl.Instance is { } vault && vault.Visible && vault.DisplayRectangle.Contains(MuGame.Instance.Mouse.Position) && _networkManager != null)
+                else if (Client.Main.Controls.UI.Game.VaultControl.Instance is { } vault && vault.Visible && vault.DisplayRectangle.Contains(MuGame.Instance.UiMouseState.Position) && _networkManager != null)
                 {
-                    var drop = vault.GetSlotAtScreenPosition(MuGame.Instance.Mouse.Position);
+                    var drop = vault.GetSlotAtScreenPosition(MuGame.Instance.UiMouseState.Position);
                     if (drop.X >= 0 && vault.CanPlaceAt(drop, item))
                     {
                         byte toSlot = (byte)(drop.Y * 8 + drop.X); // vault is 8 columns
@@ -755,19 +760,19 @@ namespace Client.Main.Controls.UI.Game.Inventory
             if (DisplayRectangle.Width <= 0 || DisplayRectangle.Height <= 0)
                 return new Point(-1, -1);
 
-            Point localPos = new Point(screenPos.X - DisplayRectangle.X - _gridOffset.X,
-                                       screenPos.Y - DisplayRectangle.Y - _gridOffset.Y);
+            Point localPos = new Point(screenPos.X - DisplayRectangle.X - GridOffset.X,
+                                       screenPos.Y - DisplayRectangle.Y - GridOffset.Y);
 
             if (localPos.X < 0 || localPos.Y < 0 ||
-                localPos.X >= Columns * INVENTORY_SQUARE_WIDTH ||
-                localPos.Y >= Rows * INVENTORY_SQUARE_HEIGHT)
+                localPos.X >= Columns * CellWidth ||
+                localPos.Y >= Rows * CellHeight)
             {
                 return new Point(-1, -1); // Outside grid
             }
 
             return new Point(
-                Math.Min(Columns - 1, localPos.X / INVENTORY_SQUARE_WIDTH),
-                Math.Min(Rows - 1, localPos.Y / INVENTORY_SQUARE_HEIGHT)
+                Math.Min(Columns - 1, localPos.X / CellWidth),
+                Math.Min(Rows - 1, localPos.Y / CellHeight)
             );
         }
 
@@ -780,7 +785,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             Rectangle displayRect = DisplayRectangle;
 
-            using (new SpriteBatchScope(GraphicsManager.Instance.Sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend))
+            using (new SpriteBatchScope(GraphicsManager.Instance.Sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform))
             {
                 // Draw custom inventory elements on top
                 DrawFrame(GraphicsManager.Instance.Sprite, displayRect);
@@ -814,8 +819,8 @@ namespace Client.Main.Controls.UI.Game.Inventory
         {
             const int equipRows = 2;
             // Move equipment area to bottom of inventory grid with some padding
-            int gridBottomY = DisplayRectangle.Y + _gridOffset.Y + (Rows * INVENTORY_SQUARE_HEIGHT);
-            return new Point(DisplayRectangle.X + _gridOffset.X,
+            int gridBottomY = DisplayRectangle.Y + GridOffset.Y + (Rows * CellHeight);
+            return new Point(DisplayRectangle.X + GridOffset.X,
                              gridBottomY + 20); // 20px padding below the grid
         }
 
@@ -826,10 +831,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
             {
                 var cell = kv.Value;
                 var slotRect = new Rectangle(
-                    equipTopLeft.X + cell.X * INVENTORY_SQUARE_WIDTH,
-                    equipTopLeft.Y + cell.Y * INVENTORY_SQUARE_HEIGHT,
-                    INVENTORY_SQUARE_WIDTH,
-                    INVENTORY_SQUARE_HEIGHT);
+                    equipTopLeft.X + cell.X * CellWidth,
+                    equipTopLeft.Y + cell.Y * CellHeight,
+                    CellWidth,
+                    CellHeight);
                 if (slotRect.Contains(screenPos))
                     return kv.Key;
             }
@@ -846,8 +851,8 @@ namespace Client.Main.Controls.UI.Game.Inventory
             var panelRect = new Rectangle(
                 equipTopLeft.X - 8,
                 equipTopLeft.Y - 14,
-                equipCols * INVENTORY_SQUARE_WIDTH + 16,
-                equipRows * INVENTORY_SQUARE_HEIGHT + 24);
+                equipCols * CellWidth + 16,
+                equipRows * CellHeight + 24);
             spriteBatch.Draw(GraphicsManager.Instance.Pixel, panelRect, new Color(8, 8, 8, 180));
             // Border
             spriteBatch.Draw(GraphicsManager.Instance.Pixel, new Rectangle(panelRect.X, panelRect.Y, panelRect.Width, 1), Color.Black * 0.6f);
@@ -860,10 +865,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
             {
                 var cell = kv.Value;
                 Rectangle slotRect = new Rectangle(
-                    equipTopLeft.X + cell.X * INVENTORY_SQUARE_WIDTH,
-                    equipTopLeft.Y + cell.Y * INVENTORY_SQUARE_HEIGHT,
-                    INVENTORY_SQUARE_WIDTH,
-                    INVENTORY_SQUARE_HEIGHT);
+                    equipTopLeft.X + cell.X * CellWidth,
+                    equipTopLeft.Y + cell.Y * CellHeight,
+                    CellWidth,
+                    CellHeight);
 
                 if (_slotTexture != null)
                 {
@@ -886,10 +891,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 if (!_equipLayout.TryGetValue(kv.Key, out var cell)) continue;
                 var item = kv.Value;
                 Rectangle itemRect = new Rectangle(
-                    equipTopLeft.X + cell.X * INVENTORY_SQUARE_WIDTH,
-                    equipTopLeft.Y + cell.Y * INVENTORY_SQUARE_HEIGHT,
-                    INVENTORY_SQUARE_WIDTH,
-                    INVENTORY_SQUARE_HEIGHT);
+                    equipTopLeft.X + cell.X * CellWidth,
+                    equipTopLeft.Y + cell.Y * CellHeight,
+                    CellWidth,
+                    CellHeight);
 
                 Texture2D itemTexture = null;
                 if (!string.IsNullOrEmpty(item.Definition.TexturePath))
@@ -952,17 +957,17 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void DrawGrid(SpriteBatch spriteBatch, Rectangle frameRect)
         {
-            Point gridTopLeft = new Point(DisplayRectangle.X + _gridOffset.X, DisplayRectangle.Y + _gridOffset.Y);
+            Point gridTopLeft = new Point(DisplayRectangle.X + GridOffset.X, DisplayRectangle.Y + GridOffset.Y);
 
             for (int y = 0; y < Rows; y++)
             {
                 for (int x = 0; x < Columns; x++)
                 {
                     Rectangle slotRect = new Rectangle(
-                        gridTopLeft.X + x * INVENTORY_SQUARE_WIDTH,
-                        gridTopLeft.Y + y * INVENTORY_SQUARE_HEIGHT,
-                        INVENTORY_SQUARE_WIDTH,
-                        INVENTORY_SQUARE_HEIGHT);
+                        gridTopLeft.X + x * CellWidth,
+                        gridTopLeft.Y + y * CellHeight,
+                        CellWidth,
+                        CellHeight);
 
                     if (_slotTexture != null)
                     {
@@ -1076,12 +1081,12 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private bool IsMouseOverGrid()
         {
-            Point mousePos = MuGame.Instance.Mouse.Position;
+            Point mousePos = MuGame.Instance.UiMouseState.Position;
             Rectangle gridScreenRect = new Rectangle(
-                DisplayRectangle.X + _gridOffset.X,
-                DisplayRectangle.Y + _gridOffset.Y,
-                Columns * INVENTORY_SQUARE_WIDTH,
-                Rows * INVENTORY_SQUARE_HEIGHT);
+                DisplayRectangle.X + GridOffset.X,
+                DisplayRectangle.Y + GridOffset.Y,
+                Columns * CellWidth,
+                Rows * CellHeight);
             return gridScreenRect.Contains(mousePos);
         }
 
@@ -1091,7 +1096,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private bool IsMouseOverDragArea()
         {
-            Point mousePos = MuGame.Instance.Mouse.Position;
+            Point mousePos = MuGame.Instance.UiMouseState.Position;
             int dragAreaHeight = DisplayRectangle.Height / 10; // Top 1/10 of window
             Rectangle dragRect = new Rectangle(
                 DisplayRectangle.X,
@@ -1112,7 +1117,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void DrawItems(SpriteBatch spriteBatch, Rectangle frameRect)
         {
-            Point gridTopLeft = new Point(DisplayRectangle.X + _gridOffset.X, DisplayRectangle.Y + _gridOffset.Y);
+            Point gridTopLeft = new Point(DisplayRectangle.X + GridOffset.X, DisplayRectangle.Y + GridOffset.Y);
             var font = GraphicsManager.Instance.Font;
 
             foreach (var item in _items)
@@ -1120,10 +1125,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 if (item == _pickedItemRenderer.Item) continue;
 
                 Rectangle itemRect = new Rectangle(
-                    gridTopLeft.X + item.GridPosition.X * INVENTORY_SQUARE_WIDTH,
-                    gridTopLeft.Y + item.GridPosition.Y * INVENTORY_SQUARE_HEIGHT,
-                    item.Definition.Width * INVENTORY_SQUARE_WIDTH,
-                    item.Definition.Height * INVENTORY_SQUARE_HEIGHT);
+                    gridTopLeft.X + item.GridPosition.X * CellWidth,
+                    gridTopLeft.Y + item.GridPosition.Y * CellHeight,
+                    item.Definition.Width * CellWidth,
+                    item.Definition.Height * CellHeight);
 
                 Texture2D itemTexture = null;
                 if (!string.IsNullOrEmpty(item.Definition.TexturePath))
@@ -1134,8 +1139,8 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     {
                         try
                         {
-                            int w = item.Definition.Width * INVENTORY_SQUARE_WIDTH;
-                            int h = item.Definition.Height * INVENTORY_SQUARE_HEIGHT;
+                            int w = item.Definition.Width * CellWidth;
+                            int h = item.Definition.Height * CellHeight;
 
                             // Use animated preview for hovered items
                             if (item == _hoveredItem)
@@ -1294,18 +1299,18 @@ namespace Client.Main.Controls.UI.Game.Inventory
             }
             w += 12; h += 8;
 
-            Point m = MuGame.Instance.Mouse.Position;
+            Point m = MuGame.Instance.UiMouseState.Position;
 
             // Get screen bounds
-            Rectangle screenBounds = MuGame.Instance.GraphicsDevice.Viewport.Bounds;
+            Rectangle screenBounds = new Rectangle(0, 0, UiScaler.VirtualSize.X, UiScaler.VirtualSize.Y);
 
             // Calculate hovered item screen position to avoid covering it
-            Point gridTopLeft = new Point(DisplayRectangle.X + _gridOffset.X, DisplayRectangle.Y + _gridOffset.Y);
+            Point gridTopLeft = new Point(DisplayRectangle.X + GridOffset.X, DisplayRectangle.Y + GridOffset.Y);
             Rectangle hoveredItemRect = new Rectangle(
-                gridTopLeft.X + _hoveredItem.GridPosition.X * INVENTORY_SQUARE_WIDTH,
-                gridTopLeft.Y + _hoveredItem.GridPosition.Y * INVENTORY_SQUARE_HEIGHT,
-                _hoveredItem.Definition.Width * INVENTORY_SQUARE_WIDTH,
-                _hoveredItem.Definition.Height * INVENTORY_SQUARE_HEIGHT);
+                gridTopLeft.X + _hoveredItem.GridPosition.X * CellWidth,
+                gridTopLeft.Y + _hoveredItem.GridPosition.Y * CellHeight,
+                _hoveredItem.Definition.Width * CellWidth,
+                _hoveredItem.Definition.Height * CellHeight);
 
             // Start with tooltip to the right of the cursor
             Rectangle r = new(m.X + 15, m.Y + 15, w, h);

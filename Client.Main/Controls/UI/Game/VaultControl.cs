@@ -153,12 +153,12 @@ namespace Client.Main.Controls.UI.Game
             if (!Visible) return;
             base.Draw(gameTime);
             var sprite = GraphicsManager.Instance.Sprite;
-            using (new SpriteBatchScope(sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend))
+            using (new SpriteBatchScope(sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform))
             {
                 var font = _font ?? GraphicsManager.Instance.Font;
                 Point origin = _gridTopLeft;
                 _hoveredItem = null;
-                var mouse = MuGame.Instance.Mouse.Position;
+                var mouse = MuGame.Instance.UiMouseState.Position;
                 var hoveredSlot = GetSlotAtScreenPosition(mouse);
 
                 var snapshot = _items.ToArray();
@@ -266,7 +266,7 @@ namespace Client.Main.Controls.UI.Game
             if (!Visible) return;
             base.DrawAfter(gameTime);
             var sprite = GraphicsManager.Instance.Sprite;
-            using (new SpriteBatchScope(sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend))
+            using (new SpriteBatchScope(sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform))
             {
                 DrawTooltip(sprite, DisplayRectangle);
             }
@@ -287,8 +287,8 @@ namespace Client.Main.Controls.UI.Game
             }
 
             _currentGameTime = gameTime;
-            var mouse = MuGame.Instance.Mouse;
-            var prev = MuGame.Instance.PrevMouseState;
+            var mouse = MuGame.Instance.UiMouseState;
+            var prev = MuGame.Instance.PrevUiMouseState;
             bool leftJustPressed = mouse.LeftButton == ButtonState.Pressed && prev.LeftButton == ButtonState.Released;
             bool leftJustReleased = mouse.LeftButton == ButtonState.Released && prev.LeftButton == ButtonState.Pressed;
 
@@ -528,8 +528,8 @@ namespace Client.Main.Controls.UI.Game
                 h += (int)sz.Y + 2;
             }
             w += 12; h += 8;
-            Point m = MuGame.Instance.Mouse.Position;
-            Rectangle screenBounds = MuGame.Instance.GraphicsDevice.Viewport.Bounds;
+            Point m = MuGame.Instance.UiMouseState.Position;
+            Rectangle screenBounds = new Rectangle(0, 0, UiScaler.VirtualSize.X, UiScaler.VirtualSize.Y);
             Point gridTopLeft = _gridTopLeft + new Point(DisplayRectangle.X, DisplayRectangle.Y);
             Rectangle hoveredItemRect = new Rectangle(
                 gridTopLeft.X + _hoveredItem.GridPosition.X * CELL_W,

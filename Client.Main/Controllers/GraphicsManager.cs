@@ -116,6 +116,54 @@ namespace Client.Main.Controllers
             FXAAEffect?.Parameters["Resolution"]?.SetValue(new Vector2(_graphicsDevice.Viewport.Width, _graphicsDevice.Viewport.Height));
         }
 
+
+        public void UpdateRenderScale()
+        {
+            // Dispose old render targets
+            MainRenderTarget?.Dispose();
+            TempTarget1?.Dispose();
+            TempTarget2?.Dispose();
+            EffectRenderTarget?.Dispose();
+
+            // Recreate with new scale
+            InitializeRenderTargets();
+
+            // Update UiScaler with new render scale
+            var settings = MuGame.AppSettings?.Graphics;
+            if (settings != null)
+            {
+                UiScaler.Configure(
+                    MuGame.Instance.Width,
+                    MuGame.Instance.Height,
+                    settings.UiVirtualWidth,
+                    settings.UiVirtualHeight);
+            }
+        }
+
+        /// <summary>
+        /// Gets the appropriate SamplerState based on quality settings.
+        /// </summary>
+        public static SamplerState GetQualitySamplerState()
+        {
+            if (Constants.HIGH_QUALITY_TEXTURES)
+            {
+                return SamplerState.AnisotropicClamp;
+            }
+            return SamplerState.PointClamp;
+        }
+
+        /// <summary>
+        /// Gets the appropriate SamplerState for linear sampling based on quality settings.
+        /// </summary>
+        public static SamplerState GetQualityLinearSamplerState()
+        {
+            if (Constants.HIGH_QUALITY_TEXTURES)
+            {
+                return SamplerState.AnisotropicWrap;
+            }
+            return SamplerState.LinearClamp;
+        }
+
         private void InitializeRenderTargets()
         {
             PresentationParameters pp = _graphicsDevice.PresentationParameters;
@@ -123,10 +171,9 @@ namespace Client.Main.Controllers
             int targetWidth = MuGame.Instance.Width;
             int targetHeight = MuGame.Instance.Height;
 
-            //#if ANDROID || IOS
-            //        targetWidth = (int)(targetWidth * 0.5f); //TODO: adjust the controls 
-            //        targetHeight = (int)(targetHeight * 0.5f);
-            //#endif
+            // Apply render scale for internal resolution
+            targetWidth = (int)(targetWidth * Constants.RENDER_SCALE);
+            targetHeight = (int)(targetHeight * Constants.RENDER_SCALE);
 
             // POPRAWKA: Używamy SurfaceFormat.Color zamiast pp.BackBufferFormat dla MSAA
             // to pomaga z problemem gamma

@@ -182,10 +182,14 @@ namespace Client.Main.Objects.Effects
                 Camera.Instance.View,
                 Matrix.Identity);
 
-            // final screen coordinates
-            _screenPosition = new Vector2(
+            // Projected coordinates are already in the correct space
+
+            // final screen coordinates - convert to virtual coordinates for UiScaler
+            Vector2 screenPos = new Vector2(
                 proj.X + _currentHorizontalOffset + wobble,
                 proj.Y + _currentVerticalOffset);
+            var virtualPos = UiScaler.ToVirtual(new Point((int)screenPos.X, (int)screenPos.Y));
+            _screenPosition = new Vector2(virtualPos.X, virtualPos.Y);
 
             Hidden = (proj.Z < 0f || proj.Z > 1f);
             base.Update(gameTime);
@@ -206,6 +210,7 @@ namespace Client.Main.Objects.Effects
 
             const float fontSize = 12f;
             float baseScale = fontSize / Constants.BASE_FONT_SIZE;
+            // UiScaler will handle render scale transformation
             float scale = Math.Max(0.1f, baseScale * _currentScale);
             Vector2 origin = font.MeasureString(Text) * 0.5f;
 
@@ -242,7 +247,9 @@ namespace Client.Main.Objects.Effects
                 BlendState.AlphaBlend,
                 SamplerState.AnisotropicClamp,
                 DepthStencilState.None,
-                RasterizerState.CullNone))
+                RasterizerState.CullNone,
+                null,
+                UiScaler.SpriteTransform))
             {
                 // Shadow (only for bigger text)
                 if (scale > 0.8f)

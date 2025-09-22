@@ -135,10 +135,11 @@ public class CursorControl : SpriteControl
         else
         {
             // If there are no touches, handle mouse input (e.g. on PC)
-            X = MuGame.Instance.Mouse.X;
-            Y = MuGame.Instance.Mouse.Y;
+            var uiMouse = MuGame.Instance.UiMouseState;
+            X = uiMouse.X;
+            Y = uiMouse.Y;
 
-            if (MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed)
+            if (uiMouse.LeftButton == ButtonState.Pressed)
             {
                 SetCursorState("Interface/CursorPush.ozt", DefaultAnimation);
 

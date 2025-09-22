@@ -46,6 +46,9 @@ namespace Client.Main
         public int Height => _graphics.PreferredBackBufferHeight;
         public MouseState PrevMouseState { get; private set; }
         public MouseState Mouse { get; set; }
+        public MouseState PrevUiMouseState { get; private set; }
+        public MouseState UiMouseState { get; private set; }
+        public Point UiMousePosition { get; private set; }
         public KeyboardState PrevKeyboard { get; private set; }
         public KeyboardState Keyboard { get; private set; }
         public TouchCollection PrevTouchState { get; private set; }
@@ -88,6 +91,7 @@ namespace Client.Main
             _graphics.GraphicsProfile = GraphicsProfile.HiDef;
             _graphics.PreferredBackBufferFormat = SurfaceFormat.Color;
             _graphics.ApplyChanges();
+            UiScaler.Configure(_graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight, Constants.BASE_UI_WIDTH, Constants.BASE_UI_HEIGHT);
             Content.RootDirectory = "Content";
 
             // Register handler for game exit (X button, Alt+F4, etc.)
@@ -141,6 +145,25 @@ namespace Client.Main
             { logger.LogError("❌ ProtocolVersion '{V}' invalid. Valid: {Vs}", settings.ProtocolVersion, string.Join(", ", Enum.GetNames<TargetProtocolVersion>())); isValid = false; }
             if (string.IsNullOrWhiteSpace(settings.ClientVersion)) { logger.LogWarning("⚠️ ClientVersion not set."); }
             if (string.IsNullOrWhiteSpace(settings.ClientSerial)) { logger.LogWarning("⚠️ ClientSerial not set."); }
+            if (settings.Graphics == null)
+            {
+                logger.LogError("❌ Graphics settings missing from configuration.");
+                isValid = false;
+            }
+            else
+            {
+                if (settings.Graphics.Width <= 0 || settings.Graphics.Height <= 0)
+                {
+                    logger.LogError("❌ Graphics resolution {W}x{H} invalid.", settings.Graphics.Width, settings.Graphics.Height);
+                    isValid = false;
+                }
+
+                if (settings.Graphics.UiVirtualWidth <= 0 || settings.Graphics.UiVirtualHeight <= 0)
+                {
+                    logger.LogError("❌ UI virtual resolution {W}x{H} invalid.", settings.Graphics.UiVirtualWidth, settings.Graphics.UiVirtualHeight);
+                    isValid = false;
+                }
+            }
             return isValid;
         }
 
@@ -238,14 +261,16 @@ namespace Client.Main
             bootLogger.LogInformation("✅ TaskScheduler initialized.");
 
             IsMouseVisible = false; // Keep this if you want a custom cursor
+
+            ApplyGraphicsConfiguration(AppSettings.Graphics);
+            _logger?.LogDebug("UI scale factor set to {Scale:F3} (virtual {VirtualWidth}x{VirtualHeight} -> actual {ActualWidth}x{ActualHeight}).",
+                UiScaler.Scale,
+                UiScaler.VirtualSize.X,
+                UiScaler.VirtualSize.Y,
+                UiScaler.ActualSize.X,
+                UiScaler.ActualSize.Y);
+
             base.Initialize();
-
-            // Base aspect ratio (e.g., 16:9)
-            float baseAspectRatio = 16f / 9f;
-            float currentAspectRatio = (float)_graphics.PreferredBackBufferWidth / _graphics.PreferredBackBufferHeight;
-            _scaleFactor = currentAspectRatio / baseAspectRatio;
-
-            _logger?.LogDebug($"Scale Factor: {_scaleFactor}");
         }
 
         protected override void UnloadContent()
@@ -435,7 +460,7 @@ namespace Client.Main
         public void ApplyGraphicsOptions()
         {
 #if !(ANDROID || IOS)
-            _graphics.SynchronizeWithVerticalRetrace = !Constants.UNLIMITED_FPS;
+            _graphics.SynchronizeWithVerticalRetrace = !Constants.UNLIMITED_FPS && !Constants.DISABLE_VSYNC;
             IsFixedTimeStep = !Constants.UNLIMITED_FPS;
             TargetElapsedTime = Constants.UNLIMITED_FPS
                 ? TimeSpan.FromMilliseconds(1)
@@ -459,6 +484,7 @@ namespace Client.Main
             var windowBounds = Window.ClientBounds;
 
             PrevMouseState = Mouse;
+            PrevUiMouseState = UiMouseState;
             PrevKeyboard = Keyboard;
             PrevTouchState = Touch;
 
@@ -476,6 +502,17 @@ namespace Client.Main
                 Touch = touchState;
             }
 
+            UiMousePosition = UiScaler.ToVirtual(Mouse.Position);
+            UiMouseState = new MouseState(
+                UiMousePosition.X,
+                UiMousePosition.Y,
+                Mouse.ScrollWheelValue,
+                Mouse.LeftButton,
+                Mouse.MiddleButton,
+                Mouse.RightButton,
+                Mouse.XButton1,
+                Mouse.XButton2);
+
             if (PrevMouseState.Position != Mouse.Position)
                 UpdateMouseRay();
 
@@ -485,7 +522,9 @@ namespace Client.Main
 
         private void UpdateMouseRay()
         {
+            // Use original mouse position - the camera projection should handle the scaling
             Vector2 mousePosition = Mouse.Position.ToVector2();
+
             Vector3 farSource = new Vector3(mousePosition, 1f);
             Vector3 farPoint = GraphicsDevice.Viewport.Unproject(
                 farSource,
@@ -550,7 +589,7 @@ namespace Client.Main
                 effect.Parameters["WorldViewProjection"]?.SetValue(worldViewProjection);
             }
 
-            GraphicsManager.Instance.Sprite.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone, effect);
+            GraphicsManager.Instance.Sprite.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, GraphicsManager.GetQualityLinearSamplerState(), DepthStencilState.None, RasterizerState.CullNone, effect);
             GraphicsManager.Instance.Sprite.Draw(source, GraphicsDevice.Viewport.Bounds, Color.White);
             GraphicsManager.Instance.Sprite.End();
 
@@ -567,13 +606,36 @@ namespace Client.Main
             GraphicsManager.Instance.Sprite.Begin(
                 SpriteSortMode.Deferred,
                 BlendState.Opaque,
-                SamplerState.LinearClamp,
+                GraphicsManager.GetQualityLinearSamplerState(),
                 DepthStencilState.None,
                 RasterizerState.CullNone,
                 gammaEffect);
 
             GraphicsManager.Instance.Sprite.Draw(sourceTarget, GraphicsDevice.Viewport.Bounds, Color.White);
             GraphicsManager.Instance.Sprite.End();
+        }
+
+        private void ApplyGraphicsConfiguration(GraphicsSettings graphics)
+        {
+            if (graphics == null)
+            {
+                return;
+            }
+
+#if !(ANDROID || IOS)
+            _graphics.IsFullScreen = graphics.IsFullScreen;
+#endif
+            _graphics.PreferredBackBufferWidth = Math.Max(1, graphics.Width);
+            _graphics.PreferredBackBufferHeight = Math.Max(1, graphics.Height);
+            _graphics.ApplyChanges();
+
+            UiScaler.Configure(
+                _graphics.PreferredBackBufferWidth,
+                _graphics.PreferredBackBufferHeight,
+                Math.Max(1, graphics.UiVirtualWidth),
+                Math.Max(1, graphics.UiVirtualHeight));
+
+            _scaleFactor = UiScaler.Scale;
         }
 
         /// <summary>

@@ -159,7 +159,8 @@ namespace Client.Main.Controls.UI
             }
 
             sb.End();
-            sb.Begin(SpriteSortMode.Deferred, BlendState.NonPremultiplied, SamplerState.LinearClamp, null, null, null, italicTransform);
+            var combinedTransform = italicTransform * UiScaler.SpriteTransform;
+            sb.Begin(SpriteSortMode.Deferred, BlendState.NonPremultiplied, SamplerState.LinearClamp, null, null, null, combinedTransform);
 
             if (HasShadow)
             {
@@ -194,7 +195,11 @@ namespace Client.Main.Controls.UI
             sb.Begin(
                 SpriteSortMode.Deferred,
                 BlendState.AlphaBlend,
-                SamplerState.LinearClamp);
+                SamplerState.LinearClamp,
+                null,
+                null,
+                null,
+                UiScaler.SpriteTransform);
         }
 
         private void OnChangeText()

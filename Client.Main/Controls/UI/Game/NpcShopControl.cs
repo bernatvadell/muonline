@@ -26,6 +26,12 @@ namespace Client.Main.Controls.UI.Game
 
         private readonly List<InventoryItem> _items = new();
         private Point _gridTopLeft = new Point(170, 180);
+
+        // Shop grid properties use DynamicLayoutControl coordinate system (no UiScaler scaling)
+        private Point GridTopLeft => _gridTopLeft;
+        private int ShopCellWidth => SHOP_SQUARE_WIDTH;
+        private int ShopCellHeight => SHOP_SQUARE_HEIGHT;
+
         private SpriteFont _font;
         private Texture2D _slotTexture;
         private GameTime _currentGameTime;
@@ -40,8 +46,8 @@ namespace Client.Main.Controls.UI.Game
             var rows = SHOP_ROWS;
             var cols = SHOP_COLUMNS;
 
-            var ScreenX = _gridTopLeft.X;
-            var ScreenY = _gridTopLeft.Y;
+            var ScreenX = GridTopLeft.X;
+            var ScreenY = GridTopLeft.Y;
             for(var i = 0; i < rows; i++)
             {
                 for(var j = 0; j < cols; j++)
@@ -70,10 +76,10 @@ namespace Client.Main.Controls.UI.Game
                         Z = 5
                     };
                     Controls.Add(textureCtrl);
-                    ScreenX += SHOP_SQUARE_WIDTH;
+                    ScreenX += ShopCellWidth;
                 }
-                ScreenY += SHOP_SQUARE_HEIGHT;
-                ScreenX = _gridTopLeft.X;
+                ScreenY += ShopCellHeight;
+                ScreenX = GridTopLeft.X;
             }
             // Hook up for live updates from server
             var state = MuGame.Network?.GetCharacterState();
@@ -138,9 +144,9 @@ namespace Client.Main.Controls.UI.Game
         {
             if (!Visible) return;
 
-            var mousePos = MuGame.Instance.Mouse.Position;
-            bool leftPressed = MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed;
-            bool leftJustPressed = leftPressed && MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released;
+            var mousePos = MuGame.Instance.UiMouseState.Position;
+            bool leftPressed = MuGame.Instance.UiMouseState.LeftButton == ButtonState.Pressed;
+            bool leftJustPressed = leftPressed && MuGame.Instance.PrevUiMouseState.LeftButton == ButtonState.Released;
             if (!leftJustPressed)
                 return;
 
@@ -169,14 +175,14 @@ namespace Client.Main.Controls.UI.Game
 
         private InventoryItem GetItemAt(Point mouse)
         {
-            Point origin = _gridTopLeft;
+            Point origin = GridTopLeft;
             foreach (var it in _items)
             {
                 var rect = new Rectangle(
-                    origin.X + it.GridPosition.X * SHOP_SQUARE_WIDTH,
-                    origin.Y + it.GridPosition.Y * SHOP_SQUARE_HEIGHT,
-                    it.Definition.Width * SHOP_SQUARE_WIDTH,
-                    it.Definition.Height * SHOP_SQUARE_HEIGHT);
+                    origin.X + it.GridPosition.X * ShopCellWidth,
+                    origin.Y + it.GridPosition.Y * ShopCellHeight,
+                    it.Definition.Width * ShopCellWidth,
+                    it.Definition.Height * ShopCellHeight);
                 if (rect.Contains(mouse))
                     return it;
             }
@@ -185,11 +191,11 @@ namespace Client.Main.Controls.UI.Game
 
         private Point GetSlotAtScreenPosition(Point screenPos)
         {
-            Point local = new Point(screenPos.X - DisplayRectangle.X - _gridTopLeft.X,
-                                    screenPos.Y - DisplayRectangle.Y - _gridTopLeft.Y);
+            Point local = new Point(screenPos.X - DisplayRectangle.X - GridTopLeft.X,
+                                    screenPos.Y - DisplayRectangle.Y - GridTopLeft.Y);
             if (local.X < 0 || local.Y < 0) return new Point(-1, -1);
-            int sx = local.X / SHOP_SQUARE_WIDTH;
-            int sy = local.Y / SHOP_SQUARE_HEIGHT;
+            int sx = local.X / ShopCellWidth;
+            int sy = local.Y / ShopCellHeight;
             if (sx < 0 || sx >= SHOP_COLUMNS || sy < 0 || sy >= SHOP_ROWS) return new Point(-1, -1);
             return new Point(sx, sy);
         }
@@ -244,16 +250,16 @@ namespace Client.Main.Controls.UI.Game
             base.Draw(gameTime);
 
             var sprite = GraphicsManager.Instance.Sprite;
-            using (new SpriteBatchScope(sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend))
+            using (new SpriteBatchScope(sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform))
             {
 
             // Draw items over the grid
             var font = _font ?? GraphicsManager.Instance.Font;
-            Point origin = _gridTopLeft;
+            Point origin = GridTopLeft;
 
             // Track hovered item
             _hoveredItem = null;
-            var mouse = MuGame.Instance.Mouse.Position;
+            var mouse = MuGame.Instance.UiMouseState.Position;
 
             // Compute hovered slot to draw slot-level highlight
             var hoveredSlot = GetSlotAtScreenPosition(mouse);
@@ -262,19 +268,19 @@ namespace Client.Main.Controls.UI.Game
             if (hoveredSlot.X >= 0)
             {
                 var hoveredRect = new Rectangle(
-                    origin.X + hoveredSlot.X * SHOP_SQUARE_WIDTH,
-                    origin.Y + hoveredSlot.Y * SHOP_SQUARE_HEIGHT,
-                    SHOP_SQUARE_WIDTH, SHOP_SQUARE_HEIGHT);
+                    origin.X + hoveredSlot.X * ShopCellWidth,
+                    origin.Y + hoveredSlot.Y * ShopCellHeight,
+                    ShopCellWidth, ShopCellHeight);
                 sprite.Draw(GraphicsManager.Instance.Pixel, hoveredRect, Color.Yellow * 0.3f);
             }
 
             foreach (var item in _items)
             {
                 var rect = new Rectangle(
-                    origin.X + item.GridPosition.X * SHOP_SQUARE_WIDTH,
-                    origin.Y + item.GridPosition.Y * SHOP_SQUARE_HEIGHT,
-                    item.Definition.Width * SHOP_SQUARE_WIDTH,
-                    item.Definition.Height * SHOP_SQUARE_HEIGHT);
+                    origin.X + item.GridPosition.X * ShopCellWidth,
+                    origin.Y + item.GridPosition.Y * ShopCellHeight,
+                    item.Definition.Width * ShopCellWidth,
+                    item.Definition.Height * ShopCellHeight);
 
                 bool isHovered = rect.Contains(mouse);
                 if (isHovered)
@@ -294,10 +300,10 @@ namespace Client.Main.Controls.UI.Game
                             // Keep yellow for directly hovered cell
                             if (gx == hoveredSlot.X && gy == hoveredSlot.Y) continue;
                             var slotRect = new Rectangle(
-                                origin.X + gx * SHOP_SQUARE_WIDTH,
-                                origin.Y + gy * SHOP_SQUARE_HEIGHT,
-                                SHOP_SQUARE_WIDTH,
-                                SHOP_SQUARE_HEIGHT);
+                                origin.X + gx * ShopCellWidth,
+                                origin.Y + gy * ShopCellHeight,
+                                ShopCellWidth,
+                                ShopCellHeight);
                             sprite.Draw(GraphicsManager.Instance.Pixel, slotRect, Color.Blue * 0.3f);
                         }
                     }
@@ -358,7 +364,7 @@ namespace Client.Main.Controls.UI.Game
             if (!Visible) return;
             base.DrawAfter(gameTime);
             var sprite = GraphicsManager.Instance.Sprite;
-            using (new SpriteBatchScope(sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend))
+            using (new SpriteBatchScope(sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform))
             {
                 DrawTooltip(sprite, DisplayRectangle);
             }
@@ -417,14 +423,14 @@ namespace Client.Main.Controls.UI.Game
                 h += (int)sz.Y + 2;
             }
             w += 12; h += 8;
-            Point m = MuGame.Instance.Mouse.Position;
-            Rectangle screenBounds = MuGame.Instance.GraphicsDevice.Viewport.Bounds;
-            Point gridTopLeft = _gridTopLeft + new Point(DisplayRectangle.X, DisplayRectangle.Y);
+            Point m = MuGame.Instance.UiMouseState.Position;
+            Rectangle screenBounds = new Rectangle(0, 0, UiScaler.VirtualSize.X, UiScaler.VirtualSize.Y);
+            Point gridTopLeft = GridTopLeft + new Point(DisplayRectangle.X, DisplayRectangle.Y);
             Rectangle hoveredItemRect = new Rectangle(
-                gridTopLeft.X + _hoveredItem.GridPosition.X * SHOP_SQUARE_WIDTH,
-                gridTopLeft.Y + _hoveredItem.GridPosition.Y * SHOP_SQUARE_HEIGHT,
-                _hoveredItem.Definition.Width * SHOP_SQUARE_WIDTH,
-                _hoveredItem.Definition.Height * SHOP_SQUARE_HEIGHT);
+                gridTopLeft.X + _hoveredItem.GridPosition.X * ShopCellWidth,
+                gridTopLeft.Y + _hoveredItem.GridPosition.Y * ShopCellHeight,
+                _hoveredItem.Definition.Width * ShopCellWidth,
+                _hoveredItem.Definition.Height * ShopCellHeight);
             Rectangle r = new(m.X + 15, m.Y + 15, w, h);
             if (r.Intersects(hoveredItemRect))
             {
