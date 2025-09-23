@@ -75,9 +75,10 @@ namespace Client.Main.Objects.Effects
             AffectedByTransparency = false;
             Status = GameControlStatus.Ready;
 
-            // Critical hit detection
-            _isCritical = text.Contains("!") || text.Contains("CRIT") ||
-                          (int.TryParse(text, out int dmg) && dmg > 500);
+            // Critical hit detection - enhanced to detect more crit patterns
+            _isCritical = text.Contains("!") || text.Contains("CRIT") || text.Contains("CRITICAL") ||
+                          (int.TryParse(text, out int dmg) && dmg > 500) ||
+                          text.EndsWith("!!") || text.StartsWith("*");
 
             // Randomised motion -------------------------------------------------
             float speedFactor = _isCritical ? 1.5f : 1f;

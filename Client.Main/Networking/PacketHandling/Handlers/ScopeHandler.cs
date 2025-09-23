@@ -608,11 +608,16 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 uint shieldDmg = hitInfo.ShieldDamage;
                 uint totalDmg = healthDmg + shieldDmg;
 
-                // Log damage event
+                // Get damage type information from server
+                var damageKind = hitInfo.Kind;
+                bool isDoubleDamage = hitInfo.IsDoubleDamage;
+                bool isTripleDamage = hitInfo.IsTripleDamage;
+
+                // Log damage event with type information
                 string objectName = _scopeManager.TryGetScopeObjectName(maskedId, out var nm) ? (nm ?? "Object") : "Object";
                 _logger.LogInformation(
-                    "💥 {ObjectName} (ID: {Id:X4}) received hit: HP {HpDmg}, SD {SdDmg}",
-                    objectName, maskedId, healthDmg, shieldDmg
+                    "💥 {ObjectName} (ID: {Id:X4}) received hit: HP {HpDmg}, SD {SdDmg}, Type: {DamageKind}, 2x: {IsDouble}, 3x: {IsTriple}",
+                    objectName, maskedId, healthDmg, shieldDmg, damageKind, isDoubleDamage, isTripleDamage
                 );
 
                 // Display floating damage text on the main thread
@@ -643,22 +648,43 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     var headPos = target.WorldPosition.Translation
                                 + Vector3.UnitZ * (target.BoundingBoxWorld.Max.Z - target.WorldPosition.Translation.Z + 30f);
 
+                    // Use server-provided damage type for authentic MU Online colors
                     Color dmgColor;
+                    string dmgText;
+
                     if (totalDmg == 0)
                     {
                         dmgColor = Color.White;
-                    }
-                    else if (maskedId == _characterState.Id)
-                    {
-                        dmgColor = Color.Red;
+                        dmgText = "Miss";
                     }
                     else
                     {
-                        dmgColor = Color.Orange;
+                        // Map DamageKind to colors
+                        dmgColor = damageKind switch
+                        {
+                            DamageKind.NormalRed => Color.Orange,
+                            DamageKind.IgnoreDefenseCyan => Color.Cyan,
+                            DamageKind.ExcellentLightGreen => Color.LightGreen,
+                            DamageKind.CriticalBlue => Color.DeepSkyBlue,
+                            DamageKind.LightPink => Color.LightPink,
+                            DamageKind.PoisonDarkGreen => Color.DarkGreen,
+                            DamageKind.ReflectedDarkPink => Color.DeepPink,
+                            DamageKind.White => Color.White,
+                            _ => Color.Red // fallback to normal red
+                        };
+
+                        // Add damage multiplier indicators for double/triple damage
+                        string multiplier = "";
+                        if (isTripleDamage)
+                            multiplier = "!!!";
+                        else if (isDoubleDamage)
+                            multiplier = "!!";
+
+                        dmgText = $"{totalDmg}{multiplier}";
                     }
 
                     var txt = new DamageTextObject(
-                        totalDmg == 0 ? "Miss" : totalDmg.ToString(),
+                        dmgText,
                         maskedId,
                         dmgColor
                     );
