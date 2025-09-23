@@ -90,23 +90,32 @@ namespace Client.Main.Objects.Effects
             if (_bubbleTexture == null)
                 return;
 
+            // Don't render bubbles in normal Draw pass
+            DrawBoundingBox2D();
+            base.Draw(gameTime);
+        }
+
+        public override void DrawAfter(GameTime gameTime)
+        {
+            if (_bubbleTexture == null)
+                return;
+
             var sb = GraphicsManager.Instance.Sprite;
 
+            // Render bubbles with depth write enabled so they can occlude other objects
             using (new SpriteBatchScope(
                        sb,
-                       SpriteSortMode.BackToFront,
+                       SpriteSortMode.Immediate,
                        BlendState.AlphaBlend,
                        SamplerState.LinearClamp,
-                       DepthStencilState.DepthRead,
+                       DepthStencilState.Default,
                        RasterizerState.CullNone))
             {
                 for (int i = 0; i < _bubbles.Length; i++)
                     DrawBubbleBillboard(_bubbles[i]);
             }
 
-            DrawBoundingBox2D();
-
-            base.Draw(gameTime);
+            base.DrawAfter(gameTime);
         }
 
         private new void DrawBoundingBox2D()
@@ -212,16 +221,15 @@ namespace Client.Main.Objects.Effects
                 Matrix.Identity
             );
 
-            // Projected coordinates are already in the correct space
-
             // Skip if behind camera
             if (screenPos.Z < 0f || screenPos.Z > 1f)
                 return;
 
-            float scale = bubble.Size;
+            // Apply render scale to bubble size only (keep original positioning)
+            float scale = (bubble.Size / _bubbleTexture.Width) * Constants.RENDER_SCALE;
             var spriteBatch = GraphicsManager.Instance.Sprite;
 
-            // Pass screenPos.Z as layerDepth. (0 = front, 1 = back)
+            // Use actual depth from projection for proper depth testing
             spriteBatch.Draw(
                 _bubbleTexture,
                 new Vector2(screenPos.X, screenPos.Y),
@@ -229,9 +237,9 @@ namespace Client.Main.Objects.Effects
                 Color.White,
                 0f,
                 new Vector2(_bubbleTexture.Width / 2f, _bubbleTexture.Height / 2f),
-                scale / _bubbleTexture.Width,
+                scale,
                 SpriteEffects.None,
-                screenPos.Z
+                screenPos.Z  // Use actual projected depth
             );
         }
 

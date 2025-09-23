@@ -1,4 +1,6 @@
 using Client.Main.Content;
+using Client.Main.Models;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Threading.Tasks;
@@ -16,6 +18,12 @@ namespace Client.Main.Objects.Worlds.Atlans
             LightEnabled = true;
             IsTransparent = true;
             Model = await BMDLoader.Instance.Prepare($"Object8/Object{idx}.bmd");
+
+            // Ensure smooth continuous animation for portal
+            CurrentAction = 0;
+            AnimationSpeed = 2.0f; // Consistent animation speed
+            ContinuousAnimation = true; // Enable continuous looping
+            PreventLastFrameInterpolation = true; // Fix stuttering at loop point
 
             await base.Load();
         }

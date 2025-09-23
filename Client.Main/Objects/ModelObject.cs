@@ -96,7 +96,14 @@ namespace Client.Main.Objects
         }
         public bool RenderShadow { get => _renderShadow; set { _renderShadow = value; OnRenderShadowChanged(); } }
         public float AnimationSpeed { get; set; } = 4f;
+        public bool ContinuousAnimation { get; set; }
+        public bool PreventLastFrameInterpolation { get; set; }
         public static ILoggerFactory AppLoggerFactory { get; private set; }
+
+        public static void SetLoggerFactory(ILoggerFactory loggerFactory)
+        {
+            AppLoggerFactory = loggerFactory;
+        }
         protected ILogger _logger;
 
         public int ItemLevel { get; set; } = 0;
@@ -1552,7 +1559,7 @@ namespace Client.Main.Objects
                 }
             }
 
-            if (totalFrames == 1)
+            if (totalFrames == 1 && !ContinuousAnimation)
             {
                 if (_priorAction != currentActionIndex)
                 {
@@ -1591,6 +1598,18 @@ namespace Client.Main.Objects
             int f0 = (int)framePos;
             int f1 = (f0 + 1) % totalFrames;
             float t = (float)(framePos - f0);
+
+            // Only applies to objects that specifically request it (e.g., portals with stuttering)
+            if (PreventLastFrameInterpolation && totalFrames > 1 && f0 == totalFrames - 1)
+            {
+                // Instead of interpolating lastFrame->firstFrame, restart smoothly
+                // This eliminates the visual "jump" that causes animation stuttering
+                f0 = 0;
+                f1 = 1;
+                t = 0.0f;
+                framePos = 0.0;
+                _animTime = _animTime - (totalFrames - 1); // Adjust time to maintain continuity
+            }
 
             GenerateBoneMatrix(currentActionIndex, f0, f1, t);
 
