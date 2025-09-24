@@ -19,14 +19,14 @@ namespace Client.Main.Controls.UI.Game
 {
     public class CharacterInfoWindowControl : UIControl
     {
-        private const int WINDOW_WIDTH = 190;
-        private const int WINDOW_HEIGHT = 429;
+        private const int WINDOW_WIDTH = 280;
+        private const int WINDOW_HEIGHT = 520;
 
-        private const int HEIGHT_STRENGTH = 120;
-        private const int HEIGHT_DEXTERITY = 175;
-        private const int HEIGHT_VITALITY = 240;
-        private const int HEIGHT_ENERGY = 295;
-        private const int HEIGHT_CHARISMA = 350; // Command/Leadership
+        private const int HEIGHT_STRENGTH = 140;
+        private const int HEIGHT_DEXTERITY = 200;
+        private const int HEIGHT_VITALITY = 270;
+        private const int HEIGHT_ENERGY = 340;
+        private const int HEIGHT_CHARISMA = 410; // Command/Leadership
         private const int BTN_STAT_COUNT = 5;
 
         private CharacterState _characterState;
@@ -50,6 +50,9 @@ namespace Client.Main.Controls.UI.Game
         private LabelControl _agiDetail1Label, _agiDetail2Label, _agiDetail3Label;
         private LabelControl _vitDetail1Label, _vitDetail2Label;
         private LabelControl _eneDetail1Label, _eneDetail2Label, _eneDetail3Label;
+
+        // Additional info labels for PvM rates
+        private LabelControl _pvmInfoLabel1, _pvmInfoLabel2;
 
         // Table drawing textures
         private Texture2D _texTableTopLeft, _texTableTopRight, _texTableBottomLeft, _texTableBottomRight;
@@ -79,13 +82,13 @@ namespace Client.Main.Controls.UI.Game
             // Ensure _networkManager is re-initialized in Load, in case it was null earlier.
             _networkManager = MuGame.Network;
 
-            // Load Textures
+            // Load Textures - scale frames with extra margins to fully cover the larger window
             var tl = TextureLoader.Instance;
             _background = new TextureControl { TexturePath = "Interface/newui_msgbox_back.jpg", ViewSize = new Point(WINDOW_WIDTH, WINDOW_HEIGHT), AutoViewSize = false, BlendState = BlendState.Opaque };
-            _topFrame = new TextureControl { TexturePath = "Interface/newui_item_back04.tga", ViewSize = new Point(WINDOW_WIDTH, 64), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
-            _leftFrame = new TextureControl { TexturePath = "Interface/newui_item_back02-L.tga", ViewSize = new Point(21, 320), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
-            _rightFrame = new TextureControl { TexturePath = "Interface/newui_item_back02-R.tga", ViewSize = new Point(21, 320), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
-            _bottomFrame = new TextureControl { TexturePath = "Interface/newui_item_back03.tga", ViewSize = new Point(WINDOW_WIDTH, 45), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
+            _topFrame = new TextureControl { TexturePath = "Interface/newui_item_back04.tga", ViewSize = new Point(WINDOW_WIDTH + 97, 74), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
+            _leftFrame = new TextureControl { TexturePath = "Interface/newui_item_back02-L.tga", ViewSize = new Point(26, WINDOW_HEIGHT + 250), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
+            _rightFrame = new TextureControl { TexturePath = "Interface/newui_item_back02-R.tga", ViewSize = new Point(26, WINDOW_HEIGHT + 250), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
+            _bottomFrame = new TextureControl { TexturePath = "Interface/newui_item_back03.tga", ViewSize = new Point(WINDOW_WIDTH + 97, 55), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
 
             // Load all textures in parallel to avoid blocking main thread
             var textureLoadTasks = new[]
@@ -101,7 +104,7 @@ namespace Client.Main.Controls.UI.Game
             };
 
             var loadedTextures = await Task.WhenAll(textureLoadTasks);
-            
+
             _texTableTopLeft = loadedTextures[0];
             _texTableTopRight = loadedTextures[1];
             _texTableBottomLeft = loadedTextures[2];
@@ -117,18 +120,18 @@ namespace Client.Main.Controls.UI.Game
             Controls.Add(_rightFrame);
             Controls.Add(_bottomFrame);
 
-            // Labels for top info
-            _nameLabel = new LabelControl { Y = 12 - 7, TextAlign = HorizontalAlign.Center, IsBold = true, FontSize = 12f, TextColor = Color.White, ViewSize = new Point(WINDOW_WIDTH, 20), X = 0 };
-            _classLabel = new LabelControl { Y = 27 - 7, TextAlign = HorizontalAlign.Center, FontSize = 11f, TextColor = Color.LightGray, ViewSize = new Point(WINDOW_WIDTH, 15), X = 0 };
+            // Labels for top info - properly centered for larger window
+            _nameLabel = new LabelControl { Y = 5, TextAlign = HorizontalAlign.Center, IsBold = true, FontSize = 13f, TextColor = Color.White, ViewSize = new Point(WINDOW_WIDTH, 22), X = 0 };
+            _classLabel = new LabelControl { Y = 23, TextAlign = HorizontalAlign.Center, FontSize = 12f, TextColor = Color.LightGray, ViewSize = new Point(WINDOW_WIDTH, 18), X = 0 };
             Controls.Add(_nameLabel);
             Controls.Add(_classLabel);
 
-            // Labels for Level/Exp/Points table
-            _levelLabel = new LabelControl { X = 22, Y = 58 - 7, FontSize = 10f, IsBold = true, TextColor = new Color(230, 230, 0) }; // Adjusted X for padding
-            _expLabel = new LabelControl { X = 22, Y = 75 - 7, FontSize = 9f, TextColor = Color.WhiteSmoke };
-            _fruitPointsProbLabel = new LabelControl { X = 22, Y = 88 - 7, FontSize = 9f, TextColor = new Color(76, 197, 254) };
-            _fruitPointsStatsLabel = new LabelControl { X = 22, Y = 101 - 7, FontSize = 9f, TextColor = new Color(76, 197, 254) };
-            _statPointsLabel = new LabelControl { X = 110, Y = 58 - 7, FontSize = 10f, IsBold = true, TextColor = new Color(255, 138, 0) }; // Adjusted X
+            // Labels for Level/Exp/Points table - repositioned for larger window
+            _levelLabel = new LabelControl { X = 28, Y = 60, FontSize = 11f, IsBold = true, TextColor = new Color(230, 230, 0) };
+            _expLabel = new LabelControl { X = 28, Y = 78, FontSize = 10f, TextColor = Color.WhiteSmoke };
+            _fruitPointsProbLabel = new LabelControl { X = 28, Y = 96, FontSize = 10f, TextColor = new Color(76, 197, 254) };
+            _fruitPointsStatsLabel = new LabelControl { X = 28, Y = 114, FontSize = 10f, TextColor = new Color(76, 197, 254) };
+            _statPointsLabel = new LabelControl { X = 155, Y = 60, FontSize = 11f, IsBold = true, TextColor = new Color(255, 138, 0) };
             Controls.Add(_levelLabel);
             Controls.Add(_expLabel);
             Controls.Add(_fruitPointsProbLabel);
@@ -154,7 +157,9 @@ namespace Client.Main.Controls.UI.Game
                     TexturePath = "Interface/newui_chainfo_btn_level.tga",
                     TileWidth = 16,
                     TileHeight = 15,
-                    BlendState = BlendState.AlphaBlend
+                    BlendState = BlendState.AlphaBlend,
+                    AutoViewSize = false,
+                    ViewSize = new Point(16, 15) // Match TileWidth and TileHeight exactly
                 };
 
                 _statValueLabels[i] = new LabelControl { X = 0, Y = statHeights[i], FontSize = 10f, IsBold = true, TextColor = new Color(230, 230, 0) }; // Adjusted Y
@@ -165,36 +170,41 @@ namespace Client.Main.Controls.UI.Game
                 Controls.Add(_statButtons[i]);
             }
 
-            // Initialize Detailed Stat Labels (set to Visible = false by default)
-            float detailFontSize = 9f; Color detailColor = Color.LightGray;
-            _strDetail1Label = new LabelControl { X = 20, Y = HEIGHT_STRENGTH + 25, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
-            _strDetail2Label = new LabelControl { X = 20, Y = HEIGHT_STRENGTH + 25 + 13, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
+            // Initialize Detailed Stat Labels (set to Visible = false by default) - with better spacing for larger window
+            float detailFontSize = 10f; Color detailColor = Color.LightGray;
+            _strDetail1Label = new LabelControl { X = 25, Y = HEIGHT_STRENGTH + 30 / 2, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
+            _strDetail2Label = new LabelControl { X = 25, Y = HEIGHT_STRENGTH + 30 / 2 + 16, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
             Controls.Add(_strDetail1Label); Controls.Add(_strDetail2Label);
 
-            _agiDetail1Label = new LabelControl { X = 20, Y = HEIGHT_DEXTERITY + 24, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
-            _agiDetail2Label = new LabelControl { X = 20, Y = HEIGHT_DEXTERITY + 24 + 13, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
-            _agiDetail3Label = new LabelControl { X = 20, Y = HEIGHT_DEXTERITY + 24 + 13 + 13, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
+            _agiDetail1Label = new LabelControl { X = 25, Y = HEIGHT_DEXTERITY + 30 / 2, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
+            _agiDetail2Label = new LabelControl { X = 25, Y = HEIGHT_DEXTERITY + 30 / 2 + 16, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
+            _agiDetail3Label = new LabelControl { X = 25, Y = HEIGHT_DEXTERITY + 30 / 2 + 16 + 16, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
             Controls.Add(_agiDetail1Label); Controls.Add(_agiDetail2Label); Controls.Add(_agiDetail3Label);
 
-            _vitDetail1Label = new LabelControl { X = 20, Y = HEIGHT_VITALITY + 24, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
-            _vitDetail2Label = new LabelControl { X = 20, Y = HEIGHT_VITALITY + 24 + 13, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
+            _vitDetail1Label = new LabelControl { X = 25, Y = HEIGHT_VITALITY + 30 / 2, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
+            _vitDetail2Label = new LabelControl { X = 25, Y = HEIGHT_VITALITY + 30 / 2 + 16, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
             Controls.Add(_vitDetail1Label); Controls.Add(_vitDetail2Label);
 
-            _eneDetail1Label = new LabelControl { X = 20, Y = HEIGHT_ENERGY + 24, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
-            _eneDetail2Label = new LabelControl { X = 20, Y = HEIGHT_ENERGY + 24 + 13, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
-            _eneDetail3Label = new LabelControl { X = 20, Y = HEIGHT_ENERGY + 24 + 13 + 13, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
+            _eneDetail1Label = new LabelControl { X = 25, Y = HEIGHT_ENERGY + 30 / 2, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
+            _eneDetail2Label = new LabelControl { X = 25, Y = HEIGHT_ENERGY + 30 / 2 + 16, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
+            _eneDetail3Label = new LabelControl { X = 25, Y = HEIGHT_ENERGY + 30 / 2 + 16 + 16, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
             Controls.Add(_eneDetail1Label); Controls.Add(_eneDetail2Label); Controls.Add(_eneDetail3Label);
 
-            _exitButton = CreateBottomButton(13, "Interface/newui_exit_00.tga", "Close (C)");
+            // PvM Info Labels (below stats) - with better spacing
+            _pvmInfoLabel1 = new LabelControl { X = 18, Y = HEIGHT_CHARISMA + 40 / 2, FontSize = detailFontSize, TextColor = new Color(255, 200, 100), Visible = false };
+            _pvmInfoLabel2 = new LabelControl { X = 18, Y = HEIGHT_CHARISMA + 40 / 2 + 18, FontSize = detailFontSize, TextColor = new Color(255, 200, 100), Visible = false };
+            Controls.Add(_pvmInfoLabel1); Controls.Add(_pvmInfoLabel2);
+
+            _exitButton = CreateBottomButton(20, "Interface/newui_exit_00.tga", "Close (C)");
             _exitButton.Click += (s, e) => { Visible = false; SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); };
 
-            _questButton = CreateBottomButton(50, "Interface/newui_chainfo_btn_quest.tga", "Quest (T)");
+            _questButton = CreateBottomButton(70, "Interface/newui_chainfo_btn_quest.tga", "Quest (T)");
             _questButton.Click += (s, e) => { _logger.LogInformation("Quest button clicked."); SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); };
 
-            _petButton = CreateBottomButton(87, "Interface/newui_chainfo_btn_pet.tga", "Pet");
+            _petButton = CreateBottomButton(120, "Interface/newui_chainfo_btn_pet.tga", "Pet");
             _petButton.Click += (s, e) => { _logger.LogInformation("Pet button clicked."); SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); };
 
-            _masterLevelButton = CreateBottomButton(124, "Interface/newui_chainfo_btn_master.tga", "Master Level");
+            _masterLevelButton = CreateBottomButton(170, "Interface/newui_chainfo_btn_master.tga", "Master Level");
             _masterLevelButton.Click += (s, e) => { _logger.LogInformation("Master Level button clicked."); SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); };
 
             Controls.Add(_exitButton);
@@ -212,52 +222,62 @@ namespace Client.Main.Controls.UI.Game
             var button = new ButtonControl
             {
                 X = xOffset,
-                Y = 392,
+                Y = WINDOW_HEIGHT - 40, // Position near bottom of new window
                 TexturePath = texturePath,
                 TileWidth = 36,
                 TileHeight = 29,
                 BlendState = BlendState.AlphaBlend,
                 AutoViewSize = false,
-                ViewSize = new Point(36, 29)
+                ViewSize = new Point(36, 29) // Match TileWidth and TileHeight exactly
             };
             return button;
         }
 
         private void SetupLayout()
         {
+            // Background and frames positioning - avoid negative positions
             _background.X = 0; _background.Y = 0;
+
+            // Top frame: start from left edge of window, full width coverage
             _topFrame.X = 0; _topFrame.Y = 0;
-            _topFrame.ViewSize = new Point(WINDOW_WIDTH + 70, _topFrame.ViewSize.Y); // Ensure full width
-            _leftFrame.X = 0; _leftFrame.Y = 64;
-            _leftFrame.ViewSize = new Point(_leftFrame.ViewSize.X, WINDOW_HEIGHT + 110);
-            _rightFrame.X = WINDOW_WIDTH - 11; _rightFrame.Y = 64;
-            _rightFrame.ViewSize = new Point(_rightFrame.ViewSize.X, WINDOW_HEIGHT + 110);
-            _bottomFrame.X = 0; _bottomFrame.Y = WINDOW_HEIGHT - (_bottomFrame.ViewSize.Y + 20) / 2;
-            _bottomFrame.ViewSize = new Point(WINDOW_WIDTH + 70, _bottomFrame.ViewSize.Y); // Ensure full width
 
-            //_leftFrame.ViewSize = new Point(_leftFrame.ViewSize.X, WINDOW_HEIGHT - _topFrame.ViewSize.Y - _bottomFrame.ViewSize.Y);
-            //_rightFrame.ViewSize = new Point(_rightFrame.ViewSize.X, WINDOW_HEIGHT - _topFrame.ViewSize.Y - _bottomFrame.ViewSize.Y);
+            // Left frame: start from top edge of window
+            _leftFrame.X = 0; _leftFrame.Y = 0;
 
-            _nameLabel.X = 0; _nameLabel.ViewSize = new Point(WINDOW_WIDTH, 20);
-            _classLabel.X = 0; _classLabel.ViewSize = new Point(WINDOW_WIDTH, 15);
-            // _serverLabel.X = 0; _serverLabel.ViewSize = new Point(WINDOW_WIDTH, 15);
+            // Right frame: position at right edge
+            _rightFrame.X = WINDOW_WIDTH - 17; _rightFrame.Y = 0;
 
+            // Bottom frame: start from left edge, position at bottom
+            _bottomFrame.X = 0; _bottomFrame.Y = WINDOW_HEIGHT - 40;
+
+            // Top info labels - ensure full width for centering
+            _nameLabel.X = 90;
+            _nameLabel.ViewSize = new Point(WINDOW_WIDTH, 22);
+            // _nameLabel.TextAlign = HorizontalAlign.Center; // Ensure centering is maintained
+
+            _classLabel.X = 90;
+            _classLabel.ViewSize = new Point(WINDOW_WIDTH, 18);
+            // _classLabel.TextAlign = HorizontalAlign.Center; // Ensure centering is maintained
+
+            // Stat layout with better spacing for larger window
             int[] statHeights = { HEIGHT_STRENGTH, HEIGHT_DEXTERITY, HEIGHT_VITALITY, HEIGHT_ENERGY, HEIGHT_CHARISMA };
             for (int i = 0; i < BTN_STAT_COUNT; i++)
             {
-                _statTextBoxes[i].X = (WINDOW_WIDTH - _statTextBoxes[i].ViewSize.X) / 2; // Centered textbox
+                // Center the 170px wide textboxes in the new window
+                _statTextBoxes[i].X = (WINDOW_WIDTH - 170) / 2 - 40;
                 _statTextBoxes[i].Y = statHeights[i];
 
-                _statNameLabels[i].X = 12; // Relative to window's left edge
-                _statNameLabels[i].ViewSize = new Point(74, 15); // Width for centering text
-                _statNameLabels[i].TextAlign = HorizontalAlign.Center; // Center text within this 74px box
+                _statNameLabels[i].X = 25; // More space from left edge
+                _statNameLabels[i].ViewSize = new Point(85, 18); // Wider area for stat names
+                _statNameLabels[i].TextAlign = HorizontalAlign.Center;
 
-                _statValueLabels[i].X = 86; // Relative to window's left edge
-                _statValueLabels[i].ViewSize = new Point((160 - 3) - 86, 15); // Width for value text area, ending before button
-                _statValueLabels[i].TextAlign = HorizontalAlign.Right; // Right-align value text in its box
-                _statButtons[i].X = 160; // Absolute X for button
-                _statButtons[i].Y = statHeights[i] + 2;
-                _statButtons[i].ViewSize = new Point(16, 15);
+                _statValueLabels[i].X = 90; // Position for values
+                _statValueLabels[i].ViewSize = new Point(120, 18); // Wider area for values including bonuses
+                _statValueLabels[i].TextAlign = HorizontalAlign.Right;
+
+                _statButtons[i].X = WINDOW_WIDTH - 70; // Position near right edge with original size
+                _statButtons[i].Y = statHeights[i] + 3;
+                _statButtons[i].ViewSize = new Point(16, 15); // Match texture size exactly
             }
         }
 
@@ -340,9 +360,15 @@ namespace Client.Main.Controls.UI.Game
         {
             if (_characterState == null) return;
 
-            // Centering logic for name and class labels
-            _nameLabel.ViewSize = new Point(WINDOW_WIDTH, _nameLabel.ControlSize.Y > 0 ? _nameLabel.ControlSize.Y : 20); // Update ViewSize based on current text height
-            _classLabel.ViewSize = new Point(WINDOW_WIDTH, _classLabel.ControlSize.Y > 0 ? _classLabel.ControlSize.Y : 15);
+            // Centering logic for name and class labels - ensure proper centering
+            _nameLabel.X = 90;
+            _nameLabel.ViewSize = new Point(WINDOW_WIDTH, _nameLabel.ControlSize.Y > 0 ? _nameLabel.ControlSize.Y : 22);
+            _nameLabel.TextAlign = HorizontalAlign.Center;
+
+            _classLabel.X = 90;
+            _classLabel.ViewSize = new Point(WINDOW_WIDTH, _classLabel.ControlSize.Y > 0 ? _classLabel.ControlSize.Y : 18);
+            _classLabel.TextAlign = HorizontalAlign.Center;
+
             _nameLabel.Text = _characterState.Name;
             _classLabel.Text = $"({CharacterClassDatabase.GetClassName(_characterState.Class)})";
 
@@ -362,37 +388,78 @@ namespace Client.Main.Controls.UI.Game
             _fruitPointsProbLabel.Text = "[+]100%|[-]100%";
             _fruitPointsStatsLabel.Text = "Create 0/0 | Decrease 0/0";
 
-            _statValueLabels[0].Text = _characterState.Strength.ToString();
-            SetStatLabelColor(_statValueLabels[0], _characterState.Strength, 0);
-            _strDetail1Label.Text = $"Strength: {_characterState.Strength}";
-            _strDetail1Label.Visible = true; // Make visible
-            _strDetail2Label.Text = string.Empty;
-            _strDetail2Label.Visible = false; // Hide if empty
+            // Show total stats vs base stats when there are item bonuses
+            var totalStr = _characterState.TotalStrength;
+            var baseStr = _characterState.Strength;
+            _statValueLabels[0].Text = totalStr > baseStr ? $"{baseStr}+{totalStr - baseStr}" : baseStr.ToString();
+            SetStatLabelColor(_statValueLabels[0], baseStr, (ushort)(totalStr - baseStr));
 
-            _statValueLabels[1].Text = _characterState.Agility.ToString();
-            SetStatLabelColor(_statValueLabels[1], _characterState.Agility, 0);
-            _agiDetail1Label.Text = $"Agility: {_characterState.Agility}";
+            // Physical damage for Strength-based classes
+            var physDmg = GetPhysicalDamage();
+            if (physDmg.min > 0 || physDmg.max > 0)
+            {
+                _strDetail1Label.Text = $"Attack Damage: {physDmg.min}~{physDmg.max}";
+                _strDetail1Label.Visible = true;
+                _strDetail2Label.Text = $"Attack Speed: +{GetAttackSpeed()}";
+                _strDetail2Label.Visible = true;
+            }
+            else
+            {
+                _strDetail1Label.Text = $"Strength: {_characterState.TotalStrength}";
+                _strDetail1Label.Visible = true;
+                _strDetail2Label.Text = string.Empty;
+                _strDetail2Label.Visible = false;
+            }
+
+            var totalAgi = _characterState.TotalAgility;
+            var baseAgi = _characterState.Agility;
+            _statValueLabels[1].Text = totalAgi > baseAgi ? $"{baseAgi}+{totalAgi - baseAgi}" : baseAgi.ToString();
+            SetStatLabelColor(_statValueLabels[1], baseAgi, (ushort)(totalAgi - baseAgi));
+
+            var defense = GetDefense();
+            var pvpAttackRate = GetPvPAttackRate();
+            var pvpDefenseRate = GetPvPDefenseRate();
+
+            _agiDetail1Label.Text = $"Defense: +{defense}";
             _agiDetail1Label.Visible = true;
-            _agiDetail2Label.Text = string.Empty;
-            _agiDetail2Label.Visible = false;
-            _agiDetail3Label.Text = string.Empty;
-            _agiDetail3Label.Visible = false;
+            _agiDetail2Label.Text = $"Attack Rate: {pvpAttackRate}%";
+            _agiDetail2Label.Visible = true;
+            _agiDetail3Label.Text = $"Defense Rate: {pvpDefenseRate}%";
+            _agiDetail3Label.Visible = true;
 
-            _statValueLabels[2].Text = _characterState.Vitality.ToString();
-            SetStatLabelColor(_statValueLabels[2], _characterState.Vitality, 0);
+            var totalVit = _characterState.TotalVitality;
+            var baseVit = _characterState.Vitality;
+            _statValueLabels[2].Text = totalVit > baseVit ? $"{baseVit}+{totalVit - baseVit}" : baseVit.ToString();
+            SetStatLabelColor(_statValueLabels[2], baseVit, (ushort)(totalVit - baseVit));
             _vitDetail1Label.Text = $"HP: {_characterState.CurrentHealth}/{_characterState.MaximumHealth}";
             _vitDetail1Label.Visible = true;
             _vitDetail2Label.Text = $"SD: {_characterState.CurrentShield}/{_characterState.MaximumShield}";
             _vitDetail2Label.Visible = true;
 
-            _statValueLabels[3].Text = _characterState.Energy.ToString();
-            SetStatLabelColor(_statValueLabels[3], _characterState.Energy, 0);
-            _eneDetail1Label.Text = $"Mana: {_characterState.CurrentMana}/{_characterState.MaximumMana}";
-            _eneDetail1Label.Visible = true;
-            _eneDetail2Label.Text = $"AG: {_characterState.CurrentAbility}/{_characterState.MaximumAbility}";
-            _eneDetail2Label.Visible = true;
-            _eneDetail3Label.Text = string.Empty;
-            _eneDetail3Label.Visible = false;
+            var totalEne = _characterState.TotalEnergy;
+            var baseEne = _characterState.Energy;
+            _statValueLabels[3].Text = totalEne > baseEne ? $"{baseEne}+{totalEne - baseEne}" : baseEne.ToString();
+            SetStatLabelColor(_statValueLabels[3], baseEne, (ushort)(totalEne - baseEne));
+
+            var magDmg = GetMagicalDamage();
+            if (magDmg.min > 0 || magDmg.max > 0)
+            {
+                _eneDetail1Label.Text = $"Wizardry Damage: {magDmg.min}~{magDmg.max}";
+                _eneDetail1Label.Visible = true;
+                _eneDetail2Label.Text = $"Mana: {_characterState.CurrentMana}/{_characterState.MaximumMana}";
+                _eneDetail2Label.Visible = true;
+                _eneDetail3Label.Text = $"AG: {_characterState.CurrentAbility}/{_characterState.MaximumAbility}";
+                _eneDetail3Label.Visible = true;
+            }
+            else
+            {
+                _eneDetail1Label.Text = $"Mana: {_characterState.CurrentMana}/{_characterState.MaximumMana}";
+                _eneDetail1Label.Visible = true;
+                _eneDetail2Label.Text = $"AG: {_characterState.CurrentAbility}/{_characterState.MaximumAbility}";
+                _eneDetail2Label.Visible = true;
+                _eneDetail3Label.Text = string.Empty;
+                _eneDetail3Label.Visible = false;
+            }
 
             bool isDarkLordFamily = false;
             if (_characterState.Class == CharacterClassNumber.DarkLord ||
@@ -408,6 +475,15 @@ namespace Client.Main.Controls.UI.Game
             _statValueLabels[4].Visible = isDarkLordFamily;
             _statButtons[4].Visible = isDarkLordFamily && _characterState.LevelUpPoints > 0;
 
+            // Set Leadership stat value if Dark Lord family
+            if (isDarkLordFamily)
+            {
+                var totalCmd = _characterState.TotalLeadership;
+                var baseCmd = _characterState.Leadership;
+                _statValueLabels[4].Text = totalCmd > baseCmd ? $"{baseCmd}+{totalCmd - baseCmd}" : baseCmd.ToString();
+                SetStatLabelColor(_statValueLabels[4], baseCmd, (ushort)(totalCmd - baseCmd));
+            }
+
             for (int i = 0; i < 4; i++)
             {
                 _statButtons[i].Visible = _characterState.LevelUpPoints > 0;
@@ -416,6 +492,15 @@ namespace Client.Main.Controls.UI.Game
             bool canBeMaster = _characterState.Class != CharacterClassNumber.DarkWizard;
             _masterLevelButton.Visible = canBeMaster && _characterState.MasterLevel > 0;
             _masterLevelButton.Enabled = canBeMaster && _characterState.MasterLevel > 0;
+
+            // Show PvM attack and defense rates
+            var pvmAttackRate = GetPvMAttackRate();
+            var pvmDefenseRate = GetPvMDefenseRate();
+
+            _pvmInfoLabel1.Text = $"PvM Attack Success Rate: {pvmAttackRate}%";
+            _pvmInfoLabel1.Visible = true;
+            _pvmInfoLabel2.Text = $"PvM Defense Success Rate: {pvmDefenseRate}%";
+            _pvmInfoLabel2.Visible = true;
         }
 
         private void SetStatLabelColor(LabelControl label, ushort statValue, ushort addedStatValue)
@@ -428,6 +513,180 @@ namespace Client.Main.Controls.UI.Game
             {
                 label.TextColor = new Color(230, 230, 0);
             }
+        }
+
+        // MU Online formula calculations based on character class
+        private (int min, int max) GetPhysicalDamage()
+        {
+            if (_characterState == null) return (0, 0);
+
+            var str = _characterState.TotalStrength;
+            var agi = _characterState.TotalAgility;
+            var ene = _characterState.TotalEnergy;
+
+            return _characterState.Class switch
+            {
+                CharacterClassNumber.DarkKnight or CharacterClassNumber.BladeKnight or CharacterClassNumber.BladeMaster =>
+                    (str / 6, str / 4), // Advanced: str/5, str/3
+                CharacterClassNumber.FairyElf or CharacterClassNumber.MuseElf or CharacterClassNumber.HighElf =>
+                    ((str + agi * 2) / 14, (str + agi * 2) / 8),
+                CharacterClassNumber.MagicGladiator or CharacterClassNumber.DuelMaster =>
+                    ((str * 2 + ene) / 12, (str * 2 + ene) / 8),
+                CharacterClassNumber.DarkLord or CharacterClassNumber.LordEmperor =>
+                    ((str * 2 + ene) / 14, (str * 2 + ene) / 10),
+                CharacterClassNumber.RageFighter or CharacterClassNumber.FistMaster =>
+                    (str / 6 + _characterState.TotalVitality / 10, str / 4 + _characterState.TotalVitality / 8),
+                _ => (0, 0)
+            };
+        }
+
+        private (int min, int max) GetMagicalDamage()
+        {
+            if (_characterState == null) return (0, 0);
+
+            var ene = _characterState.TotalEnergy;
+
+            return _characterState.Class switch
+            {
+                CharacterClassNumber.DarkWizard or CharacterClassNumber.SoulMaster or CharacterClassNumber.GrandMaster =>
+                    (ene / 9, ene / 4), // Advanced: ene/5, ene/2
+                CharacterClassNumber.MagicGladiator or CharacterClassNumber.DuelMaster =>
+                    (ene / 9, ene / 4),
+                CharacterClassNumber.Summoner or CharacterClassNumber.BloodySummoner or CharacterClassNumber.DimensionMaster =>
+                    (ene / 5, ene / 2),
+                _ => (0, 0)
+            };
+        }
+
+        private int GetAttackSpeed()
+        {
+            if (_characterState == null) return 0;
+
+            var agi = _characterState.TotalAgility;
+
+            return _characterState.Class switch
+            {
+                CharacterClassNumber.DarkKnight or CharacterClassNumber.BladeKnight or CharacterClassNumber.BladeMaster =>
+                    agi / 15,
+                CharacterClassNumber.DarkWizard or CharacterClassNumber.SoulMaster or CharacterClassNumber.GrandMaster =>
+                    agi / 10,
+                CharacterClassNumber.FairyElf or CharacterClassNumber.MuseElf or CharacterClassNumber.HighElf =>
+                    agi / 50,
+                CharacterClassNumber.MagicGladiator or CharacterClassNumber.DuelMaster =>
+                    agi / 15,
+                CharacterClassNumber.DarkLord or CharacterClassNumber.LordEmperor =>
+                    agi / 10,
+                CharacterClassNumber.Summoner or CharacterClassNumber.BloodySummoner or CharacterClassNumber.DimensionMaster =>
+                    agi / 20,
+                CharacterClassNumber.RageFighter or CharacterClassNumber.FistMaster =>
+                    agi / 9,
+                _ => 0
+            };
+        }
+
+        private int GetDefense()
+        {
+            if (_characterState == null) return 0;
+
+            var agi = _characterState.TotalAgility;
+
+            return _characterState.Class switch
+            {
+                CharacterClassNumber.DarkKnight or CharacterClassNumber.BladeKnight or CharacterClassNumber.BladeMaster =>
+                    agi / 3,
+                CharacterClassNumber.DarkWizard or CharacterClassNumber.SoulMaster or CharacterClassNumber.GrandMaster =>
+                    agi / 4,
+                CharacterClassNumber.FairyElf or CharacterClassNumber.MuseElf or CharacterClassNumber.HighElf =>
+                    agi / 10,
+                CharacterClassNumber.MagicGladiator or CharacterClassNumber.DuelMaster =>
+                    agi / 5,
+                CharacterClassNumber.DarkLord or CharacterClassNumber.LordEmperor =>
+                    agi / 7,
+                CharacterClassNumber.Summoner or CharacterClassNumber.BloodySummoner or CharacterClassNumber.DimensionMaster =>
+                    agi / 4,
+                CharacterClassNumber.RageFighter or CharacterClassNumber.FistMaster =>
+                    agi / 7,
+                _ => 0
+            };
+        }
+
+        private int GetPvPAttackRate()
+        {
+            if (_characterState == null) return 0;
+
+            var lvl = _characterState.Level;
+            var agi = _characterState.TotalAgility;
+
+            return _characterState.Class switch
+            {
+                CharacterClassNumber.DarkKnight or CharacterClassNumber.BladeKnight or CharacterClassNumber.BladeMaster =>
+                    lvl * 3 + (int)(agi * 4.5f),
+                CharacterClassNumber.DarkWizard or CharacterClassNumber.SoulMaster or CharacterClassNumber.GrandMaster =>
+                    lvl * 3 + agi * 4,
+                CharacterClassNumber.FairyElf or CharacterClassNumber.MuseElf or CharacterClassNumber.HighElf =>
+                    (int)(lvl * 3 + agi * 0.6f),
+                CharacterClassNumber.MagicGladiator or CharacterClassNumber.DuelMaster =>
+                    (int)(lvl * 3 + agi * 3.5f),
+                CharacterClassNumber.DarkLord or CharacterClassNumber.LordEmperor =>
+                    lvl * 3 + agi * 4,
+                _ => 0
+            };
+        }
+
+        private int GetPvPDefenseRate()
+        {
+            if (_characterState == null) return 0;
+
+            var lvl = _characterState.Level;
+            var agi = _characterState.TotalAgility;
+
+            return _characterState.Class switch
+            {
+                CharacterClassNumber.DarkKnight or CharacterClassNumber.BladeKnight or CharacterClassNumber.BladeMaster =>
+                    lvl * 2 + agi / 2,
+                CharacterClassNumber.DarkWizard or CharacterClassNumber.SoulMaster or CharacterClassNumber.GrandMaster =>
+                    lvl * 2 + agi / 4,
+                CharacterClassNumber.FairyElf or CharacterClassNumber.MuseElf or CharacterClassNumber.HighElf =>
+                    lvl * 2 + agi / 10,
+                CharacterClassNumber.MagicGladiator or CharacterClassNumber.DuelMaster =>
+                    lvl * 2 + agi / 4,
+                CharacterClassNumber.DarkLord or CharacterClassNumber.LordEmperor =>
+                    lvl * 2 + agi / 2,
+                _ => 0
+            };
+        }
+
+        private int GetPvMAttackRate()
+        {
+            if (_characterState == null) return 0;
+
+            var lvl = _characterState.Level;
+            var agi = _characterState.TotalAgility;
+            var str = _characterState.TotalStrength;
+            var cmd = _characterState.TotalLeadership;
+
+            return _characterState.Class switch
+            {
+                CharacterClassNumber.DarkLord or CharacterClassNumber.LordEmperor =>
+                    (int)((lvl * 2 + agi) * 2.5f + str / 6 + cmd / 10),
+                _ => (int)(lvl * 5 + agi * 1.5f + str / 4)
+            };
+        }
+
+        private int GetPvMDefenseRate()
+        {
+            if (_characterState == null) return 0;
+
+            var agi = _characterState.TotalAgility;
+
+            return _characterState.Class switch
+            {
+                CharacterClassNumber.FairyElf or CharacterClassNumber.MuseElf or CharacterClassNumber.HighElf =>
+                    agi / 4,
+                CharacterClassNumber.DarkLord or CharacterClassNumber.LordEmperor =>
+                    agi / 7,
+                _ => agi / 3
+            };
         }
 
         public override void Draw(GameTime gameTime)
@@ -454,15 +713,15 @@ namespace Client.Main.Controls.UI.Game
         {
             var sb = spriteBatch;
 
-            int tableX = this.DisplayRectangle.X + 12; // Use CharacterInfoWindowControl's display position
-            int tableY = this.DisplayRectangle.Y + 48;
-            int tableWidth = 165;
-            int tableHeight = 66;
+            int tableX = this.DisplayRectangle.X + 18; // Use CharacterInfoWindowControl's display position
+            int tableY = this.DisplayRectangle.Y + 55;
+            int tableWidth = WINDOW_WIDTH - 36; // Use most of the window width
+            int tableHeight = 80; // Slightly taller table
 
             Color tableBgColor = Color.Black * 0.3f * Alpha;
             sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(tableX, tableY, tableWidth, tableHeight), tableBgColor);
 
-            int cornerSize = 14;
+            int cornerSize = 16; // Slightly larger corners for bigger table
 
             if (_texTableTopLeft != null) sb.Draw(_texTableTopLeft, new Rectangle(tableX, tableY, cornerSize, cornerSize), Color.White);
             if (_texTableTopRight != null) sb.Draw(_texTableTopRight, new Rectangle(tableX + tableWidth - cornerSize, tableY, cornerSize, cornerSize), Color.White);
