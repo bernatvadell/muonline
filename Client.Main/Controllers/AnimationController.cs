@@ -7,7 +7,7 @@ using Client.Main.Objects.Player;
 
 namespace Client.Main.Controllers
 {
-    public enum AnimationType { Idle, Walk, Attack, Skill, Emote, Death, Rest, Sit }
+    public enum AnimationType { Idle, Walk, Attack, Skill, Emote, Death, Rest, Sit, Appear }
 
     public sealed class AnimationController : IDisposable
     {
@@ -201,7 +201,7 @@ namespace Client.Main.Controllers
         }
 
         private static bool IsReturnable(AnimationType t)
-            => t is AnimationType.Attack or AnimationType.Skill or AnimationType.Emote;
+            => t is AnimationType.Attack or AnimationType.Skill or AnimationType.Emote or AnimationType.Appear;
 
         private bool AllowWhenDead(AnimationType t)
         {
@@ -254,6 +254,7 @@ namespace Client.Main.Controllers
             MonsterActionType.Attack1 or MonsterActionType.Attack2
                                                         => AnimationType.Attack,
             MonsterActionType.Shock => AnimationType.Emote,
+            MonsterActionType.Appear => AnimationType.Appear,
             _ => AnimationType.Idle
         };
 
