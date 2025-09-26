@@ -9,6 +9,11 @@ namespace Client.Data.BMD
         private const int MINIMAL_BUFFER_SIZE = 8;
         private const int STRING_LENGTH = 32;
 
+        /// <summary>
+        /// Public method to read BMD from byte array (for embedded resources)
+        /// </summary>
+        public BMD ReadFromBuffer(byte[] buffer) => Read(buffer);
+
         protected override BMD Read(byte[] buffer)
         {
             ValidateBuffer(buffer);

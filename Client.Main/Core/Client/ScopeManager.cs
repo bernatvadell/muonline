@@ -44,11 +44,18 @@ namespace Client.Main.Core.Client
             var player = new PlayerScopeObject(maskedId, rawId, x, y, name);
             _objectsInScope.AddOrUpdate(maskedId, player, (_, existing) =>
             {
-                existing.PositionX = x;
-                existing.PositionY = y;
-                ((PlayerScopeObject)existing).Name = name; // Update player name in case it has changed
-                existing.LastUpdate = DateTime.UtcNow; // Update the last update timestamp
-                return existing;
+                // If existing object is not a PlayerScopeObject, replace it entirely
+                if (existing is not PlayerScopeObject existingPlayer)
+                {
+                    return player; // Replace with new player object
+                }
+
+                // Update existing player object
+                existingPlayer.PositionX = x;
+                existingPlayer.PositionY = y;
+                existingPlayer.Name = name; // Update player name in case it has changed
+                existingPlayer.LastUpdate = DateTime.UtcNow; // Update the last update timestamp
+                return existingPlayer;
             });
             _logger.LogTrace("Scope Add/Update: Player {Name} ({Id:X4}, Raw: {RawId:X4}) at [{X},{Y}]", name, maskedId, rawId, x, y);
         }
@@ -68,12 +75,19 @@ namespace Client.Main.Core.Client
             var npc = new NpcScopeObject(maskedId, rawId, x, y, typeNumber, name);
             _objectsInScope.AddOrUpdate(maskedId, npc, (_, existing) =>
             {
-                existing.PositionX = x;
-                existing.PositionY = y;
-                ((NpcScopeObject)existing).TypeNumber = typeNumber; // Update NPC type number if it has changed
-                ((NpcScopeObject)existing).Name = name; // Update NPC name if it has changed
-                existing.LastUpdate = DateTime.UtcNow; // Update the last update timestamp
-                return existing;
+                // If existing object is not an NpcScopeObject, replace it entirely
+                if (existing is not NpcScopeObject existingNpc)
+                {
+                    return npc; // Replace with new NPC object
+                }
+
+                // Update existing NPC object
+                existingNpc.PositionX = x;
+                existingNpc.PositionY = y;
+                existingNpc.TypeNumber = typeNumber; // Update NPC type number if it has changed
+                existingNpc.Name = name; // Update NPC name if it has changed
+                existingNpc.LastUpdate = DateTime.UtcNow; // Update the last update timestamp
+                return existingNpc;
             });
             _logger.LogTrace("Scope Add/Update: NPC Type {Type} ({Id:X4}, Raw: {RawId:X4}) at [{X},{Y}]", typeNumber, maskedId, rawId, x, y);
         }
@@ -115,11 +129,18 @@ namespace Client.Main.Core.Client
             var money = new MoneyScopeObject(maskedId, rawId, x, y, amount);
             _objectsInScope.AddOrUpdate(maskedId, money, (_, existing) =>
             {
-                existing.PositionX = x;
-                existing.PositionY = y;
-                ((MoneyScopeObject)existing).Amount = amount; // Update money amount, in case of merging drops
-                existing.LastUpdate = DateTime.UtcNow; // Update the last update timestamp
-                return existing;
+                // If existing object is not a MoneyScopeObject, replace it entirely
+                if (existing is not MoneyScopeObject existingMoney)
+                {
+                    return money; // Replace with new money object
+                }
+
+                // Update existing money object
+                existingMoney.PositionX = x;
+                existingMoney.PositionY = y;
+                existingMoney.Amount = amount; // Update money amount, in case of merging drops
+                existingMoney.LastUpdate = DateTime.UtcNow; // Update the last update timestamp
+                return existingMoney;
             });
             _logger.LogTrace("Scope Add/Update: Money ({Id:X4}, Raw: {RawId:X4}) Amount {Amount} at [{X},{Y}]", maskedId, rawId, amount, x, y);
         }
@@ -185,6 +206,34 @@ namespace Client.Main.Core.Client
         {
             // Return a snapshot to avoid issues with collection modification during iteration
             return _objectsInScope.Values.Where(obj => obj.ObjectType == type).ToList();
+        }
+
+        /// <summary>
+        /// Clears only dropped items and money from scope during map transitions.
+        /// This handles cases where server doesn't send OutOfScope packets for items during warp.
+        /// </summary>
+        public void ClearDroppedItemsFromScope()
+        {
+            var droppedItemsToRemove = new List<ushort>();
+
+            foreach (var kvp in _objectsInScope)
+            {
+                if (kvp.Value.ObjectType == ScopeObjectType.Item || kvp.Value.ObjectType == ScopeObjectType.Money)
+                {
+                    droppedItemsToRemove.Add(kvp.Key);
+                }
+            }
+
+            foreach (var maskedId in droppedItemsToRemove)
+            {
+                if (_objectsInScope.TryRemove(maskedId, out var removedItem))
+                {
+                    _logger.LogDebug("🗑️ Cleared dropped item from scope during map change: ID {Id:X4} ({Type})",
+                        maskedId, removedItem.ObjectType);
+                }
+            }
+
+            _logger.LogInformation("🗑️ Cleared {Count} dropped items from scope during map transition", droppedItemsToRemove.Count);
         }
 
         /// <summary>

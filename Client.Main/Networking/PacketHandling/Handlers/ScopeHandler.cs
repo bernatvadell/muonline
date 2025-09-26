@@ -460,6 +460,19 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     obj.MoveTargetPosition = new Vector3(worldX, worldY, 0);
                     obj.Position = obj.MoveTargetPosition;
                 }
+
+                // Play Appear animation for monsters that have MonsterActionType.Appear mapped
+                if (obj is MonsterObject monster && obj is ModelObject modelObj)
+                {
+                    // Check if monster has Appear animation available
+                    if (modelObj.Model?.Actions != null &&
+                        (int)MonsterActionType.Appear < modelObj.Model.Actions.Length &&
+                        modelObj.Model.Actions[(int)MonsterActionType.Appear] != null)
+                    {
+                        // Play MonsterActionType.Appear animation for dramatic spawn effect
+                        monster.PlayAction((ushort)MonsterActionType.Appear);
+                    }
+                }
             });
         }
 
@@ -1559,8 +1572,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 // Play drop sound
                 SoundController.Instance.PlayBufferWithAttenuation(soundPath, obj.Position, world.Walker.Position);
 
-                // Initial visibility check
-                obj.Hidden = !world.IsObjectInView(obj);
+                // Don't set Hidden immediately - let WorldObject.Update handle visibility checks
+                // The immediate visibility check was causing items to be Hidden incorrectly
                 _logger.LogDebug($"Spawned dropped item ({obj.DisplayName}) at {obj.Position.X},{obj.Position.Y},{obj.Position.Z}. RawId: {obj.RawId:X4}, MaskedId: {obj.NetworkId:X4}");
 
                 tcs.SetResult(true);

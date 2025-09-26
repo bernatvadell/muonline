@@ -721,7 +721,7 @@ namespace Client.Main.Scenes
                     try
                     {
                         await obj.Load();
-                        obj.Hidden = !w.IsObjectInView(obj);
+                        // Don't set Hidden immediately - let WorldObject.Update handle visibility checks
                     }
                     catch (Exception ex)
                     {
@@ -792,10 +792,42 @@ namespace Client.Main.Scenes
         // ─────────────────── Object Tracking Helpers ───────────────────
         private void ClearObjectTracking()
         {
+            if (World?.Objects != null)
+            {
+                // Remove all visual objects from current world (they belong to previous map)
+                var objectsToRemove = new List<WorldObject>();
+
+                foreach (var obj in World.Objects.ToList())
+                {
+                    // Keep the hero (main player)
+                    if (obj == _hero) continue;
+
+                    objectsToRemove.Add(obj);
+                }
+
+                foreach (var obj in objectsToRemove)
+                {
+                    World.Objects.Remove(obj);
+                    obj.Dispose();
+                }
+
+                _logger?.LogDebug("ClearObjectTracking: Removed {Count} objects from previous map", objectsToRemove.Count);
+            }
+
+            // Clear our local tracking collections
             _activePlayerIds.Clear();
             _activeMonsterIds.Clear();
             _activeNpcIds.Clear();
             _activeItemIds.Clear();
+
+            // Clear dropped items from ScopeManager manually
+            // Server may not send OutOfScope packets for items during warp, causing old items to persist
+            var scopeManager = MuGame.Network?.GetScopeManager();
+            if (scopeManager != null)
+            {
+                scopeManager.ClearDroppedItemsFromScope();
+                _logger?.LogDebug("ClearObjectTracking: Manually cleared dropped items from ScopeManager");
+            }
         }
 
         private void RemoveObjectFromTracking(ushort networkId)

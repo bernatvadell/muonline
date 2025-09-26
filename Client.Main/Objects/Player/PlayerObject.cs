@@ -338,7 +338,7 @@ namespace Client.Main.Objects.Player
                 {
                     await LoadPartAsync(Helm, helmDef.TexturePath.Replace("Item/", "Player/"));
                 }
-                
+
                 // Apply item properties for shader effects
                 Helm.ItemLevel = Appearance.HelmItemLevel;
                 Helm.IsExcellentItem = Appearance.HelmExcellent;
@@ -352,7 +352,7 @@ namespace Client.Main.Objects.Player
                 {
                     await LoadPartAsync(Armor, armorDef.TexturePath.Replace("Item/", "Player/"));
                 }
-                
+
                 // Apply item properties for shader effects
                 Armor.ItemLevel = Appearance.ArmorItemLevel;
                 Armor.IsExcellentItem = Appearance.ArmorExcellent;
@@ -367,7 +367,7 @@ namespace Client.Main.Objects.Player
                 {
                     await LoadPartAsync(Pants, pantsDef.TexturePath.Replace("Item/", "Player/"));
                 }
-                
+
                 // Apply item properties for shader effects
                 Pants.ItemLevel = Appearance.PantsItemLevel;
                 Pants.IsExcellentItem = Appearance.PantsExcellent;
@@ -388,7 +388,7 @@ namespace Client.Main.Objects.Player
                 {
                     _logger?.LogWarning($"[PlayerObject] No gloves definition found for Group=10, ID={Appearance.GlovesItemIndex}");
                 }
-                
+
                 // Apply item properties for shader effects
                 Gloves.ItemLevel = Appearance.GlovesItemLevel;
                 Gloves.IsExcellentItem = Appearance.GlovesExcellent;
@@ -409,7 +409,7 @@ namespace Client.Main.Objects.Player
                 {
                     _logger?.LogWarning($"[PlayerObject] No boots definition found for Group=11, ID={Appearance.BootsItemIndex}");
                 }
-                
+
                 // Apply item properties for shader effects
                 Boots.ItemLevel = Appearance.BootsItemLevel;
                 Boots.IsExcellentItem = Appearance.BootsExcellent;
@@ -439,7 +439,7 @@ namespace Client.Main.Objects.Player
                     Weapon1.Model = await BMDLoader.Instance.Prepare(leftHandDef.TexturePath);
                     Weapon1.ParentBoneLink = 33;
                     Weapon1.LinkParentAnimation = false;
-                    
+
                     // Apply item properties for shader effects
                     Weapon1.ItemLevel = Appearance.LeftHandItemLevel;
                     Weapon1.IsExcellentItem = Appearance.LeftHandExcellent;
@@ -463,7 +463,7 @@ namespace Client.Main.Objects.Player
                     Weapon2.Model = await BMDLoader.Instance.Prepare(rightHandDef.TexturePath);
                     Weapon2.ParentBoneLink = 42;
                     Weapon2.LinkParentAnimation = false;
-                    
+
                     // Apply item properties for shader effects
                     Weapon2.ItemLevel = Appearance.RightHandItemLevel;
                     Weapon2.IsExcellentItem = Appearance.RightHandExcellent;
@@ -560,7 +560,7 @@ namespace Client.Main.Objects.Player
                 MovementMode.Fly => PlayerAction.PlayerFly,
                 _ => GetMovementActionForWeapon(GetEquippedWeaponType())
             };
-        
+
         /// <summary>
         /// Gets the appropriate movement action based on equipped weapon
         /// </summary>
@@ -590,7 +590,7 @@ namespace Client.Main.Objects.Player
                 MovementMode.Fly or MovementMode.Swim => PlayerAction.PlayerStopFly,
                 _ => GetIdleActionForWeapon(GetEquippedWeaponType())
             };
-        
+
         /// <summary>
         /// Gets the appropriate idle action based on equipped weapon
         /// </summary>
@@ -611,7 +611,7 @@ namespace Client.Main.Objects.Player
         private MovementMode GetModeFromCurrentAction() =>
             CurrentAction switch
             {
-                PlayerAction.PlayerFly or PlayerAction.PlayerStopFly or PlayerAction.PlayerPose1
+                PlayerAction.PlayerFly or PlayerAction.PlayerStopFly or PlayerAction.PlayerPoseMale1
                     => MovementMode.Fly,
                 PlayerAction.PlayerRunSwim
                     => MovementMode.Swim,
@@ -689,7 +689,7 @@ namespace Client.Main.Objects.Player
             if (dist < 0.1f && !IsMoving && !IsOneShotPlaying)
             {
                 var restAction = world.WorldIndex == 4
-                    ? PlayerAction.PlayerPose1
+                    ? PlayerAction.PlayerPoseMale1
                     : PlayerAction.PlayerPoseMale1;
 
                 if (CurrentAction != restAction)
@@ -754,7 +754,7 @@ namespace Client.Main.Objects.Player
         {
             // Call base reset first
             base.Reset();
-            
+
             // Reset player-specific states
             ResetRestSitStates();
         }
@@ -831,18 +831,18 @@ namespace Client.Main.Objects.Player
         }
 
         public float GetAttackRangeTiles() => GetAttackRangeForAction(GetAttackAnimation());
-        
+
         /// <summary>
         /// Gets the currently equipped weapon type based on actual equipment
         /// </summary>
         private WeaponType GetEquippedWeaponType()
         {
-            if (_networkManager == null) 
+            if (_networkManager == null)
                 return Equipment.GetDefaultWeaponTypeForClass(CharacterClass);
-            
+
             var charState = _networkManager.GetCharacterState();
             var inventory = charState.GetInventoryItems();
-            
+
             // Get item definitions for both hands
             var leftHandItem = inventory.TryGetValue(InventoryConstants.LeftHandSlot, out var leftData)
                 ? ItemDatabase.GetItemDefinition(leftData)
@@ -850,13 +850,13 @@ namespace Client.Main.Objects.Player
             var rightHandItem = inventory.TryGetValue(InventoryConstants.RightHandSlot, out var rightData)
                 ? ItemDatabase.GetItemDefinition(rightData)
                 : null;
-            
+
             // Use equipment system to determine weapon type
             var equippedWeapon = Equipment.GetEquippedWeaponType(leftHandItem, rightHandItem, ItemDatabase.GetItemGroup(leftData), ItemDatabase.GetItemGroup(rightData));
-            
+
             // Fall back to class default if no weapon equipped
-            return equippedWeapon != WeaponType.None 
-                ? equippedWeapon 
+            return equippedWeapon != WeaponType.None
+                ? equippedWeapon
                 : Equipment.GetDefaultWeaponTypeForClass(CharacterClass);
         }
 
@@ -905,7 +905,7 @@ namespace Client.Main.Objects.Player
             ClearItemProperties(Pants);
             ClearItemProperties(Gloves);
             ClearItemProperties(Boots);
-            
+
             PlayerClass mapped = MapNetworkClassToModelClass(_characterClass);
             await SetBodyPartsAsync("Player/",
                 "HelmClass", "ArmorClass", "PantClass", "GloveClass", "BootClass",
@@ -915,18 +915,18 @@ namespace Client.Main.Objects.Player
         private async Task ResetBodyPartToClassDefaultAsync(ModelObject bodyPart, string partPrefix)
         {
             Console.WriteLine($"[PlayerObject] ResetBodyPartToClassDefaultAsync called: partPrefix={partPrefix}");
-            
+
             // Clear item shader properties first
             ClearItemProperties(bodyPart);
-            
+
             PlayerClass mapped = MapNetworkClassToModelClass(_characterClass);
             string fileSuffix = ((int)mapped).ToString("D2");
             string modelPath = $"Player/{partPrefix}{fileSuffix}.bmd";
-            
+
             Console.WriteLine($"[PlayerObject] Resetting body part: CharClass={_characterClass}, MappedClass={mapped}, Path={modelPath}");
-            _logger?.LogDebug("Resetting body part to class default: CharClass={CharClass}, MappedClass={Mapped}, Path={Path}", 
+            _logger?.LogDebug("Resetting body part to class default: CharClass={CharClass}, MappedClass={Mapped}, Path={Path}",
                 _characterClass, mapped, modelPath);
-            
+
             try
             {
                 await LoadPartAsync(bodyPart, modelPath);
@@ -1202,7 +1202,7 @@ namespace Client.Main.Objects.Player
         {
             Console.WriteLine($"[PlayerObject] UpdateEquipmentSlotAsync called: slot={itemSlot}, equipmentData={(equipmentData == null ? "NULL" : "NOT NULL")}");
             _logger?.LogInformation("UpdateEquipmentSlotAsync called: slot={Slot}, equipmentData={Data}", itemSlot, equipmentData == null ? "NULL" : "NOT NULL");
-            
+
             if (equipmentData == null)
             {
                 // Item is being unequipped
@@ -1211,11 +1211,11 @@ namespace Client.Main.Objects.Player
                 await UnequipSlotAsync(itemSlot);
                 return;
             }
-            
+
             Console.WriteLine($"[PlayerObject] UpdateEquipmentSlotAsync: Past null check, continuing with slot={itemSlot}");
 
             _logger?.LogDebug($"[PlayerObject] UpdateEquipmentSlotAsync: slot={itemSlot}, data group={equipmentData?.ItemGroup}, data number={equipmentData?.ItemNumber}");
-            
+
             try
             {
                 switch (itemSlot)
@@ -1275,7 +1275,7 @@ namespace Client.Main.Objects.Player
         {
             Console.WriteLine($"[PlayerObject] UnequipSlotAsync called for slot {itemSlot}");
             _logger?.LogDebug("UnequipSlotAsync called for slot {Slot}", itemSlot);
-            
+
             switch (itemSlot)
             {
                 case InventoryConstants.LeftHandSlot:
@@ -1348,7 +1348,7 @@ namespace Client.Main.Objects.Player
         {
             Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync START: Part={armorPart.GetType().Name}, Group={itemGroup}, Number={itemNumber}");
             _logger?.LogDebug($"[PlayerObject] UpdateArmorSlotAsync: Part={armorPart.GetType().Name}, Group={itemGroup}, Number={itemNumber}");
-            
+
             var itemDef = ItemDatabase.GetItemDefinition(itemGroup, (short)itemNumber);
             Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: ItemDef {(itemDef == null ? "NULL" : "FOUND")}");
             if (itemDef != null && !string.IsNullOrEmpty(itemDef.TexturePath))
@@ -1356,18 +1356,18 @@ namespace Client.Main.Objects.Player
                 string playerTexturePath = itemDef.TexturePath.Replace("Item/", "Player/");
                 Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: Converting texture path: {itemDef.TexturePath} -> {playerTexturePath}");
                 _logger?.LogDebug($"[PlayerObject] UpdateArmorSlotAsync: ItemDef found. Original={itemDef.TexturePath}, Player={playerTexturePath}");
-                
+
                 // Clear old model first
                 var oldModel = armorPart.Model;
                 armorPart.Model = null;
                 Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: Cleared old model for {armorPart.GetType().Name}");
                 _logger?.LogDebug($"[PlayerObject] UpdateArmorSlotAsync: Cleared old model for {armorPart.GetType().Name}");
-                
+
                 Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: About to call LoadPartAsync with: {playerTexturePath}");
                 await LoadPartAsync(armorPart, playerTexturePath);
                 Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: LoadPartAsync completed");
                 SetItemPropertiesFromEquipmentData(armorPart, equipmentData);
-                
+
                 Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: Model loading completed. New model null? {armorPart.Model == null}");
                 _logger?.LogDebug($"[PlayerObject] UpdateArmorSlotAsync: Model loading completed. New model null? {armorPart.Model == null}");
             }
@@ -1413,7 +1413,7 @@ namespace Client.Main.Objects.Player
             part.ItemLevel = 0;
             part.IsExcellentItem = false;
             part.IsAncientItem = false;
-            
+
             // Force shader to update by invalidating buffers
             part.InvalidateBuffers();
         }

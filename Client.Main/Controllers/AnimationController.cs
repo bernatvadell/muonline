@@ -194,6 +194,8 @@ namespace Client.Main.Controllers
             if (a == null || idx >= a.Length) return false;
 
             var act = a[idx];
+            if (act == null) return false; // Handle null actions gracefully
+
             duration = CalcDuration(act);
             return true;
         }
@@ -220,7 +222,7 @@ namespace Client.Main.Controllers
         private static AnimationType GetPlayerAnimationType(PlayerAction a) => a switch
         {
             PlayerAction.PlayerDie1 or PlayerAction.PlayerDie2 => AnimationType.Death,
-            PlayerAction.PlayerPoseMale1 or PlayerAction.PlayerPose1 => AnimationType.Rest,
+            PlayerAction.PlayerPoseMale1 or PlayerAction.PlayerPoseMale1 => AnimationType.Rest,
             PlayerAction.PlayerSit1 or PlayerAction.PlayerSitFemale1 => AnimationType.Sit,
             PlayerAction.PlayerStopMale or PlayerAction.PlayerStopFemale or PlayerAction.PlayerStopFly
                                                                                => AnimationType.Idle,
@@ -257,6 +259,8 @@ namespace Client.Main.Controllers
 
         private float CalcDuration(Client.Data.BMD.BMDTextureAction act)
         {
+            if (act == null) return 1.0f; // Default duration for null actions
+
             float frames = Math.Max(act.NumAnimationKeys, 1);
             float mul = act.PlaySpeed == 0 ? 1f : act.PlaySpeed;
             float fps = Math.Max(0.1f, _owner.AnimationSpeed * mul);

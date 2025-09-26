@@ -47,6 +47,7 @@
     <EmbeddedResource Include="Controls\UI\Game\Layouts\*.json" />
     <EmbeddedResource Include="Data\gates.json" />
     <EmbeddedResource Include="Data\item.bmd" />
+    <EmbeddedResource Include="Data\player.bmd" />
     <EmbeddedResource Include="Data\skills.json" />
     <EmbeddedResource Include="Data\bmd_blending_config.json" />
   </ItemGroup>

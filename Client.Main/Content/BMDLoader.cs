@@ -179,6 +179,21 @@ namespace Client.Main.Content
         {
             lock (_bmds)
             {
+                // Use original path as cache key for embedded resources
+                string cacheKey = path;
+
+                // Check if we should load from embedded resources
+                if (path.Equals("Player/Player.bmd", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (_bmds.TryGetValue(cacheKey, out Task<BMD> embeddedModelTask))
+                        return embeddedModelTask;
+
+                    embeddedModelTask = LoadEmbeddedAssetAsync(path, textureFolder);
+                    _bmds.Add(cacheKey, embeddedModelTask);
+                    return embeddedModelTask;
+                }
+
+                // Original file system loading
                 path = GetActualPath(Path.Combine(Constants.DataPath, path));
                 if (_bmds.TryGetValue(path, out Task<BMD> modelTask))
                     return modelTask;
@@ -436,6 +451,88 @@ namespace Client.Main.Content
             {
                 _bufferCacheState[cacheKey] = new BufferCacheEntry(color, boneMatrixHash);
             }
+        }
+
+        private async Task<BMD> LoadEmbeddedAssetAsync(string originalPath, string textureFolder = null)
+        {
+            try
+            {
+                _logger?.LogDebug($"Loading embedded resource: {originalPath}");
+
+                // Map the path to the embedded resource name
+                var resourceName = GetEmbeddedResourceName(originalPath);
+                if (resourceName == null)
+                {
+                    _logger?.LogWarning($"Embedded resource not found for path: {originalPath}");
+                    return null;
+                }
+
+                var asm = Assembly.GetExecutingAssembly();
+                using var stream = asm.GetManifestResourceStream(resourceName);
+                if (stream == null)
+                {
+                    _logger?.LogWarning($"Cannot open embedded resource stream: {resourceName}");
+                    return null;
+                }
+
+                var buffer = new byte[stream.Length];
+                await stream.ReadExactlyAsync(buffer, 0, (int)stream.Length);
+
+                var asset = _reader.ReadFromBuffer(buffer);
+
+                // for custom blending from json
+                var relativePath = originalPath.Replace("\\", "/");
+                if (_blendingConfig.TryGetValue(relativePath, out var meshConfig))
+                {
+                    for (int i = 0; i < asset.Meshes.Length; i++)
+                    {
+                        if (meshConfig.TryGetValue(i, out var blendMode))
+                        {
+                            asset.Meshes[i].BlendingMode = blendMode;
+                        }
+                    }
+                }
+
+                var texturePathMap = new Dictionary<string, string>();
+
+                lock (_texturePathMap)
+                    _texturePathMap.Add(asset, texturePathMap);
+
+                var dir = !string.IsNullOrEmpty(textureFolder)
+                    ? textureFolder
+                    : Path.GetDirectoryName(originalPath.Replace("/", Path.DirectorySeparatorChar.ToString()));
+
+                var tasks = new List<Task>();
+                foreach (var mesh in asset.Meshes)
+                {
+                    var fullPath = Path.Combine(dir, mesh.TexturePath);
+                    if (texturePathMap.TryAdd(mesh.TexturePath.ToLowerInvariant(), fullPath))
+                        tasks.Add(TextureLoader.Instance.Prepare(fullPath));
+                }
+
+                await Task.WhenAll(tasks);
+
+                _logger?.LogDebug($"Successfully loaded embedded resource: {originalPath}");
+                return asset;
+            }
+            catch (Exception e)
+            {
+                _logger?.LogError(e, $"Failed to load embedded asset {originalPath}: {e.Message}");
+                return null;
+            }
+        }
+
+        private string GetEmbeddedResourceName(string path)
+        {
+            var asm = Assembly.GetExecutingAssembly();
+            var resourceNames = asm.GetManifestResourceNames();
+
+            // Map specific paths to their embedded resource names
+            return path switch
+            {
+                "Player/Player.bmd" => resourceNames.FirstOrDefault(n => n.EndsWith("player.bmd", StringComparison.OrdinalIgnoreCase)),
+                _ => null
+            };
         }
 
         private int CalculateBoneMatrixHashSubset(Matrix[] boneMatrix, short[] usedBones)

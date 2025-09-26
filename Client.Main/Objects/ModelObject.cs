@@ -1536,6 +1536,8 @@ namespace Client.Main.Objects
 
             int currentActionIndex = Math.Clamp(CurrentAction, 0, Model.Actions.Length - 1);
             var action = Model.Actions[currentActionIndex];
+            if (action == null) return; // Skip animation if action is null
+
             int totalFrames = Math.Max(action.NumAnimationKeys, 1);
             float delta = (float)gameTime.ElapsedGameTime.TotalSeconds;
 

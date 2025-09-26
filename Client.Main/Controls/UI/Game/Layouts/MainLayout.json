@@ -128,7 +128,7 @@
     "Z": 5
   },
   {
-    "Name": "button3",
+    "Name": "InventoryButton",
     "ScreenX": 270,
     "ScreenY": 670,
     "Width": 41,

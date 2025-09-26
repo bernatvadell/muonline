@@ -4,10 +4,7 @@ using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using Client.Main.Helpers; // For SpriteBatchScope
-using System;
 using Client.Main.Networking;
 using Client.Main.Core.Utilities;
 using Microsoft.Extensions.Logging;
@@ -103,7 +100,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             Visible = false;
 
             InitializeGrid();
-            Align = ControlAlign.VerticalCenter | ControlAlign.HorizontalCenter;
+            Align = ControlAlign.VerticalCenter | ControlAlign.Right;
             _pickedItemRenderer = new PickedItemRenderer();
             InitializeZenLabel();
         }
@@ -479,7 +476,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 if ((now - _lastClickTime).TotalMilliseconds < 500)
                 {
                     // Double click - restore center alignment
-                    Align = ControlAlign.VerticalCenter | ControlAlign.HorizontalCenter;
+                    Align = ControlAlign.VerticalCenter | ControlAlign.Right;
                     _lastClickTime = DateTime.MinValue; // Reset to prevent triple clicks
                 }
                 else
@@ -916,7 +913,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 }
                 else
                 {
-                    spriteBatch.Draw(GraphicsManager.Instance.Pixel, itemRect, new Color(40,40,40,200));
+                    spriteBatch.Draw(GraphicsManager.Instance.Pixel, itemRect, new Color(40, 40, 40, 200));
                 }
             }
         }
@@ -924,18 +921,18 @@ namespace Client.Main.Controls.UI.Game.Inventory
         private void DrawDragArea(SpriteBatch spriteBatch, Rectangle frameRect)
         {
             // Only show drag area when mouse is over it or when dragging
-            if (IsMouseOverDragArea() || _isDragging)
-            {
-                int dragAreaHeight = frameRect.Height / 10;
-                Rectangle dragRect = new Rectangle(
-                    frameRect.X,
-                    frameRect.Y,
-                    frameRect.Width,
-                    dragAreaHeight);
+            // if (IsMouseOverDragArea() || _isDragging)
+            // {
+            //     int dragAreaHeight = frameRect.Height / 10;
+            //     Rectangle dragRect = new Rectangle(
+            //         frameRect.X,
+            //         frameRect.Y,
+            //         frameRect.Width,
+            //         dragAreaHeight);
 
-                Color dragColor = _isDragging ? Color.Yellow * 0.3f : Color.White * 0.2f;
-                spriteBatch.Draw(GraphicsManager.Instance.Pixel, dragRect, dragColor);
-            }
+            //     Color dragColor = _isDragging ? Color.Yellow * 0.3f : Color.White * 0.2f;
+            //     spriteBatch.Draw(GraphicsManager.Instance.Pixel, dragRect, dragColor);
+            // }
         }
 
         private void DrawFrame(SpriteBatch spriteBatch, Rectangle frameRect)
