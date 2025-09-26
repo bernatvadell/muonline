@@ -672,19 +672,27 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     }
                     else
                     {
-                        // Map DamageKind to colors
-                        dmgColor = damageKind switch
+                        // Local player damage is always red, others use server-provided damage type colors
+                        if (maskedId == _characterState.Id)
                         {
-                            DamageKind.NormalRed => Color.Orange,
-                            DamageKind.IgnoreDefenseCyan => Color.Cyan,
-                            DamageKind.ExcellentLightGreen => Color.LightGreen,
-                            DamageKind.CriticalBlue => Color.DeepSkyBlue,
-                            DamageKind.LightPink => Color.LightPink,
-                            DamageKind.PoisonDarkGreen => Color.DarkGreen,
-                            DamageKind.ReflectedDarkPink => Color.DeepPink,
-                            DamageKind.White => Color.White,
-                            _ => Color.Red // fallback to normal red
-                        };
+                            dmgColor = Color.Red;
+                        }
+                        else
+                        {
+                            // Map DamageKind to colors for other players/monsters
+                            dmgColor = damageKind switch
+                            {
+                                DamageKind.NormalRed => Color.Orange,
+                                DamageKind.IgnoreDefenseCyan => Color.Cyan,
+                                DamageKind.ExcellentLightGreen => Color.LightGreen,
+                                DamageKind.CriticalBlue => Color.DeepSkyBlue,
+                                DamageKind.LightPink => Color.LightPink,
+                                DamageKind.PoisonDarkGreen => Color.DarkGreen,
+                                DamageKind.ReflectedDarkPink => Color.DeepPink,
+                                DamageKind.White => Color.White,
+                                _ => Color.Red // fallback to normal red
+                            };
+                        }
 
                         // Add damage multiplier indicators for double/triple damage
                         string multiplier = "";

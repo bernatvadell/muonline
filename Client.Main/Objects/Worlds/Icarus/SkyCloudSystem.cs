@@ -27,27 +27,56 @@ namespace Client.Main.Objects.Worlds.Icarus
         public float FadeOutTime;
         public float ScaleX; // Fixed X scale for this particle
         public float ScaleY; // Fixed Y scale for this particle
-        public int Layer; // Cloud layer (0-2)
+        public int Layer { get; private set; }
 
-        public SkyCloudParticle(Vector3 position, Vector3 velocity, float maxLife, float scale, float rotation, float rotationSpeed)
+        public SkyCloudParticle(
+            Vector3 position,
+            Vector3 velocity,
+            float maxLife,
+            float scale,
+            float rotation,
+            float rotationSpeed,
+            int layerIndex,
+            float initialLifeFraction = 1f)
         {
-            Reset(position, velocity, maxLife, scale, rotation, rotationSpeed);
+            Reset(position, velocity, maxLife, scale, rotation, rotationSpeed, layerIndex, initialLifeFraction);
         }
 
-        public void Reset(Vector3 position, Vector3 velocity, float maxLife, float scale, float rotation, float rotationSpeed)
+        public void Reset(
+            Vector3 position,
+            Vector3 velocity,
+            float maxLife,
+            float scale,
+            float rotation,
+            float rotationSpeed,
+            int layerIndex,
+            float initialLifeFraction = 1f)
         {
             Position = position;
             Velocity = velocity;
             MaxLife = maxLife;
-            Life = maxLife;
+            float clampedLifeFraction = MathHelper.Clamp(initialLifeFraction, 0.001f, 1f);
+            Life = maxLife * clampedLifeFraction;
             Scale = scale;
             Rotation = rotation;
             RotationSpeed = rotationSpeed;
             Color = Color.White;
-            Alpha = 0.0f; // Start invisible for fade-in
             FadeInTime = maxLife * 0.2f; // 20% of life for fade in
             FadeOutTime = maxLife * 0.3f; // 30% of life for fade out
             BaseAlpha = 0.3f + (scale / 1000f) * 0.1f; // Much lower base alpha to prevent white screen
+            float timeFromStart = MaxLife - Life;
+            float fadeAlpha = 1.0f;
+            if (timeFromStart < FadeInTime)
+            {
+                float fadeProgress = FadeInTime > 0f ? timeFromStart / FadeInTime : 1f;
+                fadeAlpha = fadeProgress * fadeProgress * (3.0f - 2.0f * fadeProgress);
+            }
+            else if (Life < FadeOutTime)
+            {
+                float fadeProgress = FadeOutTime > 0f ? Life / FadeOutTime : 1f;
+                fadeAlpha = fadeProgress * fadeProgress * (3.0f - 2.0f * fadeProgress);
+            }
+            Alpha = MathHelper.Clamp(BaseAlpha * fadeAlpha, 0.0f, 0.8f);
             AlphaVariation = 0.0f;
 
             // Fixed deformation per particle (won't change during lifetime)
@@ -55,8 +84,7 @@ namespace Client.Main.Objects.Worlds.Icarus
             ScaleX = scale * (0.8f + random.NextSingle() * 0.4f); // 80-120% of base scale
             ScaleY = scale * (0.8f + random.NextSingle() * 0.4f); // 80-120% of base scale
 
-            // Assign to random layer (0, 1, or 2)
-            Layer = random.Next(0, 3);
+            Layer = layerIndex;
         }
 
         public void Update(GameTime gameTime, Vector3 gravity, Vector3 wind)
@@ -81,7 +109,6 @@ namespace Client.Main.Objects.Worlds.Icarus
 
             // Life and alpha
             Life -= delta;
-            float lifeRatio = Life / MaxLife;
             float timeFromStart = MaxLife - Life;
 
             // Smooth fade transitions
@@ -113,11 +140,11 @@ namespace Client.Main.Objects.Worlds.Icarus
 
     public class SkyCloudSystem : WorldObject
     {
-        private List<SkyCloudParticle> _particles = new List<SkyCloudParticle>();
-        private Random _random = new Random();
+        private readonly List<SkyCloudParticle> _particles = new List<SkyCloudParticle>();
+        private readonly Random _random = new Random();
         private float _emissionTimer;
-        private float _emissionRate = 0.001f; // Slower emission
-        private int _maxParticles = 4000; // More particles for wide pre-loading
+        private readonly float _emissionRate = 0.001f; // Slower emission
+        private readonly int _maxParticles = 4000; // More particles for wide pre-loading
         private Texture2D _cloudTexture;
         private Texture2D _cloudLightTexture;
         private Vector3 _wind = new Vector3(16.0f, 8.0f, 0);
@@ -191,6 +218,7 @@ namespace Client.Main.Objects.Worlds.Icarus
             SetupEmissionPoints();
 
             _initialized = true;
+            PrewarmParticles();
             await base.Load();
         }
 
@@ -236,14 +264,30 @@ namespace Client.Main.Objects.Worlds.Icarus
             UpdateParticles(time);
         }
 
+        private void PrewarmParticles()
+        {
+            // Seed the system with particles in-progress so the sky feels alive immediately
+            Vector3 prewarmOrigin = new Vector3(_mapCenter, 0f);
+            int targetCount = Math.Min(_maxParticles, 2000);
+
+            for (int i = 0; i < targetCount; i++)
+            {
+                float lifeFraction = MathHelper.Lerp(0.2f, 0.95f, _random.NextSingle());
+                EmitParticleFromRandomPoint(lifeFraction, prewarmOrigin);
+
+                if (_particles.Count >= _maxParticles)
+                    break;
+            }
+        }
+
         private void UpdateParticles(GameTime time)
         {
             for (int i = _particles.Count - 1; i >= 0; i--)
             {
                 var particle = _particles[i];
 
-                int layerIndex = Array.IndexOf(LayerHeights, particle.Position.Z);
-                Vector3 windForLayer = layerIndex >= 0 ? LayerWinds[layerIndex] : LayerWinds[0];
+                int layerIndex = MathHelper.Clamp(particle.Layer, 0, LayerWinds.Length - 1);
+                Vector3 windForLayer = LayerWinds[layerIndex];
 
                 particle.Update(time, Vector3.Zero, windForLayer);
 
@@ -263,13 +307,23 @@ namespace Client.Main.Objects.Worlds.Icarus
             return Camera.Instance.Position;
         }
 
-        private void EmitParticleFromRandomPoint()
+        private void EmitParticleFromRandomPoint(float initialLifeFraction = 1f, Vector3? originOverride = null)
         {
-            Vector3 playerPos = GetPlayerPosition();
-            Vector3 emitPosition = GenerateEmitPosition(playerPos);
+            if (_particles.Count >= _maxParticles)
+                return;
 
-            int layerIndex = Array.IndexOf(LayerHeights, emitPosition.Z);
-            Vector3 baseWind = layerIndex >= 0 ? LayerWinds[layerIndex] : LayerWinds[0];
+            Vector3 origin = originOverride ?? GetPlayerPosition();
+            var particle = CreateParticle(origin, initialLifeFraction);
+            if (particle != null)
+                _particles.Add(particle);
+        }
+
+        private SkyCloudParticle CreateParticle(Vector3 origin, float initialLifeFraction)
+        {
+            Vector3 emitPosition = GenerateEmitPosition(origin);
+
+            int layerIndex = ResolveLayerIndex(emitPosition.Z);
+            Vector3 baseWind = LayerWinds[layerIndex];
             Vector3 velocity = baseWind + new Vector3(
                 (_random.NextSingle() - 0.5f) * 2.0f,
                 (_random.NextSingle() - 0.5f) * 1.5f,
@@ -281,7 +335,33 @@ namespace Client.Main.Objects.Worlds.Icarus
             float rotation = _random.Next(0, 360) * MathHelper.ToRadians(1);
             float rotationSpeed = (_random.NextSingle() - 0.5f) * 0.1f;
 
-            _particles.Add(new SkyCloudParticle(emitPosition, velocity, maxLife, scale, rotation, rotationSpeed));
+            return new SkyCloudParticle(
+                emitPosition,
+                velocity,
+                maxLife,
+                scale,
+                rotation,
+                rotationSpeed,
+                layerIndex,
+                initialLifeFraction);
+        }
+
+        private int ResolveLayerIndex(float height)
+        {
+            int closestIndex = 0;
+            float smallestDelta = Math.Abs(height - LayerHeights[0]);
+
+            for (int i = 1; i < LayerHeights.Length; i++)
+            {
+                float delta = Math.Abs(height - LayerHeights[i]);
+                if (delta < smallestDelta)
+                {
+                    smallestDelta = delta;
+                    closestIndex = i;
+                }
+            }
+
+            return closestIndex;
         }
 
         private Vector3 GenerateEmitPosition(Vector3 playerPos)
@@ -317,8 +397,9 @@ namespace Client.Main.Objects.Worlds.Icarus
 
         private bool IsPositionTooClose(Vector3 newPosition, float minDistance)
         {
-            foreach (var particle in _particles)
+            for (int i = 0; i < _particles.Count; i++)
             {
+                var particle = _particles[i];
                 float distance = Vector2.Distance(
                     new Vector2(particle.Position.X, particle.Position.Y),
                     new Vector2(newPosition.X, newPosition.Y)
@@ -329,6 +410,7 @@ namespace Client.Main.Objects.Worlds.Icarus
                 if (distance < requiredDistance)
                     return true;
             }
+
             return false;
         }
 
