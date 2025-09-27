@@ -78,7 +78,7 @@ namespace Client.Main.Worlds
 
         public async Task CreateCharacterObjects(List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)> characters)
         {
-            _logger.LogInformation("Creating {Count} character objects…", characters.Count);
+            _logger.LogInformation("Creating {Count} character objects...", characters.Count);
 
             foreach (var old in _characterObjects)
             {

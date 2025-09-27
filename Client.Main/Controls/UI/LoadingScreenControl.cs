@@ -9,7 +9,7 @@ namespace Client.Main.Controls.UI.Game
     public class LoadingScreenControl : GameControl
     {
         private SpriteFont _font;
-        private string _pendingMessage = "Loading…";
+        private string _pendingMessage = "Loading...";
         private float _progress = 0f; // Value from 0 to 1
         private BasicEffect _basicEffect; // For drawing the progress bar
 
@@ -21,7 +21,7 @@ namespace Client.Main.Controls.UI.Game
         public string Message
         {
             get => _pendingMessage;
-            set => _pendingMessage = value ?? "Loading…";
+            set => _pendingMessage = value ?? "Loading...";
         }
 
         public float Progress

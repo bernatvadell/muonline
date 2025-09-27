@@ -72,13 +72,13 @@ namespace Client.Main.Models
             : 0;
 
         /// <summary>
-        /// Converts a 3‑bit glow level (0–7) to the actual item level (0, 1, 3, 5, …).
+        /// Converts a 3‑bit glow level (0–7) to the actual item level (0, 1, 3, 5, ...).
         /// </summary>
         private static byte ConvertGlowToItemLevel(byte glow) =>
             glow == 0 ? (byte)0 : (byte)((glow - 1) * 2 + 1);
 
         /// <summary>
-        /// Gets the item level for the specified slot index (0=LeftHand, 1=RightHand, …, 6=Boots).
+        /// Gets the item level for the specified slot index (0=LeftHand, 1=RightHand, ..., 6=Boots).
         /// </summary>
         private byte GetItemLevel(int slotIndex)
         {

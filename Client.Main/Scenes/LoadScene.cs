@@ -142,21 +142,21 @@ namespace Client.Main.Scenes
             {
                 try
                 {
-                    UpdateStatus("Downloading assets…", 0);
+                    UpdateStatus("Downloading assets...", 0);
                     await DownloadFileWithProgressAsync(url, localZip, UpdateStatus);
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Primary URL failed: {ex.Message}");
                     url = Constants.DefaultDataPathUrl;
-                    UpdateStatus("Retrying with default URL…", 0);
+                    UpdateStatus("Retrying with default URL...", 0);
                     await DownloadFileWithProgressAsync(url, localZip, UpdateStatus);
                 }
 
-                UpdateStatus("Extracting assets…", 0);
+                UpdateStatus("Extracting assets...", 0);
                 await ExtractZipFileWithProgressAsync(localZip, extractPath, UpdateStatus);
 
-                UpdateStatus("Cleaning up…", 1);
+                UpdateStatus("Cleaning up...", 1);
                 if (File.Exists(localZip)) File.Delete(localZip);
             }
 
@@ -169,12 +169,12 @@ namespace Client.Main.Scenes
                                    ? typeof(LoginScene)
                                    : Constants.ENTRY_SCENE;
 
-            UpdateStatus($"Loading {nextSceneType.Name}…", 0);
+            UpdateStatus($"Loading {nextSceneType.Name}...", 0);
 
             var nextScene = (BaseScene)Activator.CreateInstance(nextSceneType)!;
             await nextScene.InitializeWithProgressReporting(UpdateStatus);
 
-            UpdateStatus("Transitioning…", 1);
+            UpdateStatus("Transitioning...", 1);
             await Task.Delay(300);
             MuGame.Instance.ChangeScene(nextScene);
         }

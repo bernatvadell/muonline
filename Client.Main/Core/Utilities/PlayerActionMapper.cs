@@ -140,7 +140,7 @@ namespace Client.Main.Core.Utilities
                 return GetAttackAnimationForClass(characterClass);
             }
 
-            // —— emotes / idle / damage / … ——
+            // —— emotes / idle / damage / ... ——
             if (ServerToClientMap.TryGetValue(serverAction, out var baseClientAction))
             {
                 if (IsCharacterFemale(characterClass))

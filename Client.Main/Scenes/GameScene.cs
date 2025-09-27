@@ -54,13 +54,13 @@ namespace Client.Main.Scenes
 
         // Cache expensive enum values to avoid allocations
         private static readonly Keys[] _allKeys = (Keys[])System.Enum.GetValues(typeof(Keys));
-        
+
         // Performance optimization fields - track object IDs for O(1) lookups
         private readonly HashSet<ushort> _activePlayerIds = new();
         private readonly HashSet<ushort> _activeMonsterIds = new();
         private readonly HashSet<ushort> _activeNpcIds = new();
         private readonly HashSet<ushort> _activeItemIds = new();
-        
+
         // Cache for movement-related keys to reduce keyboard processing overhead
         private static readonly Keys[] _moveCommandKeys = { Keys.Up, Keys.Down, Keys.Left, Keys.Right, Keys.Enter, Keys.Escape };
 
@@ -408,9 +408,9 @@ namespace Client.Main.Scenes
                 var svc = MuGame.Network?.GetCharacterService();
                 if (svc != null)
                 {
-                    Task.Run(async () => 
+                    Task.Run(async () =>
                     {
-                        try 
+                        try
                         {
                             await svc.SendCloseNpcRequestAsync();
                         }
@@ -434,9 +434,9 @@ namespace Client.Main.Scenes
                 var svc = MuGame.Network?.GetCharacterService();
                 if (svc != null)
                 {
-                    Task.Run(async () => 
+                    Task.Run(async () =>
                     {
-                        try 
+                        try
                         {
                             await svc.SendCloseNpcRequestAsync();
                         }
@@ -464,9 +464,9 @@ namespace Client.Main.Scenes
                 var svc = MuGame.Network?.GetCharacterService();
                 if (svc != null)
                 {
-                    Task.Run(async () => 
+                    Task.Run(async () =>
                     {
-                        try 
+                        try
                         {
                             await svc.SendCloseNpcRequestAsync();
                         }
@@ -483,7 +483,7 @@ namespace Client.Main.Scenes
         public async Task ChangeMap(Type worldType)
         {
             _isChangingWorld = true;
-            
+
             // Clear object tracking for new map
             ClearObjectTracking();
 
@@ -497,7 +497,7 @@ namespace Client.Main.Scenes
             {
                 _loadingScreen.Visible = true;
             }
-            _loadingScreen.Message = $"Loading {worldType.Name}…";
+            _loadingScreen.Message = $"Loading {worldType.Name}...";
             _loadingScreen.Progress = 0f; // Reset progress for map change
             _main.Visible = false;
 
@@ -609,7 +609,7 @@ namespace Client.Main.Scenes
             {
                 // Use HashSet for O(1) lookup instead of expensive LINQ
                 if (_activeNpcIds.Contains(s.Id) || _activeMonsterIds.Contains(s.Id)) continue;
-                
+
                 if (!NpcDatabase.TryGetNpcType(s.TypeNumber, out Type objectType)) continue;
                 if (Activator.CreateInstance(objectType) is WalkerObject npcMonster)
                 {
@@ -622,7 +622,7 @@ namespace Client.Main.Scenes
                     {
                         await npcMonster.Load();
                         w.Objects.Add(npcMonster);
-                        
+
                         // Track the added object
                         if (npcMonster is MonsterObject)
                             _activeMonsterIds.Add(s.Id);
@@ -648,7 +648,7 @@ namespace Client.Main.Scenes
             foreach (var s in list)
             {
                 if (s.Id == heroId) continue;
-                
+
                 // Use HashSet for O(1) lookup instead of expensive LINQ
                 if (_activePlayerIds.Contains(s.Id)) continue;
 
@@ -666,7 +666,7 @@ namespace Client.Main.Scenes
                 {
                     await remote.Load();
                     w.Objects.Add(remote);
-                    
+
                     // Track the added player
                     _activePlayerIds.Add(s.Id);
                 }
@@ -714,7 +714,7 @@ namespace Client.Main.Scenes
 
                     // Add to world so World.Scene is available
                     w.Objects.Add(obj);
-                    
+
                     // Track the added item
                     _activeItemIds.Add(s.Id);
 
@@ -760,7 +760,7 @@ namespace Client.Main.Scenes
 
         // ─────────────────── Generic Object Import Helper ───────────────────
         private async Task ImportObjects<T>(
-            ICollection<ScopeObject> objects, 
+            ICollection<ScopeObject> objects,
             HashSet<ushort> trackingSet,
             Func<ScopeObject, T> createFunc,
             string objectTypeName) where T : WorldObject
@@ -967,13 +967,13 @@ namespace Client.Main.Scenes
             }
 
             // Handle attack clicks on monsters with proper validation
-            if (!IsMouseInputConsumedThisFrame && 
+            if (!IsMouseInputConsumedThisFrame &&
                 MouseHoverObject is MonsterObject targetMonster &&
                 MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
                 MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released) // Fresh press
             {
-                if (Hero != null && 
-                    !targetMonster.IsDead && 
+                if (Hero != null &&
+                    !targetMonster.IsDead &&
                     targetMonster.World == World && // Ensure same world
                     Vector2.Distance(Hero.Location, targetMonster.Location) <= Hero.GetAttackRangeTiles()) // Check range
                 {
@@ -1098,16 +1098,16 @@ namespace Client.Main.Scenes
             }
             if (e.MessageType == MessageType.Whisper)
             {
-                Task.Run(async () => 
+                Task.Run(async () =>
                 {
-                    try 
+                    try
                     {
                         await MuGame.Network.SendWhisperMessageAsync(e.Receiver, e.Message);
                     }
                     catch (Exception ex)
                     {
                         _logger?.LogError(ex, "Failed to send whisper message");
-                        MuGame.ScheduleOnMainThread(() => 
+                        MuGame.ScheduleOnMainThread(() =>
                         {
                             _chatLog?.AddMessage("System", "Failed to send whisper message.", MessageType.Error);
                         });
@@ -1116,16 +1116,16 @@ namespace Client.Main.Scenes
             }
             else
             {
-                Task.Run(async () => 
+                Task.Run(async () =>
                 {
-                    try 
+                    try
                     {
                         await MuGame.Network.SendPublicChatMessageAsync(e.Message);
                     }
                     catch (Exception ex)
                     {
                         _logger?.LogError(ex, "Failed to send chat message");
-                        MuGame.ScheduleOnMainThread(() => 
+                        MuGame.ScheduleOnMainThread(() =>
                         {
                             _chatLog?.AddMessage("System", "Failed to send message.", MessageType.Error);
                         });
