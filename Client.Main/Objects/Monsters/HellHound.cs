@@ -20,12 +20,14 @@ namespace Client.Main.Objects.Monsters
             _rightHandWeapon = new WeaponObject
             {
                 LinkParentAnimation = false,
-                ParentBoneLink = 19
+                ParentBoneLink = 19,
+                ItemLevel = 1
             };
             _leftHandWeapon = new WeaponObject
             {
                 LinkParentAnimation = false,
-                ParentBoneLink = 14
+                ParentBoneLink = 14,
+                ItemLevel = 1
             };
             Children.Add(_rightHandWeapon);
             Children.Add(_leftHandWeapon);

@@ -16,15 +16,18 @@ namespace Client.Main.Objects.Monsters
         private WeaponObject _leftHandWeapon;
         public AlphaCrust()
         {
+            Scale = 1.3f;
             _rightHandWeapon = new WeaponObject
             {
                 LinkParentAnimation = false,
-                ParentBoneLink = 42
+                ParentBoneLink = 36,
+                ItemLevel = 9
             };
             _leftHandWeapon = new WeaponObject
             {
                 LinkParentAnimation = false,
-                ParentBoneLink = 43 // Assuming 43 is left hand
+                ParentBoneLink = 45,
+                ItemLevel = 9
             };
             Children.Add(_rightHandWeapon);
             Children.Add(_leftHandWeapon);

@@ -15,10 +15,12 @@ namespace Client.Main.Objects.Monsters
         private WeaponObject _rightHandWeapon;
         public PhantomKnight()
         {
+            Scale = 1.45f;
             _rightHandWeapon = new WeaponObject
             {
                 LinkParentAnimation = false,
-                ParentBoneLink = 42
+                ParentBoneLink = 30,
+                ItemLevel = 5
             };
             Children.Add(_rightHandWeapon);
         }
