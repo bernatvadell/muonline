@@ -15,6 +15,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework.Graphics;
+using Client.Main.Core.Utilities;
 
 namespace Client.Main.Worlds
 {
@@ -28,6 +29,9 @@ namespace Client.Main.Worlds
         private readonly Vector3 _characterDisplayAngle = new(0, 0, MathHelper.ToRadians(90));
         private ILogger<SelectWorld> _logger;
         private int _currentCharacterIndex = -1;
+
+        // Random animation system for character selection
+        private readonly Random _animationRandom = new Random();
 
         public SelectWorld() : base(worldIndex: 94)
         {
@@ -203,6 +207,42 @@ namespace Client.Main.Worlds
             }
 
             _currentCharacterIndex = index;
+
+            // Play a random emote animation when character is selected
+            var activePlayer = _characterObjects[index];
+            if (activePlayer != null && !activePlayer.Hidden)
+            {
+                PlayRandomEmoteForActiveCharacter();
+            }
+        }
+
+        private void PlayRandomEmoteForActiveCharacter()
+        {
+            if (_currentCharacterIndex < 0 || _currentCharacterIndex >= _characterObjects.Count)
+                return;
+
+            var activePlayer = _characterObjects[_currentCharacterIndex];
+            if (activePlayer == null || activePlayer.Hidden)
+                return;
+
+            // Check if character is already playing an animation
+            if (activePlayer.IsOneShotPlaying)
+                return;
+
+            // Define available emote animations based on gender
+            bool isFemale = PlayerActionMapper.IsCharacterFemale(activePlayer.CharacterClass);
+            var availableEmotes = isFemale
+                ? new[] { PlayerAction.PlayerSeeFemale1, PlayerAction.PlayerWinFemale1, PlayerAction.PlayerSmileFemale1 }
+                : new[] { PlayerAction.PlayerSee1, PlayerAction.PlayerWin1, PlayerAction.PlayerSmile1 };
+
+            // Select random emote
+            var randomEmote = availableEmotes[_animationRandom.Next(availableEmotes.Length)];
+
+            _logger.LogDebug("Playing random emote {Emote} for character {CharacterName} (Female: {IsFemale})",
+                randomEmote, activePlayer.Name, isFemale);
+
+            // Play the animation using the new method
+            activePlayer.PlayEmoteAnimation(randomEmote);
         }
 
 

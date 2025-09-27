@@ -1417,5 +1417,13 @@ namespace Client.Main.Objects.Player
             // Force shader to update by invalidating buffers
             part.InvalidateBuffers();
         }
+
+        public void PlayEmoteAnimation(PlayerAction emoteAction)
+        {
+            if (_animationController != null)
+            {
+                _animationController.PlayAnimation((ushort)emoteAction);
+            }
+        }
     }
 }

@@ -32,7 +32,7 @@ namespace Client.Main.Scenes
         private int _currentCharacterIndex = -1;
         private bool _isSelectionInProgress = false;
 
-        private const int NavigationButtonSize = 52;
+        private const int NavigationButtonSize = 64;
         private const int NavigationHorizontalOffset = 200;
 
         // Constructors
@@ -83,11 +83,11 @@ namespace Client.Main.Scenes
                 return;
             }
 
-            _previousCharacterButton = CreateNavigationButton("CharacterNavLeft", "<");
+            _previousCharacterButton = CreateNavigationButton("CharacterNavLeft", "<<");
             _previousCharacterButton.Click += (s, e) => MoveSelection(-1);
             Controls.Add(_previousCharacterButton);
 
-            _nextCharacterButton = CreateNavigationButton("CharacterNavRight", ">");
+            _nextCharacterButton = CreateNavigationButton("CharacterNavRight", ">>");
             _nextCharacterButton.Click += (s, e) => MoveSelection(1);
             Controls.Add(_nextCharacterButton);
 
@@ -103,22 +103,25 @@ namespace Client.Main.Scenes
             {
                 Name = name,
                 Text = text,
-                FontSize = 26f,
+                FontSize = 32f,
                 AutoViewSize = false,
                 ViewSize = new Point(NavigationButtonSize, NavigationButtonSize),
-                BackgroundColor = new Color(0, 0, 0, 160),
-                HoverBackgroundColor = new Color(70, 70, 110, 200),
-                PressedBackgroundColor = new Color(50, 50, 90, 220),
-                TextColor = Color.White,
-                HoverTextColor = Color.Yellow,
-                DisabledTextColor = Color.Gray,
+                // MuOnline-style golden/bronze gradient background
+                BackgroundColor = new Color(139, 69, 19, 220),      // Bronze base
+                HoverBackgroundColor = new Color(218, 165, 32, 240), // Golden rod hover
+                PressedBackgroundColor = new Color(184, 134, 11, 255), // Dark golden rod pressed
+                // Enhanced text styling for better visibility
+                TextColor = new Color(255, 248, 220),               // Cornsilk - warm white
+                HoverTextColor = new Color(255, 215, 0),            // Gold
+                DisabledTextColor = new Color(105, 105, 105, 150),  // Dim gray
                 Interactive = true,
                 Visible = false,
                 Enabled = false,
                 TextPaddingX = 0,
-                TextPaddingY = 0,
-                BorderThickness = 1,
-                BorderColor = new Color(255, 255, 255, 40)
+                TextPaddingY = -2, // Slight upward adjustment for better centering
+                // Enhanced border for that medieval/fantasy look
+                BorderThickness = 2,
+                BorderColor = new Color(255, 215, 0, 180)           // Gold border
             };
         }
 

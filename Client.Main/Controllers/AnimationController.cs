@@ -240,7 +240,10 @@ namespace Client.Main.Controllers
             // PlayerAction.BlowSkill or PlayerAction.TwistingSlashSkill or
             // PlayerAction.FlameSkill or PlayerAction.EvilSpiritSkill => AnimationType.Skill,
             PlayerAction.PlayerGreeting1 or PlayerAction.PlayerGoodbye1 or
-            PlayerAction.PlayerClap1 or PlayerAction.PlayerCheer1 => AnimationType.Emote,
+            PlayerAction.PlayerClap1 or PlayerAction.PlayerCheer1 or
+            PlayerAction.PlayerSee1 or PlayerAction.PlayerSeeFemale1 or
+            PlayerAction.PlayerWin1 or PlayerAction.PlayerWinFemale1 or
+            PlayerAction.PlayerSmile1 or PlayerAction.PlayerSmileFemale1 => AnimationType.Emote,
             _ => AnimationType.Idle
         };
 
