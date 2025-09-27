@@ -9,6 +9,7 @@ using Client.Main.Core.Utilities;
 
 namespace Client.Main.Objects.Monsters
 {
+    [NpcInfo(64, "Orc Archer")]
     public class OrcArcher : MonsterObject
     {
         private WeaponObject _rightHandWeapon;

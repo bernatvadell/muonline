@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
 {
+    [NpcInfo(73, "Drakan")]
     public class Drakan : MonsterObject
     {
         public Drakan()

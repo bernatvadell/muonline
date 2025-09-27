@@ -9,12 +9,12 @@ using Client.Main.Core.Utilities;
 
 namespace Client.Main.Objects.Monsters
 {
-    [NpcInfo(71, "Mega Crust")]
-    public class MegaCrust : MonsterObject
+    [NpcInfo(74, "Alpha Crust")]
+    public class AlphaCrust : MonsterObject
     {
         private WeaponObject _rightHandWeapon;
         private WeaponObject _leftHandWeapon;
-        public MegaCrust()
+        public AlphaCrust()
         {
             _rightHandWeapon = new WeaponObject
             {
@@ -32,7 +32,7 @@ namespace Client.Main.Objects.Monsters
 
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare($"Monster/Monster53.bmd");
+            Model = await BMDLoader.Instance.Prepare($"Monster/Monster53.bmd"); // TODO
             var item = ItemDatabase.GetItemDefinition(0, 18); // Thunder Blade
             if (item != null)
                 _rightHandWeapon.Model = await BMDLoader.Instance.Prepare(item.TexturePath);

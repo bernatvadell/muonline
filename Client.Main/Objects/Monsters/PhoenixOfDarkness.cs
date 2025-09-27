@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
 {
+    [NpcInfo(77, "Phoenix Of Darkness")]
     public class PhoenixOfDarkness : MonsterObject
     {
         public PhoenixOfDarkness()

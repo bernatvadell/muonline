@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
 {
+    [NpcInfo(72, "Phantom Knight")]
     public class PhantomKnight : MonsterObject
     {
         private WeaponObject _rightHandWeapon;

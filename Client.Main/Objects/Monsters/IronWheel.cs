@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
 {
+
+    [NpcInfo(57, "IronWheel")]
     public class IronWheel : MonsterObject
     {
         public IronWheel()

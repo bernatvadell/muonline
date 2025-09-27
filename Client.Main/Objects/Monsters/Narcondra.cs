@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
 {
+    [NpcInfo(576, "Narcondra")]
     public class NarCondra : MonsterObject
     {
         public NarCondra()

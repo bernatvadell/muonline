@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
 {
+    [NpcInfo(308, "Death Tree")]
     public class DeathTree : MonsterObject
     {
         public DeathTree()

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
 {
+    [NpcInfo(305, "Blue Golem")]
     public class BlueGolem : MonsterObject
     {
         public BlueGolem()

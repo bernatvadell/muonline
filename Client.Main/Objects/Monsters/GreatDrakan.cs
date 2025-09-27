@@ -7,16 +7,16 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
 {
-    [NpcInfo(571, "Orcus")]
-    public class Orcus : MonsterObject
+    [NpcInfo(75, "Great Drakan")]
+    public class GreatDrakan : MonsterObject
     {
-        public Orcus()
+        public GreatDrakan()
         {
         }
 
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare($"Monster/Monster212.bmd");
+            Model = await BMDLoader.Instance.Prepare($"Monster/Monster55.bmd"); // TODO
             await base.Load();
         }
     }

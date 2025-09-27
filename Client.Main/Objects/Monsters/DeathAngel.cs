@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
 {
+    [NpcInfo(144, "Death Angel")]
     public class DeathAngel : MonsterObject
     {
         public DeathAngel()
