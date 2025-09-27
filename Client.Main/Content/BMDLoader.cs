@@ -87,7 +87,7 @@ namespace Client.Main.Content
             {
                 var asm = Assembly.GetExecutingAssembly();
 
-                // Szukamy dokładnie jednego zasobu kończącego się nazwą pliku
+                // Looking for exactly one resource ending with the file name
                 var resName = asm.GetManifestResourceNames()
                                  .SingleOrDefault(n =>
                                      n.EndsWith("bmd_blending_config.json",
@@ -97,14 +97,14 @@ namespace Client.Main.Content
                 {
                     _logger?.LogWarning(
                         "Embedded resource 'bmd_blending_config.json' not found " +
-                        "(sprawdź Build Action = Embedded Resource i RootNamespace).");
+                        "(check Build Action = Embedded Resource and RootNamespace).");
                     return;
                 }
 
                 using var stream = asm.GetManifestResourceStream(resName);
                 if (stream == null)
                 {
-                    _logger?.LogWarning($"Nie udało się otworzyć strumienia '{resName}'.");
+                    _logger?.LogWarning($"Failed to open stream '{resName}'.");
                     return;
                 }
 

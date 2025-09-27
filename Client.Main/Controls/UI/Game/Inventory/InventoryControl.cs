@@ -1,3 +1,5 @@
+using System;
+using System.Text;
 using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Models;
@@ -9,6 +11,7 @@ using Client.Main.Networking;
 using Client.Main.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using MUnique.OpenMU.Network.Packets;
+using Client.Main.Controls.UI;
 
 namespace Client.Main.Controls.UI.Game.Inventory
 {
@@ -635,7 +638,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             }
 
             // If we released the mouse while dragging an item OUTSIDE of the inventory grid,
-            // decide if we sell to NPC shop (when open and under cursor) or drop to terrain otherwise.
+            // drop to vault or terrain.
             if (leftJustReleased && _pickedItemRenderer.Item != null && !_isDragging && !IsMouseOverGrid())
             {
                 var item = _pickedItemRenderer.Item;
@@ -645,24 +648,17 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
                 // Check if the cursor is over an open NPC shop -> SELL
                 var shop = Client.Main.Controls.UI.Game.NpcShopControl.Instance;
-                if (shop != null && shop.Visible && shop.DisplayRectangle.Contains(MuGame.Instance.UiMouseState.Position) && _networkManager != null)
+                if (shop != null && shop.Visible && shop.DisplayRectangle.Contains(MuGame.Instance.UiMouseState.Position))
                 {
-                    var svc = _networkManager.GetCharacterService();
-                    _networkManager.GetCharacterState().StashPendingSellSlot(slotIndex);
-                    _ = System.Threading.Tasks.Task.Run(async () =>
-                    {
-                        await svc.SendSellItemToNpcRequestAsync(slotIndex);
-                        await System.Threading.Tasks.Task.Delay(1200);
-                        var state = _networkManager.GetCharacterState();
-                        // If item still present at slot, raise refresh to resync
-                        if (state.HasInventoryItem(slotIndex))
-                        {
-                            MuGame.ScheduleOnMainThread(() => state.RaiseInventoryChanged());
-                        }
-                    });
+                    var itemToSell = _pickedItemRenderer.Item;
+                    var originalGrid = _pickedItemOriginalGrid;
+                    int fromEquipSlot = _pickedFromEquipSlot;
 
                     _pickedItemRenderer.ReleaseItem();
                     _pickedItemOriginalGrid = new Point(-1, -1);
+                    _pickedFromEquipSlot = -1;
+
+                    ShowSellConfirmation(itemToSell, slotIndex, originalGrid, fromEquipSlot);
                 }
                 // Otherwise, check if cursor is over Vault -> move Inventory -> Vault
                 else if (Client.Main.Controls.UI.Game.VaultControl.Instance is { } vault && vault.Visible && vault.DisplayRectangle.Contains(MuGame.Instance.UiMouseState.Position) && _networkManager != null)
@@ -737,6 +733,176 @@ namespace Client.Main.Controls.UI.Game.Inventory
             }
 
             _pickedItemRenderer.Update(gameTime);
+        }
+
+        private void ShowSellConfirmation(InventoryItem item, byte slotIndex, Point originalGrid, int fromEquipSlot)
+        {
+            if (item == null)
+            {
+                return;
+            }
+
+            if (_networkManager == null)
+            {
+                MessageWindow.Show("No connection to server. Sale is not possible.");
+                RestoreItemAfterCancelledSell(item, originalGrid, fromEquipSlot);
+                return;
+            }
+
+            var definition = item.Definition;
+            if (definition == null)
+            {
+                MessageWindow.Show("Cannot identify the selected item.");
+                RestoreItemAfterCancelledSell(item, originalGrid, fromEquipSlot);
+                return;
+            }
+
+            string displayName = BuildItemDisplayName(item);
+
+            if (!definition.CanSellToNpc)
+            {
+                MessageWindow.Show($"Item '{displayName}' cannot be sold to NPC shop.");
+                RestoreItemAfterCancelledSell(item, originalGrid, fromEquipSlot);
+                return;
+            }
+
+            var builder = new StringBuilder();
+            builder.AppendLine($"Sell {displayName}?");
+            if (definition.IsExpensive)
+            {
+                builder.AppendLine();
+                builder.AppendLine("WARNING: This item is marked as expensive.");
+            }
+
+            RequestDialog.Show(
+                builder.ToString(),
+                onAccept: () => ExecuteSellToNpc(slotIndex),
+                onReject: () => RestoreItemAfterCancelledSell(item, originalGrid, fromEquipSlot),
+                acceptText: "Sell",
+                rejectText: "Cancel");
+        }
+
+        private void ExecuteSellToNpc(byte slotIndex)
+        {
+            if (_networkManager == null)
+            {
+                MessageWindow.Show("No connection to server. Sale is not possible.");
+                return;
+            }
+
+            var svc = _networkManager.GetCharacterService();
+            if (svc == null)
+            {
+                MessageWindow.Show("Failed to connect to NPC shop server.");
+                return;
+            }
+
+            var state = _networkManager.GetCharacterState();
+            state.StashPendingSellSlot(slotIndex);
+            _ = System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    await svc.SendSellItemToNpcRequestAsync(slotIndex);
+                    await System.Threading.Tasks.Task.Delay(1200);
+                    var refreshedState = _networkManager?.GetCharacterState();
+                    if (refreshedState != null && refreshedState.HasInventoryItem(slotIndex))
+                    {
+                        MuGame.ScheduleOnMainThread(() => refreshedState.RaiseInventoryChanged());
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Error while sending item sale request from slot {Slot}.", slotIndex);
+                    var refreshedState = _networkManager?.GetCharacterState();
+                    if (refreshedState != null)
+                    {
+                        MuGame.ScheduleOnMainThread(() => refreshedState.RaiseInventoryChanged());
+                    }
+
+                    MuGame.ScheduleOnMainThread(() => MessageWindow.Show("Failed to sell item. Please try again."));
+                }
+            });
+        }
+
+        private void RestoreItemAfterCancelledSell(InventoryItem item, Point originalGrid, int fromEquipSlot)
+        {
+            if (item == null)
+            {
+                return;
+            }
+
+            if (fromEquipSlot >= 0)
+            {
+                _equippedItems[(byte)fromEquipSlot] = item;
+                _networkManager?.GetCharacterState()?.RaiseEquipmentChanged();
+                return;
+            }
+
+            Point targetSlot = originalGrid;
+            if (targetSlot.X < 0 || targetSlot.Y < 0 || !CanPlaceItem(item, targetSlot))
+            {
+                if (!TryFindFirstFreeSlot(item, out targetSlot))
+                {
+                    _logger?.LogWarning("No free space to restore item '{Name}' in inventory.", item.Definition?.Name ?? "Unknown");
+                    MessageWindow.Show("No space in inventory to restore item.");
+                    return;
+                }
+            }
+
+            item.GridPosition = targetSlot;
+            if (!AddItem(item))
+            {
+                _logger?.LogWarning("Failed to restore item '{Name}' to inventory.", item.Definition?.Name ?? "Unknown");
+                MessageWindow.Show("Restoring item to inventory failed.");
+            }
+        }
+
+
+
+        private bool TryFindFirstFreeSlot(InventoryItem item, out Point slot)
+        {
+            slot = new Point(-1, -1);
+            if (item?.Definition == null)
+            {
+                return false;
+            }
+
+            for (int y = 0; y <= Rows - item.Definition.Height; y++)
+            {
+                for (int x = 0; x <= Columns - item.Definition.Width; x++)
+                {
+                    var candidate = new Point(x, y);
+                    if (CanPlaceItem(item, candidate))
+                    {
+                        slot = candidate;
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static string BuildItemDisplayName(InventoryItem item)
+        {
+            if (item == null)
+            {
+                return "item";
+            }
+
+            string name = item.Definition?.Name ?? ItemDatabase.GetItemName(item.RawData) ?? "item";
+            if (item.Details.Level > 0)
+            {
+                name += $" +{item.Details.Level}";
+            }
+
+            if (item.Definition?.BaseDurability == 0 && item.Durability > 1)
+            {
+                name += $" x{item.Durability}";
+            }
+
+            return name;
         }
 
         public void HookEvents()

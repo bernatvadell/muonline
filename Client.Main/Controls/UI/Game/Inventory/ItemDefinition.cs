@@ -23,6 +23,8 @@ namespace Client.Main.Controls.UI.Game.Inventory
         public int RequiredLevel { get; set; }
         public bool TwoHanded { get; set; }
         public int Group { get; set; }
+        public bool IsExpensive { get; set; }
+        public bool CanSellToNpc { get; set; }
 
         // Classes which can equip this item
         public List<string> AllowedClasses { get; set; } = new();

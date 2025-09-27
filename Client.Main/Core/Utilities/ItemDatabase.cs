@@ -109,7 +109,9 @@ namespace Client.Main.Core.Utilities
                         RequiredLevel = item.ReqLvl,
                         TwoHanded = item.TwoHands != 0,
                         Group = item.ItemSubGroup,
-                        AllowedClasses = BuildAllowedClasses(item)
+                        AllowedClasses = BuildAllowedClasses(item),
+                        IsExpensive = item.Expensive != 0,
+                        CanSellToNpc = item.SellNpc != 0
                     };
 
                     data.Add(key, definition);
@@ -128,7 +130,7 @@ namespace Client.Main.Core.Utilities
         public static ItemDefinition GetItemDefinition(byte group, short id)
         {
             _definitions.TryGetValue((group, id), out var def);
-            
+
             return def;
         }
 
@@ -199,6 +201,7 @@ namespace Client.Main.Core.Utilities
             if ((excByte & 0b0010_0000) != 0) list.Add("Zen");
             return list;
         }
+
 
         public static string ParseSocketOption(byte socketByte) => $"S:{socketByte}";
 

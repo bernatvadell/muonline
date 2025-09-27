@@ -184,7 +184,7 @@ namespace Client.Main.Controllers
                 Constants.MSAA_ENABLED ? pp.MultiSampleCount : 0,
                 RenderTargetUsage.DiscardContents);
 
-            // Temp targets nie potrzebują MSAA
+            // Temp targets don't need MSAA
             TempTarget1 = new RenderTarget2D(_graphicsDevice, targetWidth, targetHeight, false,
                 SurfaceFormat.Color, DepthFormat.None);
             TempTarget2 = new RenderTarget2D(_graphicsDevice, targetWidth, targetHeight, false,

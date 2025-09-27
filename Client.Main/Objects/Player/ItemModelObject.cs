@@ -9,9 +9,9 @@ using System.Threading.Tasks;
 namespace Client.Main.Objects.Player
 {
     /// <summary>
-    /// 3-D wizualizacja przedmiotu w oknie inwentarza.
-    /// Całość ładowana synchronicznie w wątku gry,
-    /// z rozbudowanym logowaniem przebiegu i błędów.
+    /// 3-D visualization of an item in the inventory window.
+    /// Everything loaded synchronously in the game thread,
+    /// with extensive logging of progress and errors.
     /// </summary>
     public class ItemModelObject : ModelObject
     {
@@ -23,22 +23,22 @@ namespace Client.Main.Objects.Player
         {
             _definition = definition;
 
-            // Ustawienia domyślne dla obiektów w inventory
+            // Default settings for objects in inventory
             LinkParentAnimation = false;
             IsTransparent = false;
         }
 
         /// <summary>
-        /// Ładuje model:
-        /// 1) I/O (odczyt *.bmd* z dysku),
-        /// 2) tworzenie zasobów GPU (wątek główny).
+        /// Loads the model:
+        /// 1) I/O (reading *.bmd* from disk),
+        /// 2) creating GPU resources (main thread).
         /// </summary>
         public override Task Load()
         {
-            // --- Walidacja danych ------------------------------------------------
+            // --- Data validation ------------------------------------------------
             if (_definition == null)
             {
-                _logger?.LogWarning("[ITEM] Brak definicji – Load przerwane.");
+                _logger?.LogWarning("[ITEM] No definition - Load interrupted.");
                 Status = Models.GameControlStatus.Error;
                 return Task.CompletedTask;
             }
@@ -46,17 +46,17 @@ namespace Client.Main.Objects.Player
             if (string.IsNullOrWhiteSpace(_definition.TexturePath))
             {
                 _logger?.LogWarning(
-                    "[ITEM] „{Name}” ({Id}) nie ma ustawionej TexturePath.",
+                    "[ITEM] \"{Name}\" ({Id}) has no TexturePath set.",
                     _definition.Name, _definition.Id);
 
                 Status = Models.GameControlStatus.Error;
                 return Task.CompletedTask;
             }
 
-            // --- Ładowanie modelu + zasoby GPU ----------------------------------
+            // --- Model loading + GPU resources ----------------------------------
             try
             {
-                // 1) I/O – w tym samym wątku (brak ryzyka kolizji z GPU)
+                // 1) I/O - in the same thread (no risk of GPU collision)
                 var bmd = BMDLoader.Instance
                                    .Prepare(_definition.TexturePath)
                                    .GetAwaiter()
@@ -65,7 +65,7 @@ namespace Client.Main.Objects.Player
                 if (bmd == null)
                 {
                     _logger?.LogError(
-                        "[ITEM] Nie znaleziono BMD „{Path}”.",
+                        "[ITEM] BMD not found \"{Path}\".",
                         _definition.TexturePath);
 
                     Status = Models.GameControlStatus.Error;
@@ -74,21 +74,21 @@ namespace Client.Main.Objects.Player
 
                 Model = bmd;
 
-                // 2) GPU – musi być wywołane w wątku z GraphicsDevice
+                // 2) GPU - must be called in thread with GraphicsDevice
                 base.LoadContent()
                     .GetAwaiter()
                     .GetResult();
 
                 Status = Models.GameControlStatus.Ready;
                 _logger?.LogDebug(
-                    "[ITEM] „{Name}” ({Id}) załadowany OK.",
+                    "[ITEM] \"{Name}\" ({Id}) loaded OK.",
                     _definition.Name, _definition.Id);
             }
             catch (Exception ex)
             {
                 _logger?.LogError(
                     ex,
-                    "[ITEM] Błąd podczas ładowania „{Name}” ({Id}).",
+                    "[ITEM] Error while loading \"{Name}\" ({Id}).",
                     _definition?.Name,
                     _definition?.Id);
 
@@ -100,7 +100,7 @@ namespace Client.Main.Objects.Player
 
         public override void Update(GameTime gameTime)
         {
-            // Delikatna rotacja dla efektu „obracającego się diamentu”
+            // Gentle rotation for "rotating diamond" effect
             Angle = new Vector3(Angle.X,
                                 Angle.Y + 0.01f,
                                 Angle.Z);

@@ -89,14 +89,58 @@ namespace Client.Main.Controls.UI
             _rejectButton.Click += (s, e) => { Rejected?.Invoke(this, EventArgs.Empty); Close(); };
             Controls.Add(_rejectButton);
 
+            AdjustButtonSize(_acceptButton);
+            AdjustButtonSize(_rejectButton);
+
             UpdateWrappedText();
             AdjustSizeAndLayout();
+        }
+
+        private void SetButtonLabels(string acceptText, string rejectText)
+        {
+            bool layoutNeedsUpdate = false;
+            if (!string.IsNullOrWhiteSpace(acceptText) && !_acceptButton.Text.Equals(acceptText, StringComparison.Ordinal))
+            {
+                _acceptButton.Text = acceptText;
+                AdjustButtonSize(_acceptButton);
+                layoutNeedsUpdate = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(rejectText) && !_rejectButton.Text.Equals(rejectText, StringComparison.Ordinal))
+            {
+                _rejectButton.Text = rejectText;
+                AdjustButtonSize(_rejectButton);
+                layoutNeedsUpdate = true;
+            }
+
+            if (layoutNeedsUpdate)
+            {
+                AdjustSizeAndLayout();
+            }
+        }
+
+        private static void AdjustButtonSize(ButtonControl button)
+        {
+            var font = GraphicsManager.Instance?.Font;
+            if (font == null)
+            {
+                return;
+            }
+
+            float scale = button.FontSize / Constants.BASE_FONT_SIZE;
+            float width = font.MeasureString(button.Text ?? string.Empty).X * scale;
+            int paddedWidth = (int)Math.Ceiling(width) + 24;
+            int height = button.ViewSize.Y;
+            int finalWidth = Math.Max(paddedWidth, button.ViewSize.X);
+            button.ViewSize = new Point(finalWidth, height);
+            button.ControlSize = new Point(finalWidth, height);
         }
 
         private void SetInfoMode()
         {
             _infoOnly = true;
             _acceptButton.Text = "OK";
+            AdjustButtonSize(_acceptButton);
             _rejectButton.Visible = false;
             AdjustSizeAndLayout();
         }
@@ -114,7 +158,7 @@ namespace Client.Main.Controls.UI
 
             _background.X = 0;
             _background.Y = 0;
-            _background.ViewSize = new Point(BASE_BG_WIDTH+170, BASE_BG_HEIGHT+25);
+            _background.ViewSize = new Point(width + 170, height + 25);
 
             _label.X = (width - _label.ControlSize.X) / 2;
             _label.Y = TOP_PAD;
@@ -194,7 +238,9 @@ namespace Client.Main.Controls.UI
 
         public static RequestDialog Show(string text,
                                          Action onAccept = null,
-                                         Action onReject = null)
+                                         Action onReject = null,
+                                         string acceptText = null,
+                                         string rejectText = null)
         {
             var scene = MuGame.Instance?.ActiveScene;
             if (scene == null)
@@ -207,6 +253,7 @@ namespace Client.Main.Controls.UI
                 r.Close();
 
             var dlg = new RequestDialog { Text = text };
+            dlg.SetButtonLabels(acceptText, rejectText);
             if (onAccept != null) dlg.Accepted += (s, e) => onAccept();
             if (onReject != null) dlg.Rejected += (s, e) => onReject();
 
