@@ -118,7 +118,7 @@ namespace Client.Main.Objects
 
             float distanceToCamera = Vector3.Distance(Camera.Instance.Position, WorldPosition.Translation);
             float scaleFactor = Scale / (MathF.Max(distanceToCamera, 0.1f) / Constants.TERRAIN_SIZE);
-            _scaleMix = scaleFactor * worldScale.X;
+            _scaleMix = scaleFactor * worldScale.X * Constants.RENDER_SCALE;
         }
 
         public override void Dispose()
