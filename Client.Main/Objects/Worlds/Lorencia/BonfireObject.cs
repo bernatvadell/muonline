@@ -1,6 +1,7 @@
 ﻿using Client.Main.Content;
 using Client.Main.Controls;
 using Client.Main.Objects.Effects;
+using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -113,9 +114,38 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
         private void UpdateDynamicLight(float intensity)
         {
-            // The light's position must be in absolute world coordinates.
-            _dynamicLight.Position = WorldPosition.Translation + _basePosition + new Vector3(0f, 0f, _baseHeight);
+            _dynamicLight.Position = GetFlameLightPosition();
             _dynamicLight.Intensity = intensity;
+        }
+
+        private Vector3 GetFlameLightPosition()
+        {
+            Vector3 sum = Vector3.Zero;
+            int count = 0;
+
+            AccumulateFlamePositions(_baseFlames, ref sum, ref count);
+            AccumulateFlamePositions(_middleFlames, ref sum, ref count);
+            AccumulateFlamePositions(_topFlames, ref sum, ref count);
+
+            if (count > 0)
+                return sum / count;
+
+            Vector3 fallbackLocal = _basePosition + new Vector3(0f, 0f, _baseHeight);
+            return Vector3.Transform(fallbackLocal, WorldPosition);
+        }
+
+        private static void AccumulateFlamePositions<T>(IReadOnlyList<T> flames, ref Vector3 sum, ref int count)
+            where T : SpriteObject
+        {
+            for (int i = 0; i < flames.Count; i++)
+            {
+                var flame = flames[i];
+                if (flame?.Status == GameControlStatus.Ready)
+                {
+                    sum += flame.WorldPosition.Translation;
+                    count++;
+                }
+            }
         }
 
         private void UpdateIndividualWindEffects(float time)

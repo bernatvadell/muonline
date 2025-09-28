@@ -108,7 +108,7 @@ namespace Client.Main.Objects.Worlds.Login
             // If the model is different, this index might need to change.
             Vector3 localPosition = BoneTransform[0].Translation + new Vector3(0, 0, _flameHeight);
 
-            _dynamicLight.Position = WorldPosition.Translation + localPosition;
+            _dynamicLight.Position = Vector3.Transform(localPosition, WorldPosition);
             _dynamicLight.Intensity = intensity;
         }
 

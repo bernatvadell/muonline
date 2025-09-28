@@ -1,6 +1,7 @@
 ﻿using Client.Main.Content;
 using Client.Main.Controls;
 using Client.Main.Objects.Effects;
+using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
@@ -130,8 +131,40 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
         private void UpdateDynamicLight(FlameSet set, float intensity)
         {
-            set.Light.Position = WorldPosition.Translation + set.BasePosition + new Vector3(0f, -5f, _baseHeight);
+            set.Light.Position = GetFlameSetLightPosition(set);
             set.Light.Intensity = intensity;
+        }
+
+        private Vector3 GetFlameSetLightPosition(FlameSet set)
+        {
+            Vector3 sum = Vector3.Zero;
+            int count = 0;
+
+            AccumulateFlamePositions(set.BaseFlames, ref sum, ref count);
+            AccumulateFlamePositions(set.MiddleFlames, ref sum, ref count);
+            AccumulateFlamePositions(set.TopFlames, ref sum, ref count);
+
+            if (count > 0)
+            {
+                return sum / count;
+            }
+
+            Vector3 fallbackLocal = set.BasePosition + new Vector3(0f, -5f, _baseHeight);
+            return Vector3.Transform(fallbackLocal, WorldPosition);
+        }
+
+        private static void AccumulateFlamePositions<T>(IReadOnlyList<T> flames, ref Vector3 sum, ref int count)
+            where T : SpriteObject
+        {
+            for (int i = 0; i < flames.Count; i++)
+            {
+                var flame = flames[i];
+                if (flame?.Status == GameControlStatus.Ready)
+                {
+                    sum += flame.WorldPosition.Translation;
+                    count++;
+                }
+            }
         }
 
         private void UpdateIndividualWindEffects(FlameSet flameSet, float time)
