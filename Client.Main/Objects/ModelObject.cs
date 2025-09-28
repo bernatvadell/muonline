@@ -114,6 +114,7 @@ namespace Client.Main.Objects
         public Vector3 GlowColor { get; set; } = new Vector3(1.0f, 0.8f, 0.0f); // Default gold
         public float GlowIntensity { get; set; } = 0.0f;
         public bool EnableCustomShader { get; set; } = false;
+        public bool SimpleColorMode { get; set; } = false;
 
         // Cached arrays for dynamic lighting to avoid allocations
         private static readonly Vector3[] _cachedLightPositions = new Vector3[16];
@@ -1112,7 +1113,8 @@ namespace Client.Main.Objects
                     // Set monster-specific properties
                     effect.Parameters["GlowColor"]?.SetValue(GlowColor);
                     effect.Parameters["GlowIntensity"]?.SetValue(GlowIntensity);
-                    effect.Parameters["EnableGlow"]?.SetValue(GlowIntensity > 0.0f);
+                    effect.Parameters["EnableGlow"]?.SetValue(GlowIntensity > 0.0f && !SimpleColorMode);
+                    effect.Parameters["SimpleColorMode"]?.SetValue(SimpleColorMode);
                     effect.Parameters["Time"]?.SetValue(GetCachedTime());
                     effect.Parameters["Alpha"]?.SetValue(TotalAlpha);
 
