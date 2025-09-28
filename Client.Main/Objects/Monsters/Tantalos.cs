@@ -17,6 +17,8 @@ namespace Client.Main.Objects.Monsters
         public Tantalos()
         {
             Scale = 1.8f;
+            BlendMesh = 2; // Normal blending, not full transparency like Zaikan
+            BlendMeshLight = 1.0f;
             _rightHandWeapon = new WeaponObject
             {
                 LinkParentAnimation = false,

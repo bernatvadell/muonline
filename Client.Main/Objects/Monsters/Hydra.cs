@@ -14,6 +14,8 @@ namespace Client.Main.Objects.Monsters
         {
             RenderShadow = true;
             Scale = 1.0f; // Set according to C++ Setting_Monster
+            BlendMesh = 5;
+            BlendMeshLight = 0.0f;
         }
 
         public override async Task Load()

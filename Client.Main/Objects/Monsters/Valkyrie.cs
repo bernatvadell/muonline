@@ -18,6 +18,8 @@ namespace Client.Main.Objects.Monsters
         {
             RenderShadow = true;
             Scale = 1.1f; // Set according to C++ Setting_Monster
+            BlendMesh = 0;
+            BlendMeshLight = 1.0f;
             _rightHandWeapon = new WeaponObject
             {
                 LinkParentAnimation = false,

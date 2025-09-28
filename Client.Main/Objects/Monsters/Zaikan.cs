@@ -13,6 +13,9 @@ namespace Client.Main.Objects.Monsters
         public Zaikan()
         {
             Scale = 2.1f;
+            BlendMesh = -2; // Makes the entire monster semi-transparent like in original
+            BlendMeshLight = 1.0f;
+            Type = 1; // SubType equivalent
             _rightHandWeapon = new WeaponObject
             {
                 LinkParentAnimation = false,

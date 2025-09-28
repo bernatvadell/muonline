@@ -12,6 +12,7 @@ namespace Client.Main.Objects.Monsters
     {
         public BloodyWolf()
         {
+            Scale = 2.2f;
         }
 
         public override async Task Load()

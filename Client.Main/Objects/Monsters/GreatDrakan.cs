@@ -12,6 +12,12 @@ namespace Client.Main.Objects.Monsters
     {
         public GreatDrakan()
         {
+            Scale = 1.0f;
+            // Set meshes that should NOT use blending (equivalent to NoneBlendMesh = true)
+            NoneBlendMeshes.Add(0); // Mesh 0: no blending
+            NoneBlendMeshes.Add(3); // Mesh 3: no blending
+            NoneBlendMeshes.Add(4); // Mesh 4: no blending
+            // Mesh 1 and 2 will use blending (not in NoneBlendMeshes set)
         }
 
         public override async Task Load()

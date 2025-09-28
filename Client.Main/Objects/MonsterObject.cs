@@ -23,6 +23,11 @@ namespace Client.Main.Objects
         public bool Blood { get; set; } = true;
 
         /// <summary>
+        /// Set of mesh indices that should NOT use blending (equivalent to NoneBlendMesh = true in original code).
+        /// </summary>
+        public HashSet<int> NoneBlendMeshes { get; set; } = new HashSet<int>();
+
+        /// <summary>
         /// Gets the monster's display name defined by <see cref="NpcInfoAttribute"/>.
         /// </summary>
         public override string DisplayName
@@ -283,5 +288,18 @@ namespace Client.Main.Objects
         }
 
         protected new ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<MonsterObject>();
+
+        /// <summary>
+        /// Override to support NoneBlendMeshes functionality from original code.
+        /// </summary>
+        protected override bool IsBlendMesh(int mesh)
+        {
+            // If mesh is in NoneBlendMeshes set, it should NOT use blending
+            if (NoneBlendMeshes.Contains(mesh))
+                return false;
+
+            // Otherwise use the base implementation
+            return base.IsBlendMesh(mesh);
+        }
     }
 }

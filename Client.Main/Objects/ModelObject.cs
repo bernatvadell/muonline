@@ -722,7 +722,7 @@ namespace Client.Main.Objects
             return HiddenMesh == mesh || HiddenMesh == -2 || _meshHiddenByScript[mesh];
         }
 
-        private bool IsBlendMesh(int mesh)
+        protected virtual bool IsBlendMesh(int mesh)
         {
             if (_meshBlendByScript == null || mesh < 0 || mesh >= _meshBlendByScript.Length)
                 return false;

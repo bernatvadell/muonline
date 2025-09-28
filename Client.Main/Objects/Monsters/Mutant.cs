@@ -12,6 +12,7 @@ namespace Client.Main.Objects.Monsters
     {
         public Mutant()
         {
+            Scale = 1.5f;
         }
 
         public override async Task Load()

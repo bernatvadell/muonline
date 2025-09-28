@@ -13,6 +13,7 @@ namespace Client.Main.Objects.Monsters
     {
         public IronWheel()
         {
+            Scale = 1.4f;
         }
 
         public override async Task Load()
