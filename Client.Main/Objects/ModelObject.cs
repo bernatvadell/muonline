@@ -771,130 +771,146 @@ namespace Client.Main.Objects
             try
             {
                 var gd = GraphicsDevice;
+                var prevDepthState = gd.DepthStencilState;
+                bool depthStateChanged = false;
 
-                // Apply small depth bias based on object type to reduce Z-fighting
-                var prevRasterizer = gd.RasterizerState;
-                var depthBias = GetDepthBias();
-                if (depthBias != 0f)
+                try
                 {
-                    // PERFORMANCE: Use cached RasterizerState to avoid per-mesh allocation
-                    gd.RasterizerState = GraphicsManager.GetCachedRasterizerState(depthBias, prevRasterizer.CullMode, prevRasterizer);
-                }
-
-                // Use dynamic lighting effect if shader is enabled and available
-                bool useDynamicLighting = Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
-                                        GraphicsManager.Instance.DynamicLightingEffect != null;
-
-                // Debug: Force dynamic lighting for testing pulsing
-                // useDynamicLighting = useDynamicLighting || (GraphicsManager.Instance.DynamicLightingEffect != null);
-
-                // Use item material effect only for items with level 7+, excellent, or ancient
-                // but exclude certain meshes (like face mesh on helmets)
-                bool useItemMaterial = Constants.ENABLE_ITEM_MATERIAL_SHADER &&
-                                     (ItemLevel >= 7 || IsExcellentItem || IsAncientItem) &&
-                                     GraphicsManager.Instance.ItemMaterialEffect != null &&
-                                     ShouldApplyItemMaterial(mesh);
-
-                // Use monster material effect if custom shader is enabled
-                bool useMonsterMaterial = Constants.ENABLE_MONSTER_MATERIAL_SHADER &&
-                                        EnableCustomShader &&
-                                        GraphicsManager.Instance.MonsterMaterialEffect != null;
-
-                if (useDynamicLighting && !useItemMaterial && !useMonsterMaterial)
-                {
-                    DrawMeshWithDynamicLighting(mesh);
-                    return;
-                }
-
-                if (useItemMaterial)
-                {
-                    DrawMeshWithItemMaterial(mesh);
-                    return;
-                }
-
-                if (useMonsterMaterial)
-                {
-                    DrawMeshWithMonsterMaterial(mesh);
-                    return;
-                }
-
-                var effect = GraphicsManager.Instance.AlphaTestEffect3D;
-
-                // Cache frequently used values
-                bool isBlendMesh = IsBlendMesh(mesh);
-                var vertexBuffer = _boneVertexBuffers[mesh];
-                var indexBuffer = _boneIndexBuffers[mesh];
-                var texture = _boneTextures[mesh];
-
-                // Batch state changes - save current states  
-                var originalRasterizer = gd.RasterizerState;
-                var prevBlend = gd.BlendState;
-                float prevAlpha = effect.Alpha;
-
-                // for custom blending from json
-                // Apply new states from config first
-                var meshConf = Model.Meshes[mesh];
-
-                // Check if mesh should be two-sided based on RGBA, blend mesh, or JSON config
-                bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
-                if (meshConf.BlendingMode != null && meshConf.BlendingMode != "Opaque")
-                {
-                    isTwoSided = true;
-                }
-                BlendState customBlendState = null;
-                if (meshConf.BlendingMode != null)
-                {
-                    if (!_blendStateCache.TryGetValue(meshConf.BlendingMode, out customBlendState))
+                    // Apply small depth bias based on object type to reduce Z-fighting
+                    var prevRasterizer = gd.RasterizerState;
+                    var depthBias = GetDepthBias();
+                    if (depthBias != 0f)
                     {
-                        var field = typeof(Blendings).GetField(meshConf.BlendingMode, BindingFlags.Public | BindingFlags.Static);
-                        if (field != null)
+                        // PERFORMANCE: Use cached RasterizerState to avoid per-mesh allocation
+                        gd.RasterizerState = GraphicsManager.GetCachedRasterizerState(depthBias, prevRasterizer.CullMode, prevRasterizer);
+                    }
+
+                    // Use dynamic lighting effect if shader is enabled and available
+                    bool useDynamicLighting = Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
+                                            GraphicsManager.Instance.DynamicLightingEffect != null;
+
+                    // Debug: Force dynamic lighting for testing pulsing
+                    // useDynamicLighting = useDynamicLighting || (GraphicsManager.Instance.DynamicLightingEffect != null);
+
+                    // Use item material effect only for items with level 7+, excellent, or ancient
+                    // but exclude certain meshes (like face mesh on helmets)
+                    bool useItemMaterial = Constants.ENABLE_ITEM_MATERIAL_SHADER &&
+                                         (ItemLevel >= 7 || IsExcellentItem || IsAncientItem) &&
+                                         GraphicsManager.Instance.ItemMaterialEffect != null &&
+                                         ShouldApplyItemMaterial(mesh);
+
+                    // Use monster material effect if custom shader is enabled
+                    bool useMonsterMaterial = Constants.ENABLE_MONSTER_MATERIAL_SHADER &&
+                                            EnableCustomShader &&
+                                            GraphicsManager.Instance.MonsterMaterialEffect != null;
+
+                    if (useDynamicLighting && !useItemMaterial && !useMonsterMaterial)
+                    {
+                        DrawMeshWithDynamicLighting(mesh);
+                        return;
+                    }
+
+                    if (useItemMaterial)
+                    {
+                        DrawMeshWithItemMaterial(mesh);
+                        return;
+                    }
+
+                    if (useMonsterMaterial)
+                    {
+                        DrawMeshWithMonsterMaterial(mesh);
+                        return;
+                    }
+
+                    var effect = GraphicsManager.Instance.AlphaTestEffect3D;
+
+                    // Cache frequently used values
+                    bool isBlendMesh = IsBlendMesh(mesh);
+                    var vertexBuffer = _boneVertexBuffers[mesh];
+                    var indexBuffer = _boneIndexBuffers[mesh];
+                    var texture = _boneTextures[mesh];
+
+                    // Batch state changes - save current states  
+                    var originalRasterizer = gd.RasterizerState;
+                    var prevBlend = gd.BlendState;
+                    float prevAlpha = effect.Alpha;
+
+                    // for custom blending from json
+                    // Apply new states from config first
+                    var meshConf = Model.Meshes[mesh];
+
+                    // Check if mesh should be two-sided based on RGBA, blend mesh, or JSON config
+                    bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
+                    if (meshConf.BlendingMode != null && meshConf.BlendingMode != "Opaque")
+                    {
+                        isTwoSided = true;
+                    }
+                    BlendState customBlendState = null;
+                    if (meshConf.BlendingMode != null)
+                    {
+                        if (!_blendStateCache.TryGetValue(meshConf.BlendingMode, out customBlendState))
                         {
-                            customBlendState = (BlendState)field.GetValue(null);
-                            _blendStateCache[meshConf.BlendingMode] = customBlendState;
+                            var field = typeof(Blendings).GetField(meshConf.BlendingMode, BindingFlags.Public | BindingFlags.Static);
+                            if (field != null)
+                            {
+                                customBlendState = (BlendState)field.GetValue(null);
+                                _blendStateCache[meshConf.BlendingMode] = customBlendState;
+                            }
                         }
                     }
-                }
 
-                // Apply final rasterizer state (considering depth bias and culling)
-                if (depthBias != 0f)
+                    // Apply final rasterizer state (considering depth bias and culling)
+                    if (depthBias != 0f)
+                    {
+                        // PERFORMANCE: Use cached RasterizerState to avoid per-mesh allocation  
+                        CullMode cullMode = isTwoSided ? CullMode.None : CullMode.CullClockwiseFace;
+                        gd.RasterizerState = GraphicsManager.GetCachedRasterizerState(depthBias, cullMode, originalRasterizer);
+                    }
+                    else
+                    {
+                        gd.RasterizerState = isTwoSided ? _cullNone : _cullClockwise;
+                    }
+
+                    if (isBlendMesh)
+                    {
+                        gd.DepthStencilState = GraphicsManager.ReadOnlyDepth;
+                        depthStateChanged = true;
+                    }
+
+                    gd.BlendState = customBlendState ?? (isBlendMesh ? BlendMeshState : BlendState);
+
+                    // Set effect properties
+                    effect.Texture = texture;
+                    effect.Alpha = TotalAlpha;
+
+                    // Set buffers once
+                    gd.SetVertexBuffer(vertexBuffer);
+                    gd.Indices = indexBuffer;
+
+                    // Draw with optimized primitive count calculation
+                    int primitiveCount = indexBuffer.IndexCount / 3;
+
+                    // Single pass application with minimal overhead
+                    var technique = effect.CurrentTechnique;
+                    var passes = technique.Passes;
+                    int passCount = passes.Count;
+
+                    for (int p = 0; p < passCount; p++)
+                    {
+                        passes[p].Apply();
+                        gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+                    }
+
+                    // Restore states in batch
+                    effect.Alpha = prevAlpha;
+                    gd.BlendState = prevBlend;
+                    gd.RasterizerState = originalRasterizer;
+                }
+                finally
                 {
-                    // PERFORMANCE: Use cached RasterizerState to avoid per-mesh allocation  
-                    CullMode cullMode = isTwoSided ? CullMode.None : CullMode.CullClockwiseFace;
-                    gd.RasterizerState = GraphicsManager.GetCachedRasterizerState(depthBias, cullMode, originalRasterizer);
+                    if (depthStateChanged)
+                        gd.DepthStencilState = prevDepthState;
                 }
-                else
-                {
-                    gd.RasterizerState = isTwoSided ? _cullNone : _cullClockwise;
-                }
-                gd.BlendState = customBlendState ?? (isBlendMesh ? BlendMeshState : BlendState);
-                //
-
-                // Set effect properties
-                effect.Texture = texture;
-                effect.Alpha = TotalAlpha;
-
-                // Set buffers once
-                gd.SetVertexBuffer(vertexBuffer);
-                gd.Indices = indexBuffer;
-
-                // Draw with optimized primitive count calculation
-                int primitiveCount = indexBuffer.IndexCount / 3;
-
-                // Single pass application with minimal overhead
-                var technique = effect.CurrentTechnique;
-                var passes = technique.Passes;
-                int passCount = passes.Count;
-
-                for (int p = 0; p < passCount; p++)
-                {
-                    passes[p].Apply();
-                    gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
-                }
-
-                // Restore states in batch
-                effect.Alpha = prevAlpha;
-                gd.BlendState = prevBlend;
-                gd.RasterizerState = originalRasterizer;
             }
             catch (Exception ex)
             {
@@ -923,75 +939,93 @@ namespace Client.Main.Objects
                     return;
                 }
 
-                bool isBlendMesh = IsBlendMesh(mesh);
-                var vertexBuffer = _boneVertexBuffers[mesh];
-                var indexBuffer = _boneIndexBuffers[mesh];
-                var texture = _boneTextures[mesh];
+                var prevDepthState = gd.DepthStencilState;
+                bool depthStateChanged = false;
 
-                var prevCull = gd.RasterizerState;
-                var prevBlend = gd.BlendState;
-
-                var meshConf = Model.Meshes[mesh];
-
-                // Check if mesh should be two-sided based on RGBA, blend mesh, or JSON config
-                bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
-                if (meshConf.BlendingMode != null && meshConf.BlendingMode != "Opaque")
+                try
                 {
-                    isTwoSided = true;
-                }
-                BlendState customBlendState = null;
-                if (meshConf.BlendingMode != null)
-                {
-                    if (!_blendStateCache.TryGetValue(meshConf.BlendingMode, out customBlendState))
+                    bool isBlendMesh = IsBlendMesh(mesh);
+                    var vertexBuffer = _boneVertexBuffers[mesh];
+                    var indexBuffer = _boneIndexBuffers[mesh];
+                    var texture = _boneTextures[mesh];
+
+                    var prevCull = gd.RasterizerState;
+                    var prevBlend = gd.BlendState;
+
+                    var meshConf = Model.Meshes[mesh];
+
+                    // Check if mesh should be two-sided based on RGBA, blend mesh, or JSON config
+                    bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
+                    if (meshConf.BlendingMode != null && meshConf.BlendingMode != "Opaque")
                     {
-                        var field = typeof(Blendings).GetField(meshConf.BlendingMode, BindingFlags.Public | BindingFlags.Static);
-                        if (field != null)
+                        isTwoSided = true;
+                    }
+                    BlendState customBlendState = null;
+                    if (meshConf.BlendingMode != null)
+                    {
+                        if (!_blendStateCache.TryGetValue(meshConf.BlendingMode, out customBlendState))
                         {
-                            customBlendState = (BlendState)field.GetValue(null);
-                            _blendStateCache[meshConf.BlendingMode] = customBlendState;
+                            var field = typeof(Blendings).GetField(meshConf.BlendingMode, BindingFlags.Public | BindingFlags.Static);
+                            if (field != null)
+                            {
+                                customBlendState = (BlendState)field.GetValue(null);
+                                _blendStateCache[meshConf.BlendingMode] = customBlendState;
+                            }
                         }
                     }
+
+                    gd.RasterizerState = isTwoSided ? _cullNone : _cullClockwise;
+
+                    if (isBlendMesh)
+                    {
+                        gd.DepthStencilState = GraphicsManager.ReadOnlyDepth;
+                        depthStateChanged = true;
+                    }
+
+                    gd.BlendState = customBlendState ?? (isBlendMesh ? BlendMeshState : BlendState);
+
+                    // Set world view projection matrix
+                    Matrix worldViewProjection = WorldPosition * Camera.Instance.View * Camera.Instance.Projection;
+                    effect.Parameters["WorldViewProjection"]?.SetValue(worldViewProjection);
+                    effect.Parameters["World"]?.SetValue(WorldPosition);
+                    effect.Parameters["View"]?.SetValue(Camera.Instance.View);
+                    effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
+                    effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
+
+                    // Set texture
+                    effect.Parameters["DiffuseTexture"]?.SetValue(texture);
+
+                    // Set item properties
+                    int itemOptions = ItemLevel & 0x0F;
+                    if (IsExcellentItem)
+                        itemOptions |= 0x10;
+
+                    effect.Parameters["ItemOptions"]?.SetValue(itemOptions);
+                    effect.Parameters["Time"]?.SetValue(GetCachedTime());
+                    effect.Parameters["IsAncient"]?.SetValue(IsAncientItem);
+                    effect.Parameters["IsExcellent"]?.SetValue(IsExcellentItem);
+                    effect.Parameters["Alpha"]?.SetValue(TotalAlpha);
+                    //effect.Parameters["GlowColor"]?.SetValue(GlowColor);
+
+                    gd.SetVertexBuffer(vertexBuffer);
+                    gd.Indices = indexBuffer;
+
+                    int primitiveCount = indexBuffer.IndexCount / 3;
+
+                    foreach (EffectPass pass in effect.CurrentTechnique.Passes)
+                    {
+                        pass.Apply();
+                        gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+                    }
+
+                    gd.BlendState = prevBlend;
+                    gd.RasterizerState = prevCull;
                 }
-
-                gd.RasterizerState = isTwoSided ? _cullNone : _cullClockwise;
-                gd.BlendState = customBlendState ?? (isBlendMesh ? BlendMeshState : BlendState);
-
-                // Set world view projection matrix
-                Matrix worldViewProjection = WorldPosition * Camera.Instance.View * Camera.Instance.Projection;
-                effect.Parameters["WorldViewProjection"]?.SetValue(worldViewProjection);
-                effect.Parameters["World"]?.SetValue(WorldPosition);
-                effect.Parameters["View"]?.SetValue(Camera.Instance.View);
-                effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
-                effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
-
-                // Set texture
-                effect.Parameters["DiffuseTexture"]?.SetValue(texture);
-
-                // Set item properties
-                int itemOptions = ItemLevel & 0x0F;
-                if (IsExcellentItem)
-                    itemOptions |= 0x10;
-
-                effect.Parameters["ItemOptions"]?.SetValue(itemOptions);
-                effect.Parameters["Time"]?.SetValue(GetCachedTime());
-                effect.Parameters["IsAncient"]?.SetValue(IsAncientItem);
-                effect.Parameters["IsExcellent"]?.SetValue(IsExcellentItem);
-                effect.Parameters["Alpha"]?.SetValue(TotalAlpha);
-                //effect.Parameters["GlowColor"]?.SetValue(GlowColor);
-
-                gd.SetVertexBuffer(vertexBuffer);
-                gd.Indices = indexBuffer;
-
-                int primitiveCount = indexBuffer.IndexCount / 3;
-
-                foreach (EffectPass pass in effect.CurrentTechnique.Passes)
+                finally
                 {
-                    pass.Apply();
-                    gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+                    if (depthStateChanged)
+                        gd.DepthStencilState = prevDepthState;
                 }
-
-                gd.BlendState = prevBlend;
-                gd.RasterizerState = prevCull;
             }
             catch (Exception ex)
             {
@@ -1021,68 +1055,86 @@ namespace Client.Main.Objects
                     return;
                 }
 
-                bool isBlendMesh = IsBlendMesh(mesh);
-                var vertexBuffer = _boneVertexBuffers[mesh];
-                var indexBuffer = _boneIndexBuffers[mesh];
-                var texture = _boneTextures[mesh];
+                var prevDepthState = gd.DepthStencilState;
+                bool depthStateChanged = false;
 
-                var prevCull = gd.RasterizerState;
-                var prevBlend = gd.BlendState;
-
-                var meshConf = Model.Meshes[mesh];
-
-                // Check if mesh should be two-sided based on RGBA, blend mesh, or JSON config
-                bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
-                if (meshConf.BlendingMode != null && meshConf.BlendingMode != "Opaque")
+                try
                 {
-                    isTwoSided = true;
-                }
-                BlendState customBlendState = null;
-                if (meshConf.BlendingMode != null)
-                {
-                    if (!_blendStateCache.TryGetValue(meshConf.BlendingMode, out customBlendState))
+                    bool isBlendMesh = IsBlendMesh(mesh);
+                    var vertexBuffer = _boneVertexBuffers[mesh];
+                    var indexBuffer = _boneIndexBuffers[mesh];
+                    var texture = _boneTextures[mesh];
+
+                    var prevCull = gd.RasterizerState;
+                    var prevBlend = gd.BlendState;
+
+                    var meshConf = Model.Meshes[mesh];
+
+                    // Check if mesh should be two-sided based on RGBA, blend mesh, or JSON config
+                    bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
+                    if (meshConf.BlendingMode != null && meshConf.BlendingMode != "Opaque")
                     {
-                        var field = typeof(Blendings).GetField(meshConf.BlendingMode, BindingFlags.Public | BindingFlags.Static);
-                        if (field != null)
+                        isTwoSided = true;
+                    }
+                    BlendState customBlendState = null;
+                    if (meshConf.BlendingMode != null)
+                    {
+                        if (!_blendStateCache.TryGetValue(meshConf.BlendingMode, out customBlendState))
                         {
-                            customBlendState = (BlendState)field.GetValue(null);
-                            _blendStateCache[meshConf.BlendingMode] = customBlendState;
+                            var field = typeof(Blendings).GetField(meshConf.BlendingMode, BindingFlags.Public | BindingFlags.Static);
+                            if (field != null)
+                            {
+                                customBlendState = (BlendState)field.GetValue(null);
+                                _blendStateCache[meshConf.BlendingMode] = customBlendState;
+                            }
                         }
                     }
+
+                    gd.RasterizerState = isTwoSided ? _cullNone : _cullClockwise;
+
+                    if (isBlendMesh)
+                    {
+                        gd.DepthStencilState = GraphicsManager.ReadOnlyDepth;
+                        depthStateChanged = true;
+                    }
+
+                    gd.BlendState = customBlendState ?? (isBlendMesh ? BlendMeshState : BlendState);
+
+                    // Set matrices
+                    effect.Parameters["World"]?.SetValue(WorldPosition);
+                    effect.Parameters["View"]?.SetValue(Camera.Instance.View);
+                    effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
+                    effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
+
+                    // Set texture
+                    effect.Parameters["DiffuseTexture"]?.SetValue(texture);
+
+                    // Set monster-specific properties
+                    effect.Parameters["GlowColor"]?.SetValue(GlowColor);
+                    effect.Parameters["GlowIntensity"]?.SetValue(GlowIntensity);
+                    effect.Parameters["EnableGlow"]?.SetValue(GlowIntensity > 0.0f);
+                    effect.Parameters["Time"]?.SetValue(GetCachedTime());
+                    effect.Parameters["Alpha"]?.SetValue(TotalAlpha);
+
+                    gd.SetVertexBuffer(vertexBuffer);
+                    gd.Indices = indexBuffer;
+
+                    int primitiveCount = indexBuffer.IndexCount / 3;
+
+                    foreach (EffectPass pass in effect.CurrentTechnique.Passes)
+                    {
+                        pass.Apply();
+                        gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+                    }
+
+                    gd.BlendState = prevBlend;
+                    gd.RasterizerState = prevCull;
                 }
-
-                gd.RasterizerState = isTwoSided ? _cullNone : _cullClockwise;
-                gd.BlendState = customBlendState ?? (isBlendMesh ? BlendMeshState : BlendState);
-
-                // Set matrices
-                effect.Parameters["World"]?.SetValue(WorldPosition);
-                effect.Parameters["View"]?.SetValue(Camera.Instance.View);
-                effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
-                effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
-
-                // Set texture
-                effect.Parameters["DiffuseTexture"]?.SetValue(texture);
-
-                // Set monster-specific properties
-                effect.Parameters["GlowColor"]?.SetValue(GlowColor);
-                effect.Parameters["GlowIntensity"]?.SetValue(GlowIntensity);
-                effect.Parameters["EnableGlow"]?.SetValue(GlowIntensity > 0.0f);
-                effect.Parameters["Time"]?.SetValue(GetCachedTime());
-                effect.Parameters["Alpha"]?.SetValue(TotalAlpha);
-
-                gd.SetVertexBuffer(vertexBuffer);
-                gd.Indices = indexBuffer;
-
-                int primitiveCount = indexBuffer.IndexCount / 3;
-
-                foreach (EffectPass pass in effect.CurrentTechnique.Passes)
+                finally
                 {
-                    pass.Apply();
-                    gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+                    if (depthStateChanged)
+                        gd.DepthStencilState = prevDepthState;
                 }
-
-                gd.BlendState = prevBlend;
-                gd.RasterizerState = prevCull;
             }
             catch (Exception ex)
             {
@@ -1112,111 +1164,129 @@ namespace Client.Main.Objects
                     return;
                 }
 
-                bool isBlendMesh = IsBlendMesh(mesh);
-                var vertexBuffer = _boneVertexBuffers[mesh];
-                var indexBuffer = _boneIndexBuffers[mesh];
-                var texture = _boneTextures[mesh];
+                var prevDepthState = gd.DepthStencilState;
+                bool depthStateChanged = false;
 
-                var prevCull = gd.RasterizerState;
-                var prevBlend = gd.BlendState;
-
-                var meshConf = Model.Meshes[mesh];
-
-                // Check if mesh should be two-sided based on RGBA, blend mesh, or JSON config
-                bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
-                if (meshConf.BlendingMode != null && meshConf.BlendingMode != "Opaque")
+                try
                 {
-                    isTwoSided = true;
-                }
-                BlendState customBlendState = null;
-                if (meshConf.BlendingMode != null)
-                {
-                    if (!_blendStateCache.TryGetValue(meshConf.BlendingMode, out customBlendState))
+                    bool isBlendMesh = IsBlendMesh(mesh);
+                    var vertexBuffer = _boneVertexBuffers[mesh];
+                    var indexBuffer = _boneIndexBuffers[mesh];
+                    var texture = _boneTextures[mesh];
+
+                    var prevCull = gd.RasterizerState;
+                    var prevBlend = gd.BlendState;
+
+                    var meshConf = Model.Meshes[mesh];
+
+                    // Check if mesh should be two-sided based on RGBA, blend mesh, or JSON config
+                    bool isTwoSided = _meshIsRGBA[mesh] || isBlendMesh;
+                    if (meshConf.BlendingMode != null && meshConf.BlendingMode != "Opaque")
                     {
-                        var field = typeof(Blendings).GetField(meshConf.BlendingMode, BindingFlags.Public | BindingFlags.Static);
-                        if (field != null)
+                        isTwoSided = true;
+                    }
+                    BlendState customBlendState = null;
+                    if (meshConf.BlendingMode != null)
+                    {
+                        if (!_blendStateCache.TryGetValue(meshConf.BlendingMode, out customBlendState))
                         {
-                            customBlendState = (BlendState)field.GetValue(null);
-                            _blendStateCache[meshConf.BlendingMode] = customBlendState;
+                            var field = typeof(Blendings).GetField(meshConf.BlendingMode, BindingFlags.Public | BindingFlags.Static);
+                            if (field != null)
+                            {
+                                customBlendState = (BlendState)field.GetValue(null);
+                                _blendStateCache[meshConf.BlendingMode] = customBlendState;
+                            }
                         }
                     }
-                }
 
-                gd.RasterizerState = isTwoSided ? _cullNone : _cullClockwise;
-                gd.BlendState = customBlendState ?? (isBlendMesh ? BlendMeshState : BlendState);
+                    gd.RasterizerState = isTwoSided ? _cullNone : _cullClockwise;
 
-                // Set transformation matrices
-                effect.Parameters["World"]?.SetValue(WorldPosition);
-                effect.Parameters["View"]?.SetValue(Camera.Instance.View);
-                effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
-                Matrix worldViewProjection = WorldPosition * Camera.Instance.View * Camera.Instance.Projection;
-                effect.Parameters["WorldViewProjection"]?.SetValue(worldViewProjection);
-                effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
-
-                // Set texture
-                effect.Parameters["DiffuseTexture"]?.SetValue(texture);
-                effect.Parameters["Alpha"]?.SetValue(TotalAlpha);
-
-                // Set terrain lighting
-                Vector3 worldTranslation = WorldPosition.Translation;
-                Vector3 terrainLight = Vector3.One;
-                if (LightEnabled && World?.Terrain != null)
-                {
-                    terrainLight = World.Terrain.EvaluateTerrainLight(worldTranslation.X, worldTranslation.Y);
-                }
-                // Set ambient lighting for dynamic lighting shader
-                effect.Parameters["AmbientLight"]?.SetValue(_ambientLightVector);
-
-                // Ensure terrain light is reasonable - don't divide by 255 as it makes it too dark
-                terrainLight = Vector3.Clamp(terrainLight / 255f, Vector3.Zero, Vector3.One);
-                effect.Parameters["TerrainLight"]?.SetValue(terrainLight);
-
-                // Set dynamic lights
-                var activeLights = World?.Terrain?.ActiveLights;
-                if (activeLights != null && activeLights.Count > 0)
-                {
-                    int maxLights = Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16;
-                    int lightCount = Math.Min(activeLights.Count, maxLights);
-                    effect.Parameters["ActiveLightCount"]?.SetValue(lightCount);
-                    effect.Parameters["MaxLightsToProcess"]?.SetValue(maxLights);
-
-                    // Use cached arrays to avoid allocations
-                    for (int i = 0; i < lightCount; i++)
+                    if (isBlendMesh)
                     {
-                        var light = activeLights[i];
-                        _cachedLightPositions[i] = light.Position;
-                        _cachedLightColors[i] = light.Color; // Already in 0-1 range
-                        _cachedLightRadii[i] = light.Radius;
-                        _cachedLightIntensities[i] = light.Intensity;
+                        gd.DepthStencilState = GraphicsManager.ReadOnlyDepth;
+                        depthStateChanged = true;
                     }
 
-                    effect.Parameters["LightPositions"]?.SetValue(_cachedLightPositions);
-                    effect.Parameters["LightColors"]?.SetValue(_cachedLightColors);
-                    effect.Parameters["LightRadii"]?.SetValue(_cachedLightRadii);
-                    effect.Parameters["LightIntensities"]?.SetValue(_cachedLightIntensities);
+                    gd.BlendState = customBlendState ?? (isBlendMesh ? BlendMeshState : BlendState);
+
+                    // Set transformation matrices
+                    effect.Parameters["World"]?.SetValue(WorldPosition);
+                    effect.Parameters["View"]?.SetValue(Camera.Instance.View);
+                    effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
+                    Matrix worldViewProjection = WorldPosition * Camera.Instance.View * Camera.Instance.Projection;
+                    effect.Parameters["WorldViewProjection"]?.SetValue(worldViewProjection);
+                    effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
+
+                    // Set texture
+                    effect.Parameters["DiffuseTexture"]?.SetValue(texture);
+                    effect.Parameters["Alpha"]?.SetValue(TotalAlpha);
+
+                    // Set terrain lighting
+                    Vector3 worldTranslation = WorldPosition.Translation;
+                    Vector3 terrainLight = Vector3.One;
+                    if (LightEnabled && World?.Terrain != null)
+                    {
+                        terrainLight = World.Terrain.EvaluateTerrainLight(worldTranslation.X, worldTranslation.Y);
+                    }
+                    // Set ambient lighting for dynamic lighting shader
+                    effect.Parameters["AmbientLight"]?.SetValue(_ambientLightVector);
+
+                    // Ensure terrain light is reasonable - don't divide by 255 as it makes it too dark
+                    terrainLight = Vector3.Clamp(terrainLight / 255f, Vector3.Zero, Vector3.One);
+                    effect.Parameters["TerrainLight"]?.SetValue(terrainLight);
+
+                    // Set dynamic lights
+                    var activeLights = World?.Terrain?.ActiveLights;
+                    if (activeLights != null && activeLights.Count > 0)
+                    {
+                        int maxLights = Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16;
+                        int lightCount = Math.Min(activeLights.Count, maxLights);
+                        effect.Parameters["ActiveLightCount"]?.SetValue(lightCount);
+                        effect.Parameters["MaxLightsToProcess"]?.SetValue(maxLights);
+
+                        // Use cached arrays to avoid allocations
+                        for (int i = 0; i < lightCount; i++)
+                        {
+                            var light = activeLights[i];
+                            _cachedLightPositions[i] = light.Position;
+                            _cachedLightColors[i] = light.Color; // Already in 0-1 range
+                            _cachedLightRadii[i] = light.Radius;
+                            _cachedLightIntensities[i] = light.Intensity;
+                        }
+
+                        effect.Parameters["LightPositions"]?.SetValue(_cachedLightPositions);
+                        effect.Parameters["LightColors"]?.SetValue(_cachedLightColors);
+                        effect.Parameters["LightRadii"]?.SetValue(_cachedLightRadii);
+                        effect.Parameters["LightIntensities"]?.SetValue(_cachedLightIntensities);
+                    }
+                    else
+                    {
+                        effect.Parameters["ActiveLightCount"]?.SetValue(0);
+                        effect.Parameters["MaxLightsToProcess"]?.SetValue(Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16);
+                    }
+
+                    // Set debug lighting areas parameter
+                    effect.Parameters["DebugLightingAreas"]?.SetValue(Constants.DEBUG_LIGHTING_AREAS);
+
+                    gd.SetVertexBuffer(vertexBuffer);
+                    gd.Indices = indexBuffer;
+
+                    int primitiveCount = indexBuffer.IndexCount / 3;
+
+                    foreach (EffectPass pass in effect.CurrentTechnique.Passes)
+                    {
+                        pass.Apply();
+                        gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+                    }
+
+                    gd.BlendState = prevBlend;
+                    gd.RasterizerState = prevCull;
                 }
-                else
+                finally
                 {
-                    effect.Parameters["ActiveLightCount"]?.SetValue(0);
-                    effect.Parameters["MaxLightsToProcess"]?.SetValue(Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16);
+                    if (depthStateChanged)
+                        gd.DepthStencilState = prevDepthState;
                 }
-
-                // Set debug lighting areas parameter
-                effect.Parameters["DebugLightingAreas"]?.SetValue(Constants.DEBUG_LIGHTING_AREAS);
-
-                gd.SetVertexBuffer(vertexBuffer);
-                gd.Indices = indexBuffer;
-
-                int primitiveCount = indexBuffer.IndexCount / 3;
-
-                foreach (EffectPass pass in effect.CurrentTechnique.Passes)
-                {
-                    pass.Apply();
-                    gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
-                }
-
-                gd.BlendState = prevBlend;
-                gd.RasterizerState = prevCull;
             }
             catch (Exception ex)
             {

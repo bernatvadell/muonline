@@ -17,6 +17,8 @@ namespace Client.Main.Objects.Monsters
         public AlphaCrust()
         {
             Scale = 1.3f;
+            BlendMesh = 1;
+            BlendMeshLight = 1.0f;
             _rightHandWeapon = new WeaponObject
             {
                 LinkParentAnimation = false,
