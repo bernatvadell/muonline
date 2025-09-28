@@ -17,6 +17,12 @@ namespace Client.Main.Objects.Monsters
         {
             RenderShadow = true;
             Scale = 1.15f;
+
+            EnableCustomShader = true;
+            SimpleColorMode = true;
+            GlowColor = new Vector3(0.25f, 0.15f, 0f); 
+            GlowIntensity = 7.0f;
+
             _rightHandWeapon = new WeaponObject
             {
                 LinkParentAnimation = false,

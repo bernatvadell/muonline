@@ -91,24 +91,19 @@ namespace Client.Main.Objects.Monsters
         protected override void OnIdle()
         {
             base.OnIdle();
-            // In C++ the monster could play one of two idle sounds (25 or 26)
-            // Here we play only the first (mGiant1.wav - ID 25)
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
-            SoundController.Instance.PlayBufferWithAttenuation("Sound/mGiant1.wav", Position, listenerPosition);
-            // You can add randomness or a condition to play mGiant2.wav (ID 26)
+            // Play one of the idle sounds (index 0 or 1)
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/mGiant1.wav", Position, listenerPosition); // Index 0 -> Sound 25
+            // SoundController.Instance.PlayBufferWithAttenuation("Sound/mGiant2.wav", Position, listenerPosition); // Index 1 -> Sound 26
         }
 
-        // No specific OnStartWalk method in C#, but sounds 25/26 could have been used for walking too
-
-        public override void OnPerformAttack(int attackType = 1) // attackType is not used to select the sound here
+        public override void OnPerformAttack(int attackType = 1)
         {
             base.OnPerformAttack(attackType);
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
-            // In C++ there were two attack sounds (27 and 28)
-            // Here we play only the first (mGiantAttack1.wav - ID 27)
-            SoundController.Instance.PlayBufferWithAttenuation("Sound/mGiantAttack1.wav", Position, listenerPosition);
-            // You could add logic based on attackType to play mGiantAttack2.wav (ID 28)
-            // if (attackType == 2) SoundController.Instance.PlayBufferWithAttenuation("Sound/mGiantAttack2.wav", ...);
+            // Play one of the attack sounds (index 2 or 3)
+            SoundController.Instance.PlayBufferWithAttenuation("Sound/mGiantAttack1.wav", Position, listenerPosition); // Index 2 -> Sound 27
+            // SoundController.Instance.PlayBufferWithAttenuation("Sound/mGiantAttack2.wav", Position, listenerPosition); // Index 3 -> Sound 28
         }
 
         public override void OnReceiveDamage()

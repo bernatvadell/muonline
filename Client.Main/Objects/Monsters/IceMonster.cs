@@ -14,6 +14,9 @@ namespace Client.Main.Objects.Monsters
         {
             RenderShadow = true;
             Scale = 1.0f; // Default
+            BlendMesh = -2; // Use full blending like other semi-transparent monsters
+            BlendMeshLight = 0.7f; // Reduced light for more subtle blending
+            Alpha = 0.85f; // Slightly transparent for better blending with environment
         }
 
         public override async Task Load()
