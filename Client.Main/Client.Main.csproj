@@ -38,6 +38,18 @@
     <PackageReference Include="NLayer" Version="1.16.0" />
   </ItemGroup>
 
+  <!-- LOCAL CONFIG FILE -->
+  <!-- Remove automatic compile of file -->
+  <ItemGroup>
+    <Compile Remove="Constants*.cs" />
+  </ItemGroup>
+  <!-- Add it back with condition -->
+  <ItemGroup>
+    <Compile Include="Constants.Local.cs" Condition="Exists('Constants.Local.cs')" />
+    <Compile Include="Constants.cs" Condition="!Exists('Constants.Local.cs')" />
+  </ItemGroup>
+  <!-- LOCAL CONFIG FILE END -->
+
   <!-- appsettings.json -->
   <ItemGroup Condition="'$(TargetFramework)'=='net9.0-android'">
     <AndroidAsset Include="appsettings.json" />
@@ -53,6 +65,9 @@
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)'!='net9.0-android'">
     <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="appsettings.local.json" Condition="Exists('appsettings.local.json')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
