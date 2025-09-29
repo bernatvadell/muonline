@@ -5,16 +5,25 @@ using Client.Main.Controllers; // Dla GraphicsManager
 using Client.Main.Helpers;    // Dla SpriteBatchScope
 using System;
 using Client.Main.Content;
+using System.Collections.Generic;
 using System.Threading.Tasks;
+using Client.Main.Controls.UI;
 
 namespace Client.Main.Controls.UI.Common
 {
-    public class ScrollBarControl : UIControl
+    public class ScrollBarControl : UIControl, IUiTexturePreloadable
     {
         private const int MIN_THUMB_HEIGHT = 20;
         public float ThumbHeightAdjustmentFactor { get; set; } = 1.0f;
         private const int SCROLL_BUTTON_VISUAL_WIDTH = 15; // Szerokość grafiki suwaka
         private const int SCROLL_TRACK_VISUAL_WIDTH = 7;   // Szerokość grafiki tła scrollbara
+        private static readonly string[] s_scrollTexturePaths =
+        {
+            "Interface/newui_scrollbar_up.tga",
+            "Interface/newui_scrollbar_m.tga",
+            "Interface/newui_scrollbar_down.tga",
+            "Interface/newui_scroll_on.tga"
+        };
         private Texture2D _texScrollTop;
         private Texture2D _texScrollMiddle;
         private Texture2D _texScrollBottom;
@@ -68,6 +77,8 @@ namespace Client.Main.Controls.UI.Common
             Width = SCROLL_BUTTON_VISUAL_WIDTH; // Domyślna szerokość kontrolki to szerokość suwaka
             ViewSize = new Point(Width, Height);
         }
+
+        public IEnumerable<string> GetPreloadTexturePaths() => s_scrollTexturePaths;
 
         public override async Task Load()
         {

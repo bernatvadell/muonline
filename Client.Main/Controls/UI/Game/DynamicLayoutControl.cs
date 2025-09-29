@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
+using Client.Main.Controls.UI;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -40,7 +41,7 @@ namespace Client.Main.Controls.UI.Game
     /// Base class for dynamic control layout.
     /// Responsible for loading data from JSON files, scaling, and setting custom alpha values.
     /// </summary>
-    public abstract class DynamicLayoutControl : ExtendedUIControl
+    public abstract class DynamicLayoutControl : ExtendedUIControl, IUiTexturePreloadable
     {
         // Base resolution of the project
         protected int DesignWidth { get; set; } = 1280;
@@ -71,6 +72,20 @@ namespace Client.Main.Controls.UI.Game
             CreateControls();
             UpdateLayout();
         }
+
+        /// <summary>
+        /// Returns the texture paths that should be preloaded for this dynamic layout control.
+        /// By default this returns the configured <see cref="DefaultTexturePath"/> when available.
+        /// </summary>
+        protected virtual IEnumerable<string> EnumeratePreloadTextures()
+        {
+            if (!string.IsNullOrWhiteSpace(DefaultTexturePath))
+            {
+                yield return DefaultTexturePath;
+            }
+        }
+
+        IEnumerable<string> IUiTexturePreloadable.GetPreloadTexturePaths() => EnumeratePreloadTextures() ?? Array.Empty<string>();
 
         protected virtual void LoadLayoutData()
         {

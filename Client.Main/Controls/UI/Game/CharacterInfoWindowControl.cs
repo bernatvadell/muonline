@@ -10,14 +10,16 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using MUnique.OpenMU.Network.Packets; // For CharacterClassNumber
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Threading;
 using Client.Main.Helpers;
 using System;
+using Client.Main.Controls.UI;
 
 namespace Client.Main.Controls.UI.Game
 {
-    public class CharacterInfoWindowControl : UIControl
+    public class CharacterInfoWindowControl : UIControl, IUiTexturePreloadable
     {
         private const int WINDOW_WIDTH = 280;
         private const int WINDOW_HEIGHT = 520;
@@ -28,6 +30,33 @@ namespace Client.Main.Controls.UI.Game
         private const int HEIGHT_ENERGY = 340;
         private const int HEIGHT_CHARISMA = 410; // Command/Leadership
         private const int BTN_STAT_COUNT = 5;
+
+        private static readonly string[] s_tableTexturePaths =
+        {
+            "Interface/newui_item_table01(L).tga",
+            "Interface/newui_item_table01(R).tga",
+            "Interface/newui_item_table02(L).tga",
+            "Interface/newui_item_table02(R).tga",
+            "Interface/newui_item_table03(Up).tga",
+            "Interface/newui_item_table03(Dw).tga",
+            "Interface/newui_item_table03(L).tga",
+            "Interface/newui_item_table03(R).tga"
+        };
+
+        private static readonly string[] s_additionalPreloadTextures =
+        {
+            "Interface/newui_msgbox_back.jpg",
+            "Interface/newui_item_back04.tga",
+            "Interface/newui_item_back02-L.tga",
+            "Interface/newui_item_back02-R.tga",
+            "Interface/newui_item_back03.tga",
+            "Interface/newui_cha_textbox02.tga",
+            "Interface/newui_chainfo_btn_level.tga",
+            "Interface/newui_exit_00.tga",
+            "Interface/newui_chainfo_btn_quest.tga",
+            "Interface/newui_chainfo_btn_pet.tga",
+            "Interface/newui_chainfo_btn_master.tga"
+        };
 
         private CharacterState _characterState;
         private NetworkManager _networkManager; // Changed to non-readonly to allow re-initialization
@@ -74,6 +103,19 @@ namespace Client.Main.Controls.UI.Game
             { _logger.LogWarning("NetworkManager is null in CharacterInfoWindowControl constructor. Stat increase functionality may not work."); }
         }
 
+        public IEnumerable<string> GetPreloadTexturePaths()
+        {
+            foreach (var path in s_additionalPreloadTextures)
+            {
+                yield return path;
+            }
+
+            foreach (var path in s_tableTexturePaths)
+            {
+                yield return path;
+            }
+        }
+
         public override async Task Load()
         {
             _characterState = MuGame.Network.GetCharacterState();
@@ -91,19 +133,13 @@ namespace Client.Main.Controls.UI.Game
             _bottomFrame = new TextureControl { TexturePath = "Interface/newui_item_back03.tga", ViewSize = new Point(WINDOW_WIDTH + 97, 55), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
 
             // Load all textures in parallel to avoid blocking main thread
-            var textureLoadTasks = new[]
+            var tableTextureTasks = new List<Task<Texture2D>>(s_tableTexturePaths.Length);
+            foreach (var texturePath in s_tableTexturePaths)
             {
-                tl.PrepareAndGetTexture("Interface/newui_item_table01(L).tga"),
-                tl.PrepareAndGetTexture("Interface/newui_item_table01(R).tga"),
-                tl.PrepareAndGetTexture("Interface/newui_item_table02(L).tga"),
-                tl.PrepareAndGetTexture("Interface/newui_item_table02(R).tga"),
-                tl.PrepareAndGetTexture("Interface/newui_item_table03(Up).tga"),
-                tl.PrepareAndGetTexture("Interface/newui_item_table03(Dw).tga"),
-                tl.PrepareAndGetTexture("Interface/newui_item_table03(L).tga"),
-                tl.PrepareAndGetTexture("Interface/newui_item_table03(R).tga")
-            };
+                tableTextureTasks.Add(tl.PrepareAndGetTexture(texturePath));
+            }
 
-            var loadedTextures = await Task.WhenAll(textureLoadTasks);
+            var loadedTextures = await Task.WhenAll(tableTextureTasks);
 
             _texTableTopLeft = loadedTextures[0];
             _texTableTopRight = loadedTextures[1];
@@ -779,5 +815,6 @@ namespace Client.Main.Controls.UI.Game
                 this.Scene.FocusControl = null;
             }
         }
+
     }
 }

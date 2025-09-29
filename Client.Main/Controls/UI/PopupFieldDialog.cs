@@ -5,10 +5,11 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace Client.Main.Controls.UI
 {
-    public abstract class PopupFieldDialog : DialogControl
+    public abstract class PopupFieldDialog : DialogControl, IUiTexturePreloadable
     {
         private Texture2D _cornerTopLeftTexture;
         private Texture2D _topLineTexture;
@@ -21,6 +22,10 @@ namespace Client.Main.Controls.UI
         private Texture2D _cornerBottomRightTexture;
         private bool _useFallbackFrame;
         private readonly ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<PopupFieldDialog>();
+        private static readonly string[] s_popupTextureSuffixes =
+        {
+            "01","02","03","04","05","06","07","08","09"
+        };
 
         public override async Task Load()
         {
@@ -46,6 +51,15 @@ namespace Client.Main.Controls.UI
             if (_useFallbackFrame)
             {
                 _logger?.LogWarning("PopupFieldDialog frame textures missing. Using fallback flat background.");
+            }
+        }
+
+        public IEnumerable<string> GetPreloadTexturePaths()
+        {
+            const string basePath = "Interface/GFx/popupfield";
+            for (int i = 0; i < s_popupTextureSuffixes.Length; i++)
+            {
+                yield return basePath + s_popupTextureSuffixes[i] + ".ozd";
             }
         }
 

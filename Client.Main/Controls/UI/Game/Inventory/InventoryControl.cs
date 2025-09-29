@@ -20,6 +20,20 @@ namespace Client.Main.Controls.UI.Game.Inventory
         protected override string LayoutJsonResource => "Client.Main.Controls.UI.Game.Layouts.InventoryLayout.json";
         protected override string TextureRectJsonResource => "Client.Main.Controls.UI.Game.Layouts.InventoryRect.json";
         protected override string DefaultTexturePath => "Interface/GFx/NpcShop_I3.ozd";
+        private static readonly string[] s_inventoryTexturePaths =
+        {
+            "Interface/newui_item_box.tga",
+            "Interface/newui_item_table01(L).tga",
+            "Interface/newui_item_table01(R).tga",
+            "Interface/newui_item_table02(L).tga",
+            "Interface/newui_item_table02(R).tga",
+            "Interface/newui_item_table03(Up).tga",
+            "Interface/newui_item_table03(Dw).tga",
+            "Interface/newui_item_table03(L).tga",
+            "Interface/newui_item_table03(R).tga",
+            "Interface/newui_msgbox_back.jpg"
+        };
+
         private static InventoryControl _instance;
 
         public const int INVENTORY_SQUARE_WIDTH = 35;
@@ -163,6 +177,19 @@ namespace Client.Main.Controls.UI.Game.Inventory
             }
         }
 
+        protected override IEnumerable<string> EnumeratePreloadTextures()
+        {
+            foreach (var texture in base.EnumeratePreloadTextures())
+            {
+                yield return texture;
+            }
+
+            foreach (var texture in s_inventoryTexturePaths)
+            {
+                yield return texture;
+            }
+        }
+
         public override async Task Load()
         {
             // First load the base DynamicLayoutControl
@@ -171,22 +198,14 @@ namespace Client.Main.Controls.UI.Game.Inventory
             var tl = TextureLoader.Instance;
 
             // Load all textures in parallel to avoid blocking main thread
-            var textureLoadTasks = new[]
+            var textureLoadTasks = new List<Task<Texture2D>>(s_inventoryTexturePaths.Length);
+            foreach (var texturePath in s_inventoryTexturePaths)
             {
-                tl.PrepareAndGetTexture("Interface/newui_item_box.tga"),
-                tl.PrepareAndGetTexture("Interface/newui_item_table01(L).tga"),
-                tl.PrepareAndGetTexture("Interface/newui_item_table01(R).tga"),
-                tl.PrepareAndGetTexture("Interface/newui_item_table02(L).tga"),
-                tl.PrepareAndGetTexture("Interface/newui_item_table02(R).tga"),
-                tl.PrepareAndGetTexture("Interface/newui_item_table03(Up).tga"),
-                tl.PrepareAndGetTexture("Interface/newui_item_table03(Dw).tga"),
-                tl.PrepareAndGetTexture("Interface/newui_item_table03(L).tga"),
-                tl.PrepareAndGetTexture("Interface/newui_item_table03(R).tga"),
-                tl.PrepareAndGetTexture("Interface/newui_msgbox_back.jpg"),
-                tl.PrepareAndGetTexture(DefaultTexturePath) // Load slot texture (same as NpcShop)
-            };
+                textureLoadTasks.Add(tl.PrepareAndGetTexture(texturePath));
+            }
 
             var loadedTextures = await Task.WhenAll(textureLoadTasks);
+            _slotTexture = await tl.PrepareAndGetTexture(DefaultTexturePath); // Load slot texture (same as NpcShop)
 
             _texSquare = loadedTextures[0];
             _texTableTopLeft = loadedTextures[1];
@@ -198,7 +217,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
             _texTableLeftPixel = loadedTextures[7];
             _texTableRightPixel = loadedTextures[8];
             _texBackground = loadedTextures[9];
-            _slotTexture = loadedTextures[10];
 
             _font = GraphicsManager.Instance.Font;
 

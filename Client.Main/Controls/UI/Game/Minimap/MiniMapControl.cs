@@ -14,7 +14,7 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Client.Main.Controls.UI.Game
 {
-    public class MiniMapControl : UIControl
+    public class MiniMapControl : UIControl, IUiTexturePreloadable
     {
         // --- Constants (Adjust as needed) ---
         private const int MAP_DISPLAY_SIZE = 200; // On-screen size of the map view
@@ -33,6 +33,15 @@ namespace Client.Main.Controls.UI.Game
         private Texture2D _texPortalIcon;
         private Texture2D _texNpcIcon;
         private Texture2D _texExitButton;
+        private static readonly string[] s_minimapUiTextures =
+        {
+            "Interface/mini_map_ui_corner.tga",
+            "Interface/mini_map_ui_line.jpg",
+            "Interface/mini_map_ui_cha.tga",
+            "Interface/mini_map_ui_portal.tga",
+            "Interface/mini_map_ui_npc.tga",
+            "Interface/mini_map_ui_cancel.tga"
+        };
 
         // --- Child Controls ---
         private SpriteControl _playerMarker;
@@ -63,6 +72,8 @@ namespace Client.Main.Controls.UI.Game
             ControlSize = ViewSize;
             CreateChildControls();
         }
+
+        public IEnumerable<string> GetPreloadTexturePaths() => s_minimapUiTextures;
 
         private void CreateChildControls()
         {

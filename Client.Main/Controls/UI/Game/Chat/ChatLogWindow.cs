@@ -10,7 +10,7 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Client.Main.Controls.UI
 {
-    public class ChatLogWindow : UIControl
+    public class ChatLogWindow : UIControl, IUiTexturePreloadable
     {
         public const int CHATLOG_WIDTH = 281;
         private const int MAX_TOTAL_MESSAGES = 200;
@@ -35,6 +35,14 @@ namespace Client.Main.Controls.UI
         private Texture2D _texScrollBottom;
         private Texture2D _texScrollThumb; // SCROLLBAR_ON
         private Texture2D _texResizeHandle; // DRAG_BTN
+        private static readonly string[] s_chatLogTexturePaths =
+        {
+            "Interface/newui_scrollbar_up.tga",
+            "Interface/newui_scrollbar_m.tga",
+            "Interface/newui_scrollbar_down.tga",
+            "Interface/newui_scroll_on.tga",
+            "Interface/newui_scrollbar_stretch.jpg"
+        };
 
         // --- State ---
         private readonly Dictionary<MessageType, List<ChatMessage>> _messages;
@@ -93,6 +101,8 @@ namespace Client.Main.Controls.UI
 
             UpdateLayout(); // Initial layout calculation
         }
+
+        public IEnumerable<string> GetPreloadTexturePaths() => s_chatLogTexturePaths;
 
         // --- Loading Resources ---
         public override async Task Load()

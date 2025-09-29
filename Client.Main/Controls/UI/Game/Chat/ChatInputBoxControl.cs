@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Controls.UI
 {
-    public class ChatInputBoxControl : UIControl
+    public class ChatInputBoxControl : UIControl, IUiTexturePreloadable
     {
         // Fields
         private const int CHATBOX_WIDTH = 281;
@@ -32,6 +32,29 @@ namespace Client.Main.Controls.UI
 
         private const int MAX_CHAT_HISTORY = 12;
         private const int MAX_WHISPER_HISTORY = 5;
+
+        private static readonly string[] s_typeButtonTextures =
+        {
+            "Interface/newui_chat_normal_on.jpg",
+            "Interface/newui_chat_party_on.jpg",
+            "Interface/newui_chat_guild_on.jpg",
+            "Interface/newui_chat_gens_on.jpg"
+        };
+
+        private static readonly string[] s_toggleButtonTextures =
+        {
+            "Interface/newui_chat_whisper_on.jpg",
+            "Interface/newui_chat_system_on.jpg",
+            "Interface/newui_chat_chat_on.jpg",
+            "Interface/newui_chat_frame_on.jpg",
+            "Interface/newui_chat_btn_size.jpg",
+            "Interface/newui_chat_btn_alpha.jpg"
+        };
+
+        private static readonly string[] s_baseChatTextures =
+        {
+            "Interface/newui_chat_back.jpg"
+        };
 
         // Child Controls
         private TextureControl _background;
@@ -87,6 +110,24 @@ namespace Client.Main.Controls.UI
         }
 
         // Methods
+        public IEnumerable<string> GetPreloadTexturePaths()
+        {
+            foreach (var texture in s_baseChatTextures)
+            {
+                yield return texture;
+            }
+
+            foreach (var texture in s_typeButtonTextures)
+            {
+                yield return texture;
+            }
+
+            foreach (var texture in s_toggleButtonTextures)
+            {
+                yield return texture;
+            }
+        }
+
         public override async Task Load()
         {
             // 1. Background
@@ -125,17 +166,10 @@ namespace Client.Main.Controls.UI
             // --- Buttons --------------------------------------------------------------
 
             // Type Buttons (Normal, Party, Guild, Gens)
-            string[] typeTexPaths =
-            {
-                "Interface/newui_chat_normal_on.jpg",
-                "Interface/newui_chat_party_on.jpg",
-                "Interface/newui_chat_guild_on.jpg",
-                "Interface/newui_chat_gens_on.jpg"
-            };
             for (int i = 0; i < _typeButtons.Length; i++)
             {
                 _typeButtons[i] = CreateButton(INPUT_TYPE_START_X + i * BUTTON_WIDTH, 0,
-                                               typeTexPaths[i], $"TypeBtn_{i}");
+                                               s_typeButtonTextures[i], $"TypeBtn_{i}");
                 int typeIdx = i;
                 _typeButtons[i].Click += (s, e) =>
                 {
@@ -147,7 +181,7 @@ namespace Client.Main.Controls.UI
 
             // Whisper-Lock
             _whisperToggleButton = CreateButton(BLOCK_WHISPER_START_X, 0,
-                                                "Interface/newui_chat_whisper_on.jpg", "WhisperToggle");
+                                                s_toggleButtonTextures[0], "WhisperToggle");
             _whisperToggleButton.Click += (s, e) =>
             {
                 ToggleWhisperLock();
@@ -157,7 +191,7 @@ namespace Client.Main.Controls.UI
 
             // System-Messages ON/OFF
             _systemToggleButton = CreateButton(SYSTEM_ON_START_X, 0,
-                                               "Interface/newui_chat_system_on.jpg", "SystemToggle");
+                                               s_toggleButtonTextures[1], "SystemToggle");
             _systemToggleButton.Click += (s, e) =>
             {
                 ToggleSystemMessages();
@@ -167,7 +201,7 @@ namespace Client.Main.Controls.UI
 
             // Chat-Log ON/OFF
             _chatLogToggleButton = CreateButton(CHATLOG_ON_START_X, 0,
-                                                "Interface/newui_chat_chat_on.jpg", "ChatLogToggle");
+                                                s_toggleButtonTextures[2], "ChatLogToggle");
             _chatLogToggleButton.Click += (s, e) =>
             {
                 ToggleChatLogVisibility();
@@ -177,7 +211,7 @@ namespace Client.Main.Controls.UI
 
             // Show / hide frame (scrollbar, resize etc.)
             _frameToggleButton = CreateButton(FRAME_ON_START_X, 0,
-                                              "Interface/newui_chat_frame_on.jpg", "FrameToggle");
+                                              s_toggleButtonTextures[3], "FrameToggle");
             _frameToggleButton.Click += (s, e) =>
             {
                 _chatLogWindowRef.ToggleFrame();
@@ -187,7 +221,7 @@ namespace Client.Main.Controls.UI
 
             // Size-cycle (F4)
             _sizeButton = CreateButton(FRAME_RESIZE_START_X, 0,
-                                       "Interface/newui_chat_btn_size.jpg", "SizeButton");
+                                       s_toggleButtonTextures[4], "SizeButton");
             _sizeButton.Click += (s, e) =>
             {
                 _chatLogWindowRef.CycleSize();
@@ -197,7 +231,7 @@ namespace Client.Main.Controls.UI
 
             // Transparency-cycle
             _transparencyButton = CreateButton(TRANSPARENCY_START_X, 0,
-                                               "Interface/newui_chat_btn_alpha.jpg", "AlphaButton");
+                                               s_toggleButtonTextures[5], "AlphaButton");
             _transparencyButton.Click += (s, e) =>
             {
                 _chatLogWindowRef.CycleBackgroundAlpha();
