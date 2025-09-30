@@ -11,6 +11,8 @@ namespace Client.Main.Worlds
     [WorldInfo(3, "Noria")]
     public class NoriaWorld : WalkableWorldControl
     {
+        private ButterflyManager _butterflyManager;
+
         public NoriaWorld() : base(worldIndex: 4)
         {
             BackgroundMusicPath = "Music/Noria.mp3";
@@ -57,9 +59,12 @@ namespace Client.Main.Worlds
             Terrain.WaterSpeed = 0.05f;             // Example: faster water movement
             Terrain.DistortionAmplitude = 0.1f;      // Example: stronger distortion
             Terrain.DistortionFrequency = 2.0f;      // Example: lower frequency for distortion
-            
+
             // Configure grass settings for Noria - brighter grass for desert-like environment
             Terrain.ConfigureGrass(brightness: 1.0f, textureIndices: new byte[] { 0, 2 });
+
+            // Initialize butterfly system for outdoor areas
+            _butterflyManager = new ButterflyManager(this);
 
             base.AfterLoad();
         }
@@ -79,6 +84,23 @@ namespace Client.Main.Worlds
             MapTileObjects[37] = typeof(LightBeamObject);
 
             MapTileObjects[18] = typeof(EoTheCraftsmanPlaceObject);
+        }
+
+        public override void Update(GameTime time)
+        {
+            base.Update(time);
+
+            // Update butterfly system
+            _butterflyManager?.Update(time);
+        }
+
+        public override void Dispose()
+        {
+            // Clean up butterflies before disposing world
+            _butterflyManager?.Clear();
+            _butterflyManager = null;
+
+            base.Dispose();
         }
     }
 }
