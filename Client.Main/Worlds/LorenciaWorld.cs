@@ -11,6 +11,7 @@ namespace Client.Main.Worlds
     [WorldInfo(0, "Lorencia")]
     public class LorenciaWorld : WalkableWorldControl
     {
+        private BirdManager _birdManager;
 
         // Define the pub area as a rectangle
         private Rectangle pubArea = new Rectangle(12000, 12000, 900, 1500);
@@ -53,11 +54,14 @@ namespace Client.Main.Worlds
             Terrain.WaterSpeed = 0.05f;
             Terrain.DistortionAmplitude = 0.2f;
             Terrain.DistortionFrequency = 1.0f;
-            
+
             // Configure grass settings for Lorencia - normal brightness
             Terrain.ConfigureGrass(brightness: 2.0f, textureIndices: new byte[] { 0 });
 
             SoundController.Instance.PreloadBackgroundMusic(pubMusicPath);
+
+            // Initialize bird system for outdoor areas
+            _birdManager = new BirdManager(this);
 
             base.AfterLoad();
         }
@@ -167,6 +171,9 @@ namespace Client.Main.Worlds
         {
             base.Update(time);
 
+            // Update bird system
+            _birdManager?.Update(time);
+
             // Check player's position (only X and Y are relevant)
             Vector2 playerPos = new Vector2(Walker.Position.X, Walker.Position.Y);
             // Create a Point from player's position to use with Rectangle.Contains
@@ -211,6 +218,15 @@ namespace Client.Main.Worlds
             // Objects.Add(new Giant() { Location = new Vector2(189, 127), Direction = Models.Direction.South });
             // Objects.Add(new Lich() { Location = new Vector2(190, 127), Direction = Models.Direction.South });
 
+        }
+
+        public override void Dispose()
+        {
+            // Clean up birds before disposing world
+            _birdManager?.Clear();
+            _birdManager = null;
+
+            base.Dispose();
         }
     }
 }
