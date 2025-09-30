@@ -8,6 +8,8 @@ namespace Client.Main.Worlds
     [WorldInfo(7, "Atlans")]
     public class AtlansWorld : WalkableWorldControl
     {
+        private BoidManager _boidManager;
+
         public AtlansWorld() : base(worldIndex: 8)
         {
             BackgroundMusicPath = "Music/atlans.mp3";
@@ -39,6 +41,9 @@ namespace Client.Main.Worlds
             Walker.MoveTargetPosition = Walker.TargetPosition;
             Walker.Position = Walker.TargetPosition;
 
+            // Initialize fish boid system for underwater areas
+            _boidManager = new BoidManager(this);
+
             base.AfterLoad();
         }
 
@@ -62,6 +67,23 @@ namespace Client.Main.Worlds
             MapTileObjects[23] = typeof(WaterPortalObject);
             MapTileObjects[38] = typeof(LightBeamObject);
             MapTileObjects[40] = typeof(PortalObject);
+        }
+
+        public override void Update(GameTime time)
+        {
+            base.Update(time);
+
+            // Update fish boid system
+            _boidManager?.Update(time);
+        }
+
+        public override void Dispose()
+        {
+            // Clean up fish before disposing world
+            _boidManager?.Clear();
+            _boidManager = null;
+
+            base.Dispose();
         }
     }
 }
