@@ -183,8 +183,8 @@ namespace Client.Main.Controls.UI.Game
                             {
                                 int w = rect.Width; int h = rect.Height;
                                 tex = isHovered && _currentGameTime != null
-                                    ? BmdPreviewRenderer.GetAnimatedPreview(item.Definition, w, h, _currentGameTime)
-                                    : BmdPreviewRenderer.GetPreview(item.Definition, w, h);
+                                    ? BmdPreviewRenderer.GetAnimatedPreview(item, w, h, _currentGameTime)
+                                    : BmdPreviewRenderer.GetPreview(item, w, h);
                             }
                             catch { }
                         }

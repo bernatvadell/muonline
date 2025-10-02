@@ -1085,7 +1085,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     {
                         try
                         {
-                            itemTexture = BmdPreviewRenderer.GetPreview(item.Definition, itemRect.Width, itemRect.Height);
+                            itemTexture = BmdPreviewRenderer.GetPreview(item, itemRect.Width, itemRect.Height);
                         }
                         catch { }
                     }
@@ -1326,11 +1326,11 @@ namespace Client.Main.Controls.UI.Game.Inventory
                             // Use animated preview for hovered items
                             if (item == _hoveredItem)
                             {
-                                itemTexture = BmdPreviewRenderer.GetAnimatedPreview(item.Definition, w, h, _currentGameTime);
+                                itemTexture = BmdPreviewRenderer.GetAnimatedPreview(item, w, h, _currentGameTime);
                             }
                             else
                             {
-                                itemTexture = BmdPreviewRenderer.GetPreview(item.Definition, w, h);
+                                itemTexture = BmdPreviewRenderer.GetPreview(item, w, h);
                             }
                         }
                         catch (InvalidOperationException ex) when (ex.Message.Contains("UI thread"))
