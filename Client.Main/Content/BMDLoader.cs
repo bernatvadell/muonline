@@ -23,21 +23,39 @@ namespace Client.Main.Content
         private readonly Dictionary<string, Task<BMD>> _bmds = [];
         private readonly Dictionary<BMD, Dictionary<string, string>> _texturePathMap = [];
         private Dictionary<string, Dictionary<int, string>> _blendingConfig;
-        
+
+        private readonly struct MeshCacheKey : IEquatable<MeshCacheKey>
+        {
+            public MeshCacheKey(int assetId, int meshIndex)
+            {
+                AssetId = assetId;
+                MeshIndex = meshIndex;
+            }
+
+            public int AssetId { get; }
+            public int MeshIndex { get; }
+
+            public bool Equals(MeshCacheKey other) => AssetId == other.AssetId && MeshIndex == other.MeshIndex;
+
+            public override bool Equals(object obj) => obj is MeshCacheKey other && Equals(other);
+
+            public override int GetHashCode() => HashCode.Combine(AssetId, MeshIndex);
+        }
+
         // Enhanced cache state for GetModelBuffers to avoid redundant calculations
-        private readonly Dictionary<string, BufferCacheEntry> _bufferCacheState = [];
+        private readonly Dictionary<MeshCacheKey, BufferCacheEntry> _bufferCacheState = [];
         // Per-mesh optimization: track which bones influence a mesh
-        private readonly Dictionary<string, short[]> _meshUsedBones = [];
+        private readonly Dictionary<MeshCacheKey, short[]> _meshUsedBones = [];
         // Cache per (asset,mesh) vertex count to avoid per-frame summing
-        private readonly Dictionary<string, int> _meshVertexCountCache = [];
+        private readonly Dictionary<MeshCacheKey, int> _meshVertexCountCache = [];
         // Track if index data has been uploaded for this (asset,mesh) so we can skip re-upload
-        private readonly HashSet<string> _indexInitialized = [];
-        
+        private readonly HashSet<MeshCacheKey> _indexInitialized = [];
+
         // Frame tracking for DISCARD/NoOverwrite optimization
         private uint _currentFrame = 0;
-        private readonly Dictionary<string, uint> _lastWriteFrame = [];
+        private readonly Dictionary<MeshCacheKey, uint> _lastWriteFrame = [];
         // Track chosen index element size per mesh (true => 16-bit)
-        private readonly Dictionary<string, bool> _indexIs16Bit = [];
+        private readonly Dictionary<MeshCacheKey, bool> _indexIs16Bit = [];
 
         // Per-frame instrumentation (queried by DebugPanel)
         public int FrameVBUpdates { get; private set; }
@@ -287,8 +305,10 @@ namespace Client.Main.Content
             }
 
             var mesh = asset.Meshes[meshIndex];
-            // Use cached vertex count where possible to avoid per-frame LINQ Sum
-            string cacheKey = $"{RuntimeHelpers.GetHashCode(asset)}_{meshIndex}";
+            int assetId = RuntimeHelpers.GetHashCode(asset);
+            var cacheKey = new MeshCacheKey(assetId, meshIndex);
+
+            // Use cached vertex count where possible to avoid per-frame summing
             if (!_meshVertexCountCache.TryGetValue(cacheKey, out int totalVertices))
             {
                 int vcount = 0;
@@ -323,7 +343,7 @@ namespace Client.Main.Content
             int boneMatrixHash = CalculateBoneMatrixHashSubset(boneMatrix, usedBones);
             
             // Check if we can use cached data (only if caching is enabled)
-            if (!skipCache && 
+            if (!skipCache &&
                 _bufferCacheState.TryGetValue(cacheKey, out var cacheEntry) &&
                 cacheEntry.IsValid &&
                 cacheEntry.LastColor == color &&
@@ -367,89 +387,122 @@ namespace Client.Main.Content
             }
 
             // Build vertex data with unique-vertex transform caching
-            var vertices = ArrayPool<VertexPositionColorNormalTexture>.Shared.Rent(totalVertices);
-            var posCache = ArrayPool<Vector3>.Shared.Rent(mesh.Vertices.Length);
-            var visited = ArrayPool<bool>.Shared.Rent(mesh.Vertices.Length);
-            Array.Clear(visited, 0, mesh.Vertices.Length);
+            VertexPositionColorNormalTexture[] vertices = null;
+            Vector3[] posCache = null;
+            bool[] visited = null;
 
-            int v = 0;
-            int uniqueTransformed = 0;
-            foreach (var tri in mesh.Triangles)
+            try
             {
-                for (int j = 0; j < tri.Polygon; j++)
-                {
-                    int vi = tri.VertexIndex[j];
+                vertices = ArrayPool<VertexPositionColorNormalTexture>.Shared.Rent(totalVertices);
+                posCache = ArrayPool<Vector3>.Shared.Rent(mesh.Vertices.Length);
+                visited = ArrayPool<bool>.Shared.Rent(mesh.Vertices.Length);
+                Array.Clear(visited, 0, mesh.Vertices.Length);
 
-                    if (!visited[vi])
+                int v = 0;
+                int uniqueTransformed = 0;
+                foreach (var tri in mesh.Triangles)
+                {
+                    for (int j = 0; j < tri.Polygon; j++)
                     {
-                        visited[vi] = true;
-                        uniqueTransformed++;
-                        var vert = mesh.Vertices[vi];
-                        if (vert.Node < boneMatrix.Length)
+                        int vi = tri.VertexIndex[j];
+
+                        if (!visited[vi])
                         {
-                            posCache[vi] = FastTransformPosition(in boneMatrix[vert.Node], in vert.Position);
+                            visited[vi] = true;
+                            uniqueTransformed++;
+                            var vert = mesh.Vertices[vi];
+                            if (vert.Node >= 0 && vert.Node < boneMatrix.Length)
+                            {
+                                posCache[vi] = FastTransformPosition(in boneMatrix[vert.Node], in vert.Position);
+                            }
+                            else
+                            {
+                                posCache[vi] = vert.Position;
+                            }
                         }
-                        else
+
+                        int ni = tri.NormalIndex[j];
+                        var normal = mesh.Normals[ni].Normal; // keep as-is (object space path)
+
+                        int ti = tri.TexCoordIndex[j];
+                        var uv = mesh.TexCoords[ti];
+
+                        vertices[v] = new VertexPositionColorNormalTexture(
+                            posCache[vi],
+                            color,
+                            normal,
+                            new Vector2(uv.U, uv.V));
+                        v++;
+                    }
+                }
+
+                // Optimize SetData with DISCARD/NoOverwrite based on frame tracking
+                bool isFirstWriteThisFrame = !_lastWriteFrame.TryGetValue(cacheKey, out uint lastFrame) || lastFrame != _currentFrame;
+                var setDataOptions = isFirstWriteThisFrame ? SetDataOptions.Discard : SetDataOptions.NoOverwrite;
+
+                vertexBuffer.SetData(vertices, 0, totalVertices, setDataOptions);
+                FrameVBUpdates++;
+                FrameVerticesTransformed += uniqueTransformed;
+
+                // Upload index data only if needed (new or resized buffer or not yet initialized)
+                if (createdOrResizedIndex || !_indexInitialized.Contains(cacheKey))
+                {
+                    if (prefer16Bit)
+                    {
+                        var indices16 = ArrayPool<ushort>.Shared.Rent(totalIndices);
+                        try
                         {
-                            posCache[vi] = vert.Position;
+                            for (int i = 0; i < totalIndices; i++) indices16[i] = (ushort)i;
+                            indexBuffer.SetData(indices16, 0, totalIndices, SetDataOptions.Discard);
+                        }
+                        finally
+                        {
+                            ArrayPool<ushort>.Shared.Return(indices16, clearArray: true);
+                        }
+                    }
+                    else
+                    {
+                        var indices32 = ArrayPool<int>.Shared.Rent(totalIndices);
+                        try
+                        {
+                            for (int i = 0; i < totalIndices; i++) indices32[i] = i;
+                            indexBuffer.SetData(indices32, 0, totalIndices, SetDataOptions.Discard);
+                        }
+                        finally
+                        {
+                            ArrayPool<int>.Shared.Return(indices32, clearArray: true);
                         }
                     }
 
-                    int ni = tri.NormalIndex[j];
-                    var normal = mesh.Normals[ni].Normal; // keep as-is (object space path)
+                    _indexInitialized.Add(cacheKey);
+                    FrameIBUploads++;
+                }
 
-                    int ti = tri.TexCoordIndex[j];
-                    var uv = mesh.TexCoords[ti];
+                // Update frame tracking
+                _lastWriteFrame[cacheKey] = _currentFrame;
 
-                    vertices[v] = new VertexPositionColorNormalTexture(
-                        posCache[vi],
-                        color,
-                        normal,
-                        new Vector2(uv.U, uv.V));
-                    v++;
+                // Update cache entry only if caching is enabled
+                if (!skipCache)
+                {
+                    _bufferCacheState[cacheKey] = new BufferCacheEntry(color, boneMatrixHash);
                 }
             }
-
-            // Optimize SetData with DISCARD/NoOverwrite based on frame tracking
-            bool isFirstWriteThisFrame = !_lastWriteFrame.TryGetValue(cacheKey, out uint lastFrame) || lastFrame != _currentFrame;
-            var setDataOptions = isFirstWriteThisFrame ? SetDataOptions.Discard : SetDataOptions.NoOverwrite;
-            
-            vertexBuffer.SetData(vertices, 0, totalVertices, setDataOptions);
-            FrameVBUpdates++;
-            FrameVerticesTransformed += uniqueTransformed;
-            
-            // Upload index data only if needed (new or resized buffer or not yet initialized)
-            if (createdOrResizedIndex || !_indexInitialized.Contains(cacheKey))
+            finally
             {
-                if (prefer16Bit)
+                if (vertices != null)
                 {
-                    var indices16 = ArrayPool<ushort>.Shared.Rent(totalIndices);
-                    for (int i = 0; i < totalIndices; i++) indices16[i] = (ushort)i;
-                    indexBuffer.SetData(indices16, 0, totalIndices, SetDataOptions.Discard);
-                    ArrayPool<ushort>.Shared.Return(indices16, clearArray: true);
+                    ArrayPool<VertexPositionColorNormalTexture>.Shared.Return(vertices);
                 }
-                else
-                {
-                    var indices32 = ArrayPool<int>.Shared.Rent(totalIndices);
-                    for (int i = 0; i < totalIndices; i++) indices32[i] = i;
-                    indexBuffer.SetData(indices32, 0, totalIndices, SetDataOptions.Discard);
-                    ArrayPool<int>.Shared.Return(indices32, clearArray: true);
-                }
-                _indexInitialized.Add(cacheKey);
-                FrameIBUploads++;
-            }
-            
-            // Update frame tracking
-            _lastWriteFrame[cacheKey] = _currentFrame;
 
-            ArrayPool<VertexPositionColorNormalTexture>.Shared.Return(vertices);
-            ArrayPool<Vector3>.Shared.Return(posCache);
-            ArrayPool<bool>.Shared.Return(visited, clearArray: true);
-            
-            // Update cache entry only if caching is enabled
-            if (!skipCache)
-            {
-                _bufferCacheState[cacheKey] = new BufferCacheEntry(color, boneMatrixHash);
+                if (posCache != null)
+                {
+                    ArrayPool<Vector3>.Shared.Return(posCache);
+                }
+
+                if (visited != null)
+                {
+                    ArrayPool<bool>.Shared.Return(visited, clearArray: true);
+                }
             }
         }
 
@@ -578,6 +631,9 @@ namespace Client.Main.Content
         public void ClearBufferCache()
         {
             _bufferCacheState.Clear();
+            _lastWriteFrame.Clear();
+            _indexInitialized.Clear();
+            _indexIs16Bit.Clear();
         }
     }
 

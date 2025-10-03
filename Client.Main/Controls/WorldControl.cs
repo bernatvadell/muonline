@@ -32,6 +32,42 @@ namespace Client.Main.Controls
         public int Compare(WorldObject a, WorldObject b) => b.Depth.CompareTo(a.Depth);
     }
 
+    // Optimized comparer that sorts by Model+Texture first, then depth
+    // This minimizes state changes and improves GPU cache coherency
+    sealed class WorldObjectBatchOptimizedAsc : IComparer<WorldObject>
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int Compare(WorldObject a, WorldObject b)
+        {
+            // First prioritize by Model (to batch identical models together)
+            if (a is ModelObject ma && b is ModelObject mb)
+            {
+                int modelCmp = (ma.Model?.GetHashCode() ?? 0).CompareTo(mb.Model?.GetHashCode() ?? 0);
+                if (modelCmp != 0) return modelCmp;
+            }
+
+            // Then by depth for correct rendering order
+            return a.Depth.CompareTo(b.Depth);
+        }
+    }
+
+    sealed class WorldObjectBatchOptimizedDesc : IComparer<WorldObject>
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public int Compare(WorldObject a, WorldObject b)
+        {
+            // First prioritize by Model (to batch identical models together)
+            if (a is ModelObject ma && b is ModelObject mb)
+            {
+                int modelCmp = (ma.Model?.GetHashCode() ?? 0).CompareTo(mb.Model?.GetHashCode() ?? 0);
+                if (modelCmp != 0) return modelCmp;
+            }
+
+            // Then by depth (descending) for correct rendering order
+            return b.Depth.CompareTo(a.Depth);
+        }
+    }
+
     /// <summary>
     /// Base class for rendering and managing world objects in a game scene.
     /// </summary>
@@ -60,6 +96,8 @@ namespace Client.Main.Controls
         private DepthStencilState _currentDepthState = DepthStencilState.Default;
         private readonly WorldObjectDepthAsc _cmpAsc = new();
         private readonly WorldObjectDepthDesc _cmpDesc = new();
+        private readonly WorldObjectBatchOptimizedAsc _cmpBatchAsc = new();
+        private readonly WorldObjectBatchOptimizedDesc _cmpBatchDesc = new();
         private static readonly DepthStencilState DepthStateDefault = DepthStencilState.Default;
         private static readonly DepthStencilState DepthStateDepthRead = DepthStencilState.DepthRead;
         private BoundingFrustum _boundingFrustum;
@@ -366,20 +404,30 @@ namespace Client.Main.Controls
             ObjectMetrics = metrics;
 
             // Draw solid behind objects
-            if (_solidBehind.Count > 1) _solidBehind.Sort(_cmpAsc);
+            if (_solidBehind.Count > 1)
+            {
+                _solidBehind.Sort(Constants.ENABLE_BATCH_OPTIMIZED_SORTING ? _cmpBatchAsc : _cmpAsc);
+            }
             SetDepthState(DepthStateDefault);
             foreach (var obj in _solidBehind)
                 DrawObject(obj, time, DepthStateDefault);
 
             // Draw transparent objects
-            if (_transparentObjects.Count > 1) _transparentObjects.Sort(_cmpDesc);
+            if (_transparentObjects.Count > 1)
+            {
+                // Transparent rendering requires strict back-to-front ordering, so never batch-optimize.
+                _transparentObjects.Sort(_cmpDesc);
+            }
             if (_transparentObjects.Count > 0)
                 SetDepthState(DepthStateDepthRead);
             foreach (var obj in _transparentObjects)
                 DrawObject(obj, time, DepthStateDepthRead);
 
             // Draw solid in front objects
-            if (_solidInFront.Count > 1) _solidInFront.Sort(_cmpAsc);
+            if (_solidInFront.Count > 1)
+            {
+                _solidInFront.Sort(Constants.ENABLE_BATCH_OPTIMIZED_SORTING ? _cmpBatchAsc : _cmpAsc);
+            }
             if (_solidInFront.Count > 0)
                 SetDepthState(DepthStateDefault);
             foreach (var obj in _solidInFront)

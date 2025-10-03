@@ -18,16 +18,19 @@ namespace Client.Main.Controls.UI
         private LabelControl _performanceMetricsLabel;
         private LabelControl _objectMetricsLabel; // New label for object metrics
         private LabelControl _bmdMetricsLabel;    // New label for BMD buffer metrics
+        private LabelControl _poolingMetricsLabel; // NEW: Matrix pooling stats
+        private LabelControl _batchSortingLabel;   // NEW: Batch sorting status
         private double _updateTimer = 0;
         private const double UPDATE_INTERVAL_MS = 100; // 100ms
-        private StringBuilder _sb = new StringBuilder(250); // Increased capacity
+        private StringBuilder _sb = new StringBuilder(350); // Increased capacity for new metrics
+        private int _lastFrameIndex = -1; // Track frame changes for per-frame stats
 
         public DebugPanel()
         {
             Align = ControlAlign.Top | ControlAlign.Right;
             Margin = new Margin { Top = 10, Right = 10 };
             Padding = new Margin { Top = 15, Left = 15 };
-            ControlSize = new Point(300, 240); // Increased size for new labels (BMD metrics)
+            ControlSize = new Point(380, 280); // Increased size for pooling + batch metrics
             BackgroundColor = Color.Black * 0.6f;
             BorderColor = Color.White * 0.3f;
             BorderThickness = 2;
@@ -46,6 +49,8 @@ namespace Client.Main.Controls.UI
             Controls.Add(_performanceMetricsLabel = new LabelControl { Text = "Perf: {0}", TextColor = Color.OrangeRed, X = posX, Y = posY += labelHeight });
             Controls.Add(_objectMetricsLabel = new LabelControl { Text = "Objects: {0}", TextColor = Color.LightCyan, X = posX, Y = posY += labelHeight });
             Controls.Add(_bmdMetricsLabel = new LabelControl { Text = "BMD: {0}", TextColor = Color.LightSkyBlue, X = posX, Y = posY += labelHeight });
+            Controls.Add(_poolingMetricsLabel = new LabelControl { Text = "Pool: {0}", TextColor = Color.Cyan, X = posX, Y = posY += labelHeight });
+            Controls.Add(_batchSortingLabel = new LabelControl { Text = "Batch: {0}", TextColor = Color.Magenta, X = posX, Y = posY += labelHeight });
         }
 
         public override void Update(GameTime gameTime)
@@ -53,6 +58,16 @@ namespace Client.Main.Controls.UI
             base.Update(gameTime);
 
             if (!Visible) return;
+
+#if DEBUG
+            // Capture pooling stats once per frame (double-buffered to avoid race conditions)
+            int currentFrame = MuGame.FrameIndex;
+            if (currentFrame != _lastFrameIndex)
+            {
+                _lastFrameIndex = currentFrame;
+                Client.Main.Objects.ModelObject.CaptureFrameStats();
+            }
+#endif
 
             _updateTimer += gameTime.ElapsedGameTime.TotalMilliseconds;
 
@@ -121,6 +136,25 @@ namespace Client.Main.Controls.UI
                       .Append($"Vtx:{bmd.LastFrameVerticesTransformed} Mesh:{bmd.LastFrameMeshesProcessed} ")
                       .Append($"Cache:{bmd.LastFrameCacheHits}/{bmd.LastFrameCacheMisses}");
                     _bmdMetricsLabel.Text = _sb.ToString();
+
+#if DEBUG
+                    // Update Matrix pooling metrics (DEBUG only) - per frame stats
+                    var poolStats = Client.Main.Objects.ModelObject.GetPoolingStats();
+                    _sb.Clear()
+                      .Append($"Pool/Frame: Rent:{poolStats.Rents} Ret:{poolStats.Returns} ")
+                      .Append($"Leak:{poolStats.Rents - poolStats.Returns}");
+                    _poolingMetricsLabel.Text = _sb.ToString();
+                    _poolingMetricsLabel.Visible = true;
+#else
+                    _poolingMetricsLabel.Visible = false;
+#endif
+
+                    // Update batch sorting status
+                    _sb.Clear()
+                      .Append($"Batch Sort: {(Constants.ENABLE_BATCH_OPTIMIZED_SORTING ? "ON" : "OFF")} ")
+                      .Append($"(Model grouping for state reduction)");
+                    _batchSortingLabel.Text = _sb.ToString();
+                    _batchSortingLabel.Visible = true;
                 }
                 else
                 {
@@ -130,6 +164,8 @@ namespace Client.Main.Controls.UI
                     _performanceMetricsLabel.Visible = false;
                     _objectMetricsLabel.Visible = false; // Hide object metrics label
                     _bmdMetricsLabel.Visible = false;
+                    _poolingMetricsLabel.Visible = false;
+                    _batchSortingLabel.Visible = false;
                 }
             }
         }
