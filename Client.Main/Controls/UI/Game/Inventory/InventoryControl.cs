@@ -229,7 +229,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         public void Show()
         {
-            Console.WriteLine("[DEBUG] InventoryControl.Show() called - reloading layout");
+            Console.WriteLine("[DEBUG] InventoryControl.Show() called");
 
             // Re-add ZEN label after layout reload
             if (_zenLabel != null && !Controls.Contains(_zenLabel))
@@ -239,8 +239,8 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             UpdateZenLabel();
             RefreshInventoryContent();
-            // Force a UI rebuild from current CharacterState to clear any stale visuals
-            _networkManager?.GetCharacterState()?.RaiseInventoryChanged();
+            // RaiseInventoryChanged removed - RefreshInventoryContent already updated everything
+            // and raising the event would cause a redundant second refresh
             Visible = true;
             BringToFront();
             Scene.FocusControl = this;
@@ -599,6 +599,38 @@ namespace Client.Main.Controls.UI.Game.Inventory
                             _pickedFromEquipSlot = -1;
                         }
                     }
+
+                    // Right-click to consume items (potions, jewels, etc.)
+                    bool rightJustPressed = MuGame.Instance.UiMouseState.RightButton == ButtonState.Pressed &&
+                                           MuGame.Instance.PrevUiMouseState.RightButton == ButtonState.Released;
+
+                    if (rightJustPressed && _hoveredItem != null && _pickedItemRenderer.Item == null)
+                    {
+                        // Check if item is consumable
+                        if (_hoveredItem.Definition?.IsConsumable() == true)
+                        {
+                            // Calculate inventory slot index (offset 12 for inventory slots)
+                            const int inventorySlotOffset = 12;
+                            byte itemSlot = (byte)(inventorySlotOffset + (_hoveredItem.GridPosition.Y * Columns) + _hoveredItem.GridPosition.X);
+
+                            // Send consume request
+                            if (_networkManager != null)
+                            {
+                                var svc = _networkManager.GetCharacterService();
+                                _ = System.Threading.Tasks.Task.Run(async () =>
+                                {
+                                    await svc.SendConsumeItemRequestAsync(itemSlot);
+
+                                    // Wait a bit for server response, then refresh inventory
+                                    await System.Threading.Tasks.Task.Delay(300);
+
+                                    // Refresh inventory to update item count/removal
+                                    var state = _networkManager.GetCharacterState();
+                                    MuGame.ScheduleOnMainThread(() => state.RaiseInventoryChanged());
+                                });
+                            }
+                        }
+                    }
                 }
                 else if (_hoveredEquipSlot >= 0)
                 {
@@ -928,10 +960,14 @@ namespace Client.Main.Controls.UI.Game.Inventory
             if (_networkManager != null)
             {
                 var state = _networkManager.GetCharacterState();
-                state.InventoryChanged += RefreshInventoryContent;
+                // Always marshal inventory refresh to main thread to prevent race conditions during rendering
+                state.InventoryChanged += () =>
+                {
+                    MuGame.ScheduleOnMainThread(() => RefreshInventoryContent());
+                };
                 state.MoneyChanged += () =>
                 {
-                    ZenAmount = state.InventoryZen; // triggers label update
+                    MuGame.ScheduleOnMainThread(() => ZenAmount = state.InventoryZen);
                 };
             }
         }
@@ -961,10 +997,15 @@ namespace Client.Main.Controls.UI.Game.Inventory
         {
             if (!Visible) return;
 
+            Rectangle displayRect = DisplayRectangle;
+
+            // Skip rendering if DisplayRectangle is invalid (e.g., during layout reload)
+            // This prevents black screen flashes when inventory is being refreshed
+            if (displayRect.Width <= 0 || displayRect.Height <= 0)
+                return;
+
             // First draw the base DynamicLayoutControl (background textures)
             base.Draw(gameTime);
-
-            Rectangle displayRect = DisplayRectangle;
 
             using (new SpriteBatchScope(GraphicsManager.Instance.Sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform))
             {
@@ -998,7 +1039,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private Point GetEquipAreaTopLeft()
         {
-            const int equipRows = 2;
             // Move equipment area to bottom of inventory grid with some padding
             int gridBottomY = DisplayRectangle.Y + GridOffset.Y + (Rows * CellHeight);
             return new Point(DisplayRectangle.X + GridOffset.X,
@@ -1024,6 +1064,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void DrawEquippedArea(SpriteBatch spriteBatch, Rectangle frameRect)
         {
+            // Skip if essential textures aren't loaded yet to prevent rendering glitches
+            if (GraphicsManager.Instance?.Pixel == null)
+                return;
+
             const int equipCols = 6;
             const int equipRows = 2;
             Point equipTopLeft = GetEquipAreaTopLeft();
@@ -1138,6 +1182,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void DrawGrid(SpriteBatch spriteBatch, Rectangle frameRect)
         {
+            // Skip if essential textures aren't loaded yet to prevent rendering glitches
+            if (GraphicsManager.Instance?.Pixel == null)
+                return;
+
             Point gridTopLeft = new Point(DisplayRectangle.X + GridOffset.X, DisplayRectangle.Y + GridOffset.Y);
 
             for (int y = 0; y < Rows; y++)
@@ -1298,10 +1346,16 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void DrawItems(SpriteBatch spriteBatch, Rectangle frameRect)
         {
+            // Skip if essential textures/resources aren't loaded yet
+            if (GraphicsManager.Instance?.Pixel == null || GraphicsManager.Instance?.Font == null)
+                return;
+
             Point gridTopLeft = new Point(DisplayRectangle.X + GridOffset.X, DisplayRectangle.Y + GridOffset.Y);
             var font = GraphicsManager.Instance.Font;
 
-            foreach (var item in _items)
+            // ToList() creates a snapshot to avoid "Collection was modified" exception
+            // when inventory updates happen during rendering
+            foreach (var item in _items.ToList())
             {
                 if (item == _pickedItemRenderer.Item) continue;
 
@@ -1458,6 +1512,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
             // ── ancient flag ────────────────────────
             if (d.IsAncient)
                 li.Add(("Ancient Option", new Color(0, 255, 128)));
+
+            // ── consumable flag ────────────────────────
+            if (def.IsConsumable())
+                li.Add(("Right-click to use", new Color(255, 215, 0))); // Gold color
 
             return li;
         }

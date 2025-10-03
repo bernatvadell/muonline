@@ -37,5 +37,15 @@ namespace Client.Main.Controls.UI.Game.Inventory
             Height = height;
             TexturePath = texturePath;
         }
+
+        /// <summary>
+        /// Checks if this item is consumable (potions, scrolls, etc.).
+        /// </summary>
+        public bool IsConsumable()
+        {
+            // Group 14 = Potions (HP, MP, SD potions)
+            // Group 15 = Scrolls
+            return Group == 14 || Group == 15;
+        }
     }
 }

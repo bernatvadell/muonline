@@ -456,6 +456,87 @@ namespace Client.Main.Networking.Services
         }
 
         /// <summary>
+        /// Sends a skill usage request packet to the server.
+        /// </summary>
+        public async Task SendSkillRequestAsync(ushort skillId, ushort targetId)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send skill request.");
+                return;
+            }
+
+            _logger.LogInformation(
+                "Sending skill request: SkillID={SkillId}, TargetID={TargetId}...",
+                skillId, targetId);
+
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                    PacketBuilder.BuildSkillRequestPacket(_connectionManager.Connection.Output, skillId, targetId));
+                _logger.LogInformation("Skill request sent: SkillID={SkillId}, TargetID={TargetId}.", skillId, targetId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending skill request for skill {SkillId} on target {TargetId}.", skillId, targetId);
+            }
+        }
+
+        /// <summary>
+        /// Sends a consume item request packet to the server (potions, jewels, etc.).
+        /// </summary>
+        public async Task SendConsumeItemRequestAsync(byte itemSlot, byte targetSlot = 0)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send consume item request.");
+                return;
+            }
+
+            _logger.LogInformation(
+                "Sending consume item request: ItemSlot={ItemSlot}, TargetSlot={TargetSlot}...",
+                itemSlot, targetSlot);
+
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                    PacketBuilder.BuildConsumeItemPacket(_connectionManager.Connection.Output, itemSlot, targetSlot));
+                _logger.LogInformation("Consume item request sent: ItemSlot={ItemSlot}, TargetSlot={TargetSlot}.", itemSlot, targetSlot);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending consume item request for slot {ItemSlot}.", itemSlot);
+            }
+        }
+
+        /// <summary>
+        /// Sends an area skill usage request packet to the server (buffs, area attacks, etc.).
+        /// </summary>
+        public async Task SendAreaSkillRequestAsync(ushort skillId, byte targetX, byte targetY, byte rotation, ushort extraTargetId = 0)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send area skill request.");
+                return;
+            }
+
+            _logger.LogInformation(
+                "Sending area skill request: SkillID={SkillId}, Position=({X},{Y}), Rotation={Rotation}...",
+                skillId, targetX, targetY, rotation);
+
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                    PacketBuilder.BuildAreaSkillPacket(_connectionManager.Connection.Output, skillId, targetX, targetY, rotation, extraTargetId));
+                _logger.LogInformation("Area skill request sent: SkillID={SkillId}.", skillId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending area skill request for skill {SkillId}.", skillId);
+            }
+        }
+
+        /// <summary>
         /// Sends a request to increase a specific character stat attribute.
         /// </summary>
         /// <param name="attribute">The attribute to be increased.</param>

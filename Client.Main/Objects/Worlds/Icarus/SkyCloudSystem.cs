@@ -155,7 +155,6 @@ namespace Client.Main.Objects.Worlds.Icarus
 
         // Map coverage settings
         private Vector2 _mapCenter = new Vector2(1280, 1280);
-        private float _mapRadius = 8000f; // Very large radius for wide pre-loading
         private Vector3[] _emissionPoints;
 
         // Cloud layer heights (constant for each layer)

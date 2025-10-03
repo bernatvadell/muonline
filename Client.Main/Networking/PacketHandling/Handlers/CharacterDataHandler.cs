@@ -999,5 +999,116 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
             return Task.CompletedTask;
         }
+
+        [PacketHandler(0x19, PacketRouter.NoSubCode)] // SkillAnimation (Targeted)
+        public Task HandleSkillAnimationAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var skillAnim = new SkillAnimation(packet);
+                ushort playerId = skillAnim.PlayerId;
+                ushort skillId = skillAnim.SkillId;
+                ushort targetId = skillAnim.TargetId;
+
+                _logger.LogDebug("SkillAnimation: Player={PlayerId}, Skill={SkillId}, Target={TargetId}",
+                    playerId, skillId, targetId);
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    var activeScene = MuGame.Instance?.ActiveScene as GameScene;
+                    if (activeScene?.Hero == null) return;
+
+                    // Check if this is our player
+                    if (playerId == _characterState.Id)
+                    {
+                        int animationId = Core.Utilities.SkillDatabase.GetSkillAnimation(skillId);
+
+                        if (animationId > 0)
+                        {
+                            activeScene.Hero.PlayAction((ushort)animationId);
+                            _logger.LogInformation(
+                                "Playing targeted skill animation {AnimationId} for skill {SkillId} ({SkillName}) on target {TargetId}",
+                                animationId,
+                                skillId,
+                                Core.Utilities.SkillDatabase.GetSkillName(skillId),
+                                targetId);
+                        }
+                        else
+                        {
+                            _logger.LogInformation(
+                                "Playing targeted skill {SkillId} ({SkillName}) on target {TargetId}",
+                                skillId,
+                                Core.Utilities.SkillDatabase.GetSkillName(skillId),
+                                targetId);
+                        }
+                    }
+                    else
+                    {
+                        // TODO: Handle other players' skill animations when scope system supports it
+                        _logger.LogDebug("Other player {PlayerId} used targeted skill {SkillId} on {TargetId}",
+                            playerId, skillId, targetId);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error handling SkillAnimation packet.");
+            }
+
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0x1E, PacketRouter.NoSubCode)] // AreaSkillAnimation
+        public Task HandleAreaSkillAnimationAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var areaSkill = new AreaSkillAnimation(packet);
+                ushort playerId = areaSkill.PlayerId;
+                ushort skillId = areaSkill.SkillId;
+                byte targetX = areaSkill.PointX;
+                byte targetY = areaSkill.PointY;
+
+                _logger.LogDebug("AreaSkillAnimation: Player={PlayerId}, Skill={SkillId}, Target=({X},{Y})",
+                    playerId, skillId, targetX, targetY);
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    var activeScene = MuGame.Instance?.ActiveScene as GameScene;
+                    if (activeScene?.Hero == null) return;
+
+                    // Check if this is our player
+                    if (playerId == _characterState.Id)
+                    {
+                        // Get animation from SkillDatabase
+                        int animationId = Core.Utilities.SkillDatabase.GetSkillAnimation(skillId);
+
+                        if (animationId > 0)
+                        {
+                            activeScene.Hero.PlayAction((ushort)animationId);
+                            _logger.LogInformation("Playing skill animation {AnimationId} for skill {SkillId} ({SkillName})",
+                                animationId, skillId, Core.Utilities.SkillDatabase.GetSkillName(skillId));
+                        }
+                        else
+                        {
+                            // No specific animation - skill uses generic magic/attack animation
+                            _logger.LogDebug("Skill {SkillId} ({SkillName}) uses generic animation",
+                                skillId, Core.Utilities.SkillDatabase.GetSkillName(skillId));
+                        }
+                    }
+                    else
+                    {
+                        // TODO: Handle other players' skill animations when scope system supports it
+                        _logger.LogDebug("Other player {PlayerId} used skill {SkillId}", playerId, skillId);
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error handling AreaSkillAnimation packet.");
+            }
+
+            return Task.CompletedTask;
+        }
     }
 }

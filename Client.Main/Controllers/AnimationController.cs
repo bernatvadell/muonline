@@ -237,8 +237,12 @@ namespace Client.Main.Controllers
             PlayerAction.PlayerAttackSpear1
                                                                                => AnimationType.Attack,
 
-            // PlayerAction.BlowSkill or PlayerAction.TwistingSlashSkill or
-            // PlayerAction.FlameSkill or PlayerAction.EvilSpiritSkill => AnimationType.Skill,
+            PlayerAction.PlayerSkillHell or PlayerAction.PlayerSkillHellBegin or
+            PlayerAction.PlayerSkillHellStart => AnimationType.Skill,
+
+            PlayerAction action when action.ToString().Contains("Skill", StringComparison.Ordinal)
+                => AnimationType.Skill,
+
             PlayerAction.PlayerGreeting1 or PlayerAction.PlayerGoodbye1 or
             PlayerAction.PlayerClap1 or PlayerAction.PlayerCheer1 or
             PlayerAction.PlayerSee1 or PlayerAction.PlayerSeeFemale1 or

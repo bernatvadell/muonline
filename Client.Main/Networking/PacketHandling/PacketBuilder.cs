@@ -326,6 +326,68 @@ namespace Client.Main.Networking.PacketHandling
         }
 
         /// <summary>
+        /// Builds a skill usage request packet using TargetedSkill.
+        /// </summary>
+        public static int BuildSkillRequestPacket(
+            IBufferWriter<byte> writer,
+            ushort skillId,
+            ushort targetId)
+        {
+            int length = TargetedSkill.Length;
+            var memory = writer.GetMemory(length).Slice(0, length);
+            var packet = new TargetedSkill(memory);
+
+            packet.SkillId = skillId;
+            packet.TargetId = targetId;
+
+            return length;
+        }
+
+        /// <summary>
+        /// Builds a consume item request packet (potions, jewels, etc.).
+        /// </summary>
+        public static int BuildConsumeItemPacket(
+            IBufferWriter<byte> writer,
+            byte itemSlot,
+            byte targetSlot = 0)
+        {
+            int length = ConsumeItemRequest.Length;
+            var memory = writer.GetMemory(length).Slice(0, length);
+            var packet = new ConsumeItemRequest(memory);
+
+            packet.ItemSlot = itemSlot;
+            packet.TargetSlot = targetSlot; // Used for jewels that target another item
+            packet.FruitConsumption = ConsumeItemRequest.FruitUsage.AddPoints; // Default for fruits
+
+            return length;
+        }
+
+        /// <summary>
+        /// Builds an area skill usage request packet (buffs, area attacks, etc.).
+        /// </summary>
+        public static int BuildAreaSkillPacket(
+            IBufferWriter<byte> writer,
+            ushort skillId,
+            byte targetX,
+            byte targetY,
+            byte rotation,
+            ushort extraTargetId = 0)
+        {
+            int length = AreaSkill.Length;
+            var memory = writer.GetMemory(length).Slice(0, length);
+            var packet = new AreaSkill(memory);
+
+            packet.SkillId = skillId;
+            packet.TargetX = targetX;
+            packet.TargetY = targetY;
+            packet.Rotation = rotation;
+            packet.ExtraTargetId = extraTargetId;
+            packet.AnimationCounter = 0; // Client can increment this for each cast
+
+            return length;
+        }
+
+        /// <summary>
         /// Builds a packet to request increasing a character's stat point.
         /// </summary>
         /// <param name="writer">The buffer writer to write the packet to.</param>

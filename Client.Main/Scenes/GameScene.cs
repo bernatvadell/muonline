@@ -25,6 +25,7 @@ using Client.Main.Networking;
 using Client.Main.Core.Models;
 using System.Reflection;
 using Client.Main.Content;
+using Client.Data.ATT;
 
 namespace Client.Main.Scenes
 {
@@ -52,6 +53,8 @@ namespace Client.Main.Scenes
         private LabelControl _pingLabel; // Displays current ping
         private double _pingTimer = 0;
         private PauseMenuControl _pauseMenu; // ESC menu
+        private Controls.UI.Game.Skills.SkillQuickSlot _skillQuickSlot; // Skill quick slot
+        private Controls.UI.Game.Skills.SkillSelectionPanel _skillSelectionPanel; // Skill selection panel (independent)
 
         // Cache expensive enum values to avoid allocations
         private static readonly Keys[] _allKeys = (Keys[])System.Enum.GetValues(typeof(Keys));
@@ -170,6 +173,16 @@ namespace Client.Main.Scenes
             _pauseMenu = new PauseMenuControl();
             Controls.Add(_pauseMenu);
             _pauseMenu.BringToFront();
+
+            // Skill selection panel (independent, not child of quick slot)
+            _skillSelectionPanel = new Controls.UI.Game.Skills.SkillSelectionPanel();
+            Controls.Add(_skillSelectionPanel);
+
+            // Skill quick slot
+            _skillQuickSlot = new Controls.UI.Game.Skills.SkillQuickSlot(MuGame.Network.GetCharacterState());
+            _skillQuickSlot.SetSelectionPanel(_skillSelectionPanel); // Connect panel
+            Controls.Add(_skillQuickSlot);
+            _skillQuickSlot.BringToFront();
 
             // Start pre-loading common UI assets in background to prevent freezes
             // This runs async and won't block scene initialization
@@ -987,6 +1000,55 @@ namespace Client.Main.Scenes
                 }
             }
 
+            // Handle skill usage with right-click
+            if (!IsMouseInputConsumedThisFrame &&
+                !IsMouseOverUi() && // Don't use skills if mouse is over UI
+                MuGame.Instance.Mouse.RightButton == ButtonState.Pressed &&
+                MuGame.Instance.PrevMouseState.RightButton == ButtonState.Released && // Fresh press
+                _skillQuickSlot?.SelectedSkill != null) // Must have skill selected
+            {
+                if (Hero != null && World is WalkableWorldControl walkableWorld)
+                {
+                    // Check if player is in SafeZone
+                    var terrainFlags = walkableWorld.Terrain.RequestTerrainFlag((int)Hero.Location.X, (int)Hero.Location.Y);
+                    if (terrainFlags.HasFlag(TWFlags.SafeZone))
+                    {
+                        _logger?.LogDebug("Cannot use skill in SafeZone");
+                        SetMouseInputConsumed();
+                    }
+                    else
+                    {
+                        var skill = _skillQuickSlot.SelectedSkill;
+
+                        // Check if skill is area/buff type
+                        if (IsAreaSkill(skill.SkillId))
+                        {
+                            // Area/buff skill - can be used with or without target
+                            ushort extraTargetId = 0;
+                            if (MouseHoverObject is MonsterObject skillTargetMonster &&
+                                !skillTargetMonster.IsDead &&
+                                skillTargetMonster.World == World)
+                            {
+                                extraTargetId = skillTargetMonster.NetworkId;
+                            }
+                            UseAreaSkill(skill, extraTargetId);
+                        }
+                        else
+                        {
+                            // Targeted skill - requires target
+                            if (MouseHoverObject is MonsterObject skillTargetMonster &&
+                                !skillTargetMonster.IsDead &&
+                                skillTargetMonster.World == World)
+                            {
+                                UseSkillOnTarget(skill, skillTargetMonster);
+                            }
+                        }
+
+                        SetMouseInputConsumed();
+                    }
+                }
+            }
+
             if (currentKeyboardState.IsKeyDown(Keys.F5) && _previousKeyboardState.IsKeyUp(Keys.F5)) _chatLog?.ToggleFrame();
             if (currentKeyboardState.IsKeyDown(Keys.F4) && _previousKeyboardState.IsKeyUp(Keys.F4)) _chatLog?.CycleSize();
             if (currentKeyboardState.IsKeyDown(Keys.F6) && _previousKeyboardState.IsKeyUp(Keys.F6)) _chatLog?.CycleBackgroundAlpha();
@@ -1242,6 +1304,75 @@ namespace Client.Main.Scenes
                     stack.Push(children[i]);
                 }
             }
+        }
+
+        /// <summary>
+        /// Checks if mouse is currently over any UI element (not game world).
+        /// </summary>
+        private bool IsMouseOverUi()
+        {
+            // MouseHoverControl is set by BaseScene - if it's not the World, we're over UI
+            return MouseHoverControl != null && MouseHoverControl != World;
+        }
+
+        /// <summary>
+        /// Checks if a skill is area/buff type (doesn't require target).
+        /// </summary>
+        private bool IsAreaSkill(ushort skillId)
+        {
+            return Core.Utilities.SkillDatabase.IsAreaSkill(skillId);
+        }
+
+        /// <summary>
+        /// Uses the selected targeted skill on a monster.
+        /// </summary>
+        private void UseSkillOnTarget(Core.Client.SkillEntryState skill, MonsterObject target)
+        {
+            if (skill == null || target == null || Hero == null)
+                return;
+
+            _logger?.LogInformation("Using targeted skill {SkillId} (Level {Level}) on target {TargetId}",
+                skill.SkillId, skill.SkillLevel, target.NetworkId);
+
+            // Send targeted skill usage packet to server
+            // Animation will be played when server confirms with SkillAnimation packet
+            _ = MuGame.Network.GetCharacterService().SendSkillRequestAsync(
+                skill.SkillId,
+                target.NetworkId);
+        }
+
+        /// <summary>
+        /// Uses the selected skill at the player's position with optional target.
+        /// </summary>
+        private void UseAreaSkill(Core.Client.SkillEntryState skill, ushort extraTargetId = 0)
+        {
+            if (skill == null || Hero == null)
+                return;
+
+            if (extraTargetId != 0)
+            {
+                _logger?.LogInformation("Using skill {SkillId} (Level {Level}) at position ({X},{Y}) with target {TargetId}",
+                    skill.SkillId, skill.SkillLevel, (byte)Hero.Location.X, (byte)Hero.Location.Y, extraTargetId);
+            }
+            else
+            {
+                _logger?.LogInformation("Using area skill {SkillId} (Level {Level}) at position ({X},{Y})",
+                    skill.SkillId, skill.SkillLevel, (byte)Hero.Location.X, (byte)Hero.Location.Y);
+            }
+
+            // Send area skill usage packet to server
+            // Animation will be played when server confirms with AreaSkillAnimation packet
+            // Use player's current position and direction
+            byte targetX = (byte)Hero.Location.X;
+            byte targetY = (byte)Hero.Location.Y;
+            byte rotation = (byte)((Hero.Angle.Y / (2 * Math.PI)) * 255); // Convert radians to 0-255 range (use Y component for rotation)
+
+            _ = MuGame.Network.GetCharacterService().SendAreaSkillRequestAsync(
+                skill.SkillId,
+                targetX,
+                targetY,
+                rotation,
+                extraTargetId);
         }
 
         public override void Dispose()
