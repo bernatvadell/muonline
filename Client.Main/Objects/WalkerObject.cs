@@ -29,6 +29,12 @@ namespace Client.Main.Objects
         private const float _maxCameraDistance = Constants.MAX_CAMERA_DISTANCE;
         private const float _zoomSpeed = Constants.ZOOM_SPEED;
         private int _previousScrollValue;
+        bool _mouseScroolToZoom = true;
+        public bool MouseScroolToZoom
+        {
+            get => _mouseScroolToZoom;
+            set => _mouseScroolToZoom = value;
+        }
 
         // Camera rotation
         private float _cameraYaw = Constants.CAMERA_YAW;
@@ -557,7 +563,7 @@ namespace Client.Main.Objects
             var mouseState = MuGame.Instance.Mouse;
             int currentScroll = mouseState.ScrollWheelValue;
             int scrollDiff = currentScroll - _previousScrollValue;
-            if (scrollDiff != 0)
+            if (scrollDiff != 0 && _mouseScroolToZoom)
             {
                 float zoomChange = scrollDiff / 120f * 100f;
                 _targetCameraDistance = MathHelper.Clamp(

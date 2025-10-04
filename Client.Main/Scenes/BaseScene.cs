@@ -226,6 +226,11 @@ namespace Client.Main.Scenes
                 IsMouseInputConsumedThisFrame = true;
             }
 
+            if (World is WalkableWorldControl walkableWorld)
+            {
+                walkableWorld.Walker.MouseScroolToZoom = World == MouseHoverControl;
+            }
+
             base.Update(gameTime);
 
             if (Status != GameControlStatus.Ready)
