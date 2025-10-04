@@ -9,6 +9,8 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Core.Client;
 using Client.Main.Core.Utilities;
+using System;
+using System.Collections.Generic;
 using System.Text;
 using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Helpers;
@@ -40,6 +42,8 @@ namespace Client.Main.Objects
         private float _yawRadians;   // Static orientation in world (does not follow camera)
         private ModelObject _modelObj; // Optional 3D model when available
         private readonly ItemDefinition _definition;
+        private readonly bool _isMoney;
+        private readonly List<ModelObject> _coinModels = new List<ModelObject>(); // Multiple coins for money piles
 
         // ─────────────────── public helpers
         public ushort RawId => _scope.RawId;
@@ -75,10 +79,12 @@ namespace Client.Main.Objects
                 baseName = itemScope.ItemDescription;
                 itemDetails = ItemDatabase.ParseItemDetails(itemData);
                 _definition = ItemDatabase.GetItemDefinition(itemData);
+                _isMoney = false;
             }
             else if (scope is MoneyScopeObject moneyScope)
             {
                 baseName = $"{moneyScope.Amount} Zen";
+                _isMoney = true;
             }
 
             DisplayName = FormatItemDisplayName(baseName, itemDetails);
@@ -103,7 +109,67 @@ namespace Client.Main.Objects
 
             _font = GraphicsManager.Instance.Font;
 
-            if (_definition != null && !string.IsNullOrEmpty(_definition.TexturePath))
+            // Handle money (gold coin) model - create a pile of coins
+            if (_isMoney)
+            {
+                try
+                {
+                    var bmd = await BMDLoader.Instance.Prepare("Item\\Gold01.bmd");
+                    if (bmd == null)
+                    {
+                        _log.LogWarning("Gold coin BMD model is null after loading");
+                        return;
+                    }
+
+                    // Determine coin count based on amount (more zen = more coins, capped at reasonable number)
+                    var moneyScope = _scope as MoneyScopeObject;
+                    int coinCount = CalculateCoinCount(moneyScope?.Amount ?? 0);
+
+                    // Use deterministic random based on RawId for consistent results
+                    var random = new Random(RawId);
+
+                    // Create multiple coins in a pile with anti-collision positioning
+                    for (int i = 0; i < coinCount; i++)
+                    {
+                        var model = new DroppedItemModel();
+                        model.Model = bmd;
+
+                        // Position coins in a circular pile pattern with vertical stacking
+                        float radius = (float)Math.Sqrt(i) * 8f; // Spiral outward
+                        float angle = i * 2.4f; // Golden angle for even distribution
+                        float offsetX = (float)Math.Cos(angle) * radius;
+                        float offsetY = (float)Math.Sin(angle) * radius;
+                        float offsetZ = (i / 3) * 3f; // Stack coins vertically, 3 coins per layer
+
+                        // Add small random variation to prevent perfect alignment
+                        offsetX += (float)(random.NextDouble() - 0.5) * 4f;
+                        offsetY += (float)(random.NextDouble() - 0.5) * 4f;
+                        offsetZ += (float)(random.NextDouble() - 0.5) * 1f;
+
+                        model.Position = new Vector3(offsetX, offsetY, offsetZ);
+
+                        // Coins lie flat (like original code) but with slight Z rotation for variety
+                        float rotZ = (float)(random.NextDouble() * Math.PI * 2);
+                        model.Angle = new Vector3(0, 0, rotZ);
+
+                        model.Scale = 0.8f;
+                        model.LightEnabled = true;
+
+                        Children.Add(model);
+                        await model.Load();
+                        _coinModels.Add(model);
+                    }
+
+                    _log.LogInformation("Gold coin pile loaded with {Count} coins at position {Pos}", coinCount, Position);
+                    return; // 3D model loaded
+                }
+                catch (Exception ex)
+                {
+                    _log.LogWarning(ex, "Failed to load gold coin BMD model");
+                }
+            }
+            // Handle item models
+            else if (_definition != null && !string.IsNullOrEmpty(_definition.TexturePath))
             {
                 // Try to load real 3D model
                 if (_definition.TexturePath.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase))
@@ -217,6 +283,26 @@ namespace Client.Main.Objects
             if (details.HasSkill) sb.Append(" +Skill");
 
             return sb.ToString();
+        }
+
+        private int CalculateCoinCount(uint zenAmount)
+        {
+            // Scale coin count based on amount of zen with randomization
+            // Use RawId as seed for consistent randomization per drop
+            var random = new Random(RawId);
+
+            if (zenAmount < 100)
+                return random.Next(2, 5);      // 2-4 coins
+            if (zenAmount < 1000)
+                return random.Next(4, 7);      // 4-6 coins
+            if (zenAmount < 10000)
+                return random.Next(6, 10);     // 6-9 coins
+            if (zenAmount < 100000)
+                return random.Next(9, 14);     // 9-13 coins
+            if (zenAmount < 1000000)
+                return random.Next(12, 17);    // 12-16 coins
+
+            return random.Next(15, 21);        // 15-20 coins for huge amounts
         }
 
         private Color GetLabelColor(ScopeObject s, ItemDatabase.ItemDetails details)
