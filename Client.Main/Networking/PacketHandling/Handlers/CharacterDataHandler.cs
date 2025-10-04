@@ -451,7 +451,10 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 }
 
                 // Apply updates
-                _characterState.UpdateLevelAndExperience(newLevel, _characterState.Experience, _characterState.ExperienceForNextLevel, newPoints);
+                // Calculate new experience requirement for next level
+                // Formula: ExpForNextLevel = (newLevel + 9) * newLevel * newLevel * 10
+                ulong nextExp = (ulong)((newLevel + 9) * newLevel * newLevel * 10);
+                _characterState.UpdateLevelAndExperience(newLevel, _characterState.Experience, nextExp, newPoints);
                 _characterState.UpdateMaximumHealthShield(maxHp, maxSd);
                 _characterState.UpdateMaximumManaAbility(maxMana, maxAbility);
 

@@ -186,6 +186,10 @@ namespace Client.Main.Scenes
             Controls.Add(_skillQuickSlot);
             _skillQuickSlot.BringToFront();
 
+            // Experience bar
+            var experienceBar = new Controls.UI.Game.ExperienceBarControl(MuGame.Network.GetCharacterState());
+            Controls.Add(experienceBar);
+
             // Active buffs panel (top-left corner, no border)
             _activeBuffsPanel = new ActiveBuffsPanel(MuGame.Network.GetCharacterState());
             Controls.Add(_activeBuffsPanel);

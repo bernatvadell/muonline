@@ -16,7 +16,7 @@ namespace Client.Main.Controls.UI.Game.Skills
         private readonly CharacterState _characterState;
         private SkillSelectionPanel? _selectionPanel;
         private readonly SkillSlotControl _currentSkillSlot;
-        private readonly LabelControl _hintLabel;
+        // private readonly LabelControl _hintLabel;
 
         private const int SLOT_SIZE = 52; // Compact size
 
@@ -46,16 +46,16 @@ namespace Client.Main.Controls.UI.Game.Skills
             Controls.Add(_currentSkillSlot);
 
             // Hint label - compact
-            _hintLabel = new LabelControl
-            {
-                Text = "",
-                TextColor = Color.Gray,
-                X = 0,
-                Y = SLOT_SIZE + 4,
-                ViewSize = new Point(SLOT_SIZE + 8, 16),
-                Scale = 0.65f
-            };
-            Controls.Add(_hintLabel);
+            // _hintLabel = new LabelControl
+            // {
+            //     Text = "",
+            //     TextColor = Color.Gray,
+            //     X = 0,
+            //     Y = SLOT_SIZE + 4,
+            //     ViewSize = new Point(SLOT_SIZE + 8, 16),
+            //     Scale = 0.65f
+            // };
+            // Controls.Add(_hintLabel);
 
             // Visual feedback - minimal background
             BackgroundColor = Color.Transparent;
@@ -101,14 +101,14 @@ namespace Client.Main.Controls.UI.Game.Skills
             if (skill != null)
             {
                 string skillName = SkillDatabase.GetSkillName(skill.SkillId);
-                _hintLabel.Text = $"{skillName} Lv{skill.SkillLevel}";
-                _hintLabel.TextColor = Color.Gold;
+                // _hintLabel.Text = $"{skillName} Lv{skill.SkillLevel}";
+                // _hintLabel.TextColor = Color.Gold;
                 _selectionPanel?.HighlightSkill(skill.SkillId);
             }
             else
             {
-                _hintLabel.Text = "";
-                _hintLabel.TextColor = Color.Gray;
+                // _hintLabel.Text = "";
+                // _hintLabel.TextColor = Color.Gray;
             }
         }
 
@@ -143,14 +143,14 @@ namespace Client.Main.Controls.UI.Game.Skills
             {
                 if (SelectedSkill != null)
                 {
-                    _hintLabel.TextColor = Color.Yellow;
+                    // _hintLabel.TextColor = Color.Yellow;
                 }
             }
             else
             {
                 if (SelectedSkill != null)
                 {
-                    _hintLabel.TextColor = Color.Gold;
+                    // _hintLabel.TextColor = Color.Gold;
                 }
             }
         }
