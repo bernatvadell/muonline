@@ -55,6 +55,20 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 if (isActive)
                 {
                     _characterState.ActivateBuff(effectId, playerId);
+
+                    // Special message for Elf Soldier buff (ID 3 - NPC Helper buff) - only for local player
+                    if (effectId == 3 && playerId == _characterState.Id)
+                    {
+                        MuGame.ScheduleOnMainThread(() =>
+                        {
+                            var gameScene = MuGame.Instance?.ActiveScene as Scenes.GameScene;
+                            if (gameScene != null)
+                            {
+                                var chatLog = gameScene.Controls.OfType<Controls.UI.ChatLogWindow>().FirstOrDefault();
+                                chatLog?.AddMessage("System", "You received a buff from Elf Soldier that enhances attack and defense!", Models.MessageType.Info);
+                            }
+                        });
+                    }
                 }
                 else
                 {

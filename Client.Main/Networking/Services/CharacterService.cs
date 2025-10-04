@@ -848,5 +848,61 @@ namespace Client.Main.Networking.Services
                 _logger.LogError(ex, "Error sending enter gate request for gate {GateId}.", gateId);
             }
         }
+
+        /// <summary>
+        /// Sends a request to an NPC to receive a buff.
+        /// Must be called after opening NPC dialog with SendTalkToNpcRequestAsync.
+        /// </summary>
+        public async Task SendNpcBuffRequestAsync()
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send NPC buff request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending NPC buff request...");
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new NpcBuffRequest(_connectionManager.Connection.Output.GetMemory(NpcBuffRequest.Length).Slice(0, NpcBuffRequest.Length));
+                    return NpcBuffRequest.Length;
+                });
+                _logger.LogInformation("NPC buff request sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending NPC buff request.");
+            }
+        }
+
+        /// <summary>
+        /// Sends a complete sequence to get buff from Elf Soldier NPC:
+        /// 1. Opens dialog with NPC (TalkToNpcRequest)
+        /// 2. Requests buff (NpcBuffRequest)
+        /// </summary>
+        /// <param name="npcId">The network ID of the Elf Soldier NPC.</param>
+        public async Task SendElfSoldierBuffSequenceAsync(ushort npcId)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send Elf Soldier buff sequence.");
+                return;
+            }
+
+            _logger.LogInformation("Sending Elf Soldier buff sequence for NPC ID {NpcId}...", npcId);
+
+            // Step 1: Open dialog with NPC
+            await SendTalkToNpcRequestAsync(npcId);
+
+            // Step 2: Small delay to ensure dialog is processed
+            await Task.Delay(100);
+
+            // Step 3: Request buff
+            await SendNpcBuffRequestAsync();
+
+            _logger.LogInformation("Elf Soldier buff sequence completed for NPC ID {NpcId}.", npcId);
+        }
     }
 }

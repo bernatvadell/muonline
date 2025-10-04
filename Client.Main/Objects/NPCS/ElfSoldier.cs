@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Client.Main.Objects.Effects;
 using Microsoft.Xna.Framework;
 using Microsoft.Extensions.Logging;
+using System;
 
 namespace Client.Main.Objects.NPCS
 {
@@ -15,6 +16,8 @@ namespace Client.Main.Objects.NPCS
     {
         private new readonly ILogger<ElfSoldier> _logger;
         private WingObject _wings;
+        private DateTime _lastClickTime = DateTime.MinValue;
+        private const double CLICK_COOLDOWN_SECONDS = 1.0;
         public ElfSoldier()
         {
             _logger = AppLoggerFactory?.CreateLogger<ElfSoldier>();
@@ -58,6 +61,32 @@ namespace Client.Main.Objects.NPCS
                 new Vector3(currentBBox.Max.X, currentBBox.Max.Y, currentBBox.Max.Z + 70f));
         }
 
-        protected override void HandleClick() { }
+        protected override void HandleClick()
+        {
+            // Debounce clicks - only allow one request per second
+            var now = DateTime.UtcNow;
+            var timeSinceLastClick = (now - _lastClickTime).TotalSeconds;
+
+            if (timeSinceLastClick < CLICK_COOLDOWN_SECONDS)
+            {
+                _logger?.LogDebug("Click ignored - cooldown active ({TimeRemaining:F2}s remaining)",
+                    CLICK_COOLDOWN_SECONDS - timeSinceLastClick);
+                return;
+            }
+
+            _lastClickTime = now;
+            _logger?.LogInformation("Elf Soldier clicked - sending buff request sequence (NetworkId: {NetworkId})", NetworkId);
+
+            // Send complete buff sequence: TalkToNpc -> BuffRequest
+            var characterService = MuGame.Network?.GetCharacterService();
+            if (characterService != null)
+            {
+                _ = characterService.SendElfSoldierBuffSequenceAsync(NetworkId);
+            }
+            else
+            {
+                _logger?.LogWarning("CharacterService is null - cannot send Elf Soldier buff sequence");
+            }
+        }
     }
 }
