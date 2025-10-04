@@ -25,11 +25,14 @@ namespace Client.Main.Objects
     public class DroppedItemObject : WorldObject
     {
         // ─────────────────── constants
-        private const float HeightOffset = 90f;
+        private const float HeightOffset = 60f;
         private const float PickupRange = 300f;
-        private const float LabelScale = 0.6f;
         private const float LabelOffsetZ = 10f;
         private const int LabelPixelGap = 20;
+        private const float BoundingSnapEpsilon = 1f; // Minimum movement threshold when recentring children
+        private const float BoundingPadding = 4f; // Extra space so models never clip the box walls
+        private const float MinimumHalfExtent = 18f; // Prevent degenerate narrow bounding boxes
+        private const float MinimumBoundingHeight = 24f; // Ensure some vertical interaction room
 
         // ─────────────────── deps / state
         private readonly ScopeObject _scope;
@@ -39,11 +42,12 @@ namespace Client.Main.Objects
 
         private SpriteFont _font;
         private bool _pickedUp;
-        private float _yawRadians;   // Static orientation in world (does not follow camera)
         private ModelObject _modelObj; // Optional 3D model when available
         private readonly ItemDefinition _definition;
         private readonly bool _isMoney;
+        private float _yawRadians;   // Static orientation in world (does not follow camera)
         private readonly List<ModelObject> _coinModels = new List<ModelObject>(); // Multiple coins for money piles
+        private readonly List<Vector3> _childBoundsScratch = new(32); // Reuse buffer while fitting bounding boxes
 
         // ─────────────────── public helpers
         public ushort RawId => _scope.RawId;
@@ -64,10 +68,11 @@ namespace Client.Main.Objects
             NetworkId = scope.Id;
             Interactive = true;
 
+            // Initialize position at ground level (will be adjusted in Load() after terrain height is known)
             Position = new(
                 scope.PositionX * Constants.TERRAIN_SCALE + Constants.TERRAIN_SCALE / 2f,
                 scope.PositionY * Constants.TERRAIN_SCALE + Constants.TERRAIN_SCALE / 2f,
-                0f);
+                0f); // Ground level, bottom of bounding box
 
             string baseName = "Unknown Drop";
             ItemDatabase.ItemDetails itemDetails = default;
@@ -135,11 +140,12 @@ namespace Client.Main.Objects
                         model.Model = bmd;
 
                         // Position coins in a circular pile pattern with vertical stacking
+                        // All relative to parent position (which is at bottom center of bbox = ground level)
                         float radius = (float)Math.Sqrt(i) * 8f; // Spiral outward
                         float angle = i * 2.4f; // Golden angle for even distribution
                         float offsetX = (float)Math.Cos(angle) * radius;
                         float offsetY = (float)Math.Sin(angle) * radius;
-                        float offsetZ = (i / 3) * 3f; // Stack coins vertically, 3 coins per layer
+                        float offsetZ = (i / 3) * 3f; // Stack coins vertically from ground level
 
                         // Add small random variation to prevent perfect alignment
                         offsetX += (float)(random.NextDouble() - 0.5) * 4f;
@@ -160,6 +166,7 @@ namespace Client.Main.Objects
                         _coinModels.Add(model);
                     }
 
+                    RecenterChildrenAndFitBoundingBox();
                     _log.LogInformation("Gold coin pile loaded with {Count} coins at position {Pos}", coinCount, Position);
                     return; // 3D model loaded
                 }
@@ -179,13 +186,17 @@ namespace Client.Main.Objects
                         var bmd = await BMDLoader.Instance.Prepare(_definition.TexturePath);
                         var model = new DroppedItemModel();
                         model.Model = bmd;
-                        model.Position = new Vector3(0f, 0f, -HeightOffset + 70f); // relative to parent, slightly above ground
-                        // Lay flat, keep static yaw
-                        model.Angle = new Vector3(-MathHelper.PiOver2, MathHelper.PiOver2, _yawRadians);
-                        model.Scale = 0.6f; // tuned size; adjust if needed
+
+                        model.Position = Vector3.Zero;
+                        // Use consistent group-specific orientation from ItemOrientationHelper
+                        var baseAngle = ItemOrientationHelper.GetWorldDropEuler(_definition);
+                        model.Angle = new Vector3(baseAngle.X + MathHelper.PiOver2, baseAngle.Y - MathHelper.PiOver2, baseAngle.Z + MathHelper.PiOver2 / 2); // +90 degrees on X axis
+                        model.Scale = 0.6f; // Tuned size; detailed fit happens in RecenterChildrenAndFitBoundingBox
+
                         Children.Add(model);
                         await model.Load();
                         _modelObj = model;
+                        RecenterChildrenAndFitBoundingBox();
                         return; // 3D model loaded, skip texture sprite path
                     }
                     catch (Exception ex)
@@ -196,6 +207,95 @@ namespace Client.Main.Objects
 
                 // Skip if we already know this texture failed to load\n
             }
+        }
+
+        // =====================================================================
+        private void RecenterChildrenAndFitBoundingBox()
+        {
+            if (!TryGetChildBounds(out var localBounds))
+            {
+                return; // No geometry yet (sprite fallback or model load failure)
+            }
+
+            Vector3 correction = new(
+                (localBounds.Min.X + localBounds.Max.X) * 0.5f,
+                (localBounds.Min.Y + localBounds.Max.Y) * 0.5f,
+                localBounds.Min.Z);
+
+            if (MathF.Abs(correction.X) > BoundingSnapEpsilon ||
+                MathF.Abs(correction.Y) > BoundingSnapEpsilon ||
+                MathF.Abs(correction.Z) > BoundingSnapEpsilon)
+            {
+                foreach (var child in Children)
+                {
+                    if (child is ModelObject model && model.Model != null)
+                    {
+                        model.Position -= correction;
+                    }
+                }
+
+                if (!TryGetChildBounds(out localBounds))
+                {
+                    return;
+                }
+            }
+
+            float halfWidth = MathF.Max(MathF.Abs(localBounds.Min.X), MathF.Abs(localBounds.Max.X));
+            float halfDepth = MathF.Max(MathF.Abs(localBounds.Min.Y), MathF.Abs(localBounds.Max.Y));
+            float minZ = MathF.Min(localBounds.Min.Z, 0f);
+            float height = localBounds.Max.Z - minZ;
+
+            halfWidth = MathF.Max(halfWidth, MinimumHalfExtent);
+            halfDepth = MathF.Max(halfDepth, MinimumHalfExtent);
+            height = MathF.Max(height, MinimumBoundingHeight);
+
+            BoundingBoxLocal = new BoundingBox(
+                new Vector3(-halfWidth - BoundingPadding, -halfDepth - BoundingPadding, 0f),
+                new Vector3(halfWidth + BoundingPadding, halfDepth + BoundingPadding, height + BoundingPadding));
+        }
+
+        private bool TryGetChildBounds(out BoundingBox localBounds)
+        {
+            localBounds = default;
+
+            if (Children.Count == 0)
+            {
+                return false;
+            }
+
+            Matrix parentWorld = WorldPosition;
+            float determinant = parentWorld.Determinant();
+            if (MathF.Abs(determinant) < float.Epsilon)
+            {
+                return false; // Matrix not invertible -> no reliable local conversion
+            }
+
+            Matrix.Invert(ref parentWorld, out Matrix inverseParent);
+
+            _childBoundsScratch.Clear();
+
+            foreach (var child in Children)
+            {
+                if (child is not ModelObject model || model.Model == null || model.Status != GameControlStatus.Ready)
+                {
+                    continue;
+                }
+
+                var corners = model.BoundingBoxWorld.GetCorners();
+                for (int i = 0; i < corners.Length; i++)
+                {
+                    _childBoundsScratch.Add(Vector3.Transform(corners[i], inverseParent));
+                }
+            }
+
+            if (_childBoundsScratch.Count == 0)
+            {
+                return false;
+            }
+
+            localBounds = BoundingBox.CreateFromPoints(_childBoundsScratch);
+            _childBoundsScratch.Clear();
+            return true;
         }
 
         // =====================================================================
@@ -360,7 +460,8 @@ namespace Client.Main.Objects
             }
             var color = GetLabelColor(scope, ItemDatabase.ParseItemDetails(itemSpan));
 
-            Vector3 anchor = new(Position.X, Position.Y, Position.Z + LabelOffsetZ);
+            // Label position: slightly above the top of the bounding box
+            Vector3 anchor = new(Position.X, Position.Y, BoundingBoxWorld.Max.Z + LabelOffsetZ);
             Vector3 screen = GraphicsDevice.Viewport.Project(
                 anchor,
                 Camera.Instance.Projection,
@@ -457,10 +558,3 @@ namespace Client.Main.Objects
         }
     }
 }
-
-
-
-
-
-
-

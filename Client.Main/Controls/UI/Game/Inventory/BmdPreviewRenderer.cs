@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Client.Main;
 using Client.Main.Content;
 using Client.Main.Controllers;
+using Client.Main.Models;
 using System.Reflection;
 
 namespace Client.Main.Controls.UI.Game.Inventory
@@ -401,23 +402,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 Matrix view = Matrix.CreateLookAt(new Vector3(0, 0, 40f), Vector3.Zero, Vector3.Up);
                 Matrix projection = Matrix.CreatePerspectiveFieldOfView(MathHelper.ToRadians(30f), (float)width / height, 1f, 100f);
 
-                Matrix baseRotation = MuRotationConverter.ConvertToMonoGame(25f, 45f, 0f);
-                if (def.Group == 6)
-                {
-                    baseRotation = MuRotationConverter.ConvertToMonoGame(270f, 270f, 0f);
-                }
-                else if (def.Group == 13)
-                {
-                    baseRotation = MuRotationConverter.ConvertToMonoGame(270f, 0f, 0f);
-                }
-                else if (def.Group == 14)
-                {
-                    baseRotation = MuRotationConverter.ConvertToMonoGame(270f, 0f, 0f);
-                }
-                else if (!(def.Group == 0 || def.Group == 1 || def.Group == 2 || def.Group == 3 || def.Group == 5))
-                {
-                    baseRotation = MuRotationConverter.ConvertToMonoGame(270f, -10f, 0f);
-                }
+                Matrix baseRotation = ItemOrientationHelper.GetInventoryBaseRotation(def);
 
                 Matrix mouseRotation = Matrix.CreateRotationY(MathHelper.ToRadians(rotationAngle));
 
@@ -773,6 +758,120 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 }
             }
             return new BoundingBox(min, max);
+        }
+    }
+
+    internal static class ItemOrientationHelper
+    {
+        private const float MinAxisLengthSq = 1e-6f;
+
+        public static Matrix GetInventoryBaseRotation(ItemDefinition definition)
+        {
+            if (definition == null)
+            {
+                return MuRotationConverter.ConvertToMonoGame(25f, 45f, 0f);
+            }
+
+            short group = (short)definition.Group;
+            if (group == 6)
+            {
+                return MuRotationConverter.ConvertToMonoGame(270f, 270f, 0f);
+            }
+
+            if (group == 13 || group == 14)
+            {
+                return MuRotationConverter.ConvertToMonoGame(270f, 0f, 0f);
+            }
+
+            if (group == 0 || group == 1 || group == 2 || group == 3 || group == 5)
+            {
+                return MuRotationConverter.ConvertToMonoGame(25f, 45f, 0f);
+            }
+
+            return MuRotationConverter.ConvertToMonoGame(270f, -10f, 0f);
+        }
+
+        public static Quaternion GetInventoryOrientation(ItemDefinition definition)
+        {
+            Matrix rotation = GetInventoryBaseRotation(definition);
+            return Quaternion.CreateFromRotationMatrix(rotation);
+        }
+
+        public static Vector3 GetWorldDropEuler(ItemDefinition definition)
+        {
+            // Get the same MU rotation values used in inventory
+            (float muX, float muY, float muZ) = GetMuRotationValues(definition);
+
+            // Apply EXACTLY the same conversion as MuRotationConverter.ConvertToMonoGame
+            bool hasLargeAngle = (MathF.Abs(muX) >= 180f || MathF.Abs(muY) >= 180f || MathF.Abs(muZ) >= 180f);
+
+            float monoX = muX;
+            float monoY = -muY;
+            float monoZ = hasLargeAngle ? muZ : muZ + 180f;
+
+            // Convert to radians (ModelObject.Angle expects radians)
+            Vector3 inventoryAngle = new Vector3(
+                MathHelper.ToRadians(monoX),
+                MathHelper.ToRadians(monoY),
+                MathHelper.ToRadians(monoZ)
+            );
+
+            // Apply camera space transformation offset
+            // This rotates from inventory camera view to world space isometric view
+            inventoryAngle.X += -MathHelper.PiOver2; // -90° pitch
+            inventoryAngle.Y += MathHelper.PiOver2;  // +90° yaw
+
+            return inventoryAngle;
+        }
+
+        /// <summary>
+        /// Returns the MU Online rotation values for each item group
+        /// These are the same values used in GetInventoryBaseRotation
+        /// </summary>
+        private static (float muX, float muY, float muZ) GetMuRotationValues(ItemDefinition definition)
+        {
+            if (definition == null)
+            {
+                return (25f, 45f, 0f); // Default weapons
+            }
+
+            short group = (short)definition.Group;
+
+            // Shields
+            if (group == 6)
+            {
+                return (270f, 270f, 0f);
+            }
+
+            // Wings
+            if (group == 13 || group == 14)
+            {
+                return (270f, 0f, 0f);
+            }
+
+            // Weapons (swords, axes, maces, spears, bows)
+            if (group == 0 || group == 1 || group == 2 || group == 3 || group == 5)
+            {
+                return (25f, 45f, 0f);
+            }
+
+            // Default for other groups
+            return (270f, -10f, 0f);
+        }
+
+        private static float NormalizeAngle(float angle)
+        {
+            const float twoPi = MathF.PI * 2f;
+            angle %= twoPi;
+            if (angle <= -MathF.PI)
+            {
+                angle += twoPi;
+            }
+            else if (angle > MathF.PI)
+            {
+                angle -= twoPi;
+            }
+            return angle;
         }
     }
 
