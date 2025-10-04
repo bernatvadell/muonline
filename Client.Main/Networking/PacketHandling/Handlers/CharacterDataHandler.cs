@@ -38,6 +38,65 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
         // ───────────────────────── Packet Handlers ─────────────────────────
 
+        [PacketHandler(0x07, PacketRouter.NoSubCode)] // MagicEffectStatus
+        public Task HandleMagicEffectStatusAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var effectPacket = new MagicEffectStatus(packet);
+                byte effectId = effectPacket.EffectId;
+                ushort playerId = effectPacket.PlayerId;
+                bool isActive = effectPacket.IsActive;
+
+                _logger.LogDebug("MagicEffectStatus received: Effect ID: {EffectId}, Player ID: {PlayerId}, Active: {IsActive}",
+                    effectId, playerId, isActive);
+
+                // Update character state
+                if (isActive)
+                {
+                    _characterState.ActivateBuff(effectId, playerId);
+                }
+                else
+                {
+                    _characterState.DeactivateBuff(effectId);
+                }
+
+                return Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing MagicEffectStatus packet.");
+                return Task.CompletedTask;
+            }
+        }
+
+        [PacketHandler(0x1B, PacketRouter.NoSubCode)] // MagicEffectCancelled
+        public Task HandleMagicEffectCancelledAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var effectPacket = new MagicEffectCancelled(packet);
+                ushort skillId = effectPacket.SkillId;
+                ushort targetId = effectPacket.TargetId;
+
+                _logger.LogDebug("MagicEffectCancelled received: Skill ID: {SkillId}, Target ID: {TargetId}",
+                    skillId, targetId);
+
+                // Map skill ID to effect ID and deactivate
+                // For now, we'll use the lower byte of skill ID as effect ID
+                // This mapping may need to be adjusted based on actual game data
+                byte effectId = (byte)(skillId & 0xFF);
+                _characterState.DeactivateBuff(effectId);
+
+                return Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing MagicEffectCancelled packet.");
+                return Task.CompletedTask;
+            }
+        }
+
         [PacketHandler(0xF3, 0x03)] // CharacterInformation
         public Task HandleCharacterInformationAsync(Memory<byte> packet)
         {

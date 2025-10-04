@@ -26,6 +26,7 @@ using Client.Main.Core.Models;
 using System.Reflection;
 using Client.Main.Content;
 using Client.Data.ATT;
+using Client.Main.Controls.UI.Game.Buffs;
 
 namespace Client.Main.Scenes
 {
@@ -55,6 +56,7 @@ namespace Client.Main.Scenes
         private PauseMenuControl _pauseMenu; // ESC menu
         private Controls.UI.Game.Skills.SkillQuickSlot _skillQuickSlot; // Skill quick slot
         private Controls.UI.Game.Skills.SkillSelectionPanel _skillSelectionPanel; // Skill selection panel (independent)
+        private ActiveBuffsPanel _activeBuffsPanel; // Active buffs display (top-left corner)
 
         // Cache expensive enum values to avoid allocations
         private static readonly Keys[] _allKeys = (Keys[])System.Enum.GetValues(typeof(Keys));
@@ -183,6 +185,11 @@ namespace Client.Main.Scenes
             _skillQuickSlot.SetSelectionPanel(_skillSelectionPanel); // Connect panel
             Controls.Add(_skillQuickSlot);
             _skillQuickSlot.BringToFront();
+
+            // Active buffs panel (top-left corner, no border)
+            _activeBuffsPanel = new ActiveBuffsPanel(MuGame.Network.GetCharacterState());
+            Controls.Add(_activeBuffsPanel);
+            _activeBuffsPanel.BringToFront();
 
             // Start pre-loading common UI assets in background to prevent freezes
             // This runs async and won't block scene initialization

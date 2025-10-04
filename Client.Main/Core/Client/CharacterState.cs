@@ -36,6 +36,27 @@ namespace Client.Main.Core.Client
     }
 
     /// <summary>
+    /// Represents an active buff/effect on the character.
+    /// </summary>
+    public class ActiveBuffState
+    {
+        /// <summary>
+        /// Gets or sets the effect ID (from MagicEffectStatus packet).
+        /// </summary>
+        public byte EffectId { get; set; }
+
+        /// <summary>
+        /// Gets or sets the player ID this effect is active on.
+        /// </summary>
+        public ushort PlayerId { get; set; }
+
+        /// <summary>
+        /// Gets or sets when this effect was activated.
+        /// </summary>
+        public DateTime ActivatedAt { get; set; } = DateTime.UtcNow;
+    }
+
+    /// <summary>
     /// Holds the state of the currently logged-in character, including basic info, stats, inventory, and skills.
     /// This class is responsible for tracking and updating the character's attributes as received from the server.
     /// </summary>
@@ -131,6 +152,10 @@ namespace Client.Main.Core.Client
 
         // Skills
         private readonly ConcurrentDictionary<ushort, SkillEntryState> _skillList = new();
+
+        // Active Buffs/Effects
+        private readonly ConcurrentDictionary<byte, ActiveBuffState> _activeBuffs = new();
+        public event Action ActiveBuffsChanged;
 
         // --- Update Methods ---
 
@@ -699,6 +724,58 @@ namespace Client.Main.Core.Client
         public IEnumerable<SkillEntryState> GetSkills()
         {
             return _skillList.Values.OrderBy(s => s.SkillId);
+        }
+
+        // --- Active Buffs/Effects Methods ---
+
+        /// <summary>
+        /// Adds or activates a buff/effect.
+        /// </summary>
+        public void ActivateBuff(byte effectId, ushort playerId)
+        {
+            _activeBuffs[effectId] = new ActiveBuffState
+            {
+                EffectId = effectId,
+                PlayerId = playerId,
+                ActivatedAt = DateTime.UtcNow
+            };
+            ActiveBuffsChanged?.Invoke();
+            _logger.LogDebug("Buff activated. Effect ID: {EffectId}, Player ID: {PlayerId}", effectId, playerId);
+        }
+
+        /// <summary>
+        /// Removes/deactivates a buff/effect.
+        /// </summary>
+        public void DeactivateBuff(byte effectId)
+        {
+            bool removed = _activeBuffs.TryRemove(effectId, out _);
+            if (removed)
+            {
+                ActiveBuffsChanged?.Invoke();
+                _logger.LogDebug("Buff deactivated. Effect ID: {EffectId}", effectId);
+            }
+            else
+            {
+                _logger.LogWarning("Attempted to deactivate buff with ID {EffectId}, but buff not found.", effectId);
+            }
+        }
+
+        /// <summary>
+        /// Gets all active buffs.
+        /// </summary>
+        public IEnumerable<ActiveBuffState> GetActiveBuffs()
+        {
+            return _activeBuffs.Values.OrderBy(b => b.ActivatedAt);
+        }
+
+        /// <summary>
+        /// Clears all active buffs.
+        /// </summary>
+        public void ClearActiveBuffs()
+        {
+            _activeBuffs.Clear();
+            ActiveBuffsChanged?.Invoke();
+            _logger.LogDebug("All active buffs cleared.");
         }
 
         // --- Display Methods ---

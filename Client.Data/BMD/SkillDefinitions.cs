@@ -32,10 +32,10 @@ namespace Client.Data.BMD
             { 13, SkillType.Area },    // Cometfall
             { 14, SkillType.Area },    // Inferno
             { 15, SkillType.Self },    // Teleport Ally
-            { 16, SkillType.Self },    // Soul Barrier
+            { 16, SkillType.Target },    // Soul Barrier
             { 17, SkillType.Target },  // Energy Ball
             { 18, SkillType.Self },    // Defense
-            { 19, SkillType.Area },    // Falling Slash
+            { 19, SkillType.Target },    // Falling Slash
             { 20, SkillType.Target },  // Lunge
             { 21, SkillType.Target },  // Uppercut
             { 22, SkillType.Target },    // Cyclone
@@ -181,7 +181,7 @@ namespace Client.Data.BMD
 
             // WARRIOR/KNIGHT SKILLS
             Add(22, 63);    // Cyclone → PlayerAttackSkillSword4
-            Add(19, 65);    // Falling Slash → PlayerAttackSkillWheel
+            Add(19, 62);    // Falling Slash → PlayerAttackSkillWheel
             Add(43, 71);    // Death Stab → PlayerAttackDeathstab
             Add(41, 65);    // Twisting Slash → PlayerAttackSkillWheel
 
