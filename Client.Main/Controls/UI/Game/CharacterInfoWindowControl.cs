@@ -801,6 +801,7 @@ namespace Client.Main.Controls.UI.Game
             Visible = true;
             OpenningProcess();
             BringToFront();
+            SoundController.Instance.PlayBuffer("Sound/iCreateWindow.wav");
             if (this.Scene != null)
             {
                 this.Scene.FocusControl = this;

@@ -860,7 +860,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                                 byte[] dataCopy = item.ItemData.ToArray();
                                 string itemName = ItemDatabase.GetItemName(dataCopy) ?? string.Empty;
                                 string soundPath = itemName.StartsWith("Jewel", StringComparison.OrdinalIgnoreCase)
-                                    ? "Sound/pGem.wav"
+                                    ? "Sound/eGem.wav"
                                     : "Sound/pDropItem.wav";
 
                                 await ProcessDroppedItemAsync(dropObj, maskedId, soundPath);
@@ -929,7 +929,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                                     var newScopeObject = new ItemScopeObject(maskedId, rawId, x, y, data);
                                     string itemName = ItemDatabase.GetItemName(data) ?? string.Empty;
                                     string soundPath = itemName.StartsWith("Jewel", StringComparison.OrdinalIgnoreCase)
-                                        ? "Sound/pGem.wav"
+                                        ? "Sound/eGem.wav"
                                         : "Sound/pDropItem.wav";
 
                                     await ProcessDroppedItemAsync(newScopeObject, maskedId, soundPath);

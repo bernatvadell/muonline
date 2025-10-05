@@ -113,6 +113,7 @@ namespace Client.Main.Controls
         // --- Properties ---
 
         public string BackgroundMusicPath { get; set; }
+        public string AmbientSoundPath { get; set; }
 
         public TerrainControl Terrain { get; }
 
@@ -199,6 +200,12 @@ namespace Client.Main.Controls
                 SoundController.Instance.PlayBackgroundMusic(BackgroundMusicPath);
             else
                 SoundController.Instance.StopBackgroundMusic();
+
+            // Play or stop ambient sound
+            if (!string.IsNullOrEmpty(AmbientSoundPath))
+                SoundController.Instance.PlayAmbientSound(AmbientSoundPath);
+            else
+                SoundController.Instance.StopAmbientSound();
         }
 
         public override void AfterLoad()

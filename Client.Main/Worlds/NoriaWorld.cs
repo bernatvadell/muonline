@@ -16,6 +16,7 @@ namespace Client.Main.Worlds
         public NoriaWorld() : base(worldIndex: 4)
         {
             BackgroundMusicPath = "Music/Noria.mp3";
+            AmbientSoundPath = "Sound/aForest.wav"; // Forest atmosphere for Noria
             Name = "Noria";
         }
 

@@ -953,22 +953,29 @@ namespace Client.Main.Scenes
             {
                 if (currentKeyboardState.IsKeyDown(Keys.I) && !_previousKeyboardState.IsKeyDown(Keys.I))
                 {
-                    if (_inventoryControl.Visible)
+                    bool wasVisible = _inventoryControl.Visible;
+                    if (wasVisible)
                         _inventoryControl.Hide();
                     else
                         _inventoryControl.Show();
-                    SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
+
+                    // Play window open sound only when opening (not closing)
+                    if (!wasVisible)
+                        SoundController.Instance.PlayBuffer("Sound/iCreateWindow.wav");
                 }
                 if (currentKeyboardState.IsKeyDown(Keys.C) && !_previousKeyboardState.IsKeyDown(Keys.C))
                 {
                     if (_characterInfoWindow != null)
                     {
-                        if (_characterInfoWindow.Visible)
+                        bool wasVisible = _characterInfoWindow.Visible;
+                        if (wasVisible)
                             _characterInfoWindow.HideWindow();
                         else
                             _characterInfoWindow.ShowWindow();
 
-                        SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
+                        // Play window open sound only when opening (not closing)
+                        if (!wasVisible)
+                            SoundController.Instance.PlayBuffer("Sound/iCreateWindow.wav");
                     }
                 }
                 if (currentKeyboardState.IsKeyDown(Keys.M) && !_previousKeyboardState.IsKeyDown(Keys.M))

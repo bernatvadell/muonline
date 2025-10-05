@@ -130,6 +130,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         if (type == MUnique.OpenMU.Network.Packets.ServerToClient.ChatMessage.ChatMessageType.Whisper)
                         {
                             uiType = Models.MessageType.Whisper;
+                            // Play whisper sound when receiving a whisper message
+                            Controllers.SoundController.Instance.PlayBuffer("Sound/iWhisper.wav");
                         }
                         else if (rawText.StartsWith("~"))
                         {

@@ -609,6 +609,18 @@ namespace Client.Main.Controls.UI.Game.Inventory
                         // Check if item is consumable
                         if (_hoveredItem.Definition?.IsConsumable() == true)
                         {
+                            // Play appropriate consumption sound
+                            string itemName = _hoveredItem.Definition?.Name?.ToLowerInvariant() ?? "";
+                            if (itemName.Contains("apple"))
+                            {
+                                Controllers.SoundController.Instance.PlayBuffer("Sound/pEatApple.wav");
+                            }
+                            else
+                            {
+                                // Default potion/consumable sound
+                                Controllers.SoundController.Instance.PlayBuffer("Sound/pDrink.wav");
+                            }
+
                             // Calculate inventory slot index (offset 12 for inventory slots)
                             const int inventorySlotOffset = 12;
                             byte itemSlot = (byte)(inventorySlotOffset + (_hoveredItem.GridPosition.Y * Columns) + _hoveredItem.GridPosition.X);

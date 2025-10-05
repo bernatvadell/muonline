@@ -10,6 +10,7 @@ namespace Client.Main.Worlds
         public DungeonWorld() : base(worldIndex: 2)
         {
             BackgroundMusicPath = "Music/Dungeon.mp3";
+            AmbientSoundPath = "Sound/aDungeon.wav"; // Dungeon atmosphere
             Name = "Dungeon";
         }
 

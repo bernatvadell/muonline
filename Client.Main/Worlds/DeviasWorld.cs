@@ -11,6 +11,7 @@ namespace Client.Main.Worlds
         public DeviasWorld() : base(worldIndex: 3)
         {
             BackgroundMusicPath = "Music/Devias.mp3";
+            AmbientSoundPath = "Sound/aWind.wav"; // Wind ambient for open spaces
             Name = "Devias";
         }
 

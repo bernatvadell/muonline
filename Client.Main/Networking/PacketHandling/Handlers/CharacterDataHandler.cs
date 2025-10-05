@@ -1098,6 +1098,13 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     if (playerId == _characterState.Id)
                     {
                         int animationId = Core.Utilities.SkillDatabase.GetSkillAnimation(skillId);
+                        string soundPath = Client.Data.BMD.SkillDefinitions.GetSkillSound(skillId);
+
+                        // Play skill sound if available
+                        if (!string.IsNullOrEmpty(soundPath))
+                        {
+                            SoundController.Instance.PlayBuffer(soundPath);
+                        }
 
                         if (animationId > 0)
                         {
@@ -1158,6 +1165,13 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     {
                         // Get animation from SkillDatabase
                         int animationId = Core.Utilities.SkillDatabase.GetSkillAnimation(skillId);
+                        string soundPath = Client.Data.BMD.SkillDefinitions.GetSkillSound(skillId);
+
+                        // Play skill sound if available
+                        if (!string.IsNullOrEmpty(soundPath))
+                        {
+                            SoundController.Instance.PlayBuffer(soundPath);
+                        }
 
                         if (animationId > 0)
                         {

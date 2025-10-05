@@ -24,6 +24,7 @@ namespace Client.Main.Worlds
             };
             ExtraHeight = 0f;
             BackgroundMusicPath = "Music/icarus.mp3";
+            AmbientSoundPath = "Sound/aHeaven.wav"; // Heaven atmosphere for Icarus
         }
 
         public override async Task Load()

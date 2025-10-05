@@ -10,6 +10,7 @@ namespace Client.Main.Worlds
         public LostTowerWorld() : base(worldIndex: 5)
         {
             BackgroundMusicPath = "Music/lost_tower_b.mp3";
+            AmbientSoundPath = "Sound/aTower.wav"; // Tower atmosphere
             Name = "Lost Tower";
         }
 

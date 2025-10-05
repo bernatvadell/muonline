@@ -16,6 +16,8 @@ namespace Client.Main.Controllers
         private Dictionary<string, SoundEffect> _soundEffectCache = new Dictionary<string, SoundEffect>();
         private SoundEffectInstance _activeBackgroundMusicInstance;
         private string _currentBackgroundMusicPath;
+        private SoundEffectInstance _activeAmbientSoundInstance;
+        private string _currentAmbientSoundPath;
         private HashSet<string> _failedPaths = new HashSet<string>();
 
         private sealed class ManagedLoopData
@@ -89,6 +91,57 @@ namespace Client.Main.Controllers
                 return;
 
             LoadSoundEffectData(Path.Combine(Constants.DataPath, relativePath));
+        }
+
+        public void StopAmbientSound()
+        {
+            _activeAmbientSoundInstance?.Stop(true);
+            _activeAmbientSoundInstance?.Dispose();
+            _activeAmbientSoundInstance = null;
+            _currentAmbientSoundPath = null;
+        }
+
+        public void PlayAmbientSound(string relativePath)
+        {
+            if (!Constants.SOUND_EFFECTS || string.IsNullOrEmpty(relativePath))
+            {
+                StopAmbientSound();
+                return;
+            }
+
+            if (_currentAmbientSoundPath == relativePath &&
+                _activeAmbientSoundInstance != null &&
+                !_activeAmbientSoundInstance.IsDisposed &&
+                _activeAmbientSoundInstance.State == SoundState.Playing)
+            {
+                return;
+            }
+
+            StopAmbientSound();
+
+            SoundEffect ambientEffect = LoadSoundEffectData(Path.Combine(Constants.DataPath, relativePath));
+            if (ambientEffect != null)
+            {
+                _activeAmbientSoundInstance = ambientEffect.CreateInstance();
+                _activeAmbientSoundInstance.IsLooped = true;
+                _activeAmbientSoundInstance.Volume = 1f; // Lower volume for ambient sounds
+                try
+                {
+                    _activeAmbientSoundInstance.Play();
+                    _currentAmbientSoundPath = relativePath;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogDebug($"[PlayAmbientSound] Error playing sound '{relativePath}': {ex.Message}");
+                    _activeAmbientSoundInstance.Dispose();
+                    _activeAmbientSoundInstance = null;
+                    _currentAmbientSoundPath = null;
+                }
+            }
+            else
+            {
+                _logger?.LogDebug($"[PlayAmbientSound] Failed to load SoundEffect for: {relativePath}");
+            }
         }
 
         /// <summary>

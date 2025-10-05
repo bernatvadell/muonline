@@ -240,6 +240,7 @@ namespace Client.Main.Controls.UI.Game
             {
                 Visible = true;
                 BringToFront();
+                SoundController.Instance.PlayBuffer("Sound/iCreateWindow.wav");
             }
         }
 

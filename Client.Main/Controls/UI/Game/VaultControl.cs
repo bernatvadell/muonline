@@ -130,7 +130,9 @@ namespace Client.Main.Controls.UI.Game
 
             if (_items.Count > 0)
             {
-                Visible = true; BringToFront();
+                Visible = true;
+                BringToFront();
+                SoundController.Instance.PlayBuffer("Sound/iCreateWindow.wav");
             }
 
             // rebuild occupancy grid

@@ -22,6 +22,7 @@ namespace Client.Main.Worlds
         public LorenciaWorld() : base(worldIndex: 1)
         {
             BackgroundMusicPath = "Music/MuTheme.mp3";
+            AmbientSoundPath = "Sound/aWind.wav"; // Wind ambient for open spaces
             Name = "Lorencia";
         }
 

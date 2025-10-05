@@ -820,6 +820,9 @@ namespace Client.Main.Objects.Player
 
             PlayAction((ushort)GetAttackAnimation());
 
+            // Play weapon swing sound based on equipped weapon type
+            PlayWeaponSwingSound();
+
             // Map client dir → server dir
             byte clientDir = (byte)Direction;
             byte serverDir = _networkManager?.GetDirectionMap()?.GetValueOrDefault(clientDir, clientDir) ?? clientDir;
@@ -858,6 +861,58 @@ namespace Client.Main.Objects.Player
             return equippedWeapon != WeaponType.None
                 ? equippedWeapon
                 : Equipment.GetDefaultWeaponTypeForClass(CharacterClass);
+        }
+
+        /// <summary>
+        /// Plays weapon swing sound based on equipped weapon type.
+        /// Follows original client logic from ZzzCharacter.cpp SetPlayerAttack.
+        /// </summary>
+        private void PlayWeaponSwingSound()
+        {
+            var weaponType = GetEquippedWeaponType();
+            string soundPath = weaponType switch
+            {
+                WeaponType.Bow => "Sound/eBow.wav",
+                WeaponType.Crossbow => GetCrossbowSound(),
+                WeaponType.Spear => "Sound/eSwingLightSword.wav",
+                _ => GetRandomMeleeSwingSound() // Swords, axes, maces, etc.
+            };
+
+            Controllers.SoundController.Instance.PlayBuffer(soundPath);
+        }
+
+        /// <summary>
+        /// Determines crossbow sound (special crossbows use magic sound).
+        /// </summary>
+        private string GetCrossbowSound()
+        {
+            if (_networkManager == null)
+                return "Sound/eCrossbow.wav";
+
+            var charState = _networkManager.GetCharacterState();
+            var inventory = charState.GetInventoryItems();
+
+            if (inventory.TryGetValue(InventoryConstants.RightHandSlot, out var rightData))
+            {
+                var item = ItemDatabase.GetItemDefinition(rightData);
+                // Check for special crossbows like Bluewing Crossbow
+                if (item?.Name?.ToLowerInvariant().Contains("bluewing") == true)
+                {
+                    return "Sound/sMagic.wav";
+                }
+            }
+
+            return "Sound/eCrossbow.wav";
+        }
+
+        /// <summary>
+        /// Returns random melee weapon swing sound (eSwingWeapon1.wav or eSwingWeapon2.wav).
+        /// </summary>
+        private string GetRandomMeleeSwingSound()
+        {
+            return MuGame.Random.Next(2) == 0
+                ? "Sound/eSwingWeapon1.wav"
+                : "Sound/eSwingWeapon2.wav";
         }
 
         private static float GetAttackRangeForAction(PlayerAction a) => a switch

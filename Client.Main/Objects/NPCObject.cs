@@ -6,12 +6,15 @@ using System.Threading.Tasks;
 using Client.Main.Content;
 using Microsoft.Xna.Framework;
 using Client.Main.Models;
+using System;
 
 namespace Client.Main.Objects
 {
     public abstract class NPCObject : WalkerObject
     {
         protected new ILogger _logger;
+        private DateTime _lastClickTime = DateTime.MinValue;
+        private const double CLICK_COOLDOWN_SECONDS = 0.5; // Global debounce for all NPCs
 
         public PlayerMaskHelmObject HelmMask { get; private set; }
         public PlayerHelmObject Helm { get; private set; }
@@ -56,6 +59,19 @@ namespace Client.Main.Objects
             base.OnClick();
             // Prevent world click-to-move from triggering on NPC clicks
             MuGame.Instance?.ActiveScene?.SetMouseInputConsumed();
+
+            // Debounce clicks - prevent spam
+            var now = DateTime.UtcNow;
+            var timeSinceLastClick = (now - _lastClickTime).TotalSeconds;
+
+            if (timeSinceLastClick < CLICK_COOLDOWN_SECONDS)
+            {
+                _logger?.LogDebug("NPC click ignored - cooldown active ({TimeRemaining:F2}s remaining)",
+                    CLICK_COOLDOWN_SECONDS - timeSinceLastClick);
+                return;
+            }
+
+            _lastClickTime = now;
             HandleClick();
         }
         protected abstract void HandleClick();
