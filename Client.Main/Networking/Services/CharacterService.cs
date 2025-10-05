@@ -902,6 +902,9 @@ namespace Client.Main.Networking.Services
             // Step 3: Request buff
             await SendNpcBuffRequestAsync();
 
+            // Step 4: Close NPC dialog
+            await SendCloseNpcRequestAsync();
+
             _logger.LogInformation("Elf Soldier buff sequence completed for NPC ID {NpcId}.", npcId);
         }
     }
