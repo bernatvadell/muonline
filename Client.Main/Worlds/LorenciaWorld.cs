@@ -1,4 +1,5 @@
-﻿using Client.Main.Controllers;
+﻿using Client.Main.Configuration;
+using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Core.Utilities;
 using Client.Main.Objects.Monsters;
@@ -12,6 +13,7 @@ namespace Client.Main.Worlds
     public class LorenciaWorld : WalkableWorldControl
     {
         private BirdManager _birdManager;
+        private LorenciaLeafAmbientEffect _leafEffect;
 
         // Define the pub area as a rectangle
         private Rectangle pubArea = new Rectangle(12000, 12000, 900, 1500);
@@ -206,6 +208,13 @@ namespace Client.Main.Worlds
 
         public override async Task Load()
         {
+            var leafSettings = MuGame.AppSettings?.Environment?.LorenciaLeaf;
+            if (leafSettings?.Enabled != false)
+            {
+                _leafEffect = new LorenciaLeafAmbientEffect(this, leafSettings ?? new LorenciaLeafEffectSettings());
+                Objects.Add(_leafEffect);
+            }
+
             await base.Load();
 
             // Objects.Add(new Spider() { Location = new Vector2(181, 127), Direction = Models.Direction.South });
@@ -226,6 +235,13 @@ namespace Client.Main.Worlds
             // Clean up birds before disposing world
             _birdManager?.Clear();
             _birdManager = null;
+
+            if (_leafEffect != null)
+            {
+                Objects.Remove(_leafEffect);
+                _leafEffect.Dispose();
+                _leafEffect = null;
+            }
 
             base.Dispose();
         }

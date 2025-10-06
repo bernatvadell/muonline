@@ -1,18 +1,33 @@
+using Client.Main.Configuration;
 using Client.Main.Controls;
 using Client.Main.Core.Utilities;
 using Client.Main.Objects.Worlds.Devias;
 using Microsoft.Xna.Framework;
+using System.Threading.Tasks;
 
 namespace Client.Main.Worlds
 {
     [WorldInfo(2, "Devias")]
     public class DeviasWorld : WalkableWorldControl
     {
+        private DeviasSnowAmbientEffect _snowEffect;
         public DeviasWorld() : base(worldIndex: 3)
         {
             BackgroundMusicPath = "Music/Devias.mp3";
             AmbientSoundPath = "Sound/aWind.wav"; // Wind ambient for open spaces
             Name = "Devias";
+        }
+
+        public override async Task Load()
+        {
+            var snowSettings = MuGame.AppSettings?.Environment?.DeviasSnow;
+            if (snowSettings?.Enabled != false)
+            {
+                _snowEffect = new DeviasSnowAmbientEffect(this, snowSettings ?? new DeviasSnowEffectSettings());
+                Objects.Add(_snowEffect);
+            }
+
+            await base.Load();
         }
 
         public override void AfterLoad()
@@ -77,6 +92,18 @@ namespace Client.Main.Worlds
 
             MapTileObjects[98] = typeof(HouseWallObject); // Roof
             MapTileObjects[99] = typeof(HouseWallObject); // Roof
+        }
+
+        public override void Dispose()
+        {
+            if (_snowEffect != null)
+            {
+                Objects.Remove(_snowEffect);
+                _snowEffect.Dispose();
+                _snowEffect = null;
+            }
+
+            base.Dispose();
         }
     }
 }

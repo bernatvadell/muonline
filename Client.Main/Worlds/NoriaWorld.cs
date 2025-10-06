@@ -1,3 +1,4 @@
+using Client.Main.Configuration;
 using Client.Main.Controls;
 using Client.Main.Core.Utilities;
 using Client.Main.Objects.Monsters;
@@ -12,6 +13,7 @@ namespace Client.Main.Worlds
     public class NoriaWorld : WalkableWorldControl
     {
         private ButterflyManager _butterflyManager;
+        private NoriaLeafAmbientEffect _leafEffect;
 
         public NoriaWorld() : base(worldIndex: 4)
         {
@@ -22,6 +24,13 @@ namespace Client.Main.Worlds
 
         public override async Task Load()
         {
+            var leafSettings = MuGame.AppSettings?.Environment?.NoriaLeaf;
+            if (leafSettings?.Enabled != false)
+            {
+                _leafEffect = new NoriaLeafAmbientEffect(this, leafSettings ?? new NoriaLeafEffectSettings());
+                Objects.Add(_leafEffect);
+            }
+
             await base.Load();
 
             // Objects.Add(new ElfLala() { Location = new Vector2(173, 125), Direction = Models.Direction.SouthWest });
@@ -100,6 +109,13 @@ namespace Client.Main.Worlds
             // Clean up butterflies before disposing world
             _butterflyManager?.Clear();
             _butterflyManager = null;
+
+            if (_leafEffect != null)
+            {
+                Objects.Remove(_leafEffect);
+                _leafEffect.Dispose();
+                _leafEffect = null;
+            }
 
             base.Dispose();
         }
