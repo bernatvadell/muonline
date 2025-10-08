@@ -99,7 +99,7 @@ namespace Client.Main.Content
 
         private void LoadBlendingConfig()
         {
-            _blendingConfig = new();
+            _blendingConfig = new(StringComparer.OrdinalIgnoreCase);
 
             try
             {
@@ -130,7 +130,7 @@ namespace Client.Main.Content
                 var json = reader.ReadToEnd();
 
                 using var doc = JsonDocument.Parse(json);
-                var cleanObj = new Dictionary<string, Dictionary<int, string>>();
+                var cleanObj = new Dictionary<string, Dictionary<int, string>>(StringComparer.OrdinalIgnoreCase);
 
                 foreach (var prop in doc.RootElement.EnumerateObject())
                 {

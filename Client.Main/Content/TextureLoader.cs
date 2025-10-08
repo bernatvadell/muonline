@@ -126,32 +126,93 @@ namespace Client.Main.Content
                 return string.IsNullOrEmpty(cachedPath) ? null : cachedPath;
 
             string result = null;
-            
+
             if (File.Exists(path))
             {
                 result = path;
             }
             else
             {
-                string directory = Path.GetDirectoryName(path);
-                string fileName = Path.GetFileName(path);
-
-                if (Directory.Exists(directory))
-                {
-                    foreach (var file in Directory.GetFiles(directory))
-                    {
-                        if (string.Equals(Path.GetFileName(file), fileName, StringComparison.OrdinalIgnoreCase))
-                        {
-                            result = file;
-                            break;
-                        }
-                    }
-                }
+                // Try case-insensitive path resolution for both directories and files
+                result = ResolveCaseInsensitivePath(path);
             }
 
             // Cache the result (store empty string for "not found" to avoid null values)
             _pathExistsCache.TryAdd(path, result ?? string.Empty);
             return result;
+        }
+
+        private string ResolveCaseInsensitivePath(string path)
+        {
+            // Start from the base path and resolve each component case-insensitively
+            if (string.IsNullOrEmpty(path))
+                return null;
+
+            // Split path into components
+            var parts = path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string currentPath = parts[0];
+
+            // Handle absolute paths (starting with / or drive letter)
+            bool isAbsolute = Path.IsPathRooted(path);
+            if (isAbsolute && string.IsNullOrEmpty(currentPath))
+            {
+                currentPath = Path.DirectorySeparatorChar.ToString();
+            }
+
+            for (int i = (isAbsolute && string.IsNullOrEmpty(parts[0])) ? 1 : 1; i < parts.Length; i++)
+            {
+                if (string.IsNullOrEmpty(parts[i]))
+                    continue;
+
+                string nextPath = Path.Combine(currentPath, parts[i]);
+
+                // Check if exact path exists
+                if (Directory.Exists(nextPath) || File.Exists(nextPath))
+                {
+                    currentPath = nextPath;
+                    continue;
+                }
+
+                // Try case-insensitive lookup
+                string found = null;
+                bool isLastPart = i == parts.Length - 1;
+
+                if (Directory.Exists(currentPath))
+                {
+                    if (isLastPart)
+                    {
+                        // Last part could be a file
+                        foreach (var file in Directory.GetFiles(currentPath))
+                        {
+                            if (string.Equals(Path.GetFileName(file), parts[i], StringComparison.OrdinalIgnoreCase))
+                            {
+                                found = file;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (found == null)
+                    {
+                        // Try directories
+                        foreach (var dir in Directory.GetDirectories(currentPath))
+                        {
+                            if (string.Equals(Path.GetFileName(dir), parts[i], StringComparison.OrdinalIgnoreCase))
+                            {
+                                found = dir;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (found == null)
+                    return null;
+
+                currentPath = found;
+            }
+
+            return File.Exists(currentPath) || Directory.Exists(currentPath) ? currentPath : null;
         }
 
         private static TextureScript ParseScript(string fileName)
