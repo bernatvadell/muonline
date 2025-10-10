@@ -1151,7 +1151,7 @@ namespace Client.Main.Scenes
         {
             SoundController.Instance.PreloadSound("Sound/pDropItem.wav");
             SoundController.Instance.PreloadSound("Sound/pDropMoney.wav");
-            SoundController.Instance.PreloadSound("Sound/pGem.wav");
+            SoundController.Instance.PreloadSound("Sound/mGem.wav");
             SoundController.Instance.PreloadSound("Sound/pGetItem.wav");
         }
 

@@ -1,6 +1,5 @@
 using Client.Main.Content;
 using Client.Main.Controllers;
-using Client.Main.Controls.UI.Common;
 using Client.Main.Core.Client;
 using Client.Main.Core.Utilities;
 using Client.Main.Models;
@@ -9,13 +8,12 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using MUnique.OpenMU.Network.Packets; // For CharacterClassNumber
-using System.Collections.Generic;
-using System.Threading.Tasks;
-using System.Threading;
-using Client.Main.Helpers;
+using MUnique.OpenMU.Network.Packets;
 using System;
-using Client.Main.Controls.UI;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Client.Main.Helpers;
 
 namespace Client.Main.Controls.UI.Game
 {
@@ -23,13 +21,20 @@ namespace Client.Main.Controls.UI.Game
     {
         private const int WINDOW_WIDTH = 280;
         private const int WINDOW_HEIGHT = 520;
-
-        private const int HEIGHT_STRENGTH = 140;
-        private const int HEIGHT_DEXTERITY = 200;
-        private const int HEIGHT_VITALITY = 270;
-        private const int HEIGHT_ENERGY = 340;
-        private const int HEIGHT_CHARISMA = 410; // Command/Leadership
+        private const int STAT_BOX_WIDTH = 170;
+        private const int STAT_BOX_HEIGHT = 21;
         private const int BTN_STAT_COUNT = 5;
+
+        private static readonly float[] s_statRowY =
+        {
+            140f,
+            200f,
+            270f,
+            340f,
+            410f
+        };
+
+        private static readonly string[] s_statShortNames = { "STR", "AGI", "STA", "ENE", "CMD" };
 
         private static readonly string[] s_tableTexturePaths =
         {
@@ -58,271 +63,908 @@ namespace Client.Main.Controls.UI.Game
             "Interface/newui_chainfo_btn_master.tga"
         };
 
+        private enum TextAlignment
+        {
+            Left,
+            Center,
+            Right
+        }
+
+        private sealed class CharacterInfoTextEntry
+        {
+            public CharacterInfoTextEntry(Vector2 basePosition, float fontScale, Color color, TextAlignment alignment)
+            {
+                BasePosition = basePosition;
+                FontScale = fontScale;
+                Color = color;
+                Alignment = alignment;
+            }
+
+            public Vector2 BasePosition { get; set; }
+            public string Text { get; set; } = string.Empty;
+            public Color Color { get; set; }
+            public float FontScale { get; set; }
+            public TextAlignment Alignment { get; set; }
+            public bool Visible { get; set; } = true;
+        }
+
+        private sealed class CharacterInfoButton
+        {
+            public CharacterInfoButton(Rectangle baseBounds, Texture2D texture, Rectangle? normalRect, Rectangle? hoverRect, Rectangle? pressedRect, Action onClick)
+            {
+                BaseBounds = baseBounds;
+                Texture = texture;
+                NormalRect = normalRect;
+                HoverRect = hoverRect;
+                PressedRect = pressedRect;
+                FrameSize = normalRect?.Size ?? baseBounds.Size;
+                OnClick = onClick;
+            }
+
+            public Rectangle BaseBounds { get; set; }
+            public Texture2D Texture { get; }
+            public Rectangle? NormalRect { get; }
+            public Rectangle? HoverRect { get; }
+            public Rectangle? PressedRect { get; }
+            public Point FrameSize { get; }
+            public Action OnClick { get; }
+            public bool Visible { get; set; } = true;
+            public bool Enabled { get; set; } = true;
+        }
+
+        private Texture2D _backgroundTexture;
+        private Texture2D _topFrameTexture;
+        private Texture2D _leftFrameTexture;
+        private Texture2D _rightFrameTexture;
+        private Texture2D _bottomFrameTexture;
+        private Texture2D _statTextboxTexture;
+        private Texture2D _buttonExitTexture;
+        private Texture2D _buttonQuestTexture;
+        private Texture2D _buttonPetTexture;
+        private Texture2D _buttonMasterTexture;
+        private Texture2D _statIncreaseButtonTexture;
+        private Texture2D _tableTopLeftTexture;
+        private Texture2D _tableTopRightTexture;
+        private Texture2D _tableBottomLeftTexture;
+        private Texture2D _tableBottomRightTexture;
+        private Texture2D _tableTopLineTexture;
+        private Texture2D _tableBottomLineTexture;
+        private Texture2D _tableLeftLineTexture;
+        private Texture2D _tableRightLineTexture;
+
+        private RenderTarget2D _staticSurface;
+        private bool _staticSurfaceDirty = true;
+
+        private readonly List<CharacterInfoTextEntry> _texts = new();
+        private readonly List<CharacterInfoButton> _buttons = new();
+
+        private CharacterInfoTextEntry _nameText;
+        private CharacterInfoTextEntry _classText;
+        private CharacterInfoTextEntry _levelText;
+        private CharacterInfoTextEntry _expText;
+        private CharacterInfoTextEntry _fruitProbText;
+        private CharacterInfoTextEntry _fruitStatsText;
+        private CharacterInfoTextEntry _statPointsText;
+        private readonly CharacterInfoTextEntry[] _statValueTexts = new CharacterInfoTextEntry[BTN_STAT_COUNT];
+        private CharacterInfoTextEntry _strDetail1Text;
+        private CharacterInfoTextEntry _strDetail2Text;
+        private CharacterInfoTextEntry _agiDetail1Text;
+        private CharacterInfoTextEntry _agiDetail2Text;
+        private CharacterInfoTextEntry _agiDetail3Text;
+        private CharacterInfoTextEntry _vitDetail1Text;
+        private CharacterInfoTextEntry _vitDetail2Text;
+        private CharacterInfoTextEntry _eneDetail1Text;
+        private CharacterInfoTextEntry _eneDetail2Text;
+        private CharacterInfoTextEntry _eneDetail3Text;
+        private CharacterInfoTextEntry _pvmInfo1Text;
+        private CharacterInfoTextEntry _pvmInfo2Text;
+
+        private readonly CharacterInfoButton[] _statButtons = new CharacterInfoButton[BTN_STAT_COUNT];
+        private CharacterInfoButton _exitButton;
+        private CharacterInfoButton _questButton;
+        private CharacterInfoButton _petButton;
+        private CharacterInfoButton _masterButton;
+
+        private int _hoveredButtonIndex = -1;
+        private int _pressedButtonIndex = -1;
+
         private CharacterState _characterState;
-        private NetworkManager _networkManager; // Changed to non-readonly to allow re-initialization
-        private ILogger<CharacterInfoWindowControl> _logger;
+        private NetworkManager _networkManager;
+        private readonly ILogger<CharacterInfoWindowControl> _logger;
 
-        // UI Elements
-        private TextureControl _background;
-        private TextureControl _topFrame, _leftFrame, _rightFrame, _bottomFrame;
-        private TextureControl[] _statTextBoxes = new TextureControl[BTN_STAT_COUNT];
-        private ButtonControl[] _statButtons = new ButtonControl[BTN_STAT_COUNT];
-        private ButtonControl _exitButton, _questButton, _petButton, _masterLevelButton;
-
-        private LabelControl _nameLabel, _classLabel;
-        private LabelControl _levelLabel, _expLabel, _fruitPointsProbLabel, _fruitPointsStatsLabel, _statPointsLabel;
-        private LabelControl[] _statNameLabels = new LabelControl[BTN_STAT_COUNT];
-        private LabelControl[] _statValueLabels = new LabelControl[BTN_STAT_COUNT];
-
-        // Labels for detailed stats (Damage, Attack Rate, etc.)
-        private LabelControl _strDetail1Label, _strDetail2Label;
-        private LabelControl _agiDetail1Label, _agiDetail2Label, _agiDetail3Label;
-        private LabelControl _vitDetail1Label, _vitDetail2Label;
-        private LabelControl _eneDetail1Label, _eneDetail2Label, _eneDetail3Label;
-
-        // Additional info labels for PvM rates
-        private LabelControl _pvmInfoLabel1, _pvmInfoLabel2;
-
-        // Table drawing textures
-        private Texture2D _texTableTopLeft, _texTableTopRight, _texTableBottomLeft, _texTableBottomRight;
-        private Texture2D _texTableTopHorizontalLinePixel, _texTableBottomHorizontalLinePixel, _texTableLeftVerticalLinePixel, _texTableRightVerticalLinePixel;
+        private CharacterInfoSnapshot _cachedSnapshot;
+        private bool _hasCachedSnapshot;
+        private bool _lastIsDarkLordFamily;
 
         public CharacterInfoWindowControl()
         {
             _logger = MuGame.AppLoggerFactory.CreateLogger<CharacterInfoWindowControl>();
             ControlSize = new Point(WINDOW_WIDTH, WINDOW_HEIGHT);
-            ViewSize = ControlSize; // Use fixed size
+            ViewSize = ControlSize;
             AutoViewSize = false;
             Interactive = true;
-            Visible = false; // Start hidden
-            // VisibilityChanged += (s, e) => { if (Visible) OpenningProcess(); }; // Removed: event does not exist
+            Visible = false;
 
-            // Initialize NetworkManager here. Ensure it's globally available in MuGame.
             _networkManager = MuGame.Network;
             if (_networkManager == null)
-            { _logger.LogWarning("NetworkManager is null in CharacterInfoWindowControl constructor. Stat increase functionality may not work."); }
+            {
+                _logger.LogWarning("NetworkManager is null in CharacterInfoWindowControl constructor. Stat increase functionality may not work.");
+            }
         }
 
         public IEnumerable<string> GetPreloadTexturePaths()
-        {
-            foreach (var path in s_additionalPreloadTextures)
-            {
-                yield return path;
-            }
-
-            foreach (var path in s_tableTexturePaths)
-            {
-                yield return path;
-            }
-        }
+            => s_additionalPreloadTextures.Concat(s_tableTexturePaths);
 
         public override async Task Load()
         {
-            _characterState = MuGame.Network.GetCharacterState();
-            _networkManager = MuGame.Network;
+            await base.Load();
 
-            // Ensure _networkManager is re-initialized in Load, in case it was null earlier.
-            _networkManager = MuGame.Network;
-
-            // Load Textures - scale frames with extra margins to fully cover the larger window
             var tl = TextureLoader.Instance;
-            _background = new TextureControl { TexturePath = "Interface/newui_msgbox_back.jpg", ViewSize = new Point(WINDOW_WIDTH, WINDOW_HEIGHT), AutoViewSize = false, BlendState = BlendState.Opaque };
-            _topFrame = new TextureControl { TexturePath = "Interface/newui_item_back04.tga", ViewSize = new Point(WINDOW_WIDTH + 97, 74), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
-            _leftFrame = new TextureControl { TexturePath = "Interface/newui_item_back02-L.tga", ViewSize = new Point(26, WINDOW_HEIGHT + 250), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
-            _rightFrame = new TextureControl { TexturePath = "Interface/newui_item_back02-R.tga", ViewSize = new Point(26, WINDOW_HEIGHT + 250), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
-            _bottomFrame = new TextureControl { TexturePath = "Interface/newui_item_back03.tga", ViewSize = new Point(WINDOW_WIDTH + 97, 55), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
 
-            // Load all textures in parallel to avoid blocking main thread
-            var tableTextureTasks = new List<Task<Texture2D>>(s_tableTexturePaths.Length);
-            foreach (var texturePath in s_tableTexturePaths)
-            {
-                tableTextureTasks.Add(tl.PrepareAndGetTexture(texturePath));
-            }
+            _backgroundTexture = await tl.PrepareAndGetTexture("Interface/newui_msgbox_back.jpg");
+            _topFrameTexture = await tl.PrepareAndGetTexture("Interface/newui_item_back04.tga");
+            _leftFrameTexture = await tl.PrepareAndGetTexture("Interface/newui_item_back02-L.tga");
+            _rightFrameTexture = await tl.PrepareAndGetTexture("Interface/newui_item_back02-R.tga");
+            _bottomFrameTexture = await tl.PrepareAndGetTexture("Interface/newui_item_back03.tga");
+            _statTextboxTexture = await tl.PrepareAndGetTexture("Interface/newui_cha_textbox02.tga");
 
-            var loadedTextures = await Task.WhenAll(tableTextureTasks);
+            _buttonExitTexture = await tl.PrepareAndGetTexture("Interface/newui_exit_00.tga");
+            _buttonQuestTexture = await tl.PrepareAndGetTexture("Interface/newui_chainfo_btn_quest.tga");
+            _buttonPetTexture = await tl.PrepareAndGetTexture("Interface/newui_chainfo_btn_pet.tga");
+            _buttonMasterTexture = await tl.PrepareAndGetTexture("Interface/newui_chainfo_btn_master.tga");
+            _statIncreaseButtonTexture = await tl.PrepareAndGetTexture("Interface/newui_chainfo_btn_level.tga");
 
-            _texTableTopLeft = loadedTextures[0];
-            _texTableTopRight = loadedTextures[1];
-            _texTableBottomLeft = loadedTextures[2];
-            _texTableBottomRight = loadedTextures[3];
-            _texTableTopHorizontalLinePixel = loadedTextures[4];
-            _texTableBottomHorizontalLinePixel = loadedTextures[5];
-            _texTableLeftVerticalLinePixel = loadedTextures[6];
-            _texTableRightVerticalLinePixel = loadedTextures[7];
+            var tableTextures = await Task.WhenAll(s_tableTexturePaths.Select(path => tl.PrepareAndGetTexture(path)));
+            _tableTopLeftTexture = tableTextures.ElementAtOrDefault(0);
+            _tableTopRightTexture = tableTextures.ElementAtOrDefault(1);
+            _tableBottomLeftTexture = tableTextures.ElementAtOrDefault(2);
+            _tableBottomRightTexture = tableTextures.ElementAtOrDefault(3);
+            _tableTopLineTexture = tableTextures.ElementAtOrDefault(4);
+            _tableBottomLineTexture = tableTextures.ElementAtOrDefault(5);
+            _tableLeftLineTexture = tableTextures.ElementAtOrDefault(6);
+            _tableRightLineTexture = tableTextures.ElementAtOrDefault(7);
 
-            Controls.Add(_background);
-            Controls.Add(_topFrame);
-            Controls.Add(_leftFrame);
-            Controls.Add(_rightFrame);
-            Controls.Add(_bottomFrame);
+            InitializeLayout();
+            InvalidateStaticSurface();
+            UpdateDisplayData();
+        }
 
-            // Labels for top info - properly centered for larger window
-            _nameLabel = new LabelControl { Y = 5, TextAlign = HorizontalAlign.Center, IsBold = true, FontSize = 13f, TextColor = Color.White, ViewSize = new Point(WINDOW_WIDTH, 22), X = 0 };
-            _classLabel = new LabelControl { Y = 23, TextAlign = HorizontalAlign.Center, FontSize = 12f, TextColor = Color.LightGray, ViewSize = new Point(WINDOW_WIDTH, 18), X = 0 };
-            Controls.Add(_nameLabel);
-            Controls.Add(_classLabel);
+        private void InitializeLayout()
+        {
+            _texts.Clear();
+            _buttons.Clear();
 
-            // Labels for Level/Exp/Points table - repositioned for larger window
-            _levelLabel = new LabelControl { X = 28, Y = 60, FontSize = 11f, IsBold = true, TextColor = new Color(230, 230, 0) };
-            _expLabel = new LabelControl { X = 28, Y = 78, FontSize = 10f, TextColor = Color.WhiteSmoke };
-            _fruitPointsProbLabel = new LabelControl { X = 28, Y = 96, FontSize = 10f, TextColor = new Color(76, 197, 254) };
-            _fruitPointsStatsLabel = new LabelControl { X = 28, Y = 114, FontSize = 10f, TextColor = new Color(76, 197, 254) };
-            _statPointsLabel = new LabelControl { X = 155, Y = 60, FontSize = 11f, IsBold = true, TextColor = new Color(255, 138, 0) };
-            Controls.Add(_levelLabel);
-            Controls.Add(_expLabel);
-            Controls.Add(_fruitPointsProbLabel);
-            Controls.Add(_fruitPointsStatsLabel);
-            Controls.Add(_statPointsLabel);
+            float statBoxLeft = GetStatBoxLeft();
+            float statValueLeft = statBoxLeft + 70f;
+            float statValueYoffset = -2f;
+            float statDetailYOffset = 15f;
 
-            // Stat TextBoxes and Labels
-            string[] statNames = { "Strength", "Agility", "Vitality", "Energy", "Command" };
-            int[] statHeights = { HEIGHT_STRENGTH, HEIGHT_DEXTERITY, HEIGHT_VITALITY, HEIGHT_ENERGY, HEIGHT_CHARISMA };
-            string[] statShortNames = { "STR", "AGI", "STA", "ENE", "CMD" };
+            _nameText = CreateText(new Vector2(WINDOW_WIDTH / 2f, 5f), 13f, Color.White, TextAlignment.Center);
+            _classText = CreateText(new Vector2(WINDOW_WIDTH / 2f, 23f), 12f, Color.LightGray, TextAlignment.Center);
+            _levelText = CreateText(new Vector2(28f, 60f), 11f, new Color(230, 230, 0));
+            _expText = CreateText(new Vector2(28f, 78f), 10f, Color.WhiteSmoke);
+            _fruitProbText = CreateText(new Vector2(28f, 96f), 10f, new Color(76, 197, 254));
+            _fruitStatsText = CreateText(new Vector2(28f, 114f), 10f, new Color(76, 197, 254));
+            _statPointsText = CreateText(new Vector2(155f, 60f), 11f, new Color(255, 138, 0));
 
             for (int i = 0; i < BTN_STAT_COUNT; i++)
             {
-                _statTextBoxes[i] = new TextureControl { TexturePath = "Interface/newui_cha_textbox02.tga", ViewSize = new Point(170, 21), AutoViewSize = false, BlendState = BlendState.AlphaBlend };
-                Controls.Add(_statTextBoxes[i]);
-
-                _statNameLabels[i] = new LabelControl { X = 0, Y = statHeights[i], FontSize = 10f, IsBold = true, TextColor = new Color(230, 230, 0) }; // Adjusted Y for C++ like padding
-                _statNameLabels[i].Text = statShortNames[i];
-                Controls.Add(_statNameLabels[i]);
-
-                _statButtons[i] = new ButtonControl
-                {
-                    TexturePath = "Interface/newui_chainfo_btn_level.tga",
-                    TileWidth = 16,
-                    TileHeight = 15,
-                    BlendState = BlendState.AlphaBlend,
-                    AutoViewSize = false,
-                    ViewSize = new Point(16, 15) // Match TileWidth and TileHeight exactly
-                };
-
-                _statValueLabels[i] = new LabelControl { X = 0, Y = statHeights[i], FontSize = 10f, IsBold = true, TextColor = new Color(230, 230, 0) }; // Adjusted Y
-                Controls.Add(_statValueLabels[i]);
-
-                int statIndex = i;
-                _statButtons[i].Click += (s, e) => OnStatButtonClicked(statIndex);
-                Controls.Add(_statButtons[i]);
+                float rowY = s_statRowY[i];
+                _statValueTexts[i] = CreateText(new Vector2(statValueLeft, rowY + statValueYoffset), 11f, new Color(230, 230, 0), TextAlignment.Left);
             }
 
-            // Initialize Detailed Stat Labels (set to Visible = false by default) - with better spacing for larger window
-            float detailFontSize = 10f; Color detailColor = Color.LightGray;
-            _strDetail1Label = new LabelControl { X = 25, Y = HEIGHT_STRENGTH + 30 / 2, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
-            _strDetail2Label = new LabelControl { X = 25, Y = HEIGHT_STRENGTH + 30 / 2 + 16, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
-            Controls.Add(_strDetail1Label); Controls.Add(_strDetail2Label);
+            _strDetail1Text = CreateText(new Vector2(25f, s_statRowY[0] + statDetailYOffset), 10f, Color.LightGray);
+            _strDetail2Text = CreateText(new Vector2(25f, s_statRowY[0] + statDetailYOffset + 16f), 10f, Color.LightGray);
 
-            _agiDetail1Label = new LabelControl { X = 25, Y = HEIGHT_DEXTERITY + 30 / 2, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
-            _agiDetail2Label = new LabelControl { X = 25, Y = HEIGHT_DEXTERITY + 30 / 2 + 16, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
-            _agiDetail3Label = new LabelControl { X = 25, Y = HEIGHT_DEXTERITY + 30 / 2 + 16 + 16, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
-            Controls.Add(_agiDetail1Label); Controls.Add(_agiDetail2Label); Controls.Add(_agiDetail3Label);
+            _agiDetail1Text = CreateText(new Vector2(25f, s_statRowY[1] + statDetailYOffset), 10f, Color.LightGray);
+            _agiDetail2Text = CreateText(new Vector2(25f, s_statRowY[1] + statDetailYOffset + 16f), 10f, Color.LightGray);
+            _agiDetail3Text = CreateText(new Vector2(25f, s_statRowY[1] + statDetailYOffset + 32f), 10f, Color.LightGray);
 
-            _vitDetail1Label = new LabelControl { X = 25, Y = HEIGHT_VITALITY + 30 / 2, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
-            _vitDetail2Label = new LabelControl { X = 25, Y = HEIGHT_VITALITY + 30 / 2 + 16, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
-            Controls.Add(_vitDetail1Label); Controls.Add(_vitDetail2Label);
+            _vitDetail1Text = CreateText(new Vector2(25f, s_statRowY[2] + statDetailYOffset), 10f, Color.LightGray);
+            _vitDetail2Text = CreateText(new Vector2(25f, s_statRowY[2] + statDetailYOffset + 16f), 10f, Color.LightGray);
 
-            _eneDetail1Label = new LabelControl { X = 25, Y = HEIGHT_ENERGY + 30 / 2, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
-            _eneDetail2Label = new LabelControl { X = 25, Y = HEIGHT_ENERGY + 30 / 2 + 16, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
-            _eneDetail3Label = new LabelControl { X = 25, Y = HEIGHT_ENERGY + 30 / 2 + 16 + 16, FontSize = detailFontSize, TextColor = detailColor, Visible = false };
-            Controls.Add(_eneDetail1Label); Controls.Add(_eneDetail2Label); Controls.Add(_eneDetail3Label);
+            _eneDetail1Text = CreateText(new Vector2(25f, s_statRowY[3] + statDetailYOffset), 10f, Color.LightGray);
+            _eneDetail2Text = CreateText(new Vector2(25f, s_statRowY[3] + statDetailYOffset + 16f), 10f, Color.LightGray);
+            _eneDetail3Text = CreateText(new Vector2(25f, s_statRowY[3] + statDetailYOffset + 32f), 10f, Color.LightGray);
 
-            // PvM Info Labels (below stats) - with better spacing
-            _pvmInfoLabel1 = new LabelControl { X = 18, Y = HEIGHT_CHARISMA + 40 / 2, FontSize = detailFontSize, TextColor = new Color(255, 200, 100), Visible = false };
-            _pvmInfoLabel2 = new LabelControl { X = 18, Y = HEIGHT_CHARISMA + 40 / 2 + 18, FontSize = detailFontSize, TextColor = new Color(255, 200, 100), Visible = false };
-            Controls.Add(_pvmInfoLabel1); Controls.Add(_pvmInfoLabel2);
+            _pvmInfo1Text = CreateText(new Vector2(18f, s_statRowY[4] + 20f), 10f, new Color(255, 200, 100));
+            _pvmInfo2Text = CreateText(new Vector2(18f, s_statRowY[4] + 38f), 10f, new Color(255, 200, 100));
 
-            _exitButton = CreateBottomButton(20, "Interface/newui_exit_00.tga", "Close (C)");
-            _exitButton.Click += (s, e) => { Visible = false; SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); };
+            // Stat increase buttons
+            for (int i = 0; i < BTN_STAT_COUNT; i++)
+            {
+                int statIndex = i;
+                var bounds = new Rectangle(
+                    WINDOW_WIDTH - 70,
+                    (int)(s_statRowY[i] - 2f),
+                    16,
+                    15);
 
-            _questButton = CreateBottomButton(70, "Interface/newui_chainfo_btn_quest.tga", "Quest (T)");
-            _questButton.Click += (s, e) => { _logger.LogInformation("Quest button clicked."); SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); };
+                Rectangle? normal = null;
+                Rectangle? hover = null;
+                Rectangle? pressed = null;
+                if (_statIncreaseButtonTexture != null)
+                {
+                    int frameCount = DetermineFrameCount(_statIncreaseButtonTexture);
+                    int frameHeight = Math.Max(1, _statIncreaseButtonTexture.Height / frameCount);
+                    normal = new Rectangle(0, 0, _statIncreaseButtonTexture.Width, frameHeight);
+                    if (frameCount > 1)
+                    {
+                        hover = new Rectangle(0, frameHeight, _statIncreaseButtonTexture.Width, frameHeight);
+                    }
+                    if (frameCount > 2)
+                    {
+                        pressed = new Rectangle(0, frameHeight * 2, _statIncreaseButtonTexture.Width, frameHeight);
+                    }
+                    else
+                    {
+                        pressed = hover;
+                    }
+                    bounds.Width = _statIncreaseButtonTexture.Width;
+                    bounds.Height = frameHeight;
+                }
 
-            _petButton = CreateBottomButton(120, "Interface/newui_chainfo_btn_pet.tga", "Pet");
-            _petButton.Click += (s, e) => { _logger.LogInformation("Pet button clicked."); SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); };
+                _statButtons[i] = CreateButton(bounds, _statIncreaseButtonTexture, normal, hover, pressed, () => OnStatButtonClicked(statIndex));
+            }
 
-            _masterLevelButton = CreateBottomButton(170, "Interface/newui_chainfo_btn_master.tga", "Master Level");
-            _masterLevelButton.Click += (s, e) => { _logger.LogInformation("Master Level button clicked."); SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); };
+            // Bottom buttons
+            _exitButton = CreateButton(CreateBottomBounds(20, _buttonExitTexture), _buttonExitTexture, CreateButtonFrames(_buttonExitTexture, out var exitHover, out var exitPressed), exitHover, exitPressed, () =>
+            {
+                Visible = false;
+                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
+            });
 
-            Controls.Add(_exitButton);
-            Controls.Add(_questButton);
-            Controls.Add(_petButton);
-            Controls.Add(_masterLevelButton);
+            _questButton = CreateButton(CreateBottomBounds(70, _buttonQuestTexture), _buttonQuestTexture, CreateButtonFrames(_buttonQuestTexture, out var questHover, out var questPressed), questHover, questPressed, () =>
+            {
+                _logger.LogInformation("Quest button clicked.");
+                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
+            });
 
-            SetupLayout();
+            _petButton = CreateButton(CreateBottomBounds(120, _buttonPetTexture), _buttonPetTexture, CreateButtonFrames(_buttonPetTexture, out var petHover, out var petPressed), petHover, petPressed, () =>
+            {
+                _logger.LogInformation("Pet button clicked.");
+                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
+            });
 
-            await base.Load();
+            _masterButton = CreateButton(CreateBottomBounds(170, _buttonMasterTexture), _buttonMasterTexture, CreateButtonFrames(_buttonMasterTexture, out var masterHover, out var masterPressed), masterHover, masterPressed, () =>
+            {
+                _logger.LogInformation("Master Level button clicked.");
+                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
+            });
         }
 
-        private ButtonControl CreateBottomButton(int xOffset, string texturePath, string tooltip)
+        private CharacterInfoTextEntry CreateText(Vector2 basePosition, float fontSize, Color color, TextAlignment alignment = TextAlignment.Left)
         {
-            var button = new ButtonControl
+            float fontScale = fontSize / Constants.BASE_FONT_SIZE;
+            var entry = new CharacterInfoTextEntry(basePosition, fontScale, color, alignment);
+            _texts.Add(entry);
+            return entry;
+        }
+
+        private static Rectangle CreateBottomBounds(int xOffset, Texture2D texture)
+        {
+            if (texture == null)
             {
-                X = xOffset,
-                Y = WINDOW_HEIGHT - 40, // Position near bottom of new window
-                TexturePath = texturePath,
-                TileWidth = 36,
-                TileHeight = 29,
-                BlendState = BlendState.AlphaBlend,
-                AutoViewSize = false,
-                ViewSize = new Point(36, 29) // Match TileWidth and TileHeight exactly
-            };
+                return new Rectangle(xOffset, WINDOW_HEIGHT - 40, 36, 29);
+            }
+
+            int frameHeight = texture.Height / 2;
+            if (frameHeight <= 0)
+            {
+                frameHeight = texture.Height;
+            }
+
+            return new Rectangle(xOffset, WINDOW_HEIGHT - frameHeight - 11, texture.Width, frameHeight);
+        }
+
+        private static Rectangle? CreateButtonFrames(Texture2D texture, out Rectangle? hover, out Rectangle? pressed)
+        {
+            hover = null;
+            pressed = null;
+
+            if (texture == null)
+            {
+                return null;
+            }
+
+            int frameCount = DetermineFrameCount(texture);
+            int frameHeight = Math.Max(1, texture.Height / frameCount);
+
+            if (frameHeight <= 0)
+            {
+                frameHeight = texture.Height;
+            }
+
+            var normal = new Rectangle(0, 0, texture.Width, frameHeight);
+
+            if (texture.Height >= frameHeight * 2)
+            {
+                hover = new Rectangle(0, frameHeight, texture.Width, frameHeight);
+            }
+
+            if (texture.Height >= frameHeight * 3)
+            {
+                pressed = new Rectangle(0, frameHeight * 2, texture.Width, frameHeight);
+            }
+            else
+            {
+                pressed = hover;
+            }
+
+            return normal;
+        }
+
+        private static int DetermineFrameCount(Texture2D texture)
+        {
+            if (texture == null)
+            {
+                return 1;
+            }
+
+            if (texture.Height % 3 == 0)
+            {
+                return 3;
+            }
+
+            if (texture.Height % 2 == 0)
+            {
+                return 2;
+            }
+
+            return 1;
+        }
+
+        private CharacterInfoButton CreateButton(Rectangle baseBounds, Texture2D texture, Rectangle? normalRect, Rectangle? hoverRect, Rectangle? pressedRect, Action onClick)
+        {
+            if (normalRect.HasValue)
+            {
+                baseBounds.Width = normalRect.Value.Width;
+                baseBounds.Height = normalRect.Value.Height;
+            }
+
+            var button = new CharacterInfoButton(baseBounds, texture, normalRect, hoverRect, pressedRect, onClick);
+            _buttons.Add(button);
             return button;
         }
 
-        private void SetupLayout()
+        private static float GetStatBoxLeft()
         {
-            // Background and frames positioning - avoid negative positions
-            _background.X = 0; _background.Y = 0;
+            float value = (WINDOW_WIDTH - STAT_BOX_WIDTH) / 2f - 40f;
+            return value < 10f ? 15f : value;
+        }
 
-            // Top frame: start from left edge of window, full width coverage
-            _topFrame.X = 0; _topFrame.Y = 0;
+        private void InvalidateStaticSurface()
+        {
+            _staticSurfaceDirty = true;
+        }
 
-            // Left frame: start from top edge of window
-            _leftFrame.X = 0; _leftFrame.Y = 0;
+        private void EnsureStaticSurface()
+        {
+            if (!_staticSurfaceDirty && _staticSurface != null && !_staticSurface.IsDisposed)
+            {
+                return;
+            }
 
-            // Right frame: position at right edge
-            _rightFrame.X = WINDOW_WIDTH - 17; _rightFrame.Y = 0;
+            var graphicsDevice = GraphicsManager.Instance.GraphicsDevice;
+            if (graphicsDevice == null)
+            {
+                return;
+            }
 
-            // Bottom frame: start from left edge, position at bottom
-            _bottomFrame.X = 0; _bottomFrame.Y = WINDOW_HEIGHT - 40;
+            _staticSurface?.Dispose();
+            _staticSurface = new RenderTarget2D(graphicsDevice, WINDOW_WIDTH, WINDOW_HEIGHT, false, SurfaceFormat.Color, DepthFormat.None);
 
-            // Top info labels - ensure full width for centering
-            _nameLabel.X = 90;
-            _nameLabel.ViewSize = new Point(WINDOW_WIDTH, 22);
-            // _nameLabel.TextAlign = HorizontalAlign.Center; // Ensure centering is maintained
+            var previousTargets = graphicsDevice.GetRenderTargets();
+            graphicsDevice.SetRenderTarget(_staticSurface);
+            graphicsDevice.Clear(Color.Transparent);
 
-            _classLabel.X = 90;
-            _classLabel.ViewSize = new Point(WINDOW_WIDTH, 18);
-            // _classLabel.TextAlign = HorizontalAlign.Center; // Ensure centering is maintained
+            var spriteBatch = GraphicsManager.Instance.Sprite;
+            using (new SpriteBatchScope(spriteBatch, SpriteSortMode.Deferred, BlendState.AlphaBlend))
+            {
+                DrawStaticElements(spriteBatch);
+            }
 
-            // Stat layout with better spacing for larger window
-            int[] statHeights = { HEIGHT_STRENGTH, HEIGHT_DEXTERITY, HEIGHT_VITALITY, HEIGHT_ENERGY, HEIGHT_CHARISMA };
+            graphicsDevice.SetRenderTargets(previousTargets);
+            _staticSurfaceDirty = false;
+        }
+
+        private void DrawStaticElements(SpriteBatch spriteBatch)
+        {
+            if (_backgroundTexture != null)
+            {
+                spriteBatch.Draw(_backgroundTexture, new Rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT), Color.White);
+            }
+
+            if (_topFrameTexture != null)
+            {
+                spriteBatch.Draw(_topFrameTexture, new Rectangle(0, 0, WINDOW_WIDTH + 97, 74), Color.White);
+            }
+
+            if (_leftFrameTexture != null)
+            {
+                spriteBatch.Draw(_leftFrameTexture, new Rectangle(0, 0, 26, WINDOW_HEIGHT + 250), Color.White);
+            }
+
+            if (_rightFrameTexture != null)
+            {
+                spriteBatch.Draw(_rightFrameTexture, new Rectangle(WINDOW_WIDTH - 17, 0, 26, WINDOW_HEIGHT + 250), Color.White);
+            }
+
+            if (_bottomFrameTexture != null)
+            {
+                spriteBatch.Draw(_bottomFrameTexture, new Rectangle(0, WINDOW_HEIGHT - 40, WINDOW_WIDTH + 97, 55), Color.White);
+            }
+
+            if (_statTextboxTexture != null)
+            {
+                float statBoxLeft = GetStatBoxLeft();
+
+                // Draw stat boxes - only show Leadership (5th stat) for Dark Lord family
+                int statBoxCount = _lastIsDarkLordFamily ? BTN_STAT_COUNT : BTN_STAT_COUNT - 1;
+                for (int i = 0; i < statBoxCount; i++)
+                {
+                    spriteBatch.Draw(_statTextboxTexture,
+                        new Rectangle((int)statBoxLeft, (int)s_statRowY[i], STAT_BOX_WIDTH, STAT_BOX_HEIGHT),
+                        Color.White);
+                }
+
+                // Draw stat short names
+                var font = GraphicsManager.Instance.Font;
+                if (font != null)
+                {
+                    float labelScale = 10f / Constants.BASE_FONT_SIZE;
+                    float labelX = statBoxLeft + 8f;
+                    for (int i = 0; i < statBoxCount; i++)
+                    {
+                        spriteBatch.DrawString(font,
+                            s_statShortNames[i],
+                            new Vector2(labelX, s_statRowY[i] - 1f),
+                            new Color(230, 230, 0),
+                            0f,
+                            Vector2.Zero,
+                            labelScale,
+                            SpriteEffects.None,
+                            0f);
+                    }
+                }
+            }
+
+            // Draw info table background
+            DrawInfoTableSurface(spriteBatch, new Vector2(18f, 55f));
+        }
+
+        private void DrawInfoTableSurface(SpriteBatch spriteBatch, Vector2 origin)
+        {
+            const int tableWidth = WINDOW_WIDTH - 36;
+            const int tableHeight = 80;
+
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel != null)
+            {
+                spriteBatch.Draw(pixel, new Rectangle((int)origin.X, (int)origin.Y, tableWidth, tableHeight), Color.Black * 0.3f);
+            }
+
+            int cornerSizeTopLeftWidth = _tableTopLeftTexture?.Width ?? 0;
+            int cornerSizeTopLeftHeight = _tableTopLeftTexture?.Height ?? 0;
+            int cornerSizeTopRightWidth = _tableTopRightTexture?.Width ?? 0;
+            int cornerSizeTopRightHeight = _tableTopRightTexture?.Height ?? 0;
+            int cornerSizeBottomLeftWidth = _tableBottomLeftTexture?.Width ?? 0;
+            int cornerSizeBottomLeftHeight = _tableBottomLeftTexture?.Height ?? 0;
+            int cornerSizeBottomRightWidth = _tableBottomRightTexture?.Width ?? 0;
+            int cornerSizeBottomRightHeight = _tableBottomRightTexture?.Height ?? 0;
+
+            if (_tableTopLeftTexture != null)
+            {
+                spriteBatch.Draw(_tableTopLeftTexture,
+                    new Rectangle((int)origin.X, (int)origin.Y, cornerSizeTopLeftWidth, cornerSizeTopLeftHeight),
+                    Color.White);
+            }
+
+            if (_tableTopRightTexture != null)
+            {
+                spriteBatch.Draw(_tableTopRightTexture,
+                    new Rectangle((int)(origin.X + tableWidth - cornerSizeTopRightWidth), (int)origin.Y, cornerSizeTopRightWidth, cornerSizeTopRightHeight),
+                    Color.White);
+            }
+
+            if (_tableBottomLeftTexture != null)
+            {
+                spriteBatch.Draw(_tableBottomLeftTexture,
+                    new Rectangle((int)origin.X, (int)(origin.Y + tableHeight - cornerSizeBottomLeftHeight), cornerSizeBottomLeftWidth, cornerSizeBottomLeftHeight),
+                    Color.White);
+            }
+
+            if (_tableBottomRightTexture != null)
+            {
+                spriteBatch.Draw(_tableBottomRightTexture,
+                    new Rectangle((int)(origin.X + tableWidth - cornerSizeBottomRightWidth), (int)(origin.Y + tableHeight - cornerSizeBottomRightHeight), cornerSizeBottomRightWidth, cornerSizeBottomRightHeight),
+                    Color.White);
+            }
+
+            int horizontalStartX = cornerSizeTopLeftWidth;
+            int horizontalEndX = tableWidth - cornerSizeTopRightWidth;
+            int horizontalWidth = Math.Max(0, horizontalEndX - horizontalStartX);
+
+            if (_tableTopLineTexture != null && horizontalWidth > 0)
+            {
+                spriteBatch.Draw(_tableTopLineTexture,
+                    new Rectangle((int)(origin.X + horizontalStartX), (int)origin.Y, horizontalWidth, _tableTopLineTexture.Height),
+                    Color.White);
+            }
+
+            if (_tableBottomLineTexture != null && horizontalWidth > 0)
+            {
+                spriteBatch.Draw(_tableBottomLineTexture,
+                    new Rectangle((int)(origin.X + horizontalStartX), (int)(origin.Y + tableHeight - _tableBottomLineTexture.Height), horizontalWidth, _tableBottomLineTexture.Height),
+                    Color.White);
+            }
+
+            int verticalStartY = cornerSizeTopLeftHeight;
+            int verticalEndY = tableHeight - cornerSizeBottomLeftHeight;
+            int verticalHeight = Math.Max(0, verticalEndY - verticalStartY);
+
+            if (_tableLeftLineTexture != null && verticalHeight > 0)
+            {
+                spriteBatch.Draw(_tableLeftLineTexture,
+                    new Rectangle((int)origin.X, (int)(origin.Y + verticalStartY), _tableLeftLineTexture.Width, verticalHeight),
+                    Color.White);
+            }
+
+            if (_tableRightLineTexture != null && verticalHeight > 0)
+            {
+                spriteBatch.Draw(_tableRightLineTexture,
+                    new Rectangle((int)(origin.X + tableWidth - _tableRightLineTexture.Width), (int)(origin.Y + verticalStartY), _tableRightLineTexture.Width, verticalHeight),
+                    Color.White);
+            }
+        }
+
+        public override void Update(GameTime gameTime)
+        {
+            if (!Visible)
+            {
+                return;
+            }
+
+            base.Update(gameTime);
+
+            HandleButtonInput();
+            UpdateDisplayData();
+        }
+
+        private void HandleButtonInput()
+        {
+            var mouseState = MuGame.Instance.UiMouseState;
+            var prevMouseState = MuGame.Instance.PrevUiMouseState;
+            var mousePosition = mouseState.Position;
+
+            bool leftPressed = mouseState.LeftButton == ButtonState.Pressed;
+            bool leftJustPressed = leftPressed && prevMouseState.LeftButton == ButtonState.Released;
+            bool leftJustReleased = mouseState.LeftButton == ButtonState.Released && prevMouseState.LeftButton == ButtonState.Pressed;
+
+            _hoveredButtonIndex = -1;
+
+            float controlScale = Scale;
+
+            for (int i = 0; i < _buttons.Count; i++)
+            {
+                var button = _buttons[i];
+                if (!button.Visible)
+                {
+                    continue;
+                }
+
+                Rectangle destRect = GetButtonRectangle(button, controlScale);
+                bool hovered = destRect.Contains(mousePosition);
+
+                if (hovered)
+                {
+                    _hoveredButtonIndex = i;
+                    if (leftJustPressed)
+                    {
+                        _pressedButtonIndex = i;
+                    }
+
+                    if (leftJustReleased && _pressedButtonIndex == i && button.Enabled)
+                    {
+                        button.OnClick?.Invoke();
+                    }
+                }
+            }
+
+            if (!leftPressed)
+            {
+                _pressedButtonIndex = -1;
+            }
+        }
+
+        public override void Draw(GameTime gameTime)
+        {
+            if (!Visible)
+            {
+                return;
+            }
+
+            var font = GraphicsManager.Instance.Font;
+            if (font == null)
+            {
+                return;
+            }
+
+            EnsureStaticSurface();
+
+            var spriteBatch = GraphicsManager.Instance.Sprite;
+            SpriteBatchScope scope = null;
+            if (!SpriteBatchScope.BatchIsBegun)
+            {
+                scope = new SpriteBatchScope(spriteBatch, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform);
+            }
+
+            try
+            {
+                if (_staticSurface != null && !_staticSurface.IsDisposed)
+                {
+                    spriteBatch.Draw(_staticSurface, DisplayRectangle, Color.White * Alpha);
+                }
+
+                DrawTexts(spriteBatch, font);
+                DrawButtons(spriteBatch);
+            }
+            finally
+            {
+                scope?.Dispose();
+            }
+        }
+
+        private void DrawTexts(SpriteBatch spriteBatch, SpriteFont font)
+        {
+            float controlScale = Scale;
+            Vector2 basePosition = DisplayRectangle.Location.ToVector2();
+
+            foreach (var entry in _texts)
+            {
+                if (!entry.Visible || string.IsNullOrEmpty(entry.Text))
+                {
+                    continue;
+                }
+
+                float textScale = entry.FontScale * controlScale;
+                Vector2 pos = basePosition + entry.BasePosition * controlScale;
+                Vector2 size = font.MeasureString(entry.Text) * textScale;
+
+                switch (entry.Alignment)
+                {
+                    case TextAlignment.Center:
+                        pos.X -= size.X * 0.5f;
+                        break;
+                    case TextAlignment.Right:
+                        pos.X -= size.X;
+                        break;
+                }
+
+                spriteBatch.DrawString(font, entry.Text, pos, entry.Color * Alpha, 0f, Vector2.Zero, textScale, SpriteEffects.None, 0f);
+            }
+        }
+
+        private void DrawButtons(SpriteBatch spriteBatch)
+        {
+            float controlScale = Scale;
+            for (int i = 0; i < _buttons.Count; i++)
+            {
+                var button = _buttons[i];
+                if (!button.Visible)
+                {
+                    continue;
+                }
+
+                Rectangle destRect = GetButtonRectangle(button, controlScale);
+                Rectangle? sourceRect = button.NormalRect;
+                if (_pressedButtonIndex == i && button.Enabled && button.PressedRect.HasValue)
+                {
+                    sourceRect = button.PressedRect;
+                }
+                else if (_hoveredButtonIndex == i && button.Enabled && button.HoverRect.HasValue)
+                {
+                    sourceRect = button.HoverRect;
+                }
+
+                Color baseColor = button.Enabled ? Color.White : new Color(120, 120, 120);
+                if (_pressedButtonIndex == i && button.Enabled)
+                {
+                    baseColor = new Color(200, 200, 180);
+                }
+                else if (_hoveredButtonIndex == i && button.Enabled)
+                {
+                    baseColor = new Color(240, 240, 200);
+                }
+
+                baseColor *= Alpha;
+
+                if (button.Texture != null)
+                {
+                    spriteBatch.Draw(button.Texture, destRect, sourceRect, baseColor);
+                }
+                else if (_hoveredButtonIndex == i || _pressedButtonIndex == i)
+                {
+                    var overlayColor = _pressedButtonIndex == i
+                        ? new Color(200, 200, 180, 200)
+                        : new Color(240, 240, 200, 160);
+                    spriteBatch.Draw(GraphicsManager.Instance.Pixel, destRect, overlayColor * Alpha);
+                }
+            }
+        }
+
+        private Rectangle GetButtonRectangle(CharacterInfoButton button, float controlScale)
+        {
+            var baseRect = button.BaseBounds;
+            int x = DisplayRectangle.X + (int)MathF.Round(baseRect.X * controlScale);
+            int y = DisplayRectangle.Y + (int)MathF.Round(baseRect.Y * controlScale);
+            int width = (int)MathF.Round(button.FrameSize.X * controlScale);
+            int height = (int)MathF.Round(button.FrameSize.Y * controlScale);
+            return new Rectangle(x, y, width, height);
+        }
+
+        private void UpdateDisplayData()
+        {
+            if (_characterState == null)
+            {
+                _characterState = _networkManager?.GetCharacterState();
+            }
+
+            if (_characterState == null)
+            {
+                return;
+            }
+
+            var snapshot = CharacterInfoSnapshot.Create(_characterState);
+            if (_hasCachedSnapshot && snapshot.Equals(_cachedSnapshot))
+            {
+                return;
+            }
+
+            ApplySnapshot(snapshot);
+            _cachedSnapshot = snapshot;
+            _hasCachedSnapshot = true;
+        }
+
+        private void ApplySnapshot(CharacterInfoSnapshot snapshot)
+        {
+            // Check if class family changed - need to redraw static surface
+            bool isDarkLordFamily = snapshot.IsDarkLordFamily;
+            if (isDarkLordFamily != _lastIsDarkLordFamily)
+            {
+                _lastIsDarkLordFamily = isDarkLordFamily;
+                InvalidateStaticSurface();
+            }
+
+            _nameText.Text = snapshot.Name;
+            _classText.Text = $"({CharacterClassDatabase.GetClassName(snapshot.Class)})";
+
+            if (snapshot.MasterLevel > 0)
+            {
+                _levelText.Text = $"Master Lv. {snapshot.MasterLevel}";
+                _expText.Text = "----------";
+                if (snapshot.MasterLevelUpPoints > 0)
+                {
+                    _statPointsText.Visible = true;
+                    _statPointsText.Text = $"Points: {snapshot.MasterLevelUpPoints}";
+                }
+                else
+                {
+                    _statPointsText.Visible = false;
+                    _statPointsText.Text = string.Empty;
+                }
+            }
+            else
+            {
+                _levelText.Text = $"Level: {snapshot.Level}";
+                _expText.Text = $"Exp: {snapshot.Experience} / {snapshot.ExperienceForNextLevel}";
+                _statPointsText.Visible = snapshot.LevelUpPoints > 0;
+                _statPointsText.Text = snapshot.LevelUpPoints > 0 ? $"Points: {snapshot.LevelUpPoints}" : string.Empty;
+            }
+
+            _fruitProbText.Text = "[+]100%|[-]100%";
+            _fruitStatsText.Text = "Create 0/0 | Decrease 0/0";
+
             for (int i = 0; i < BTN_STAT_COUNT; i++)
             {
-                // Center the 170px wide textboxes in the new window
-                _statTextBoxes[i].X = (WINDOW_WIDTH - 170) / 2 - 40;
-                _statTextBoxes[i].Y = statHeights[i];
-
-                _statNameLabels[i].X = 25; // More space from left edge
-                _statNameLabels[i].ViewSize = new Point(85, 18); // Wider area for stat names
-                _statNameLabels[i].TextAlign = HorizontalAlign.Center;
-
-                _statValueLabels[i].X = 90; // Position for values
-                _statValueLabels[i].ViewSize = new Point(120, 18); // Wider area for values including bonuses
-                _statValueLabels[i].TextAlign = HorizontalAlign.Right;
-
-                _statButtons[i].X = WINDOW_WIDTH - 70; // Position near right edge with original size
-                _statButtons[i].Y = statHeights[i] + 3;
-                _statButtons[i].ViewSize = new Point(16, 15); // Match texture size exactly
+                ushort baseValue = snapshot.GetBaseStat(i);
+                ushort addedValue = snapshot.GetAddedStat(i);
+                ushort total = (ushort)(baseValue + addedValue);
+                _statValueTexts[i].Text = addedValue > 0 ? $"{baseValue}+{addedValue}" : total.ToString();
+                _statValueTexts[i].Color = addedValue > 0 ? new Color(100, 150, 255) : new Color(230, 230, 0);
             }
+
+            if (snapshot.HasPhysicalDamage)
+            {
+                _strDetail1Text.Visible = true;
+                _strDetail1Text.Text = $"Attack Damage: {snapshot.PhysicalMin}~{snapshot.PhysicalMax}";
+                _strDetail2Text.Visible = true;
+                _strDetail2Text.Text = $"Attack Speed: +{snapshot.AttackSpeed}";
+            }
+            else
+            {
+                ushort totalStr = (ushort)(snapshot.BaseStrength + snapshot.AddedStrength);
+                _strDetail1Text.Visible = true;
+                _strDetail1Text.Text = $"Strength: {totalStr}";
+                _strDetail2Text.Visible = false;
+                _strDetail2Text.Text = string.Empty;
+            }
+
+            _agiDetail1Text.Visible = true;
+            _agiDetail1Text.Text = $"Defense: +{snapshot.Defense}";
+            _agiDetail2Text.Visible = true;
+            _agiDetail2Text.Text = $"Attack Rate: {snapshot.PvPAttackRate}%";
+            _agiDetail3Text.Visible = true;
+            _agiDetail3Text.Text = $"Defense Rate: {snapshot.PvPDefenseRate}%";
+
+            _vitDetail1Text.Visible = true;
+            _vitDetail1Text.Text = $"HP: {snapshot.CurrentHealth}/{snapshot.MaxHealth}";
+            _vitDetail2Text.Visible = true;
+            _vitDetail2Text.Text = $"SD: {snapshot.CurrentShield}/{snapshot.MaxShield}";
+
+            if (snapshot.HasMagicalDamage)
+            {
+                _eneDetail1Text.Visible = true;
+                _eneDetail1Text.Text = $"Wizardry Damage: {snapshot.MagicalMin}~{snapshot.MagicalMax}";
+                _eneDetail2Text.Visible = true;
+                _eneDetail2Text.Text = $"Mana: {snapshot.CurrentMana}/{snapshot.MaxMana}";
+                _eneDetail3Text.Visible = true;
+                _eneDetail3Text.Text = $"AG: {snapshot.CurrentAbility}/{snapshot.MaxAbility}";
+            }
+            else
+            {
+                _eneDetail1Text.Visible = true;
+                _eneDetail1Text.Text = $"Mana: {snapshot.CurrentMana}/{snapshot.MaxMana}";
+                _eneDetail2Text.Visible = true;
+                _eneDetail2Text.Text = $"AG: {snapshot.CurrentAbility}/{snapshot.MaxAbility}";
+                _eneDetail3Text.Visible = false;
+                _eneDetail3Text.Text = string.Empty;
+            }
+
+            _pvmInfo1Text.Visible = true;
+            _pvmInfo1Text.Text = $"PvM Attack Success Rate: {snapshot.PvMAttackRate}%";
+            _pvmInfo2Text.Visible = true;
+            _pvmInfo2Text.Text = $"PvM Defense Success Rate: {snapshot.PvMDefenseRate}%";
+
+            // Show/hide Leadership (CMD) stat value text based on character class
+            _statValueTexts[4].Visible = isDarkLordFamily;
+
+            bool hasLevelUpPoints = snapshot.LevelUpPoints > 0;
+            for (int i = 0; i < BTN_STAT_COUNT - 1; i++)
+            {
+                if (_statButtons[i] != null)
+                {
+                    _statButtons[i].Visible = hasLevelUpPoints;
+                    _statButtons[i].Enabled = hasLevelUpPoints;
+                }
+            }
+
+            // Leadership button visible only for Dark Lord family with available points
+            if (_statButtons[4] != null)
+            {
+                _statButtons[4].Visible = isDarkLordFamily && hasLevelUpPoints;
+                _statButtons[4].Enabled = isDarkLordFamily && hasLevelUpPoints;
+            }
+
+            if (_masterButton != null)
+            {
+                bool masterActive = snapshot.MasterLevel > 0 && snapshot.CanBeMaster;
+                _masterButton.Visible = masterActive;
+                _masterButton.Enabled = masterActive;
+            }
+
+            _exitButton.Visible = true;
+            _exitButton.Enabled = true;
+            _questButton.Visible = true;
+            _questButton.Enabled = true;
+            _petButton.Visible = true;
+            _petButton.Enabled = true;
         }
 
         private void OnStatButtonClicked(int statIndex)
         {
-            _logger.LogInformation($"Stat button {statIndex} clicked.");
-            SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav"); // Play sound on click.
+            SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
 
-            // Check network connection and game state
             if (_networkManager == null || !_networkManager.IsConnected || _networkManager.CurrentState < ClientConnectionState.InGame)
             {
                 _logger.LogWarning("Cannot increase stat: Not connected to game server or invalid state.");
@@ -330,7 +972,6 @@ namespace Client.Main.Controls.UI.Game
                 return;
             }
 
-            // Map stat index to CharacterStatAttribute enum
             CharacterStatAttribute attributeToSend = statIndex switch
             {
                 0 => CharacterStatAttribute.Strength,
@@ -338,30 +979,26 @@ namespace Client.Main.Controls.UI.Game
                 2 => CharacterStatAttribute.Vitality,
                 3 => CharacterStatAttribute.Energy,
                 4 => CharacterStatAttribute.Leadership,
-                _ => throw new ArgumentOutOfRangeException(nameof(statIndex), $"Invalid stat index: {statIndex}")
+                _ => CharacterStatAttribute.Strength
             };
 
-            // Client-side validation: Check for available points
-            if (_characterState.LevelUpPoints <= 0)
+            if (_characterState == null)
             {
-                _logger.LogInformation("No available points to distribute for {Attribute}.", attributeToSend);
-                MessageWindow.Show("No available stat points.");
                 return;
             }
 
-            // Specific validation for Leadership (only for Dark Lord)
-            if (attributeToSend == CharacterStatAttribute.Leadership && !(_characterState.Class == CharacterClassNumber.DarkLord || _characterState.Class == CharacterClassNumber.LordEmperor))
+            if (attributeToSend == CharacterStatAttribute.Leadership &&
+                !(_characterState.Class == CharacterClassNumber.DarkLord || _characterState.Class == CharacterClassNumber.LordEmperor))
             {
                 _logger.LogInformation("Cannot add Leadership points for non-Dark Lord character.");
                 MessageWindow.Show("Only Dark Lords can add Leadership points.");
                 return;
             }
 
-            // Send request to server
-            var characterService = _networkManager.GetCharacterService();
-            if (characterService != null)
+            var service = _networkManager.GetCharacterService();
+            if (service != null)
             {
-                _ = characterService.SendIncreaseCharacterStatPointRequestAsync(attributeToSend);
+                _ = service.SendIncreaseCharacterStatPointRequestAsync(attributeToSend);
                 _logger.LogInformation("Sent request to add point to {Attribute}.", attributeToSend);
             }
             else
@@ -371,199 +1008,216 @@ namespace Client.Main.Controls.UI.Game
             }
         }
 
-        private void OpenningProcess()
+        private CharacterInfoTextEntry CreateText(Vector2 basePosition, float fontSize, Color color)
+            => CreateText(basePosition, fontSize, color, TextAlignment.Left);
+
+        public void ShowWindow()
         {
-            if (_characterState == null) _characterState = MuGame.Network.GetCharacterState();
+            Visible = true;
+            _pressedButtonIndex = -1;
+            _hoveredButtonIndex = -1;
+            _hasCachedSnapshot = false;
             UpdateDisplayData();
-        }
-
-        public override void Update(GameTime gameTime)
-        {
-            if (!Visible) return;
-            base.Update(gameTime);
-
-            if (MuGame.Instance.Keyboard.IsKeyDown(Keys.Escape) && !MuGame.Instance.PrevKeyboard.IsKeyDown(Keys.Escape))
+            InvalidateStaticSurface();
+            BringToFront();
+            SoundController.Instance.PlayBuffer("Sound/iCreateWindow.wav");
+            if (Scene != null)
             {
-                Visible = false;
-                SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
-                return;
-            }
-
-            UpdateDisplayData();
-        }
-
-        private void UpdateDisplayData()
-        {
-            if (_characterState == null) return;
-
-            // Centering logic for name and class labels - ensure proper centering
-            _nameLabel.X = 90;
-            _nameLabel.ViewSize = new Point(WINDOW_WIDTH, _nameLabel.ControlSize.Y > 0 ? _nameLabel.ControlSize.Y : 22);
-            _nameLabel.TextAlign = HorizontalAlign.Center;
-
-            _classLabel.X = 90;
-            _classLabel.ViewSize = new Point(WINDOW_WIDTH, _classLabel.ControlSize.Y > 0 ? _classLabel.ControlSize.Y : 18);
-            _classLabel.TextAlign = HorizontalAlign.Center;
-
-            _nameLabel.Text = _characterState.Name;
-            _classLabel.Text = $"({CharacterClassDatabase.GetClassName(_characterState.Class)})";
-
-            if (_characterState.MasterLevel > 0)
-            {
-                _levelLabel.Text = $"Master Lv. {_characterState.MasterLevel}";
-                _expLabel.Text = "----------";
-                _statPointsLabel.Text = _characterState.MasterLevelUpPoints > 0 ? $"Points: {_characterState.MasterLevelUpPoints}" : "";
-            }
-            else
-            {
-                _levelLabel.Text = $"Level: {_characterState.Level}";
-                _expLabel.Text = $"Exp: {_characterState.Experience} / {_characterState.ExperienceForNextLevel}";
-                _statPointsLabel.Text = $"Points: {_characterState.LevelUpPoints}";
-                _statPointsLabel.Visible = true;
-            }
-            _fruitPointsProbLabel.Text = "[+]100%|[-]100%";
-            _fruitPointsStatsLabel.Text = "Create 0/0 | Decrease 0/0";
-
-            // Show total stats vs base stats when there are item bonuses
-            var totalStr = _characterState.TotalStrength;
-            var baseStr = _characterState.Strength;
-            _statValueLabels[0].Text = totalStr > baseStr ? $"{baseStr}+{totalStr - baseStr}" : baseStr.ToString();
-            SetStatLabelColor(_statValueLabels[0], baseStr, (ushort)(totalStr - baseStr));
-
-            // Physical damage for Strength-based classes
-            var physDmg = GetPhysicalDamage();
-            if (physDmg.min > 0 || physDmg.max > 0)
-            {
-                _strDetail1Label.Text = $"Attack Damage: {physDmg.min}~{physDmg.max}";
-                _strDetail1Label.Visible = true;
-                _strDetail2Label.Text = $"Attack Speed: +{GetAttackSpeed()}";
-                _strDetail2Label.Visible = true;
-            }
-            else
-            {
-                _strDetail1Label.Text = $"Strength: {_characterState.TotalStrength}";
-                _strDetail1Label.Visible = true;
-                _strDetail2Label.Text = string.Empty;
-                _strDetail2Label.Visible = false;
-            }
-
-            var totalAgi = _characterState.TotalAgility;
-            var baseAgi = _characterState.Agility;
-            _statValueLabels[1].Text = totalAgi > baseAgi ? $"{baseAgi}+{totalAgi - baseAgi}" : baseAgi.ToString();
-            SetStatLabelColor(_statValueLabels[1], baseAgi, (ushort)(totalAgi - baseAgi));
-
-            var defense = GetDefense();
-            var pvpAttackRate = GetPvPAttackRate();
-            var pvpDefenseRate = GetPvPDefenseRate();
-
-            _agiDetail1Label.Text = $"Defense: +{defense}";
-            _agiDetail1Label.Visible = true;
-            _agiDetail2Label.Text = $"Attack Rate: {pvpAttackRate}%";
-            _agiDetail2Label.Visible = true;
-            _agiDetail3Label.Text = $"Defense Rate: {pvpDefenseRate}%";
-            _agiDetail3Label.Visible = true;
-
-            var totalVit = _characterState.TotalVitality;
-            var baseVit = _characterState.Vitality;
-            _statValueLabels[2].Text = totalVit > baseVit ? $"{baseVit}+{totalVit - baseVit}" : baseVit.ToString();
-            SetStatLabelColor(_statValueLabels[2], baseVit, (ushort)(totalVit - baseVit));
-            _vitDetail1Label.Text = $"HP: {_characterState.CurrentHealth}/{_characterState.MaximumHealth}";
-            _vitDetail1Label.Visible = true;
-            _vitDetail2Label.Text = $"SD: {_characterState.CurrentShield}/{_characterState.MaximumShield}";
-            _vitDetail2Label.Visible = true;
-
-            var totalEne = _characterState.TotalEnergy;
-            var baseEne = _characterState.Energy;
-            _statValueLabels[3].Text = totalEne > baseEne ? $"{baseEne}+{totalEne - baseEne}" : baseEne.ToString();
-            SetStatLabelColor(_statValueLabels[3], baseEne, (ushort)(totalEne - baseEne));
-
-            var magDmg = GetMagicalDamage();
-            if (magDmg.min > 0 || magDmg.max > 0)
-            {
-                _eneDetail1Label.Text = $"Wizardry Damage: {magDmg.min}~{magDmg.max}";
-                _eneDetail1Label.Visible = true;
-                _eneDetail2Label.Text = $"Mana: {_characterState.CurrentMana}/{_characterState.MaximumMana}";
-                _eneDetail2Label.Visible = true;
-                _eneDetail3Label.Text = $"AG: {_characterState.CurrentAbility}/{_characterState.MaximumAbility}";
-                _eneDetail3Label.Visible = true;
-            }
-            else
-            {
-                _eneDetail1Label.Text = $"Mana: {_characterState.CurrentMana}/{_characterState.MaximumMana}";
-                _eneDetail1Label.Visible = true;
-                _eneDetail2Label.Text = $"AG: {_characterState.CurrentAbility}/{_characterState.MaximumAbility}";
-                _eneDetail2Label.Visible = true;
-                _eneDetail3Label.Text = string.Empty;
-                _eneDetail3Label.Visible = false;
-            }
-
-            bool isDarkLordFamily = false;
-            if (_characterState.Class == CharacterClassNumber.DarkLord ||
-                _characterState.Class == CharacterClassNumber.LordEmperor)
-            {
-                isDarkLordFamily = true;
-            }
-
-            bool showCharisma = isDarkLordFamily;
-
-            _statTextBoxes[4].Visible = isDarkLordFamily;
-            _statNameLabels[4].Visible = isDarkLordFamily;
-            _statValueLabels[4].Visible = isDarkLordFamily;
-            _statButtons[4].Visible = isDarkLordFamily && _characterState.LevelUpPoints > 0;
-
-            // Set Leadership stat value if Dark Lord family
-            if (isDarkLordFamily)
-            {
-                var totalCmd = _characterState.TotalLeadership;
-                var baseCmd = _characterState.Leadership;
-                _statValueLabels[4].Text = totalCmd > baseCmd ? $"{baseCmd}+{totalCmd - baseCmd}" : baseCmd.ToString();
-                SetStatLabelColor(_statValueLabels[4], baseCmd, (ushort)(totalCmd - baseCmd));
-            }
-
-            for (int i = 0; i < 4; i++)
-            {
-                _statButtons[i].Visible = _characterState.LevelUpPoints > 0;
-            }
-
-            bool canBeMaster = _characterState.Class != CharacterClassNumber.DarkWizard;
-            _masterLevelButton.Visible = canBeMaster && _characterState.MasterLevel > 0;
-            _masterLevelButton.Enabled = canBeMaster && _characterState.MasterLevel > 0;
-
-            // Show PvM attack and defense rates
-            var pvmAttackRate = GetPvMAttackRate();
-            var pvmDefenseRate = GetPvMDefenseRate();
-
-            _pvmInfoLabel1.Text = $"PvM Attack Success Rate: {pvmAttackRate}%";
-            _pvmInfoLabel1.Visible = true;
-            _pvmInfoLabel2.Text = $"PvM Defense Success Rate: {pvmDefenseRate}%";
-            _pvmInfoLabel2.Visible = true;
-        }
-
-        private void SetStatLabelColor(LabelControl label, ushort statValue, ushort addedStatValue)
-        {
-            if (addedStatValue > 0)
-            {
-                label.TextColor = new Color(100, 150, 255);
-            }
-            else
-            {
-                label.TextColor = new Color(230, 230, 0);
+                Scene.FocusControl = this;
             }
         }
 
-        // MU Online formula calculations based on character class
-        private (int min, int max) GetPhysicalDamage()
+        public void HideWindow()
         {
-            if (_characterState == null) return (0, 0);
+            Visible = false;
+            if (Scene != null && Scene.FocusControl == this)
+            {
+                Scene.FocusControl = null;
+            }
+        }
 
-            var str = _characterState.TotalStrength;
-            var agi = _characterState.TotalAgility;
-            var ene = _characterState.TotalEnergy;
+        public override void Dispose()
+        {
+            base.Dispose();
+            _staticSurface?.Dispose();
+            _staticSurface = null;
+        }
 
-            return _characterState.Class switch
+        protected override void OnScreenSizeChanged()
+        {
+            base.OnScreenSizeChanged();
+            InvalidateStaticSurface();
+        }
+
+        private readonly struct CharacterInfoSnapshot : IEquatable<CharacterInfoSnapshot>
+        {
+            public CharacterInfoSnapshot(CharacterState state)
+            {
+                Name = state.Name ?? string.Empty;
+                Class = state.Class;
+                Level = state.Level;
+                MasterLevel = state.MasterLevel;
+                Experience = state.Experience;
+                ExperienceForNextLevel = state.ExperienceForNextLevel;
+                LevelUpPoints = state.LevelUpPoints;
+                MasterLevelUpPoints = state.MasterLevelUpPoints;
+                BaseStrength = state.Strength;
+                AddedStrength = state.AddedStrength;
+                BaseAgility = state.Agility;
+                AddedAgility = state.AddedAgility;
+                BaseVitality = state.Vitality;
+                AddedVitality = state.AddedVitality;
+                BaseEnergy = state.Energy;
+                AddedEnergy = state.AddedEnergy;
+                BaseLeadership = state.Leadership;
+                AddedLeadership = state.AddedLeadership;
+                CurrentHealth = state.CurrentHealth;
+                MaxHealth = state.MaximumHealth;
+                CurrentShield = state.CurrentShield;
+                MaxShield = state.MaximumShield;
+                CurrentMana = state.CurrentMana;
+                MaxMana = state.MaximumMana;
+                CurrentAbility = state.CurrentAbility;
+                MaxAbility = state.MaximumAbility;
+
+                var phys = GetPhysicalDamage(state);
+                PhysicalMin = phys.min;
+                PhysicalMax = phys.max;
+
+                var magic = GetMagicalDamage(state);
+                MagicalMin = magic.min;
+                MagicalMax = magic.max;
+
+                AttackSpeed = GetAttackSpeed(state);
+                Defense = GetDefense(state);
+                PvPAttackRate = GetPvPAttackRate(state);
+                PvPDefenseRate = GetPvPDefenseRate(state);
+                PvMAttackRate = GetPvMAttackRate(state);
+                PvMDefenseRate = GetPvMDefenseRate(state);
+
+                IsDarkLordFamily = state.Class == CharacterClassNumber.DarkLord || state.Class == CharacterClassNumber.LordEmperor;
+                CanBeMaster = state.Class != CharacterClassNumber.DarkWizard;
+            }
+
+            public static CharacterInfoSnapshot Create(CharacterState state) => new(state);
+
+            public readonly string Name;
+            public readonly CharacterClassNumber Class;
+            public readonly ushort Level;
+            public readonly ushort MasterLevel;
+            public readonly ulong Experience;
+            public readonly ulong ExperienceForNextLevel;
+            public readonly ushort LevelUpPoints;
+            public readonly ushort MasterLevelUpPoints;
+            public readonly ushort BaseStrength;
+            public readonly ushort AddedStrength;
+            public readonly ushort BaseAgility;
+            public readonly ushort AddedAgility;
+            public readonly ushort BaseVitality;
+            public readonly ushort AddedVitality;
+            public readonly ushort BaseEnergy;
+            public readonly ushort AddedEnergy;
+            public readonly ushort BaseLeadership;
+            public readonly ushort AddedLeadership;
+            public readonly uint CurrentHealth;
+            public readonly uint MaxHealth;
+            public readonly uint CurrentShield;
+            public readonly uint MaxShield;
+            public readonly uint CurrentMana;
+            public readonly uint MaxMana;
+            public readonly uint CurrentAbility;
+            public readonly uint MaxAbility;
+            public readonly int PhysicalMin;
+            public readonly int PhysicalMax;
+            public readonly int MagicalMin;
+            public readonly int MagicalMax;
+            public readonly int AttackSpeed;
+            public readonly int Defense;
+            public readonly int PvPAttackRate;
+            public readonly int PvPDefenseRate;
+            public readonly int PvMAttackRate;
+            public readonly int PvMDefenseRate;
+            public readonly bool IsDarkLordFamily;
+            public readonly bool CanBeMaster;
+
+            public bool HasPhysicalDamage => PhysicalMin > 0 || PhysicalMax > 0;
+            public bool HasMagicalDamage => MagicalMin > 0 || MagicalMax > 0;
+
+            public ushort GetBaseStat(int index) => index switch
+            {
+                0 => BaseStrength,
+                1 => BaseAgility,
+                2 => BaseVitality,
+                3 => BaseEnergy,
+                4 => BaseLeadership,
+                _ => 0
+            };
+
+            public ushort GetAddedStat(int index) => index switch
+            {
+                0 => AddedStrength,
+                1 => AddedAgility,
+                2 => AddedVitality,
+                3 => AddedEnergy,
+                4 => AddedLeadership,
+                _ => 0
+            };
+
+            public bool Equals(CharacterInfoSnapshot other)
+            {
+                return string.Equals(Name, other.Name, StringComparison.Ordinal) &&
+                       Class == other.Class &&
+                       Level == other.Level &&
+                       MasterLevel == other.MasterLevel &&
+                       Experience == other.Experience &&
+                       ExperienceForNextLevel == other.ExperienceForNextLevel &&
+                       LevelUpPoints == other.LevelUpPoints &&
+                       MasterLevelUpPoints == other.MasterLevelUpPoints &&
+                       BaseStrength == other.BaseStrength &&
+                       AddedStrength == other.AddedStrength &&
+                       BaseAgility == other.BaseAgility &&
+                       AddedAgility == other.AddedAgility &&
+                       BaseVitality == other.BaseVitality &&
+                       AddedVitality == other.AddedVitality &&
+                       BaseEnergy == other.BaseEnergy &&
+                       AddedEnergy == other.AddedEnergy &&
+                       BaseLeadership == other.BaseLeadership &&
+                       AddedLeadership == other.AddedLeadership &&
+                       CurrentHealth == other.CurrentHealth &&
+                       MaxHealth == other.MaxHealth &&
+                       CurrentShield == other.CurrentShield &&
+                       MaxShield == other.MaxShield &&
+                       CurrentMana == other.CurrentMana &&
+                       MaxMana == other.MaxMana &&
+                       CurrentAbility == other.CurrentAbility &&
+                       MaxAbility == other.MaxAbility &&
+                       PhysicalMin == other.PhysicalMin &&
+                       PhysicalMax == other.PhysicalMax &&
+                       MagicalMin == other.MagicalMin &&
+                       MagicalMax == other.MagicalMax &&
+                       AttackSpeed == other.AttackSpeed &&
+                       Defense == other.Defense &&
+                       PvPAttackRate == other.PvPAttackRate &&
+                       PvPDefenseRate == other.PvPDefenseRate &&
+                       PvMAttackRate == other.PvMAttackRate &&
+                       PvMDefenseRate == other.PvMDefenseRate &&
+                       IsDarkLordFamily == other.IsDarkLordFamily &&
+                       CanBeMaster == other.CanBeMaster;
+            }
+        }
+
+        private static (int min, int max) GetPhysicalDamage(CharacterState state)
+        {
+            if (state == null) return (0, 0);
+
+            var str = state.TotalStrength;
+            var agi = state.TotalAgility;
+            var ene = state.TotalEnergy;
+
+            return state.Class switch
             {
                 CharacterClassNumber.DarkKnight or CharacterClassNumber.BladeKnight or CharacterClassNumber.BladeMaster =>
-                    (str / 6, str / 4), // Advanced: str/5, str/3
+                    (str / 6, str / 4),
                 CharacterClassNumber.FairyElf or CharacterClassNumber.MuseElf or CharacterClassNumber.HighElf =>
                     ((str + agi * 2) / 14, (str + agi * 2) / 8),
                 CharacterClassNumber.MagicGladiator or CharacterClassNumber.DuelMaster =>
@@ -571,21 +1225,21 @@ namespace Client.Main.Controls.UI.Game
                 CharacterClassNumber.DarkLord or CharacterClassNumber.LordEmperor =>
                     ((str * 2 + ene) / 14, (str * 2 + ene) / 10),
                 CharacterClassNumber.RageFighter or CharacterClassNumber.FistMaster =>
-                    (str / 6 + _characterState.TotalVitality / 10, str / 4 + _characterState.TotalVitality / 8),
+                    (str / 6 + state.TotalVitality / 10, str / 4 + state.TotalVitality / 8),
                 _ => (0, 0)
             };
         }
 
-        private (int min, int max) GetMagicalDamage()
+        private static (int min, int max) GetMagicalDamage(CharacterState state)
         {
-            if (_characterState == null) return (0, 0);
+            if (state == null) return (0, 0);
 
-            var ene = _characterState.TotalEnergy;
+            var ene = state.TotalEnergy;
 
-            return _characterState.Class switch
+            return state.Class switch
             {
                 CharacterClassNumber.DarkWizard or CharacterClassNumber.SoulMaster or CharacterClassNumber.GrandMaster =>
-                    (ene / 9, ene / 4), // Advanced: ene/5, ene/2
+                    (ene / 9, ene / 4),
                 CharacterClassNumber.MagicGladiator or CharacterClassNumber.DuelMaster =>
                     (ene / 9, ene / 4),
                 CharacterClassNumber.Summoner or CharacterClassNumber.BloodySummoner or CharacterClassNumber.DimensionMaster =>
@@ -594,13 +1248,13 @@ namespace Client.Main.Controls.UI.Game
             };
         }
 
-        private int GetAttackSpeed()
+        private static int GetAttackSpeed(CharacterState state)
         {
-            if (_characterState == null) return 0;
+            if (state == null) return 0;
 
-            var agi = _characterState.TotalAgility;
+            var agi = state.TotalAgility;
 
-            return _characterState.Class switch
+            return state.Class switch
             {
                 CharacterClassNumber.DarkKnight or CharacterClassNumber.BladeKnight or CharacterClassNumber.BladeMaster =>
                     agi / 15,
@@ -620,13 +1274,13 @@ namespace Client.Main.Controls.UI.Game
             };
         }
 
-        private int GetDefense()
+        private static int GetDefense(CharacterState state)
         {
-            if (_characterState == null) return 0;
+            if (state == null) return 0;
 
-            var agi = _characterState.TotalAgility;
+            var agi = state.TotalAgility;
 
-            return _characterState.Class switch
+            return state.Class switch
             {
                 CharacterClassNumber.DarkKnight or CharacterClassNumber.BladeKnight or CharacterClassNumber.BladeMaster =>
                     agi / 3,
@@ -646,14 +1300,14 @@ namespace Client.Main.Controls.UI.Game
             };
         }
 
-        private int GetPvPAttackRate()
+        private static int GetPvPAttackRate(CharacterState state)
         {
-            if (_characterState == null) return 0;
+            if (state == null) return 0;
 
-            var lvl = _characterState.Level;
-            var agi = _characterState.TotalAgility;
+            var lvl = state.Level;
+            var agi = state.TotalAgility;
 
-            return _characterState.Class switch
+            return state.Class switch
             {
                 CharacterClassNumber.DarkKnight or CharacterClassNumber.BladeKnight or CharacterClassNumber.BladeMaster =>
                     lvl * 3 + (int)(agi * 4.5f),
@@ -669,14 +1323,14 @@ namespace Client.Main.Controls.UI.Game
             };
         }
 
-        private int GetPvPDefenseRate()
+        private static int GetPvPDefenseRate(CharacterState state)
         {
-            if (_characterState == null) return 0;
+            if (state == null) return 0;
 
-            var lvl = _characterState.Level;
-            var agi = _characterState.TotalAgility;
+            var lvl = state.Level;
+            var agi = state.TotalAgility;
 
-            return _characterState.Class switch
+            return state.Class switch
             {
                 CharacterClassNumber.DarkKnight or CharacterClassNumber.BladeKnight or CharacterClassNumber.BladeMaster =>
                     lvl * 2 + agi / 2,
@@ -692,16 +1346,16 @@ namespace Client.Main.Controls.UI.Game
             };
         }
 
-        private int GetPvMAttackRate()
+        private static int GetPvMAttackRate(CharacterState state)
         {
-            if (_characterState == null) return 0;
+            if (state == null) return 0;
 
-            var lvl = _characterState.Level;
-            var agi = _characterState.TotalAgility;
-            var str = _characterState.TotalStrength;
-            var cmd = _characterState.TotalLeadership;
+            var lvl = state.Level;
+            var agi = state.TotalAgility;
+            var str = state.TotalStrength;
+            var cmd = state.TotalLeadership;
 
-            return _characterState.Class switch
+            return state.Class switch
             {
                 CharacterClassNumber.DarkLord or CharacterClassNumber.LordEmperor =>
                     (int)((lvl * 2 + agi) * 2.5f + str / 6 + cmd / 10),
@@ -709,13 +1363,13 @@ namespace Client.Main.Controls.UI.Game
             };
         }
 
-        private int GetPvMDefenseRate()
+        private static int GetPvMDefenseRate(CharacterState state)
         {
-            if (_characterState == null) return 0;
+            if (state == null) return 0;
 
-            var agi = _characterState.TotalAgility;
+            var agi = state.TotalAgility;
 
-            return _characterState.Class switch
+            return state.Class switch
             {
                 CharacterClassNumber.FairyElf or CharacterClassNumber.MuseElf or CharacterClassNumber.HighElf =>
                     agi / 4,
@@ -724,98 +1378,5 @@ namespace Client.Main.Controls.UI.Game
                 _ => agi / 3
             };
         }
-
-        public override void Draw(GameTime gameTime)
-        {
-            if (!Visible || Status != GameControlStatus.Ready) return;
-
-            base.Draw(gameTime); // Base draw will handle all children including frames
-            // Manually draw the info table on top of the background, but under text labels
-            using (new SpriteBatchScope(GraphicsManager.Instance.Sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform))
-            {
-                DrawInfoTable(GraphicsManager.Instance.Sprite);
-            }
-
-            foreach (var child in Controls)
-            {
-                if (child != _background && child != _topFrame && child != _leftFrame && child != _rightFrame && child != _bottomFrame)
-                {
-                    child.Draw(gameTime);
-                }
-            }
-        }
-
-        private void DrawInfoTable(SpriteBatch spriteBatch)
-        {
-            var sb = spriteBatch;
-
-            int tableX = this.DisplayRectangle.X + 18; // Use CharacterInfoWindowControl's display position
-            int tableY = this.DisplayRectangle.Y + 55;
-            int tableWidth = WINDOW_WIDTH - 36; // Use most of the window width
-            int tableHeight = 80; // Slightly taller table
-
-            Color tableBgColor = Color.Black * 0.3f * Alpha;
-            sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(tableX, tableY, tableWidth, tableHeight), tableBgColor);
-
-            int cornerSize = 16; // Slightly larger corners for bigger table
-
-            if (_texTableTopLeft != null) sb.Draw(_texTableTopLeft, new Rectangle(tableX, tableY, cornerSize, cornerSize), Color.White);
-            if (_texTableTopRight != null) sb.Draw(_texTableTopRight, new Rectangle(tableX + tableWidth - cornerSize, tableY, cornerSize, cornerSize), Color.White);
-            if (_texTableBottomLeft != null) sb.Draw(_texTableBottomLeft, new Rectangle(tableX, tableY + tableHeight - cornerSize, cornerSize, cornerSize), Color.White);
-            if (_texTableBottomRight != null) sb.Draw(_texTableBottomRight, new Rectangle(tableX + tableWidth - cornerSize, tableY + tableHeight - cornerSize, cornerSize, cornerSize), Color.White);
-
-            // Horizontal lines (Top and Bottom Edges of the content area)
-            if (_texTableTopHorizontalLinePixel != null && _texTableTopHorizontalLinePixel.Height > 0)
-            {
-                for (int x = tableX + cornerSize; x < tableX + tableWidth - cornerSize; x++)
-                { // Top border line
-                    sb.Draw(_texTableTopHorizontalLinePixel, new Rectangle(x, tableY, 1, _texTableTopHorizontalLinePixel.Height), Color.White);
-                }
-            }
-            if (_texTableBottomHorizontalLinePixel != null && _texTableBottomHorizontalLinePixel.Height > 0) // Bottom border line
-            {
-                for (int x = tableX + cornerSize; x < tableX + tableWidth - cornerSize; x++)
-                {
-                    sb.Draw(_texTableBottomHorizontalLinePixel, new Rectangle(x, tableY + tableHeight - _texTableBottomHorizontalLinePixel.Height, 1, _texTableBottomHorizontalLinePixel.Height), Color.White);
-                }
-            }
-
-            if (_texTableLeftVerticalLinePixel != null && _texTableLeftVerticalLinePixel.Width > 0) // Left border line
-            {
-                for (int y = tableY + cornerSize; y < tableY + tableHeight - cornerSize; y++)
-                {
-                    sb.Draw(_texTableLeftVerticalLinePixel, new Rectangle(tableX, y, _texTableLeftVerticalLinePixel.Width, 1), Color.White);
-                }
-            }
-            if (_texTableRightVerticalLinePixel != null && _texTableRightVerticalLinePixel.Width > 0) // Right border line
-            {
-                for (int y = tableY + cornerSize; y < tableY + tableHeight - cornerSize; y++)
-                {
-                    sb.Draw(_texTableRightVerticalLinePixel, new Rectangle(tableX + tableWidth - _texTableRightVerticalLinePixel.Width, y, _texTableRightVerticalLinePixel.Width, 1), Color.White);
-                }
-            }
-        }
-
-        public void ShowWindow()
-        {
-            Visible = true;
-            OpenningProcess();
-            BringToFront();
-            SoundController.Instance.PlayBuffer("Sound/iCreateWindow.wav");
-            if (this.Scene != null)
-            {
-                this.Scene.FocusControl = this;
-            }
-        }
-
-        public void HideWindow()
-        {
-            Visible = false;
-            if (this.Scene != null && this.Scene.FocusControl == this)
-            {
-                this.Scene.FocusControl = null;
-            }
-        }
-
     }
 }

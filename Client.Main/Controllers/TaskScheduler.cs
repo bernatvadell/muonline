@@ -80,8 +80,8 @@ namespace Client.Main.Controllers
             var taskItem = new TaskItem(action, priority);
             _taskQueue.Enqueue(taskItem);
 
-            _logger.LogDebug("Queued task with priority {Priority}. Queue size: {Count}",
-                            priority, _taskQueue.Count);
+            // _logger.LogDebug("Queued task with priority {Priority}. Queue size: {Count}",
+            //                 priority, _taskQueue.Count);
 
             return true;
         }

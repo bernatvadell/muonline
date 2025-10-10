@@ -73,7 +73,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
         private static readonly Dictionary<string, BlendState> _previewBlendStateCache = new();
 
         private const int MaxRotatingCacheSize = 96;
-        private const float AnimatedUpdateInterval = 0.016f; // ≈60 FPS
+        private const float AnimatedUpdateInterval = 1f / 23f; // limit
 
         private static ItemRenderProperties CreateRenderProperties(InventoryItem item)
         {
@@ -269,6 +269,14 @@ namespace Client.Main.Controls.UI.Game.Inventory
             return Render(item?.Definition, width, height, rotationAngle, CreateRenderProperties(item), gameTime);
         }
 
+        /// <summary>
+        /// Retrieves a preview that allows item material shader animation to advance over time without requiring hover.
+        /// </summary>
+        public static Texture2D GetMaterialAnimatedPreview(InventoryItem item, int width, int height, GameTime gameTime)
+        {
+            return GetPreviewInternal(item?.Definition, width, height, 0f, CreateRenderProperties(item), gameTime, useCache: true);
+        }
+
         private static float CalculateCachedRotationAngle(double totalSeconds, float speedDegreesPerSecond)
         {
             float angle = CalculateRawRotationAngle(totalSeconds, speedDegreesPerSecond);
@@ -288,7 +296,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             bool isRotating = rotationAngle != 0f;
             string key = BuildCacheKey(definition, width, height, rotationAngle, props);
             float now = ResolveEffectTime(gameTime);
-            bool requiresAnimation = props.ShouldUseItemMaterial;
+            bool requiresAnimation = props.ShouldUseItemMaterial && Constants.ENABLE_ITEM_MATERIAL_ANIMATION;
 
             PreviewCacheEntry entry = useCache ? GetCacheEntry(key, isRotating) : null;
 

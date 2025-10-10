@@ -1,93 +1,97 @@
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Input;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Text.Json;
+using Client.Main;
+using Client.Main.Content;
+using Client.Main.Controllers;
 using Client.Main.Core.Client;
 using Client.Main.Core.Utilities;
 using Client.Main.Controls.UI.Game.Inventory;
-using Client.Main.Content;
 using Client.Main.Helpers;
-using Client.Main.Controllers;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 
 namespace Client.Main.Controls.UI.Game
 {
-    public class NpcShopControl : DynamicLayoutControl
+    public class NpcShopControl : UIControl, IUiTexturePreloadable
     {
-        protected override string LayoutJsonResource => "Client.Main.Controls.UI.Game.Layouts.NpcShopLayout.json";
-        protected override string TextureRectJsonResource => "Client.Main.Controls.UI.Game.Layouts.NpcShopRect.json";
-        protected override string DefaultTexturePath => "Interface/GFx/NpcShop_I3.ozd";
-        private static NpcShopControl _instance;
+        private const string LayoutJsonResource = "Client.Main.Controls.UI.Game.Layouts.NpcShopLayout.json";
+        private const string TextureRectJsonResource = "Client.Main.Controls.UI.Game.Layouts.NpcShopRect.json";
+        private const string LayoutTexturePath = "Interface/GFx/NpcShop_I3.ozd";
+
+        private const int WINDOW_WIDTH = 422;
+        private const int WINDOW_HEIGHT = 624;
 
         private const int SHOP_COLUMNS = 8;
         private const int SHOP_ROWS = 14;
-        private const int SHOP_SQUARE_WIDTH = 25;   // cell step used by grid cells
+        private const int SHOP_SQUARE_WIDTH = 25;
         private const int SHOP_SQUARE_HEIGHT = 25;
 
-        private readonly List<InventoryItem> _items = new();
-        private Point _gridTopLeft = new Point(170, 180);
+        private static readonly Rectangle SlotSourceRect = new(545, 217, 29, 31);
 
-        // Shop grid properties use DynamicLayoutControl coordinate system (no UiScaler scaling)
-        private Point GridTopLeft => _gridTopLeft;
-        private int ShopCellWidth => SHOP_SQUARE_WIDTH;
-        private int ShopCellHeight => SHOP_SQUARE_HEIGHT;
+        private readonly struct LayoutInfo
+        {
+            public string Name { get; init; }
+            public float ScreenX { get; init; }
+            public float ScreenY { get; init; }
+            public int Width { get; init; }
+            public int Height { get; init; }
+            public int Z { get; init; }
+        }
+
+        private readonly struct TextureRectData
+        {
+            public string Name { get; init; }
+            public int X { get; init; }
+            public int Y { get; init; }
+            public int Width { get; init; }
+            public int Height { get; init; }
+        }
+
+        private static NpcShopControl _instance;
+
+        private readonly List<InventoryItem> _items = new();
+        private readonly Dictionary<string, Texture2D> _itemTextureCache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<(InventoryItem item, int width, int height, bool animated), Texture2D> _bmdPreviewCache = new();
+
+        private readonly List<LayoutInfo> _layoutInfos = new();
+        private readonly Dictionary<string, TextureRectData> _textureRectLookup = new(StringComparer.OrdinalIgnoreCase);
+
+        private readonly Point _gridOffset = new(170, 180);
+
+        private Texture2D _layoutTexture;
+        private Texture2D _slotTexture;
+        private RenderTarget2D _staticSurface;
+        private bool _staticSurfaceDirty = true;
 
         private SpriteFont _font;
-        private Texture2D _slotTexture;
-        private GameTime _currentGameTime;
+        private CharacterState _characterState;
+
         private InventoryItem _hoveredItem;
-        private bool _wasVisible = false;
+        private Point _hoveredSlot = new(-1, -1);
+        private GameTime _currentGameTime;
 
-        public NpcShopControl()
+        private bool _wasVisible;
+        private bool _escapeHandled;
+        private bool _closeRequestSent;
+        private bool _warmupPending;
+
+        private NpcShopControl()
         {
-            Visible = false;
+            ControlSize = new Point(WINDOW_WIDTH, WINDOW_HEIGHT);
+            ViewSize = ControlSize;
+            AutoViewSize = false;
             Interactive = true;
+            Visible = false;
 
-            var rows = SHOP_ROWS;
-            var cols = SHOP_COLUMNS;
-
-            var ScreenX = GridTopLeft.X;
-            var ScreenY = GridTopLeft.Y;
-            for(var i = 0; i < rows; i++)
-            {
-                for(var j = 0; j < cols; j++)
-                {
-                    var textureCtrl = new TextureControl
-                    {
-                        AutoViewSize = false,
-                        TexturePath = DefaultTexturePath,
-                        BlendState = BlendState.AlphaBlend,
-                        Name = "Cell-" + i + j,
-                    };
-                    textureCtrl.TextureRectangle = new Rectangle
-                    {
-                        X = 545,
-                        Y = 217,
-                        Width = 29,
-                        Height = 31
-                    };
-                    textureCtrl.Tag = new LayoutInfo
-                    {
-                        Name = "Cell",
-                        ScreenX = ScreenX,
-                        ScreenY = ScreenY,
-                        Width = 29,
-                        Height = 29,
-                        Z = 5
-                    };
-                    Controls.Add(textureCtrl);
-                    ScreenX += ShopCellWidth;
-                }
-                ScreenY += ShopCellHeight;
-                ScreenX = GridTopLeft.X;
-            }
-            // Hook up for live updates from server
-            var state = MuGame.Network?.GetCharacterState();
-            if (state != null)
-            {
-                state.ShopItemsChanged += RefreshShopContent;
-            }
+            LoadLayoutDefinitions();
+            EnsureCharacterState();
         }
+
         public static NpcShopControl Instance
         {
             get
@@ -96,117 +100,237 @@ namespace Client.Main.Controls.UI.Game
                 {
                     _instance = new NpcShopControl();
                 }
+
                 return _instance;
             }
         }
+
+        public IEnumerable<string> GetPreloadTexturePaths()
+        {
+            yield return LayoutTexturePath;
+        }
+
         public override async System.Threading.Tasks.Task Load()
         {
             await base.Load();
+
+            var loader = TextureLoader.Instance;
+            _layoutTexture = await loader.PrepareAndGetTexture(LayoutTexturePath);
+            _slotTexture = _layoutTexture;
+
             _font = GraphicsManager.Instance.Font;
-            _slotTexture = await TextureLoader.Instance.PrepareAndGetTexture(DefaultTexturePath);
+
+            InvalidateStaticSurface();
         }
 
         public override void Update(GameTime gameTime)
         {
-            KeyboardState newState = Keyboard.GetState();
-            if (newState.IsKeyDown(Keys.Escape))
-            {
-                // Hide locally and inform server to allow reopening next time
-                Visible = false;
-                var svc = MuGame.Network?.GetCharacterService();
-                if (svc != null)
-                {
-                    _ = svc.SendCloseNpcRequestAsync();
-                }
-                MuGame.Network?.GetCharacterState()?.ClearShopItems();
-            }
-
-            _currentGameTime = gameTime;
-
-            // Detect visibility changes (handles any way of closing, not just ESC)
-            if (_wasVisible && !Visible)
-            {
-                var svc = MuGame.Network?.GetCharacterService();
-                if (svc != null)
-                {
-                    _ = svc.SendCloseNpcRequestAsync();
-                }
-                MuGame.Network?.GetCharacterState()?.ClearShopItems();
-            }
-            _wasVisible = Visible;
-
-            HandleMouseClicks();
-
             base.Update(gameTime);
+
+            EnsureCharacterState();
+
+            if (Visible)
+            {
+                _currentGameTime = gameTime;
+                HandleKeyboardInput();
+                if (Visible)
+                {
+                    UpdateHoverState();
+                    HandleMouseInput();
+                }
+            }
+            else if (_wasVisible)
+            {
+                HandleVisibilityLost();
+            }
+
+            _wasVisible = Visible;
         }
 
-        private void HandleMouseClicks()
+        public override void Draw(GameTime gameTime)
         {
-            if (!Visible) return;
-
-            var mousePos = MuGame.Instance.UiMouseState.Position;
-            bool leftPressed = MuGame.Instance.UiMouseState.LeftButton == ButtonState.Pressed;
-            bool leftJustPressed = leftPressed && MuGame.Instance.PrevUiMouseState.LeftButton == ButtonState.Released;
-            if (!leftJustPressed)
+            if (!Visible)
+            {
                 return;
-
-            // Consume click so it doesn't reach the world (prevents unintended movement)
-            if (Scene != null)
-            {
-                var rect = DisplayRectangle;
-                if (rect.Contains(mousePos))
-                {
-                    Scene.SetMouseInputConsumed();
-                }
             }
 
-            // Find item under mouse
-            var item = GetItemAt(mousePos);
-            if (item != null)
+            EnsureStaticSurface();
+
+            var graphicsManager = GraphicsManager.Instance;
+            var spriteBatch = graphicsManager?.Sprite;
+            if (spriteBatch == null)
             {
-                byte slot = (byte)(item.GridPosition.Y * SHOP_COLUMNS + item.GridPosition.X);
-                var svc = MuGame.Network?.GetCharacterService();
-                if (svc != null)
+                return;
+            }
+
+            SpriteBatchScope scope = null;
+            if (!SpriteBatchScope.BatchIsBegun)
+            {
+                scope = new SpriteBatchScope(spriteBatch, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform);
+            }
+
+            try
+            {
+                if (_staticSurface != null && !_staticSurface.IsDisposed)
                 {
-                    _ = svc.SendBuyItemFromNpcRequestAsync(slot);
+                    spriteBatch.Draw(_staticSurface, DisplayRectangle, Color.White * Alpha);
                 }
+
+                var gridOrigin = new Point(DisplayRectangle.X + _gridOffset.X, DisplayRectangle.Y + _gridOffset.Y);
+
+                DrawHoveredSlotHighlight(spriteBatch, gridOrigin);
+                DrawHoveredItemSlotHighlights(spriteBatch, gridOrigin);
+                DrawShopItems(spriteBatch, gridOrigin);
+            }
+            finally
+            {
+                scope?.Dispose();
             }
         }
 
-        private InventoryItem GetItemAt(Point mouse)
+        public override void DrawAfter(GameTime gameTime)
         {
-            Point origin = GridTopLeft;
-            foreach (var it in _items)
+            if (!Visible || _hoveredItem == null)
             {
-                var rect = new Rectangle(
-                    origin.X + it.GridPosition.X * ShopCellWidth,
-                    origin.Y + it.GridPosition.Y * ShopCellHeight,
-                    it.Definition.Width * ShopCellWidth,
-                    it.Definition.Height * ShopCellHeight);
-                if (rect.Contains(mouse))
-                    return it;
+                return;
             }
-            return null;
+
+            var graphicsManager = GraphicsManager.Instance;
+            var spriteBatch = graphicsManager?.Sprite;
+            if (spriteBatch == null)
+            {
+                return;
+            }
+
+            SpriteBatchScope scope = null;
+            if (!SpriteBatchScope.BatchIsBegun)
+            {
+                scope = new SpriteBatchScope(spriteBatch, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform);
+            }
+
+            try
+            {
+                DrawTooltip(spriteBatch, DisplayRectangle);
+            }
+            finally
+            {
+                scope?.Dispose();
+            }
         }
 
-        private Point GetSlotAtScreenPosition(Point screenPos)
+        public override void Dispose()
         {
-            Point local = new Point(screenPos.X - DisplayRectangle.X - GridTopLeft.X,
-                                    screenPos.Y - DisplayRectangle.Y - GridTopLeft.Y);
-            if (local.X < 0 || local.Y < 0) return new Point(-1, -1);
-            int sx = local.X / ShopCellWidth;
-            int sy = local.Y / ShopCellHeight;
-            if (sx < 0 || sx >= SHOP_COLUMNS || sy < 0 || sy >= SHOP_ROWS) return new Point(-1, -1);
-            return new Point(sx, sy);
+            base.Dispose();
+
+            if (_characterState != null)
+            {
+                _characterState.ShopItemsChanged -= RefreshShopContent;
+                _characterState = null;
+            }
+
+            _staticSurface?.Dispose();
+            _staticSurface = null;
+        }
+
+        protected override void OnScreenSizeChanged()
+        {
+            base.OnScreenSizeChanged();
+            InvalidateStaticSurface();
+        }
+
+        private void HandleKeyboardInput()
+        {
+            var keyboardState = Keyboard.GetState();
+            bool escapeDown = keyboardState.IsKeyDown(Keys.Escape);
+
+            if (escapeDown && !_escapeHandled)
+            {
+                Visible = false;
+                HandleVisibilityLost();
+                _wasVisible = false;
+                _escapeHandled = true;
+            }
+            else if (!escapeDown)
+            {
+                _escapeHandled = false;
+            }
+        }
+
+        private void HandleMouseInput()
+        {
+            var mouseState = MuGame.Instance.UiMouseState;
+            var prevMouseState = MuGame.Instance.PrevUiMouseState;
+
+            bool leftJustPressed = mouseState.LeftButton == ButtonState.Pressed &&
+                                   prevMouseState.LeftButton == ButtonState.Released;
+            if (!leftJustPressed)
+            {
+                return;
+            }
+
+            var mousePosition = mouseState.Position;
+            if (DisplayRectangle.Contains(mousePosition))
+            {
+                Scene?.SetMouseInputConsumed();
+            }
+
+            if (_hoveredItem == null)
+            {
+                return;
+            }
+
+            byte slot = (byte)(_hoveredItem.GridPosition.Y * SHOP_COLUMNS + _hoveredItem.GridPosition.X);
+            var svc = MuGame.Network?.GetCharacterService();
+            if (svc != null)
+            {
+                _ = svc.SendBuyItemFromNpcRequestAsync(slot);
+            }
+        }
+
+        private void UpdateHoverState()
+        {
+            var mousePosition = MuGame.Instance.UiMouseState.Position;
+            _hoveredSlot = GetSlotAtScreenPosition(mousePosition);
+            _hoveredItem = GetItemAt(mousePosition);
+        }
+
+        private void HandleVisibilityLost()
+        {
+            SendCloseNpcRequest();
+            _characterState?.ClearShopItems();
+            _items.Clear();
+            _itemTextureCache.Clear();
+            _bmdPreviewCache.Clear();
+            _hoveredItem = null;
+            _hoveredSlot = new Point(-1, -1);
+        }
+
+        private void EnsureCharacterState()
+        {
+            if (_characterState != null)
+            {
+                return;
+            }
+
+            _characterState = MuGame.Network?.GetCharacterState();
+            if (_characterState != null)
+            {
+                _characterState.ShopItemsChanged += RefreshShopContent;
+            }
         }
 
         private void RefreshShopContent()
         {
-            _items.Clear();
-            var state = MuGame.Network?.GetCharacterState();
-            if (state == null) return;
+            if (_characterState == null)
+            {
+                return;
+            }
 
-            var shopItems = state.GetShopItems();
+            _items.Clear();
+            _itemTextureCache.Clear();
+            _bmdPreviewCache.Clear();
+
+            var shopItems = _characterState.GetShopItems();
             foreach (var kv in shopItems)
             {
                 byte slot = kv.Key;
@@ -218,251 +342,586 @@ namespace Client.Main.Controls.UI.Game
                 var def = ItemDatabase.GetItemDefinition(data);
                 if (def == null)
                 {
-                    // Fallback with 1x1 unknown item if not found
                     def = new ItemDefinition(0, ItemDatabase.GetItemName(data) ?? "Unknown Item", 1, 1, "Interface/newui_item_box.tga");
                 }
 
                 var item = new InventoryItem(def, new Point(gridX, gridY), data);
-                if (data.Length > 2) item.Durability = data[2];
+                if (data.Length > 2)
+                {
+                    item.Durability = data[2];
+                }
+
                 _items.Add(item);
             }
 
-            // Preload textures
-            foreach (var it in _items)
+            foreach (var item in _items)
             {
-                if (!string.IsNullOrEmpty(it.Definition.TexturePath))
+                if (!string.IsNullOrEmpty(item.Definition.TexturePath))
                 {
-                    _ = TextureLoader.Instance.Prepare(it.Definition.TexturePath);
+                    _ = TextureLoader.Instance.Prepare(item.Definition.TexturePath);
                 }
             }
+
+            QueueWarmup();
 
             if (_items.Count > 0)
             {
                 Visible = true;
                 BringToFront();
                 SoundController.Instance.PlayBuffer("Sound/iCreateWindow.wav");
+                _closeRequestSent = false;
+                _escapeHandled = false;
             }
         }
 
-        public override void Draw(GameTime gameTime)
+        private void DrawHoveredSlotHighlight(SpriteBatch spriteBatch, Point gridOrigin)
         {
-            if (!Visible) return;
-
-            base.Draw(gameTime);
-
-            var sprite = GraphicsManager.Instance.Sprite;
-            using (new SpriteBatchScope(sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform))
+            if (_hoveredSlot.X < 0 || GraphicsManager.Instance?.Pixel == null)
             {
+                return;
+            }
 
-            // Draw items over the grid
+            var rect = new Rectangle(
+                gridOrigin.X + _hoveredSlot.X * SHOP_SQUARE_WIDTH,
+                gridOrigin.Y + _hoveredSlot.Y * SHOP_SQUARE_HEIGHT,
+                SHOP_SQUARE_WIDTH,
+                SHOP_SQUARE_HEIGHT);
+
+            spriteBatch.Draw(GraphicsManager.Instance.Pixel, rect, Color.Yellow * (0.3f * Alpha));
+        }
+
+        private void DrawHoveredItemSlotHighlights(SpriteBatch spriteBatch, Point gridOrigin)
+        {
+            if (_hoveredItem == null || GraphicsManager.Instance?.Pixel == null)
+            {
+                return;
+            }
+
+            for (int y = 0; y < _hoveredItem.Definition.Height; y++)
+            {
+                for (int x = 0; x < _hoveredItem.Definition.Width; x++)
+                {
+                    int slotX = _hoveredItem.GridPosition.X + x;
+                    int slotY = _hoveredItem.GridPosition.Y + y;
+
+                    if (slotX == _hoveredSlot.X && slotY == _hoveredSlot.Y)
+                    {
+                        continue;
+                    }
+
+                    var rect = new Rectangle(
+                        gridOrigin.X + slotX * SHOP_SQUARE_WIDTH,
+                        gridOrigin.Y + slotY * SHOP_SQUARE_HEIGHT,
+                        SHOP_SQUARE_WIDTH,
+                        SHOP_SQUARE_HEIGHT);
+
+                    spriteBatch.Draw(GraphicsManager.Instance.Pixel, rect, Color.CornflowerBlue * (0.35f * Alpha));
+                }
+            }
+        }
+
+        private void DrawShopItems(SpriteBatch spriteBatch, Point gridOrigin)
+        {
             var font = _font ?? GraphicsManager.Instance.Font;
-            Point origin = GridTopLeft;
-
-            // Track hovered item
-            _hoveredItem = null;
-            var mouse = MuGame.Instance.UiMouseState.Position;
-
-            // Compute hovered slot to draw slot-level highlight
-            var hoveredSlot = GetSlotAtScreenPosition(mouse);
-
-            // Draw slot-level highlight (yellow) if mouse over a grid cell
-            if (hoveredSlot.X >= 0)
+            if (font == null)
             {
-                var hoveredRect = new Rectangle(
-                    origin.X + hoveredSlot.X * ShopCellWidth,
-                    origin.Y + hoveredSlot.Y * ShopCellHeight,
-                    ShopCellWidth, ShopCellHeight);
-                sprite.Draw(GraphicsManager.Instance.Pixel, hoveredRect, Color.Yellow * 0.3f);
+                return;
             }
 
             foreach (var item in _items)
             {
                 var rect = new Rectangle(
-                    origin.X + item.GridPosition.X * ShopCellWidth,
-                    origin.Y + item.GridPosition.Y * ShopCellHeight,
-                    item.Definition.Width * ShopCellWidth,
-                    item.Definition.Height * ShopCellHeight);
+                    gridOrigin.X + item.GridPosition.X * SHOP_SQUARE_WIDTH,
+                    gridOrigin.Y + item.GridPosition.Y * SHOP_SQUARE_HEIGHT,
+                    item.Definition.Width * SHOP_SQUARE_WIDTH,
+                    item.Definition.Height * SHOP_SQUARE_HEIGHT);
 
-                bool isHovered = rect.Contains(mouse);
-                if (isHovered)
+                bool isHovered = item == _hoveredItem;
+
+                Texture2D texture = ResolveItemTexture(item, rect.Width, rect.Height, isHovered);
+                if (texture != null)
                 {
-                    _hoveredItem = item;
+                    spriteBatch.Draw(texture, rect, Color.White * Alpha);
+                }
+                else if (GraphicsManager.Instance?.Pixel != null)
+                {
+                    spriteBatch.Draw(GraphicsManager.Instance.Pixel, rect, Color.DarkSlateGray * (0.8f * Alpha));
                 }
 
-                // Highlight all slots occupied by the hovered multi-slot item (draw behind item, like Inventory/Vault)
-                if (isHovered)
-                {
-                    for (int y = 0; y < item.Definition.Height; y++)
-                    {
-                        for (int x = 0; x < item.Definition.Width; x++)
-                        {
-                            int gx = item.GridPosition.X + x;
-                            int gy = item.GridPosition.Y + y;
-                            // Keep yellow for directly hovered cell
-                            if (gx == hoveredSlot.X && gy == hoveredSlot.Y) continue;
-                            var slotRect = new Rectangle(
-                                origin.X + gx * ShopCellWidth,
-                                origin.Y + gy * ShopCellHeight,
-                                ShopCellWidth,
-                                ShopCellHeight);
-                            sprite.Draw(GraphicsManager.Instance.Pixel, slotRect, Color.Blue * 0.3f);
-                        }
-                    }
-                }
-
-                Texture2D tex = null;
-                if (!string.IsNullOrEmpty(item.Definition.TexturePath))
-                {
-                    tex = TextureLoader.Instance.GetTexture2D(item.Definition.TexturePath);
-
-                    if (tex == null && item.Definition.TexturePath.EndsWith(".bmd", System.StringComparison.OrdinalIgnoreCase))
-                    {
-                        try
-                        {
-                            int w = rect.Width;
-                            int h = rect.Height;
-                            tex = isHovered && _currentGameTime != null
-                                ? BmdPreviewRenderer.GetAnimatedPreview(item, w, h, _currentGameTime)
-                                : BmdPreviewRenderer.GetPreview(item, w, h);
-                        }
-                        catch { /* ignore preview errors */ }
-                    }
-                }
-
-                if (tex != null)
-                {
-                    sprite.Draw(tex, rect, Color.White);
-                }
-                else
-                {
-                    sprite.Draw(GraphicsManager.Instance.Pixel, rect, Color.DarkSlateGray * 0.8f);
-                }
-
-                // hovered captured above
-
-                // Quantity for stackables
                 if (item.Definition.BaseDurability == 0 && item.Durability > 1)
                 {
-                    string qty = item.Durability.ToString();
-                    var size = font.MeasureString(qty) * 0.4f;
-                    var pos = new Vector2(rect.Right - size.X - 2, rect.Y + 2);
-                    // Outline
-                    for (int dx = -1; dx <= 1; dx++)
-                        for (int dy = -1; dy <= 1; dy++)
-                            if (dx != 0 || dy != 0)
-                                sprite.DrawString(font, qty, pos + new Vector2(dx, dy), Color.Black, 0, Vector2.Zero, 0.4f, SpriteEffects.None, 0);
-                    sprite.DrawString(font, qty, pos, new Color(255,255,180), 0, Vector2.Zero, 0.4f, SpriteEffects.None, 0);
+                    DrawStackCount(spriteBatch, font, rect, item.Durability);
+                }
+            }
+        }
+
+        private void DrawStackCount(SpriteBatch spriteBatch, SpriteFont font, Rectangle rect, byte quantity)
+            => DrawStackCount(spriteBatch, font, rect, (int)quantity);
+
+        private void DrawStackCount(SpriteBatch spriteBatch, SpriteFont font, Rectangle rect, int quantity)
+        {
+            string qty = quantity.ToString();
+            const float scale = 0.4f;
+            Vector2 size = font.MeasureString(qty) * scale;
+            Vector2 position = new(rect.Right - size.X - 2, rect.Y + 2);
+
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    if (dx == 0 && dy == 0)
+                    {
+                        continue;
+                    }
+
+                    spriteBatch.DrawString(font, qty, position + new Vector2(dx, dy), Color.Black * Alpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
                 }
             }
 
-                // Items finished
-            }
-            // Tooltip moved to DrawAfter to ensure it renders above other windows
+            spriteBatch.DrawString(font, qty, position, new Color(255, 255, 180) * Alpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
         }
 
-        public override void DrawAfter(GameTime gameTime)
+        private void DrawTooltip(SpriteBatch spriteBatch, Rectangle frameRect)
         {
-            if (!Visible) return;
-            base.DrawAfter(gameTime);
-            var sprite = GraphicsManager.Instance.Sprite;
-            using (new SpriteBatchScope(sprite, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform))
+            var font = _font ?? GraphicsManager.Instance.Font;
+            if (_hoveredItem == null || font == null)
             {
-                DrawTooltip(sprite, DisplayRectangle);
+                return;
+            }
+
+            var lines = BuildTooltipLines(_hoveredItem);
+            const float scale = 0.5f;
+            int width = 0;
+            int height = 0;
+            foreach (var (text, _) in lines)
+            {
+                Vector2 size = font.MeasureString(text) * scale;
+                width = Math.Max(width, (int)size.X);
+                height += (int)size.Y + 2;
+            }
+
+            width += 12;
+            height += 8;
+
+            Point mouse = MuGame.Instance.UiMouseState.Position;
+            Rectangle screenBounds = new(0, 0, UiScaler.VirtualSize.X, UiScaler.VirtualSize.Y);
+            Point gridOrigin = new Point(frameRect.X + _gridOffset.X, frameRect.Y + _gridOffset.Y);
+            Rectangle hoveredItemRect = new(
+                gridOrigin.X + _hoveredItem.GridPosition.X * SHOP_SQUARE_WIDTH,
+                gridOrigin.Y + _hoveredItem.GridPosition.Y * SHOP_SQUARE_HEIGHT,
+                _hoveredItem.Definition.Width * SHOP_SQUARE_WIDTH,
+                _hoveredItem.Definition.Height * SHOP_SQUARE_HEIGHT);
+
+            Rectangle tooltipRect = new(mouse.X + 15, mouse.Y + 15, width, height);
+            if (tooltipRect.Intersects(hoveredItemRect))
+            {
+                tooltipRect.X = hoveredItemRect.X - width - 10;
+                tooltipRect.Y = hoveredItemRect.Y;
+
+                if (tooltipRect.Intersects(hoveredItemRect) || tooltipRect.X < screenBounds.X + 10)
+                {
+                    tooltipRect.X = hoveredItemRect.X;
+                    tooltipRect.Y = hoveredItemRect.Y - height - 10;
+
+                    if (tooltipRect.Intersects(hoveredItemRect) || tooltipRect.Y < screenBounds.Y + 10)
+                    {
+                        tooltipRect.X = hoveredItemRect.X;
+                        tooltipRect.Y = hoveredItemRect.Bottom + 10;
+                    }
+                }
+            }
+
+            if (tooltipRect.Right > screenBounds.Right - 10) tooltipRect.X = screenBounds.Right - 10 - tooltipRect.Width;
+            if (tooltipRect.Bottom > screenBounds.Bottom - 10) tooltipRect.Y = screenBounds.Bottom - 10 - tooltipRect.Height;
+            if (tooltipRect.X < screenBounds.X + 10) tooltipRect.X = screenBounds.X + 10;
+            if (tooltipRect.Y < screenBounds.Y + 10) tooltipRect.Y = screenBounds.Y + 10;
+
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel != null)
+            {
+                spriteBatch.Draw(pixel, tooltipRect, Color.Black * (0.85f * Alpha));
+                spriteBatch.Draw(pixel, new Rectangle(tooltipRect.X, tooltipRect.Y, tooltipRect.Width, 1), Color.White * Alpha);
+                spriteBatch.Draw(pixel, new Rectangle(tooltipRect.X, tooltipRect.Bottom - 1, tooltipRect.Width, 1), Color.White * Alpha);
+                spriteBatch.Draw(pixel, new Rectangle(tooltipRect.X, tooltipRect.Y, 1, tooltipRect.Height), Color.White * Alpha);
+                spriteBatch.Draw(pixel, new Rectangle(tooltipRect.Right - 1, tooltipRect.Y, 1, tooltipRect.Height), Color.White * Alpha);
+            }
+
+            int y = tooltipRect.Y + 4;
+            foreach (var (text, color) in lines)
+            {
+                Vector2 size = font.MeasureString(text) * scale;
+                Vector2 position = new(tooltipRect.X + (tooltipRect.Width - size.X) / 2f, y);
+                spriteBatch.DrawString(font, text, position, color * Alpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                y += (int)size.Y + 2;
             }
         }
 
-        private static List<(string txt, Color col)> BuildTooltipLines(InventoryItem it)
+        private static List<(string text, Color color)> BuildTooltipLines(InventoryItem item)
         {
-            var d = it.Details;
-            var li = new List<(string, Color)>();
-            string name = d.IsExcellent ? $"Excellent {it.Definition.Name}" : d.IsAncient ? $"Ancient {it.Definition.Name}" : it.Definition.Name;
-            if (d.Level > 0) name += $" +{d.Level}";
-            li.Add((name, Color.White));
-            var def = it.Definition;
+            var details = item.Details;
+            var lines = new List<(string, Color)>();
+
+            string name = details.IsExcellent
+                ? $"Excellent {item.Definition.Name}"
+                : details.IsAncient
+                    ? $"Ancient {item.Definition.Name}"
+                    : item.Definition.Name;
+
+            if (details.Level > 0)
+            {
+                name += $" +{details.Level}";
+            }
+
+            lines.Add((name, Color.White));
+
+            var def = item.Definition;
             if (def.DamageMin > 0 || def.DamageMax > 0)
             {
                 string dmgType = def.TwoHanded ? "Two-hand" : "One-hand";
-                li.Add(($"{dmgType} Damage : {def.DamageMin} ~ {def.DamageMax}", Color.Orange));
+                lines.Add(($"{dmgType} Damage : {def.DamageMin} ~ {def.DamageMax}", Color.Orange));
             }
-            if (def.Defense > 0) li.Add(($"Defense     : {def.Defense}", Color.Orange));
-            if (def.DefenseRate > 0) li.Add(($"Defense Rate: {def.DefenseRate}", Color.Orange));
-            if (def.AttackSpeed > 0) li.Add(($"Attack Speed: {def.AttackSpeed}", Color.Orange));
-            li.Add(($"Durability : {it.Durability}/{def.BaseDurability}", Color.Silver));
-            if (def.RequiredLevel > 0) li.Add(($"Required Level   : {def.RequiredLevel}", Color.LightGray));
-            if (def.RequiredStrength > 0) li.Add(($"Required Strength: {def.RequiredStrength}", Color.LightGray));
-            if (def.RequiredDexterity > 0) li.Add(($"Required Agility : {def.RequiredDexterity}", Color.LightGray));
-            if (def.RequiredEnergy > 0) li.Add(($"Required Energy  : {def.RequiredEnergy}", Color.LightGray));
+
+            if (def.Defense > 0) lines.Add(($"Defense     : {def.Defense}", Color.Orange));
+            if (def.DefenseRate > 0) lines.Add(($"Defense Rate: {def.DefenseRate}", Color.Orange));
+            if (def.AttackSpeed > 0) lines.Add(($"Attack Speed: {def.AttackSpeed}", Color.Orange));
+            lines.Add(($"Durability : {item.Durability}/{def.BaseDurability}", Color.Silver));
+            if (def.RequiredLevel > 0) lines.Add(($"Required Level   : {def.RequiredLevel}", Color.LightGray));
+            if (def.RequiredStrength > 0) lines.Add(($"Required Strength: {def.RequiredStrength}", Color.LightGray));
+            if (def.RequiredDexterity > 0) lines.Add(($"Required Agility : {def.RequiredDexterity}", Color.LightGray));
+            if (def.RequiredEnergy > 0) lines.Add(($"Required Energy  : {def.RequiredEnergy}", Color.LightGray));
+
             if (def.AllowedClasses != null && def.AllowedClasses.Count > 0)
             {
                 foreach (string cls in def.AllowedClasses)
-                    li.Add(($"Can be equipped by {cls}", Color.LightGray));
+                {
+                    lines.Add(($"Can be equipped by {cls}", Color.LightGray));
+                }
             }
-            if (d.OptionLevel > 0)
-                li.Add(($"Additional Option : +{d.OptionLevel * 4}", new Color(80, 255, 80)));
-            if (d.HasLuck) li.Add(("+Luck  (Crit +5 %, Jewel +25 %)", Color.CornflowerBlue));
-            if (d.HasSkill) li.Add(("+Skill (Right mouse click - skill)", Color.CornflowerBlue));
-            if (d.IsExcellent)
+
+            if (details.OptionLevel > 0)
             {
-                byte excByte = it.RawData.Length > 3 ? it.RawData[3] : (byte)0;
-                foreach (var s in ItemDatabase.ParseExcellentOptions(excByte))
-                    li.Add(($"+{s}", new Color(128, 255, 128)));
+                lines.Add(($"Additional Option : +{details.OptionLevel * 4}", new Color(80, 255, 80)));
             }
-            if (d.IsAncient) li.Add(("Ancient Option", new Color(0, 255, 128)));
-            return li;
+
+            if (details.HasLuck) lines.Add(("+Luck  (Crit +5 %, Jewel +25 %)", Color.CornflowerBlue));
+            if (details.HasSkill) lines.Add(("+Skill (Right mouse click - skill)", Color.CornflowerBlue));
+
+            if (details.IsExcellent)
+            {
+                byte excByte = item.RawData.Length > 3 ? item.RawData[3] : (byte)0;
+                foreach (var option in ItemDatabase.ParseExcellentOptions(excByte))
+                {
+                    lines.Add(($"+{option}", new Color(128, 255, 128)));
+                }
+            }
+
+            if (details.IsAncient)
+            {
+                lines.Add(("Ancient Option", new Color(0, 255, 128)));
+            }
+
+            return lines;
         }
 
-        private void DrawTooltip(SpriteBatch sb, Rectangle frameRect)
+        private void QueueWarmup()
         {
-            if (_hoveredItem == null || _font == null) return;
-            var lines = BuildTooltipLines(_hoveredItem);
-            const float scale = 0.5f;
-            int w = 0, h = 0;
-            foreach (var (t, _) in lines)
+            if (_warmupPending)
             {
-                Vector2 sz = _font.MeasureString(t) * scale;
-                w = Math.Max(w, (int)sz.X);
-                h += (int)sz.Y + 2;
+                return;
             }
-            w += 12; h += 8;
-            Point m = MuGame.Instance.UiMouseState.Position;
-            Rectangle screenBounds = new Rectangle(0, 0, UiScaler.VirtualSize.X, UiScaler.VirtualSize.Y);
-            Point gridTopLeft = GridTopLeft + new Point(DisplayRectangle.X, DisplayRectangle.Y);
-            Rectangle hoveredItemRect = new Rectangle(
-                gridTopLeft.X + _hoveredItem.GridPosition.X * ShopCellWidth,
-                gridTopLeft.Y + _hoveredItem.GridPosition.Y * ShopCellHeight,
-                _hoveredItem.Definition.Width * ShopCellWidth,
-                _hoveredItem.Definition.Height * ShopCellHeight);
-            Rectangle r = new(m.X + 15, m.Y + 15, w, h);
-            if (r.Intersects(hoveredItemRect))
+
+            _warmupPending = true;
+            MuGame.ScheduleOnMainThread(WarmupTextures);
+        }
+
+        private void WarmupTextures()
+        {
+            _warmupPending = false;
+
+            var graphicsManager = GraphicsManager.Instance;
+            if (graphicsManager?.Sprite == null)
             {
-                r.X = hoveredItemRect.X - w - 10;
-                r.Y = hoveredItemRect.Y;
-                if (r.Intersects(hoveredItemRect) || r.X < screenBounds.X + 10)
+                QueueWarmup();
+                return;
+            }
+
+            foreach (var item in _items)
+            {
+                int width = item.Definition.Width * SHOP_SQUARE_WIDTH;
+                int height = item.Definition.Height * SHOP_SQUARE_HEIGHT;
+                _ = ResolveItemTexture(item, width, height, animated: false);
+            }
+        }
+
+        private void SendCloseNpcRequest()
+        {
+            if (_closeRequestSent)
+            {
+                return;
+            }
+
+            _closeRequestSent = true;
+            var svc = MuGame.Network?.GetCharacterService();
+            if (svc != null)
+            {
+                _ = svc.SendCloseNpcRequestAsync();
+            }
+        }
+
+        private void DrawGridBackground(SpriteBatch spriteBatch)
+        {
+            if (_slotTexture == null)
+            {
+                return;
+            }
+
+            for (int y = 0; y < SHOP_ROWS; y++)
+            {
+                for (int x = 0; x < SHOP_COLUMNS; x++)
                 {
-                    r.X = hoveredItemRect.X;
-                    r.Y = hoveredItemRect.Y - h - 10;
-                    if (r.Intersects(hoveredItemRect) || r.Y < screenBounds.Y + 10)
+                    var destRect = new Rectangle(
+                        _gridOffset.X + x * SHOP_SQUARE_WIDTH,
+                        _gridOffset.Y + y * SHOP_SQUARE_HEIGHT,
+                        SHOP_SQUARE_WIDTH,
+                        SHOP_SQUARE_HEIGHT);
+
+                    spriteBatch.Draw(_slotTexture, destRect, SlotSourceRect, Color.White);
+                }
+            }
+        }
+
+        private void DrawStaticElements(SpriteBatch spriteBatch)
+        {
+            if (_layoutTexture != null && _layoutInfos.Count > 0)
+            {
+                foreach (var info in _layoutInfos)
+                {
+                    var destRect = new Rectangle(
+                        (int)MathF.Round(info.ScreenX),
+                        (int)MathF.Round(info.ScreenY),
+                        info.Width,
+                        info.Height);
+
+                    if (_textureRectLookup.TryGetValue(info.Name, out var src))
                     {
-                        r.X = hoveredItemRect.X;
-                        r.Y = hoveredItemRect.Bottom + 10;
+                        var sourceRect = new Rectangle(src.X, src.Y, src.Width, src.Height);
+                        spriteBatch.Draw(_layoutTexture, destRect, sourceRect, Color.White);
+                    }
+                    else
+                    {
+                        spriteBatch.Draw(_layoutTexture, destRect, Color.White);
                     }
                 }
             }
-            if (r.Right > screenBounds.Right - 10) r.X = screenBounds.Right - 10 - r.Width;
-            if (r.Bottom > screenBounds.Bottom - 10) r.Y = screenBounds.Bottom - 10 - r.Height;
-            if (r.X < screenBounds.X + 10) r.X = screenBounds.X + 10;
-            if (r.Y < screenBounds.Y + 10) r.Y = screenBounds.Y + 10;
-            sb.Draw(GraphicsManager.Instance.Pixel, r, Color.Black * 0.85f);
-            sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(r.X, r.Y, r.Width, 1), Color.White);
-            sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(r.X, r.Bottom - 1, r.Width, 1), Color.White);
-            sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(r.X, r.Y, 1, r.Height), Color.White);
-            sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(r.Right - 1, r.Y, 1, r.Height), Color.White);
-            int y = r.Y + 4;
-            foreach (var (t, col) in lines)
+            else if (GraphicsManager.Instance?.Pixel != null)
             {
-                Vector2 size = _font.MeasureString(t) * scale;
-                sb.DrawString(_font, t, new Vector2(r.X + (r.Width - size.X) / 2, y), col, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-                y += (int)size.Y + 2;
+                spriteBatch.Draw(GraphicsManager.Instance.Pixel, new Rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT), new Color(10, 10, 10, 220));
+            }
+
+            DrawGridBackground(spriteBatch);
+        }
+
+        private void EnsureStaticSurface()
+        {
+            if (!_staticSurfaceDirty && _staticSurface != null && !_staticSurface.IsDisposed)
+            {
+                return;
+            }
+
+            var graphicsDevice = GraphicsManager.Instance?.GraphicsDevice;
+            if (graphicsDevice == null)
+            {
+                return;
+            }
+
+            _staticSurface?.Dispose();
+            _staticSurface = new RenderTarget2D(graphicsDevice, WINDOW_WIDTH, WINDOW_HEIGHT, false, SurfaceFormat.Color, DepthFormat.None);
+
+            var previousTargets = graphicsDevice.GetRenderTargets();
+            graphicsDevice.SetRenderTarget(_staticSurface);
+            graphicsDevice.Clear(Color.Transparent);
+
+            var spriteBatch = GraphicsManager.Instance.Sprite;
+            using (new SpriteBatchScope(spriteBatch, SpriteSortMode.Deferred, BlendState.AlphaBlend))
+            {
+                DrawStaticElements(spriteBatch);
+            }
+
+            graphicsDevice.SetRenderTargets(previousTargets);
+            _staticSurfaceDirty = false;
+        }
+
+        private void InvalidateStaticSurface()
+        {
+            _staticSurfaceDirty = true;
+        }
+
+        private void LoadLayoutDefinitions()
+        {
+            try
+            {
+                var layoutData = LoadEmbeddedJson<List<LayoutInfo>>(LayoutJsonResource);
+                if (layoutData != null)
+                {
+                    _layoutInfos.Clear();
+                    _layoutInfos.AddRange(layoutData.OrderBy(info => info.Z));
+                }
+
+                var rectData = LoadEmbeddedJson<List<TextureRectData>>(TextureRectJsonResource);
+                if (rectData != null)
+                {
+                    _textureRectLookup.Clear();
+                    foreach (var rect in rectData)
+                    {
+                        _textureRectLookup[rect.Name] = rect;
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // If layout fails we fallback to plain background.
+            }
+        }
+
+        private static T LoadEmbeddedJson<T>(string resourceName)
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            using Stream stream = assembly.GetManifestResourceStream(resourceName)
+                ?? throw new FileNotFoundException($"Resource not found: {resourceName}. Available: {string.Join(", ", assembly.GetManifestResourceNames())}");
+            using var reader = new StreamReader(stream);
+            string json = reader.ReadToEnd();
+            return JsonSerializer.Deserialize<T>(json);
+        }
+
+        private InventoryItem GetItemAt(Point mousePosition)
+        {
+            if (!DisplayRectangle.Contains(mousePosition))
+            {
+                return null;
+            }
+
+            var gridOrigin = new Point(DisplayRectangle.X + _gridOffset.X, DisplayRectangle.Y + _gridOffset.Y);
+
+            foreach (var item in _items)
+            {
+                var rect = new Rectangle(
+                    gridOrigin.X + item.GridPosition.X * SHOP_SQUARE_WIDTH,
+                    gridOrigin.Y + item.GridPosition.Y * SHOP_SQUARE_HEIGHT,
+                    item.Definition.Width * SHOP_SQUARE_WIDTH,
+                    item.Definition.Height * SHOP_SQUARE_HEIGHT);
+
+                if (rect.Contains(mousePosition))
+                {
+                    return item;
+                }
+            }
+
+            return null;
+        }
+
+        private Point GetSlotAtScreenPosition(Point screenPos)
+        {
+            if (!DisplayRectangle.Contains(screenPos))
+            {
+                return new Point(-1, -1);
+            }
+
+            var gridOrigin = new Point(DisplayRectangle.X + _gridOffset.X, DisplayRectangle.Y + _gridOffset.Y);
+            int localX = screenPos.X - gridOrigin.X;
+            int localY = screenPos.Y - gridOrigin.Y;
+
+            if (localX < 0 || localY < 0)
+            {
+                return new Point(-1, -1);
+            }
+
+            int slotX = localX / SHOP_SQUARE_WIDTH;
+            int slotY = localY / SHOP_SQUARE_HEIGHT;
+
+            if (slotX < 0 || slotX >= SHOP_COLUMNS || slotY < 0 || slotY >= SHOP_ROWS)
+            {
+                return new Point(-1, -1);
+            }
+
+            return new Point(slotX, slotY);
+        }
+
+        private Texture2D ResolveItemTexture(InventoryItem item, int width, int height, bool animated)
+        {
+            if (item?.Definition == null)
+            {
+                return null;
+            }
+
+            string texturePath = item.Definition.TexturePath;
+            if (string.IsNullOrEmpty(texturePath))
+            {
+                return null;
+            }
+
+            bool isBmd = texturePath.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase);
+
+            if (!isBmd)
+            {
+                if (_itemTextureCache.TryGetValue(texturePath, out var cachedTexture) && cachedTexture != null)
+                {
+                    return cachedTexture;
+                }
+
+                var texture = TextureLoader.Instance.GetTexture2D(texturePath);
+                if (texture != null)
+                {
+                    _itemTextureCache[texturePath] = texture;
+                }
+                return texture;
+            }
+
+            if (!animated && Constants.ENABLE_ITEM_MATERIAL_ANIMATION)
+            {
+                try
+                {
+                    var animatedMaterial = BmdPreviewRenderer.GetMaterialAnimatedPreview(item, width, height, _currentGameTime);
+                    if (animatedMaterial != null)
+                    {
+                        return animatedMaterial;
+                    }
+                }
+                catch
+                {
+                    // ignore and fall back
+                }
+            }
+
+            if (animated)
+            {
+                try
+                {
+                    return BmdPreviewRenderer.GetAnimatedPreview(item, width, height, _currentGameTime);
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+
+            var key = (item, width, height, false);
+            if (_bmdPreviewCache.TryGetValue(key, out var preview) && preview != null)
+            {
+                return preview;
+            }
+
+            try
+            {
+                preview = BmdPreviewRenderer.GetPreview(item, width, height);
+                if (preview != null)
+                {
+                    _bmdPreviewCache[key] = preview;
+                }
+                return preview;
+            }
+            catch
+            {
+                return null;
             }
         }
     }
