@@ -222,6 +222,11 @@ namespace Client.Main.Content
             }
         }
 
+        public Task<bool> AssestExist(string path)
+        {
+            string finalPath = Path.Combine(Constants.DataPath, path);
+            return Task.FromResult(File.Exists(finalPath));
+        }
         private async Task<BMD> LoadAssetAsync(string path, string textureFolder = null)
         {
             try
@@ -263,6 +268,13 @@ namespace Client.Main.Content
                 foreach (var mesh in asset.Meshes)
                 {
                     var fullPath = Path.Combine(dir, mesh.TexturePath);
+                    if (
+                        mesh.TexturePath == "unicon.jpg"
+                        || mesh.TexturePath == "unicon01.tga"
+                    )
+                    {
+                        fullPath = Path.Combine("Item", mesh.TexturePath);
+                    }
                     if (texturePathMap.TryAdd(mesh.TexturePath.ToLowerInvariant(), fullPath))
                         tasks.Add(TextureLoader.Instance.Prepare(fullPath));
                 }

@@ -19,6 +19,14 @@ namespace Client.Main.Models
             this.Level = level;
             this.Type = type;
         }
+        public WingAppearance(byte level, byte type, short itemIndex)
+        {
+            this.Level = level;
+            this.Type = type;
+            this.ItemIndex = itemIndex;
+        }
+
+        public short ItemIndex { get; } = -1;
 
         /// <summary>
         /// Gets the level of the wings (1, 2, or 3). A value of 0 means no wings.

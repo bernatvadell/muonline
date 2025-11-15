@@ -161,6 +161,87 @@ namespace Client.Main.Worlds
 
             SetActiveCharacter(0);
         }
+        public async Task CreateCharacterObjects(List<(string Name, PlayerClass Class, ushort Level, AppearanceConfig Appearance)> characters)
+        {
+            _logger.LogInformation("Creating {Count} character objects...", characters.Count);
+
+            foreach (var old in _characterObjects)
+            {
+                old.Click -= PlayerObject_Click;
+                Objects.Remove(old);
+                old.Dispose();
+            }
+            _characterObjects.Clear();
+
+            foreach (var lbl in _characterLabels.Values)
+            {
+                Scene?.Controls.Remove(lbl);
+                lbl.Dispose();
+            }
+            _characterLabels.Clear();
+
+            _characterInfos.Clear();
+
+            var _characters = characters.Select<(string Name, PlayerClass Class, ushort Level, AppearanceConfig Appearance), (string Name, CharacterClassNumber Class, ushort Level, byte[])>(p => (p.Name, (CharacterClassNumber)p.Class, p.Level, []));
+            _characterInfos.AddRange(_characters);
+            _currentCharacterIndex = -1;
+
+            if (characters.Count == 0)
+            {
+                _logger.LogInformation("No characters provided for selection.");
+                return;
+            }
+
+
+            foreach (var (name, cls, lvl, appearanceBytes) in characters)
+            {
+                var player = new PlayerObject(new AppearanceData())
+                {
+                    Name = name,
+                    CharacterClass = CharacterClassNumber.DarkWizard,
+                    Position = _characterDisplayPosition,
+                    Angle = _characterDisplayAngle,
+                    Interactive = false,
+                    World = this,
+                    CurrentAction = PlayerAction.PlayerStopMale,
+                    Hidden = true
+                };
+
+                player.BoundingBoxLocal = new BoundingBox(new Vector3(-40, -40, 0), new Vector3(40, 40, 180));
+
+                player.Click += PlayerObject_Click;
+
+                _characterObjects.Add(player);
+                Objects.Add(player);
+                await player.Load(appearanceBytes.PlayerClass);
+                await player.UpdateEquipmentAppearanceFromConfig(appearanceBytes);
+
+                var label = new LabelControl
+                {
+                    Text = $"Lv.{lvl}  {name}",
+                    FontSize = 14,
+                    TextColor = Color.White,
+                    HasShadow = true,
+                    ShadowColor = Color.Black * 0.8f,
+                    ShadowOffset = new Vector2(1, 1),
+                    UseManualPosition = true,
+                    Visible = false
+                };
+
+                _characterLabels.Add(player, label);
+                Scene?.Controls.Add(label);
+                label.BringToFront();
+            }
+
+            Scene?.Cursor?.BringToFront();
+            Scene?.Controls.OfType<LabelControl>()
+                   .FirstOrDefault(l => l.Text.StartsWith("Select"))?
+                   .BringToFront();
+
+            _logger.LogInformation("Finished creating and loading character objects and labels.");
+
+            SetActiveCharacter(0);
+        }
 
         // *** ADD GETTER FOR LABELS (used by Scene) ***
         public Dictionary<PlayerObject, LabelControl> GetCharacterLabels() => _characterLabels;
@@ -243,6 +324,21 @@ namespace Client.Main.Worlds
 
             // Play the animation using the new method
             activePlayer.PlayEmoteAnimation(randomEmote);
+        }
+
+        public void PlayEmoteAnimation(PlayerAction action)
+        {
+            if (_currentCharacterIndex < 0 || _currentCharacterIndex >= _characterObjects.Count)
+                return;
+
+            var activePlayer = _characterObjects[_currentCharacterIndex];
+            if (activePlayer == null || activePlayer.Hidden)
+                return;
+
+            // Check if character is already playing an animation
+            if (activePlayer.IsOneShotPlaying)
+                return;
+            activePlayer.PlayEmoteAnimation(action);
         }
 
 

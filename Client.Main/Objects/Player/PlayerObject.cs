@@ -18,6 +18,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Controllers;
 using Client.Main.Helpers;
 using Client.Main.Controls.UI.Game.Inventory;
+using Client.Main.Objects.Vehicle;
 
 namespace Client.Main.Objects.Player
 {
@@ -45,6 +46,8 @@ namespace Client.Main.Objects.Player
         public WeaponObject Weapon1 { get; private set; }
         public WeaponObject Weapon2 { get; private set; }
         public WingObject EquippedWings { get; private set; }
+
+        public VehicleObject Vehicle { get; private set; }
 
         private int _lastEquipmentAnimationStride = -1;
 
@@ -110,6 +113,7 @@ namespace Client.Main.Objects.Player
             Weapon1 = new WeaponObject { };
             Weapon2 = new WeaponObject { };
             EquippedWings = new WingObject { LinkParentAnimation = true, Hidden = true };
+            Vehicle = new VehicleObject { };
 
             Children.Add(HelmMask);
             Children.Add(Helm);
@@ -120,6 +124,7 @@ namespace Client.Main.Objects.Player
             Children.Add(Weapon1);
             Children.Add(Weapon2);
             Children.Add(EquippedWings);
+            Children.Add(Vehicle);
 
             // Enable mouse hover interactions so the name is shown
             Interactive = true;
@@ -170,6 +175,38 @@ namespace Client.Main.Objects.Player
 
             UpdateWorldBoundingBox();
         }
+
+        public async Task Load(PlayerClass playerClass)
+        {
+            Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
+
+            if (IsMainWalker)
+            {
+                // First, load the base body for the current class
+                await UpdateBodyPartClassesAsync(playerClass);
+
+                // Then, hook events to update equipment based on inventory
+                HookInventoryEvents();
+                // Perform the initial appearance update and wait for it to complete
+                await UpdateAppearanceFromInventoryAsync();
+            }
+            else
+            {
+                // Remote players use AppearanceData
+                await UpdateBodyPartClassesAsync(playerClass);
+                await UpdateEquipmentAppearanceAsync();
+            }
+
+            await base.Load();
+
+            // Idle actions play at half speed so the character breathes naturally
+            SetActionSpeed(PlayerAction.PlayerStopMale, 0.5f);
+            SetActionSpeed(PlayerAction.PlayerStopFemale, 0.5f);
+            SetActionSpeed(PlayerAction.PlayerStopFly, 0.5f);
+
+            UpdateWorldBoundingBox();
+        }
+
 
 
         private void HookInventoryEvents()
@@ -468,6 +505,203 @@ namespace Client.Main.Objects.Player
                     Weapon2.ItemLevel = Appearance.RightHandItemLevel;
                     Weapon2.IsExcellentItem = Appearance.RightHandExcellent;
                     Weapon2.IsAncientItem = Appearance.RightHandAncient;
+                }
+                else
+                {
+                    Weapon2.Model = null;
+                }
+            }
+            else
+            {
+                Weapon2.Model = null;
+            }
+        }
+        public async Task UpdateEquipmentAppearanceFromConfig(AppearanceConfig appearanceConfig)
+        {
+            if (appearanceConfig == null) return; // No appearance data to process
+
+            // Update CharacterClass based on appearance data
+            //CharacterClass = Appearance.CharacterClass; // TODO: Wrong character class?
+            // Update player class
+            // await UpdateBodyPartClassesAsync(appearanceConfig.PlayerClass);
+
+            // Helm
+            if (appearanceConfig.HelmItemIndex != 0XFFFF)
+            {
+                var helmDef = ItemDatabase.GetItemDefinition(7, (short)appearanceConfig.HelmItemIndex);
+                if (helmDef?.TexturePath != null)
+                {
+                    string helmTexturePath = helmDef.TexturePath.Replace("Item/", "Player/");
+                    bool helmTextureExists = await BMDLoader.Instance.AssestExist(helmTexturePath);
+                    if (!helmTextureExists)
+                    {
+                        helmTexturePath = helmDef.TexturePath;   
+                    }
+                    await LoadPartAsync(Helm, helmTexturePath);
+                }
+
+                // Apply item properties for shader effects
+                Helm.ItemLevel = appearanceConfig.HelmItemLevel;
+                Helm.IsExcellentItem = appearanceConfig.HelmExcellent;
+                Helm.IsAncientItem = appearanceConfig.HelmAncient;
+            }
+            // Armor
+            if (appearanceConfig.ArmorItemIndex != 0XFFFF)
+            {
+                var armorDef = ItemDatabase.GetItemDefinition(8, (short)appearanceConfig.ArmorItemIndex);
+                if (armorDef?.TexturePath != null)
+                {
+                    string armorTexturePath = armorDef.TexturePath.Replace("Item/", "Player/");
+                    bool armorTextureExists = await BMDLoader.Instance.AssestExist(armorTexturePath);
+                    if (!armorTextureExists)
+                    {
+                        armorTexturePath = armorDef.TexturePath;   
+                    }
+                    await LoadPartAsync(Armor, armorTexturePath);
+                }
+
+                // Apply item properties for shader effects
+                Armor.ItemLevel = appearanceConfig.ArmorItemLevel;
+                Armor.IsExcellentItem = appearanceConfig.ArmorExcellent;
+                Armor.IsAncientItem = appearanceConfig.ArmorAncient;
+            }
+
+            // Pants
+            if (appearanceConfig.PantsItemIndex != 0XFFFF)
+            {
+                var pantsDef = ItemDatabase.GetItemDefinition(9, (short)appearanceConfig.PantsItemIndex);
+                if (pantsDef?.TexturePath != null)
+                {
+                    string pantsTexturePath = pantsDef.TexturePath.Replace("Item/", "Player/");
+                    bool pantsTextureExists = await BMDLoader.Instance.AssestExist(pantsTexturePath);
+                    if (!pantsTextureExists)
+                    {
+                        pantsTexturePath = pantsDef.TexturePath;   
+                    }
+                    await LoadPartAsync(Pants, pantsTexturePath);
+                }
+
+                // Apply item properties for shader effects
+                Pants.ItemLevel = appearanceConfig.PantsItemLevel;
+                Pants.IsExcellentItem = appearanceConfig.PantsExcellent;
+                Pants.IsAncientItem = appearanceConfig.PantsAncient;
+            }
+
+            // Gloves
+            if (appearanceConfig.GlovesItemIndex != 0XFFFF)
+            {
+                var glovesDef = ItemDatabase.GetItemDefinition(10, (short)appearanceConfig.GlovesItemIndex);
+                if (glovesDef?.TexturePath != null)
+                {
+                    string glovesTexturePath = glovesDef.TexturePath.Replace("Item/", "Player/");
+                    bool glovesTextureExists = await BMDLoader.Instance.AssestExist(glovesTexturePath);
+                    if (!glovesTextureExists)
+                    {
+                        glovesTexturePath = glovesDef.TexturePath;   
+                    }
+                    _logger?.LogInformation($"[PlayerObject] Loading gloves: Group=10, ID={appearanceConfig.GlovesItemIndex}, ItemTexturePath={glovesDef.TexturePath}, PlayerTexturePath={glovesTexturePath}");
+                    await LoadPartAsync(Gloves, glovesTexturePath);
+                }
+                else
+                {
+                    _logger?.LogWarning($"[PlayerObject] No gloves definition found for Group=10, ID={appearanceConfig.GlovesItemIndex}");
+                }
+
+                // Apply item properties for shader effects
+                Gloves.ItemLevel = appearanceConfig.GlovesItemLevel;
+                Gloves.IsExcellentItem = appearanceConfig.GlovesExcellent;
+                Gloves.IsAncientItem = appearanceConfig.GlovesAncient;
+            }
+
+            // Boots
+            if (appearanceConfig.BootsItemIndex != 0XFFFF)
+            {
+                var bootsDef = ItemDatabase.GetItemDefinition(11, (short)appearanceConfig.BootsItemIndex);
+                if (bootsDef?.TexturePath != null)
+                {
+                    string bootsTexturePath = bootsDef.TexturePath.Replace("Item/", "Player/");
+                    bool bootsTextureExists = await BMDLoader.Instance.AssestExist(bootsTexturePath);
+                    if (!bootsTextureExists)
+                    {
+                        bootsTexturePath = bootsDef.TexturePath;   
+                    }
+                    _logger?.LogInformation($"[PlayerObject] Loading boots: Group=11, ID={appearanceConfig.BootsItemIndex}, ItemTexturePath={bootsDef.TexturePath}, PlayerTexturePath={bootsTexturePath}");
+                    await LoadPartAsync(Boots, bootsTexturePath);
+                }
+                else
+                {
+                    _logger?.LogWarning($"[PlayerObject] No boots definition found for Group=11, ID={appearanceConfig.BootsItemIndex}");
+                }
+
+                // Apply item properties for shader effects
+                Boots.ItemLevel = appearanceConfig.BootsItemLevel;
+                Boots.IsExcellentItem = appearanceConfig.BootsExcellent;
+                Boots.IsAncientItem = appearanceConfig.BootsAncient;
+            }
+
+            // Wings
+            if (appearanceConfig.WingInfo.ItemIndex >= 0)
+            {
+                EquippedWings.ItemIndex = appearanceConfig.WingInfo.ItemIndex;
+                EquippedWings.Hidden = false;
+                EquippedWings.LinkParentAnimation = false;
+            }
+            else
+            {
+                EquippedWings.Hidden = true;
+            }
+
+            if (appearanceConfig.RidingVehicle >= 0)
+            {
+                Vehicle.ItemIndex = appearanceConfig.RidingVehicle;
+                Vehicle.Hidden = false;
+                Vehicle.LinkParentAnimation = false;
+            }
+            else
+            {
+                Vehicle.Hidden = true;
+            }
+            // Weapons
+            // This requires more sophisticated logic to determine the exact weapon model
+            // based on item group, index, and potentially other flags.
+            // For now, we'll use generic models if an item is equipped.
+            if (appearanceConfig.LeftHandItemIndex != 255 && appearanceConfig.LeftHandItemIndex != 0xFF)
+            {
+                var leftHandDef = ItemDatabase.GetItemDefinition(appearanceConfig.LeftHandItemGroup, appearanceConfig.LeftHandItemIndex);
+                if (leftHandDef != null)
+                {
+                    Weapon1.Model = await BMDLoader.Instance.Prepare(leftHandDef.TexturePath);
+                    Weapon1.ParentBoneLink = 33;
+                    Weapon1.LinkParentAnimation = false;
+
+                    // Apply item properties for shader effects
+                    Weapon1.ItemLevel = appearanceConfig.LeftHandItemLevel;
+                    Weapon1.IsExcellentItem = appearanceConfig.LeftHandExcellent;
+                    Weapon1.IsAncientItem = appearanceConfig.LeftHandAncient;
+                }
+                else
+                {
+                    Weapon1.Model = null;
+                }
+            }
+            else
+            {
+                Weapon1.Model = null;
+            }
+
+            if (appearanceConfig.RightHandItemIndex != 255 && appearanceConfig.RightHandItemIndex != 0xFF)
+            {
+                var rightHandDef = ItemDatabase.GetItemDefinition(appearanceConfig.RightHandItemGroup, appearanceConfig.RightHandItemIndex);
+                if (rightHandDef != null)
+                {
+                    Weapon2.Model = await BMDLoader.Instance.Prepare(rightHandDef.TexturePath);
+                    Weapon2.ParentBoneLink = 42;
+                    Weapon2.LinkParentAnimation = false;
+
+                    // Apply item properties for shader effects
+                    Weapon2.ItemLevel = appearanceConfig.RightHandItemLevel;
+                    Weapon2.IsExcellentItem = appearanceConfig.RightHandExcellent;
+                    Weapon2.IsAncientItem = appearanceConfig.RightHandAncient;
                 }
                 else
                 {
@@ -965,6 +1199,19 @@ namespace Client.Main.Objects.Player
             await SetBodyPartsAsync("Player/",
                 "HelmClass", "ArmorClass", "PantClass", "GloveClass", "BootClass",
                 (int)mapped);
+        }
+        public async Task UpdateBodyPartClassesAsync(PlayerClass playerClass)
+        {
+            // Clear shader properties from all body parts before loading defaults
+            ClearItemProperties(Helm);
+            ClearItemProperties(Armor);
+            ClearItemProperties(Pants);
+            ClearItemProperties(Gloves);
+            ClearItemProperties(Boots);
+
+            await SetBodyPartsAsync("Player/",
+                "HelmClass", "ArmorClass", "PantClass", "GloveClass", "BootClass",
+                (int)playerClass);
         }
 
         private async Task ResetBodyPartToClassDefaultAsync(ModelObject bodyPart, string partPrefix)

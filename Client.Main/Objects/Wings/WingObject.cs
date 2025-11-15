@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Client.Main.Models;
+using Client.Main.Core.Utilities;
+using Client.Main.Controls.UI.Game.Inventory;
 
 namespace Client.Main.Objects.Wings
 {
@@ -37,6 +39,18 @@ namespace Client.Main.Objects.Wings
                     _ = OnChangeType();
                 }
             }
+        }
+        private short itemIndex = -1;
+        public short ItemIndex
+        {
+            get => itemIndex;
+            set
+            {
+                if (itemIndex == value) return;
+                itemIndex = value;
+                _ = OnChangeIndex();
+            }
+            
         }
 
         public WingObject()
@@ -69,6 +83,30 @@ namespace Client.Main.Objects.Wings
                 modelPath = Path.Combine("Item", $"Wing{Type}.bmd");
                 Model = await BMDLoader.Instance.Prepare(modelPath);
             }
+
+            if (Model == null)
+            {
+                Status = GameControlStatus.Error;
+            }
+            else if (Status == GameControlStatus.Error)
+            {
+                Status = GameControlStatus.Ready;
+            }
+        }
+
+        private async Task OnChangeIndex()
+        {
+            if (ItemIndex < 0)
+            {
+                Model = null;
+                return;
+            }
+            ItemDefinition itemDefinition = ItemDatabase.GetItemDefinition(12, itemIndex);
+            if (itemDefinition == null) return;
+
+            string modelPath = itemDefinition.TexturePath;
+
+            Model = await BMDLoader.Instance.Prepare(modelPath);
 
             if (Model == null)
             {

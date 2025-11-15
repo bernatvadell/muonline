@@ -134,6 +134,44 @@ namespace Client.Main.Core.Utilities
             return def;
         }
 
+        public static IEnumerable<ItemDefinition> GetItemDefinitions(byte group)
+        {
+            return _definitions.Where(predicate => predicate.Key.Group == group).Select(p => p.Value);
+        }
+
+        public static IEnumerable<ItemDefinition> GetWeapons()
+        {
+            return _definitions.Where(predicate => predicate.Key.Group <= 6).Select(p => p.Value);
+        }
+        public static IEnumerable<ItemDefinition> GetWings()
+        {
+            List<short> wingIds = [
+                0, 1, 2, 3, 4, 5, 6,
+                27, 28,
+                36, 37, 38, 39, 40, 41, 42, 43,
+                49, 50,
+                130, 131, 132, 133, 134, 135,
+                152, 154, 155, 156, 157, 158, 159, 160,
+                172, 173, 174, 175, 176, 177, 178,
+                180, 181,182, 183, 184, 185, 186, 187, 188, 189,
+                190, 191, 192, 193,
+                262, 263, 264, 265, 266, 267, 268, 269, 270,
+                278, 279, 280, 281, 282, 283, 284, 285, 286, 287,
+                414, 415, 416, 417, 418, 419, 420, 421, 422, 423, 424, 425, 426, 427, 428, 429, 430, 431, 432, 433, 434, 435, 436, 437,
+                467, 468, 469, 472, 473, 474,
+                480, 489, 490, 496,
+            ];
+            return _definitions.Where(predicate => predicate.Key.Group == 12 && wingIds.Contains(predicate.Key.Id)).Select(p => p.Value);
+        }
+        public static IEnumerable<ItemDefinition> GetArmors()
+        {
+            return _definitions.Where(predicate => predicate.Key.Group == 8).Select(p => p.Value);
+        }
+        public static IEnumerable<ItemDefinition> GetPets()
+        {
+            return _definitions.Where(predicate => predicate.Key.Group == 13).Select(p => p.Value);
+        }
+
         public static ItemDefinition GetItemDefinition(ReadOnlySpan<byte> itemData)
         {
             if (itemData.Length < 6) return null;
