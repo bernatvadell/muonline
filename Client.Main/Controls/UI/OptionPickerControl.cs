@@ -198,14 +198,12 @@ public class OptionPickerControl : UIControl
 
     void RefreshList()
     {
-        foreach (var item in Controls)
+        var optionControls = Controls.OfType<OptionControl>().ToList(); // copy to avoid modifying during iteration
+        foreach (var optionControl in optionControls)
         {
-            if (item is OptionControl optionControl)
-            {
-                Controls.Remove(optionControl);
-                optionControl.Click -= OnOptionClick;
-                optionControl.Dispose();
-            }
+            Controls.Remove(optionControl);
+            optionControl.Click -= OnOptionClick;
+            optionControl.Dispose();
         }
         CachedOptionControls = [];
         if (Options == null || Options.Count < 1)
