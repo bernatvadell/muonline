@@ -21,6 +21,12 @@
 
 ---
 
+## Demo
+
+https://youtu.be/_ekXCQI2byE
+
+---
+
 ## 🎮 Features
 
 - **🌐 Cross-Platform Support** - Windows, Linux, macOS, Android, and iOS
