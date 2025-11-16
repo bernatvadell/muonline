@@ -2,6 +2,9 @@ name: Build and Publish
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -10,25 +13,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: windows-latest
-            project: MuWin/MuWin.csproj
-            runtime: win-x64
-            artifact: muonline-windows
-            zip: powershell -Command "Compress-Archive -Path publish\* -DestinationPath muonline-windows.zip"
-          - os: ubuntu-latest
-            project: MuLinux/MuLinux.csproj
-            runtime: linux-x64
-            artifact: muonline-linux
-            zip: zip -r muonline-linux.zip publish
-          - os: macos-latest
-            project: MuLinux/MuLinux.csproj
-            runtime: osx-x64
-            artifact: muonline-macos
-            zip: zip -r muonline-macos.zip publish
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - name: Setup .NET
@@ -37,21 +22,25 @@ jobs:
           dotnet-version: '9.0.x'
       - name: Restore tools
         run: dotnet tool restore
-      - name: Restore workloads
-        run: dotnet workload restore
-      - name: Publish
-        run: dotnet publish ${{ matrix.project }} -c Release -r ${{ matrix.runtime }} -o publish
+      - name: Publish Windows Build
+        run: dotnet publish MuWin/MuWin.csproj -c Release -r win-x64 -o publish /p:EnableMobileTargets=false
       - name: Create Zip
-        run: ${{ matrix.zip }}
+        run: powershell -Command "Compress-Archive -Path publish\* -DestinationPath muonline-windows.zip"
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}.zip
+          name: muonline-windows
+          path: muonline-windows.zip
 
   pages:
     needs: build
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     steps:
       - uses: actions/download-artifact@v4
         with:
