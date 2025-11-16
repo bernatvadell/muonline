@@ -1,93 +1,147 @@
-# MuOnline Clone (MonoGame)
+# MuOnline Clone
 
-A cross-platform MuOnline client implementation built with .NET 9.0 and MonoGame framework. Supports Windows, Android, iOS, Linux, and macOS platforms.
+<div align="center">
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/bernatvadell/muonline)
+[![.NET Version](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/download/dotnet/9.0)
+[![MonoGame](https://img.shields.io/badge/MonoGame-3.8+-E73C00?logo=nuget)](https://www.monogame.net/)
+[![License](https://img.shields.io/badge/License-Educational-blue)](#license)
+[![Build Status](https://github.com/xulek/muonline/workflows/Build%20and%20Publish/badge.svg)](https://github.com/xulek/muonline/actions)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/xulek/muonline)
 
-## Features
+**A cross-platform MuOnline client implementation built with .NET 9.0 and MonoGame framework.**
 
-- Cross-platform support (Windows, Android, iOS, Linux, macOS)
-- Full 3D rendering with MonoGame
-- Original MuOnline data file compatibility
-- Multiplayer networking support
-- Custom UI system with game controls
-- Terrain rendering with heightmaps
-- 3D model loading and animation (BMD format)
-- Real-time lighting and effects
+[Features](#-features) • [Quick Start](#-quick-start) • [Building](#-building-the-project) • [Architecture](#-architecture-overview) • [Contributing](#-contributing)
 
-## Prerequisites
+</div>
 
-- **.NET 9.0 SDK** - [Download here](https://dotnet.microsoft.com/en-us/download/dotnet/9.0)
-- **Git** - For cloning the repository
-- **Original MuOnline Data** - MU Red 1.20.61 Full data files required
+---
+
+> **⚠️ Educational Purpose Disclaimer**
+> This project is created strictly for **educational and research purposes** to explore game client architecture, network protocols, and cross-platform development with .NET and MonoGame. This is a non-commercial, open-source learning project that demonstrates reverse engineering and game development concepts.
+
+---
+
+## 🎮 Features
+
+- **🌐 Cross-Platform Support** - Windows, Linux, macOS, Android, and iOS
+- **🎨 Full 3D Rendering** - MonoGame-based graphics engine with dynamic lighting and effects
+- **📦 Original Data Compatibility** - Supports Season 20 (1.20.61) game data files
+- **🔌 Network Protocol** - Season 6 (S6) protocol implementation
+- **🎯 Multiplayer Ready** - Full networking stack with packet handling system
+- **🖼️ Custom UI System** - Resolution-independent UI with virtual coordinates
+- **🗺️ Terrain Rendering** - Heightmap-based terrain with walkability attributes
+- **🏃 Character Animation** - BMD skeletal animation system
+- **💡 Real-Time Lighting** - Dynamic lighting with shader support
+- **⚡ Performance Optimized** - Multi-threaded packet processing with main thread scheduling
+
+## 📋 Prerequisites
+
+### Required Software
+
+| Component | Version | Download Link |
+|-----------|---------|---------------|
+| **.NET SDK** | 9.0+ | [Download](https://dotnet.microsoft.com/en-us/download/dotnet/9.0) |
+| **Git** | Latest | [Download](https://git-scm.com/downloads) |
+| **MuOnline Data** | Season 20 (1.20.61) | [Download](https://full-wkr.mu.webzen.co.kr/muweb/full/MU_Red_1_20_61_Full.zip) |
 
 ### Platform-Specific Requirements
 
-**Android Development:**
-- Android SDK
-- Java Development Kit (JDK) 11 or later
+<details>
+<summary><b>⊞ Windows</b></summary>
 
-**iOS Development:**
-- macOS with Xcode
-- Valid Apple Developer account for device deployment
+- Windows 10/11 (64-bit)
+- Visual Studio 2022 (optional, for IDE support)
+</details>
 
-**Linux Development:**
+<details>
+<summary><b>🐧 Linux</b></summary>
+
 - Compatible with most x64 distributions
+- Required packages: `libgdiplus`, `libopenal-dev`
+```bash
+# Ubuntu/Debian
+sudo apt-get install libgdiplus libopenal-dev
 
-## Project Structure
+# Fedora
+sudo dnf install libgdiplus openal-soft-devel
+```
+</details>
 
-The solution contains these main projects:
+<details>
+<summary><b>🍎 macOS</b></summary>
 
-- **Client.Data** - Data readers for game files (BMD, ATT, MAP, OZB, etc.)
-- **Client.Main** - Core game logic, rendering, UI, networking, and game objects  
-- **Client.Editor** - Editor tool for game assets
-- **MuWin** - Windows platform executable
-- **MuAndroid** - Android platform executable
-- **MuIos** - iOS platform executable
-- **MuLinux** - Linux platform executable
-- **MuMac** - macOS platform executable
+- macOS 11.0+ (Big Sur or later)
+- Xcode Command Line Tools
+```bash
+xcode-select --install
+```
+</details>
 
-## Quick Start
+<details>
+<summary><b>📱 Android</b></summary>
 
-1. **Clone the Repository:**
-   ```bash
-   git clone <your-repository-url>
-   cd muonline
-   ```
+- Android SDK (API Level 21+)
+- Java Development Kit (JDK) 11 or later
+</details>
 
-2. **Download Game Data:**
-   This client is designed for **Season 6 (S6) protocol compatibility** but requires **Season 20 (1.20.61) client data files**. 
-   Download the original MuOnline data files:
-   [MU Red 1.20.61 Full Data](https://full-wkr.mu.webzen.co.kr/muweb/full/MU_Red_1_20_61_Full.zip)
-   
-   **Note:** The MonoGame client uses S20 data files for assets (models, textures, maps) but communicates using S6 network protocol.
+<details>
+<summary><b>📱 iOS</b></summary>
 
-3. **Configure Data Path:**
-   - Extract the downloaded Data.zip file
-   - Open `Client.Main/Constants.cs`
-   - Update the `DataPath` variable to point to your extracted Data folder:
-     ```csharp
-     public static string DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
-     ```
+- macOS with Xcode installed
+- Valid Apple Developer account (for device deployment)
+- iOS 10.0+ target
+</details>
 
-4. **Configure Server Settings:**
-   - Open `Client.Main/appsettings.json`
-   - Configure the MuOnline server connection settings:
-     ```json
-     {
-       "MuOnlineSettings": {
-         "ConnectServerHost": "your.server.host",
-         "ConnectServerPort": 44405,
-         "ProtocolVersion": "Season6",
-         "ClientVersion": "1.04d",
-         "ClientSerial": "0123456789ABCDEF"
-       }
-     }
-     ```
+## 🚀 Quick Start
 
-### Recommended Server: OpenMU
+### 1️⃣ Clone the Repository
 
-This client is designed to work with **[OpenMU](https://github.com/MUnique/OpenMU)**, an open-source MuOnline server implementation. You can easily run OpenMU using Docker:
+```bash
+git clone https://github.com/xulek/muonline.git
+cd muonline
+```
+
+### 2️⃣ Download Game Data
+
+This client requires **Season 20 (1.20.61)** client data files for assets (models, textures, maps) but communicates using **Season 6 protocol**.
+
+1. Download: [MU Red 1.20.61 Full Data](https://full-wkr.mu.webzen.co.kr/muweb/full/MU_Red_1_20_61_Full.zip)
+2. Extract the archive to a location on your system
+3. Note the path to the `Data` folder
+
+### 3️⃣ Configure Data Path
+
+Open `Client.Main/Constants.cs` and update line 25:
+
+```csharp
+// Windows
+public static string DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
+
+// Linux/macOS
+public static string DataPath = "/home/user/Games/MU_Red_1_20_61_Full/Data";
+```
+
+### 4️⃣ Configure Server Settings
+
+Edit `Client.Main/appsettings.json`:
+
+```json
+{
+  "MuOnlineSettings": {
+    "ConnectServerHost": "localhost",
+    "ConnectServerPort": 44405,
+    "ProtocolVersion": "Season6",
+    "ClientVersion": "1.04d",
+    "ClientSerial": "0123456789ABCDEF"
+  }
+}
+```
+
+### 5️⃣ Set Up Server (Recommended: OpenMU)
+
+This client is designed to work with **[OpenMU](https://github.com/MUnique/OpenMU)**, an open-source MuOnline server implementation.
+
+**Quick Start with Docker:**
 
 ```bash
 # Download and run OpenMU server
@@ -95,81 +149,338 @@ curl -o docker-compose.yml https://raw.githubusercontent.com/MUnique/OpenMU/mast
 docker-compose up -d
 ```
 
-The server will be available at `localhost:44405` (Connect Server) which matches the default client configuration.
+The server will be available at `localhost:44405` (matches default client configuration).
 
-5. **Restore Tools:**
-   ```bash
-   dotnet tool restore
-   ```
+**Alternative:** You can also connect to any Season 6 compatible MuOnline server.
 
-6. **Build and Run:**
-   ```bash
-   # Windows
-   dotnet run --project ./MuWin/MuWin.csproj -f net9.0-windows -c Debug
-   
-   # macOS
-   dotnet run --project ./MuMac/MuMac.csproj -f net9.0 -c Debug
-   
-   # Linux
-   dotnet run --project ./MuLinux/MuLinux.csproj -f net9.0 -c Debug
-   ```
+### 6️⃣ Restore Tools & Build
 
-## Building the Project
+```bash
+# Restore .NET tools
+dotnet tool restore
+
+# Build the solution
+dotnet build
+```
+
+### 7️⃣ Run the Client
+
+```bash
+# Windows
+dotnet run --project ./MuWin/MuWin.csproj -f net9.0-windows -c Debug
+
+# Linux
+dotnet run --project ./MuLinux/MuLinux.csproj -f net9.0 -c Debug
+
+# macOS
+dotnet run --project ./MuMac/MuMac.csproj -f net9.0 -c Debug
+```
+
+## 🔨 Building the Project
+
+### Project Structure
+
+```
+muonline/
+├── Client.Data/           # Data file readers (BMD, ATT, MAP, OZB, etc.)
+├── Client.Main/           # Core game engine, networking, UI, game logic
+├── Client.Editor/         # Asset editor tool
+├── MuWin/                 # Windows executable project
+├── MuAndroid/             # Android executable project
+├── MuIos/                 # iOS executable project
+├── MuLinux/               # Linux executable project
+└── MuMac/                 # macOS executable project
+```
 
 ### Development Builds
+
 ```bash
 # Build entire solution
 dotnet build
 
 # Build and run specific platforms
-dotnet run --project ./MuWin/MuWin.csproj -f net9.0-windows -c Debug     # Windows
-dotnet run --project ./MuLinux/MuLinux.csproj -f net9.0 -c Debug         # Linux
-dotnet run --project ./MuMac/MuMac.csproj -f net9.0 -c Debug             # macOS
-dotnet run --project ./MuIos/MuIos.csproj -f net9.0-ios -c Debug         # iOS (macOS only)
+dotnet run --project ./MuWin/MuWin.csproj -f net9.0-windows -c Debug
+dotnet run --project ./MuLinux/MuLinux.csproj -f net9.0 -c Debug
+dotnet run --project ./MuMac/MuMac.csproj -f net9.0 -c Debug
+dotnet run --project ./MuIos/MuIos.csproj -f net9.0-ios -c Debug        # macOS only
 ```
 
 ### Production Builds
-Build outputs are placed in `bin/Release/net9.0-<platform>/publish/` directories.
+
+Build outputs are placed in `bin/Release/` directories.
+
+#### Windows
 
 ```bash
-# Windows
-dotnet publish ./MuWin/MuWin.csproj -f net9.0-windows -c Release
+dotnet publish ./MuWin/MuWin.csproj -c Release -r win-x64 -o publish /p:EnableMobileTargets=false
+```
 
-# Android (replace paths with your actual SDK/JDK locations)
-dotnet publish ./MuAndroid/MuAndroid.csproj -f net9.0-android -c Release \
-  -p:AndroidSdkDirectory="C:\path\to\your\Android\Sdk" \
-  -p:JavaSdkDirectory="C:\path\to\your\jdk-11" \
-  -p:AcceptAndroidSdkLicenses=True
+The GitHub Actions workflow automatically builds Windows releases on every push to `main` and publishes them to GitHub Pages.
 
-# Linux  
-dotnet publish ./MuLinux/MuLinux.csproj -f net9.0 -c Release -r linux-x64
+#### Linux
 
-# macOS
+```bash
+dotnet publish ./MuLinux/MuLinux.csproj -f net9.0 -c Release -r linux-x64 --self-contained
+```
+
+#### macOS
+
+```bash
 dotnet publish ./MuMac/MuMac.csproj -f net9.0 -c Release
+```
 
-# iOS (macOS only, requires Xcode and signing certificates)
+#### Android
+
+```bash
+dotnet publish ./MuAndroid/MuAndroid.csproj -f net9.0-android -c Release \
+  -p:AndroidSdkDirectory="<path-to-android-sdk>" \
+  -p:JavaSdkDirectory="<path-to-jdk-11>" \
+  -p:AcceptAndroidSdkLicenses=True
+```
+
+#### iOS
+
+```bash
+# Requires macOS with Xcode and valid signing certificates
 dotnet publish ./MuIos/MuIos.csproj -f net9.0-ios -c Release
 ```
 
-## Architecture Overview
+## 🏗️ Architecture Overview
 
-This project follows a well-structured game architecture:
+### High-Level Design
 
-- **Scene Management** - Finite state machine pattern with BaseScene handling Login, Game, Load scenes
-- **Networking** - Service-oriented architecture with PacketRouter and attribute-based handler registration
-- **Game Objects** - Hierarchical system with WorldObject base class extending to PlayerObject, MonsterObject, NPCObject
-- **Rendering** - Multi-pass rendering pipeline with MonoGame, supporting 3D models, terrain, and UI
-- **World System** - Strategy pattern for different game worlds (Lorencia, Devias, etc.)
+This project implements a layered architecture with clear separation of concerns:
 
-## File Format Support
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Platform Layer                       │
+│         (MuWin, MuLinux, MuMac, MuAndroid, MuIos)       │
+└─────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────┐
+│                  Client.Main (Core)                     │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
+│  │    Scenes    │  │  Networking  │  │   Rendering  │   │
+│  │ (Login/Game) │  │   (S6 Proto) │  │  (MonoGame)  │   │
+│  └──────────────┘  └──────────────┘  └──────────────┘   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
+│  │ Game Objects │  │  UI System   │  │ World System │   │
+│  │(Player/NPC)  │  │ (GameControl)│  │  (Terrain)   │   │
+│  └──────────────┘  └──────────────┘  └──────────────┘   │
+└─────────────────────────────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────┐
+│              Client.Data (Data Readers)                 │
+│      BMD • ATT • MAP • OZB • OZG • CWS • OBJS           │
+└─────────────────────────────────────────────────────────┘
+```
 
-- **BMD** - 3D models and animations
-- **ATT** - Terrain attributes  
-- **MAP** - Terrain height data
-- **OZB/OZG** - Compressed texture formats
-- **CWS** - Camera walk scripts
-- **OBJS** - Object placement data
+### Key Systems
 
-## Contributing
+#### 🎬 Scene Management
+- **Pattern:** Finite State Machine
+- **Implementation:** `BaseScene` base class with `LoginScene`, `LoadScene`, `GameScene`
+- **World Switching:** Dynamic world loading via `ChangeWorldAsync<T>()`
 
-This project uses the original MuOnline data format and is intended for educational purposes. Feel free to open an issue if you encounter any problems during setup or building.
+#### 🌐 Networking
+- **Architecture:** Service-Oriented with attribute-based routing
+- **Protocol:** Season 6 (C1/C3 packet structure)
+- **Components:**
+  - `PacketRouter` - Dual-mode routing (ConnectServer/GameServer)
+  - `[PacketHandler]` - Attribute-based handler registration
+  - Service Layer - `LoginService`, `CharacterService`, `ConnectServerService`
+- **Thread Safety:** Async packet processing with main thread scheduling
+
+#### 🎮 Game Objects
+- **Hierarchy:** `WorldObject` → `PlayerObject`, `MonsterObject`, `NPCObject`, `DroppedItemObject`
+- **Management:** `ScopeManager` handles object visibility and lifecycle
+- **Animation:** BMD skeletal animation system
+
+#### 🖼️ UI System
+- **Pattern:** Hierarchical component model
+- **Base Class:** `GameControl` with lifecycle methods
+- **Scaling:** Virtual resolution (1280x720) with `UiScaler`
+- **Events:** Click, Focus, Blur, SizeChanged
+
+#### ⚡ Threading Model
+- **Main Thread:** MonoGame rendering and UI updates
+- **Network Thread:** Async packet processing
+- **Marshalling:** `MuGame.ScheduleOnMainThread(Action)` for thread safety
+- **Task Scheduler:** Priority-based queue with backpressure control
+
+## 📁 File Format Support
+
+| Format | Description | Usage |
+|--------|-------------|-------|
+| **BMD** | 3D models and skeletal animations | Characters, monsters, items, NPCs |
+| **ATT** | Terrain walkability attributes | Collision detection, pathfinding |
+| **MAP** | Terrain heightmap data | 3D terrain rendering |
+| **OZB/OZG** | Compressed texture formats | Textures for models and UI |
+| **CWS** | Camera walk/pan scripts | Cinematic camera movements |
+| **OBJS** | Object placement data | Map decorations and static objects |
+
+## 🔧 Configuration
+
+### Constants.cs (Client.Main/Constants.cs:25)
+
+Debug vs Release builds have different configurations:
+
+**Debug Settings:**
+- `SHOW_DEBUG_PANEL: true` - Shows FPS, position, network stats
+- `UNLIMITED_FPS: true` - Disables VSync for testing
+- `DataPath` - Absolute path to data files
+
+**Release Settings:**
+- `SHOW_DEBUG_PANEL: false`
+- `DataPath` - Relative to executable location
+
+**Rendering Options:**
+- `RENDER_SCALE: 2.0` - Supersampling multiplier
+- `ENABLE_DYNAMIC_LIGHTING_SHADER: true` - GPU-based lighting
+- `MSAA_ENABLED: false` - Multi-sample anti-aliasing (performance impact)
+
+### appsettings.json (Client.Main/appsettings.json)
+
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Client.Main.Networking": "Trace"
+    }
+  },
+  "MuOnlineSettings": {
+    "ConnectServerHost": "localhost",
+    "ConnectServerPort": 44405,
+    "ProtocolVersion": "Season6",
+    "ClientVersion": "1.04d",
+    "ClientSerial": "0123456789ABCDEF",
+    "Graphics": {
+      "Width": 1280,
+      "Height": 720,
+      "IsFullScreen": false,
+      "UiVirtualWidth": 1280,
+      "UiVirtualHeight": 720
+    }
+  }
+}
+```
+
+## 🐛 Troubleshooting
+
+<details>
+<summary><b>❌ "Data path not found" error</b></summary>
+
+**Solution:** Ensure `Client.Main/Constants.cs` has the correct path to your MU data files.
+
+```csharp
+public static string DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
+```
+
+Verify the path exists and contains files like `Data/Player.bmd`, `Data/Item`, etc.
+</details>
+
+<details>
+<summary><b>❌ Cannot connect to server</b></summary>
+
+**Solution:** Check the following:
+1. Server is running (for OpenMU: `docker ps` should show running containers)
+2. `appsettings.json` has correct host/port
+3. Firewall isn't blocking port 44405
+4. Protocol version matches server (Season6)
+</details>
+
+<details>
+<summary><b>❌ Black screen / Graphics not loading</b></summary>
+
+**Solution:**
+1. Verify data files are complete (re-extract if needed)
+2. Check `Constants.cs` shader settings:
+   ```csharp
+   public const bool ENABLE_DYNAMIC_LIGHTING_SHADER = true;
+   ```
+3. Update graphics drivers
+4. Try disabling MSAA in Constants.cs
+</details>
+
+<details>
+<summary><b>❌ Linux: "libopenal.so not found"</b></summary>
+
+**Solution:**
+```bash
+# Ubuntu/Debian
+sudo apt-get install libopenal-dev libgdiplus
+
+# Fedora
+sudo dnf install openal-soft-devel libgdiplus
+```
+</details>
+
+<details>
+<summary><b>❌ Build errors on mobile platforms</b></summary>
+
+**Solution:** For desktop development, disable mobile targets:
+```bash
+dotnet build /p:EnableMobileTargets=false
+```
+</details>
+
+## 🤝 Contributing
+
+Contributions are welcome! This is an educational project, and we encourage learning and experimentation.
+
+### Guidelines
+
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+4. **Push** to the branch (`git push origin feature/amazing-feature`)
+5. **Open** a Pull Request
+
+### Code Style
+
+- Follow existing code patterns and architecture
+- Use `async/await` for networking operations
+- Marshal UI updates to main thread via `MuGame.ScheduleOnMainThread()`
+- Add XML documentation for public APIs
+- Follow [C# Coding Conventions](https://docs.microsoft.com/en-us/dotnet/csharp/fundamentals/coding-style/coding-conventions)
+
+### Reporting Issues
+
+Found a bug or have a question? [Open an issue](https://github.com/xulek/muonline/issues) on GitHub.
+
+## 📚 Additional Resources
+
+- **CLAUDE.md** - Comprehensive developer documentation
+- **OpenMU Server** - https://github.com/MUnique/OpenMU
+- **MonoGame Documentation** - https://docs.monogame.net/
+- **.NET 9.0 Docs** - https://docs.microsoft.com/en-us/dotnet/
+
+## 📄 License
+
+This project is created for **educational and research purposes only**.
+
+### Important Legal Notes
+
+- This is a **non-commercial** educational project demonstrating game client architecture
+- The code in this repository is provided as-is for learning purposes
+- Authors are not responsible for misuse of this software
+
+**Protocol Implementation:** The Season 6 network protocol implementation is based on publicly available information and reverse engineering for educational purposes.
+
+**Recommended Use Cases:**
+- Learning game client architecture
+- Studying network protocol design
+- Understanding cross-platform .NET development
+- Exploring MonoGame framework capabilities
+- Research and educational projects
+
+---
+
+<div align="center">
+
+**Made with ❤️ for the game development community**
+
+[⬆ Back to Top](#muonline-clone)
+
+</div>
