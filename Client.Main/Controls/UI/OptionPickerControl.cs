@@ -30,7 +30,6 @@ public class OptionPickerControl : UIControl
     int LIST_PADDING_BOTTOM = 10;
     int LIST_GAP = 3;
     int LIST_ITEM_HEIGHT = 29;
-    int LIST_ITEM_WIDTH = 180;
 
     int SCROLLBAR_WIDTH = 18;
 

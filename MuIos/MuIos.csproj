@@ -8,15 +8,16 @@
     <CodesignKey>iPhone Developer</CodesignKey>
     <SkipXcodeVersionCheck>true</SkipXcodeVersionCheck>
     <EnableCodeSigning>false</EnableCodeSigning>
+    <ClientMainTargetFramework>net9.0-ios</ClientMainTargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4" />
-    <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.4" />
+    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
+    <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.4.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Client.Main\Client.Main.csproj" />
+    <ProjectReference Include="..\Client.Main\Client.Main.Ios.csproj" />
   </ItemGroup>
   
   <Target Name="RestoreDotnetTools" BeforeTargets="Restore">

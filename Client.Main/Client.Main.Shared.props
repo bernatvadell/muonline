@@ -1,23 +1,36 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project>
   <PropertyGroup>
-    <BaseTFMs>net9.0</BaseTFMs>
-    <WindowsTFM Condition="'$(OS)'=='Windows_NT'">;net9.0-windows</WindowsTFM>
-    <MobileTFMs Condition="'$(EnableMobileTargets)'=='true'">;net9.0-android;net9.0-ios</MobileTFMs>
-    <TargetFrameworks>$(BaseTFMs)$(WindowsTFM)$(MobileTFMs)</TargetFrameworks>
+    <ClientMainTargetFramework Condition="'$(ClientMainTargetFramework)'==''">net9.0</ClientMainTargetFramework>
+    <TargetFramework>$(ClientMainTargetFramework)</TargetFramework>
     <OutputType>Library</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <ClientDataTargetFramework Condition="'$(ClientDataTargetFramework)'==''">$(TargetFramework)</ClientDataTargetFramework>
+  </PropertyGroup>
+
+  <!-- Define platform constants -->
+  <PropertyGroup Condition="'$(TargetFramework)'=='net9.0-android'">
+    <DefineConstants>$(DefineConstants);ANDROID</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)'=='net9.0-ios'">
+    <DefineConstants>$(DefineConstants);IOS</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)'=='net9.0-windows'">
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+  </PropertyGroup>
+
   <!-- MONOGAME -->
   <ItemGroup Condition="'$(TargetFramework)'!='net9.0-android' AND '$(TargetFramework)'!='net9.0-ios'">
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)'=='net9.0-android'">
-    <PackageReference Include="MonoGame.Framework.Android" Version="3.8.4" />
+    <PackageReference Include="MonoGame.Framework.Android" Version="3.8.4.1" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)'=='net9.0-ios'">
-    <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.4" />
+    <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.4.1" />
   </ItemGroup>
 
   <!-- Microsoft.Extensions* -->
@@ -72,7 +85,4 @@
     </None>
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Client.Data\Client.Data.csproj" />
-  </ItemGroup>
 </Project>

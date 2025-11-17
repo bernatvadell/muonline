@@ -190,6 +190,11 @@ dotnet run --project ./MuMac/MuMac.csproj -f net9.0 -c Debug
 muonline/
 ├── Client.Data/           # Data file readers (BMD, ATT, MAP, OZB, etc.)
 ├── Client.Main/           # Core game engine, networking, UI, game logic
+│   ├── Client.Main.Shared.props   # shared settings
+│   ├── Client.Main.*.csproj      # platform variants: desktop/windows/android/ios
+├── Client.Data/           # data processing (platform variants)
+│   ├── Client.Data.Shared.props
+│   ├── Client.Data.*.csproj
 ├── Client.Editor/         # Asset editor tool
 ├── MuWin/                 # Windows executable project
 ├── MuAndroid/             # Android executable project
@@ -198,17 +203,27 @@ muonline/
 └── MuMac/                 # macOS executable project
 ```
 
-### Development Builds
+### Development Builds (per head)
+
+> For predictable restores and to avoid missing workloads, build/clean one head at a time.
 
 ```bash
-# Build entire solution
-dotnet build
+# Windows
+dotnet clean MuWin/MuWin.csproj && dotnet build MuWin/MuWin.csproj -c Debug
 
-# Build and run specific platforms
-dotnet run --project ./MuWin/MuWin.csproj -f net9.0-windows -c Debug
-dotnet run --project ./MuLinux/MuLinux.csproj -f net9.0 -c Debug
-dotnet run --project ./MuMac/MuMac.csproj -f net9.0 -c Debug
-dotnet run --project ./MuIos/MuIos.csproj -f net9.0-ios -c Debug        # macOS only
+# Linux
+dotnet clean MuLinux/MuLinux.csproj && dotnet build MuLinux/MuLinux.csproj -c Debug
+
+# macOS
+dotnet clean MuMac/MuMac.csproj && dotnet build MuMac/MuMac.csproj -c Debug
+
+# Android (requires Android workload)
+dotnet workload restore MuAndroid/MuAndroid.csproj
+dotnet clean MuAndroid/MuAndroid.csproj && dotnet build MuAndroid/MuAndroid.csproj -c Debug
+
+# iOS (requires macOS + Xcode + iOS workload)
+dotnet workload restore MuIos/MuIos.csproj
+dotnet clean MuIos/MuIos.csproj && dotnet build MuIos/MuIos.csproj -c Debug
 ```
 
 ### Production Builds
@@ -218,7 +233,7 @@ Build outputs are placed in `bin/Release/` directories.
 #### Windows
 
 ```bash
-dotnet publish ./MuWin/MuWin.csproj -c Release -r win-x64 -o publish /p:EnableMobileTargets=false
+dotnet publish ./MuWin/MuWin.csproj -c Release -r win-x64 -o publish
 ```
 
 The GitHub Actions workflow automatically builds Windows releases on every push to `main` and publishes them to GitHub Pages.

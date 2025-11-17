@@ -3,6 +3,8 @@
   <PropertyGroup>
     <TargetFramework>net9.0-android</TargetFramework>
     <SupportedOSPlatformVersion>23</SupportedOSPlatformVersion>
+    <ClientMainTargetFramework>net9.0-android</ClientMainTargetFramework>
+    <NoWarn>$(NoWarn);XA0141</NoWarn>
 
     <OutputType>Exe</OutputType>
     <ApplicationId>MuAndroid.MuAndroid</ApplicationId>
@@ -17,12 +19,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4" />
-    <PackageReference Include="MonoGame.Framework.Android" Version="3.8.4" />
+    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
+    <PackageReference Include="MonoGame.Framework.Android" Version="3.8.4.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Client.Main\Client.Main.csproj" AdditionalProperties="TargetFramework=net9.0-android;EnableMobileTargets=true" />
+    <ProjectReference Include="..\Client.Main\Client.Main.Android.csproj" />
   </ItemGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">

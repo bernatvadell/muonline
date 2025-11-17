@@ -3,6 +3,8 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
+    <ClientMainTargetFramework>net9.0</ClientMainTargetFramework>
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
 
     <RollForward>Major</RollForward>
     <PublishSingleFile>true</PublishSingleFile>
@@ -18,12 +20,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4" />
-    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
+    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Client.Main\Client.Main.csproj" />
+    <ProjectReference Include="..\Client.Main\Client.Main.Desktop.csproj" />
   </ItemGroup>
 
   <ItemGroup>

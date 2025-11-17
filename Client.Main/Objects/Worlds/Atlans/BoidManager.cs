@@ -124,8 +124,8 @@ namespace Client.Main.Objects.Worlds.Atlans
         }
 
         /// <summary>
-        /// Spawns fish around the player when underwater (Y < 128 in scaled coords)
-        /// In original MU: Position[1] is Y axis (depth), Position[2] is Z axis (height)
+        /// Spawns fish around the player when underwater (Y &lt; 128 in scaled coords).
+        /// In original MU: Position[1] is Y axis (depth), Position[2] is Z axis (height).
         /// Spawns gradually to avoid blocking the main thread
         /// </summary>
         private void SpawnFish(Vector3 heroPosition)

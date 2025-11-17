@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ClientMainTargetFramework>net9.0</ClientMainTargetFramework>
+    <AssemblyName>Client.Main</AssemblyName>
+    <RootNamespace>Client.Main</RootNamespace>
+  </PropertyGroup>
+
+  <Import Project="Client.Main.Shared.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="..\Client.Data\Client.Data.Desktop.csproj" />
+  </ItemGroup>
+</Project>

@@ -98,7 +98,6 @@ public class TestAnimationScene : BaseScene
     private IEnumerable<KeyValuePair<string, int>> CharacterClasses;
     private IEnumerable<ItemDefinition> Wings;
     private IEnumerable<ItemDefinition> Armors;
-    private IEnumerable<ItemDefinition> Pets;
     private IEnumerable<ItemDefinition> Weapons;
     private IEnumerable<VehicleDefinition> Vehicles;
     private List<KeyValuePair<string, int>> Actions; 

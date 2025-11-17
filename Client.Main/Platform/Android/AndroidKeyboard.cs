@@ -20,9 +20,17 @@ namespace Client.Main.Platform.Android
         /// </summary>
         public static void Show()
         {
-            if (Activity == null) return;
+            if (Activity == null)
+            {
+                return;
+            }
+
             var imm = Activity.GetSystemService(Context.InputMethodService) as InputMethodManager;
-            imm?.ToggleSoftInput(ShowFlags.Forced, HideSoftInputFlags.ImplicitOnly);
+            var view = Activity.CurrentFocus ?? Activity.Window?.DecorView;
+            if (imm != null && view != null)
+            {
+                imm.ShowSoftInput(view, ShowFlags.Forced);
+            }
         }
 
         /// <summary>

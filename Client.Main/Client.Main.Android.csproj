@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ClientMainTargetFramework>net9.0-android</ClientMainTargetFramework>
+    <AssemblyName>Client.Main</AssemblyName>
+    <RootNamespace>Client.Main</RootNamespace>
+  </PropertyGroup>
+
+  <Import Project="Client.Main.Shared.props" />
+
+  <ItemGroup>
+    <ProjectReference Include="..\Client.Data\Client.Data.Android.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Update="MUnique.OpenMU.Network.Packets" ExcludeAssets="contentFiles" />
+  </ItemGroup>
+</Project>

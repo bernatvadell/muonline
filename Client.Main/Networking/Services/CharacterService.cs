@@ -712,8 +712,7 @@ namespace Client.Main.Networking.Services
         }
 
         /// <summary>
-        /// Sends an inventory item move request (drag & drop within inventory).
-        /// Selects packet format based on protocol version.
+        /// Sends an inventory item move request (drag and drop inside inventory) using the proper packet format for the protocol version.
         /// </summary>
         /// <param name="fromSlot">Source slot index (including server offset).</param>
         /// <param name="toSlot">Destination slot index (including server offset).</param>
@@ -767,7 +766,7 @@ namespace Client.Main.Networking.Services
         }
 
         /// <summary>
-        /// Sends an item move between arbitrary storages (e.g., Inventory <-> Vault, Vault <-> Vault).
+        /// Sends an item move between arbitrary storages (for example, Inventory ↔ Vault or Vault ↔ Vault).
         /// </summary>
         public async Task SendStorageItemMoveAsync(
             ItemStorageKind fromStorage,

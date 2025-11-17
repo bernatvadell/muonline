@@ -94,7 +94,6 @@ namespace Client.Main.Controls.UI.Game
         private readonly Dictionary<(InventoryItem item, int width, int height, bool animated), Texture2D> _bmdPreviewCache = new();
 
         private readonly List<VaultTextEntry> _texts = new();
-        private VaultTextEntry _titleText;
         private VaultTextEntry _zenText;
 
         private Texture2D _layoutTexture;
@@ -743,7 +742,6 @@ namespace Client.Main.Controls.UI.Game
         private void InitializeTextEntries()
         {
             _texts.Clear();
-            _titleText = null;
             _zenText = null;
         }
 

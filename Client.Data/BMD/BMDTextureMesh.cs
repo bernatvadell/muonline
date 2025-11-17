@@ -12,6 +12,6 @@ namespace Client.Data.BMD
         public string TexturePath { get; set; } = string.Empty;
 
         //for custom blending from json
-        public string BlendingMode { get; set; } = null;
+        public string? BlendingMode { get; set; }
     }
 }

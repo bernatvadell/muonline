@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ClientDataTargetFramework>net9.0-ios</ClientDataTargetFramework>
+    <AssemblyName>Client.Data</AssemblyName>
+    <RootNamespace>Client.Data</RootNamespace>
+  </PropertyGroup>
+
+  <Import Project="Client.Data.Shared.props" />
+</Project>

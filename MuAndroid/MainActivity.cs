@@ -62,25 +62,30 @@ namespace MuAndroid
             }
             catch
             {
-                if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
+                if (!OperatingSystem.IsAndroidVersionAtLeast(29))
                 {
-                    var values = new ContentValues();
-                    values.Put(MediaStore.IMediaColumns.DisplayName, name);
-                    values.Put(MediaStore.IMediaColumns.MimeType, "text/plain");
-                    values.Put(MediaStore.MediaColumns.RelativePath,
-                               Android.OS.Environment.DirectoryDownloads);
-
-                    var uri = ctx.ContentResolver!
-                                   .Insert(MediaStore.Downloads.ExternalContentUri, values);
-
-                    using var stream = ctx.ContentResolver.OpenOutputStream(uri!)!;
-                    using var sw = new StreamWriter(stream);
-                    sw.Write(text);
-
-                    return $"/storage/emulated/0/Download/{name}";
+                    return "FAILED";
                 }
 
-                return "FAILED";
+                var values = new ContentValues();
+                values.Put(MediaStore.IMediaColumns.DisplayName, name);
+                values.Put(MediaStore.IMediaColumns.MimeType, "text/plain");
+                values.Put(MediaStore.IMediaColumns.RelativePath,
+                           Android.OS.Environment.DirectoryDownloads);
+
+                var uri = ctx.ContentResolver!
+                               .Insert(MediaStore.Downloads.ExternalContentUri, values);
+
+                if (uri == null)
+                {
+                    return "FAILED";
+                }
+
+                using var stream = ctx.ContentResolver.OpenOutputStream(uri)!;
+                using var sw = new StreamWriter(stream);
+                sw.Write(text);
+
+                return $"/storage/emulated/0/Download/{name}";
             }
         }
 
