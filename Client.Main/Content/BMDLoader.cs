@@ -1,4 +1,5 @@
 ﻿using Client.Data.BMD;
+using Client.Main.Graphics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -371,14 +372,18 @@ namespace Client.Main.Content
             FrameMeshesProcessed++;
 
             // Ensure buffers are properly sized
+            if (vertexBuffer != null && vertexBuffer.IsDisposed)
+                vertexBuffer = null;
+
             if (vertexBuffer == null || vertexBuffer.VertexCount < totalVertices)
             {
-                vertexBuffer?.Dispose();
-                vertexBuffer = new DynamicVertexBuffer(
-                    _graphicsDevice,
-                    VertexPositionColorNormalTexture.VertexDeclaration,
-                    totalVertices,
-                    BufferUsage.WriteOnly);
+                DynamicBufferPool.ReturnVertexBuffer(vertexBuffer);
+                vertexBuffer = DynamicBufferPool.RentVertexBuffer(totalVertices)
+                                 ?? new DynamicVertexBuffer(
+                                     _graphicsDevice,
+                                     VertexPositionColorNormalTexture.VertexDeclaration,
+                                     totalVertices,
+                                     BufferUsage.WriteOnly);
             }
 
             bool createdOrResizedIndex = false;
@@ -386,14 +391,21 @@ namespace Client.Main.Content
             if (_indexIs16Bit.TryGetValue(cacheKey, out bool prevIs16) && prevIs16 != prefer16Bit)
                 mismatchIndexSize = true;
 
+            if (indexBuffer != null && indexBuffer.IsDisposed)
+            {
+                mismatchIndexSize = false; // we'll rent fresh buffer below
+                indexBuffer = null;
+            }
+
             if (indexBuffer == null || indexBuffer.IndexCount < totalIndices || mismatchIndexSize)
             {
-                indexBuffer?.Dispose();
-                indexBuffer = new DynamicIndexBuffer(
-                    _graphicsDevice,
-                    prefer16Bit ? IndexElementSize.SixteenBits : IndexElementSize.ThirtyTwoBits,
-                    totalIndices,
-                    BufferUsage.WriteOnly);
+                DynamicBufferPool.ReturnIndexBuffer(indexBuffer);
+                indexBuffer = DynamicBufferPool.RentIndexBuffer(totalIndices, prefer16Bit)
+                              ?? new DynamicIndexBuffer(
+                                  _graphicsDevice,
+                                  prefer16Bit ? IndexElementSize.SixteenBits : IndexElementSize.ThirtyTwoBits,
+                                  totalIndices,
+                                  BufferUsage.WriteOnly);
                 createdOrResizedIndex = true;
                 _indexIs16Bit[cacheKey] = prefer16Bit;
             }

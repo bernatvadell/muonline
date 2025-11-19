@@ -10,6 +10,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Diagnostics;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects
@@ -58,10 +59,16 @@ namespace Client.Main.Objects
         
         // Reusable vertices for 3D bbox (avoid per-frame allocations)
         private readonly VertexPositionColor[] _bboxVerts = new VertexPositionColor[8];
+        // Reusable bbox corners buffer to avoid allocations in UpdateWorldBoundingBox
+        private readonly Vector3[] _bboxCorners = new Vector3[8];
+        private readonly StringBuilder _bboxInfoBuilder = new(256);
         
         // Static frame counter for staggered updates
         private static int _globalFrameCounter = 0;
         private readonly int _updateOffset; // Unique offset for each object to stagger updates
+        private const int HoverChecksPerFrame = 32;
+        private static int _hoverFrame = -1;
+        private static int _hoverChecksThisFrame = 0;
         
         // Debug counters
         public static int TotalSkippedUpdates { get; private set; } = 0;
@@ -335,11 +342,20 @@ namespace Client.Main.Objects
 
             // Mouse hover detection optimization - skip for distant/out-of-view objects
             bool withinHoverRange = distanceToCamera < Constants.LOW_QUALITY_DISTANCE * 1.5f;
+            // Cache frustum result only when within hover range
             bool inFrustum = withinHoverRange && (Camera.Instance?.Frustum.Contains(BoundingBoxWorld) != ContainmentType.Disjoint);
-            bool shouldCheckMouseHover = inFrustum;
+            // Defer expensive hover checks when many objects spawn: use a staggered cadence for non-interactive objects
+            bool hoverBudgetThisFrame = (_globalFrameCounter + _updateOffset) % 3 == 0; // 1/3 frames
+            bool shouldCheckMouseHover = inFrustum && (Interactive || Constants.DRAW_BOUNDING_BOXES || hoverBudgetThisFrame);
             
             if (shouldCheckMouseHover)
             {
+                if (!TryBeginHoverCheck(Interactive || Constants.DRAW_BOUNDING_BOXES))
+                {
+                    IsMouseHover = false;
+                    goto ChildrenUpdate;
+                }
+
                 // Determine if UI should block hover detection for world objects
                 bool uiBlockingHover = false;
                 if (World?.Scene != null)
@@ -374,6 +390,7 @@ namespace Client.Main.Objects
             }
 
             // Update all children for visible objects
+        ChildrenUpdate:
             for (int i = 0; i < Children.Count; i++)
                 Children[i].Update(gameTime);
         }
@@ -578,16 +595,16 @@ namespace Client.Main.Objects
                 return;
 
             // Build the info string and compute positions as before...
-            var sbInfo = new System.Text.StringBuilder();
-            sbInfo.AppendLine(GetType().Name);
-            sbInfo.Append("Type ID: ").AppendLine(Type.ToString());
-            sbInfo.Append("Alpha: ").AppendLine(TotalAlpha.ToString());
-            sbInfo.Append("X: ").Append(Position.X).Append(" Y: ").Append(Position.Y)
+            _bboxInfoBuilder.Clear();
+            _bboxInfoBuilder.AppendLine(GetType().Name);
+            _bboxInfoBuilder.Append("Type ID: ").AppendLine(Type.ToString());
+            _bboxInfoBuilder.Append("Alpha: ").AppendLine(TotalAlpha.ToString());
+            _bboxInfoBuilder.Append("X: ").Append(Position.X).Append(" Y: ").Append(Position.Y)
                   .Append(" Z: ").AppendLine(Position.Z.ToString());
-            sbInfo.Append("Depth: ").AppendLine(Depth.ToString());
-            sbInfo.Append("Render order: ").AppendLine(RenderOrder.ToString());
-            sbInfo.Append("DepthStencilState: ").Append(DepthState.Name);
-            string objectInfo = sbInfo.ToString();
+            _bboxInfoBuilder.Append("Depth: ").AppendLine(Depth.ToString());
+            _bboxInfoBuilder.Append("Render order: ").AppendLine(RenderOrder.ToString());
+            _bboxInfoBuilder.Append("DepthStencilState: ").Append(DepthState.Name);
+            string objectInfo = _bboxInfoBuilder.ToString();
 
             float scaleFactor = DebugFontSize / Constants.BASE_FONT_SIZE * Constants.RENDER_SCALE;
             Vector2 textSize = _font.MeasureString(objectInfo) * scaleFactor;
@@ -667,18 +684,39 @@ namespace Client.Main.Objects
             spriteBatch.Draw(_whiteTexture, borderRect, borderColor);
         }
 
-        protected virtual void UpdateWorldBoundingBox()
+        private static bool TryBeginHoverCheck(bool isImportant)
         {
-            Vector3[] boundingBoxCorners = BoundingBoxLocal.GetCorners();
-            Matrix worldPos = WorldPosition;
-
-            // Transform all corners in one loop
-            for (int i = 0; i < boundingBoxCorners.Length; i++)
+            int frame = _globalFrameCounter;
+            if (_hoverFrame != frame)
             {
-                boundingBoxCorners[i] = Vector3.Transform(boundingBoxCorners[i], worldPos);
+                _hoverFrame = frame;
+                _hoverChecksThisFrame = 0;
             }
 
-            BoundingBoxWorld = BoundingBox.CreateFromPoints(boundingBoxCorners);
+            if (!isImportant && _hoverChecksThisFrame >= HoverChecksPerFrame)
+                return false;
+
+            _hoverChecksThisFrame++;
+            return true;
+        }
+
+        protected virtual void UpdateWorldBoundingBox()
+        {
+            Matrix worldPos = WorldPosition;
+            var min = BoundingBoxLocal.Min;
+            var max = BoundingBoxLocal.Max;
+
+            // Write corners directly into the reusable buffer (avoids GetCorners allocation)
+            _bboxCorners[0] = Vector3.Transform(new Vector3(min.X, min.Y, min.Z), worldPos);
+            _bboxCorners[1] = Vector3.Transform(new Vector3(max.X, min.Y, min.Z), worldPos);
+            _bboxCorners[2] = Vector3.Transform(new Vector3(max.X, max.Y, min.Z), worldPos);
+            _bboxCorners[3] = Vector3.Transform(new Vector3(min.X, max.Y, min.Z), worldPos);
+            _bboxCorners[4] = Vector3.Transform(new Vector3(min.X, min.Y, max.Z), worldPos);
+            _bboxCorners[5] = Vector3.Transform(new Vector3(max.X, min.Y, max.Z), worldPos);
+            _bboxCorners[6] = Vector3.Transform(new Vector3(max.X, max.Y, max.Z), worldPos);
+            _bboxCorners[7] = Vector3.Transform(new Vector3(min.X, max.Y, max.Z), worldPos);
+
+            BoundingBoxWorld = BoundingBox.CreateFromPoints(_bboxCorners);
         }
 
         public virtual ushort NetworkId { get; protected set; }

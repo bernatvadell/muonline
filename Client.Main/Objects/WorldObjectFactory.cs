@@ -3,12 +3,15 @@ using Client.Main.Objects;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using System;
+using System.Collections.Concurrent;
+using System.Linq.Expressions;
 
 namespace Client.Main
 {
     public static class WorldObjectFactory
     {
         private static readonly ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger(typeof(WorldObjectFactory));
+        private static readonly ConcurrentDictionary<Type, Func<WorldObject>> _ctorCache = new();
 
         public static WorldObject CreateMapTileObject(this WorldControl world, Data.OBJS.IMapObject obj)
         {
@@ -44,7 +47,7 @@ namespace Client.Main
         public static WorldObject CreateObject(this WorldControl world, Type objectType)
         {
             ArgumentNullException.ThrowIfNull(world);
-            var obj = (WorldObject)Activator.CreateInstance(objectType);
+            var obj = CreateInstance(objectType);
             world.Objects.Add(obj);
             return obj;
         }
@@ -52,9 +55,21 @@ namespace Client.Main
         public static WorldObject CreateObject(this WorldObject parent, Type objectType)
         {
             ArgumentNullException.ThrowIfNull(parent);
-            var obj = (WorldObject)Activator.CreateInstance(objectType);
+            var obj = CreateInstance(objectType);
             parent.Children.Add(obj);
             return obj;
+        }
+
+        private static WorldObject CreateInstance(Type objectType)
+        {
+            // Cache parameterless ctor delegate to avoid reflection overhead on every spawn
+            var ctor = _ctorCache.GetOrAdd(objectType, static t =>
+            {
+                var newExpr = Expression.New(t);
+                var castExpr = Expression.Convert(newExpr, typeof(WorldObject));
+                return Expression.Lambda<Func<WorldObject>>(castExpr).Compile();
+            });
+            return ctor();
         }
     }
 }

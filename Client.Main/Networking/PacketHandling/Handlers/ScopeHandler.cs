@@ -210,13 +210,14 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             };
             _logger.LogDebug($"[Spawn] PlayerObject created for {name}.");
 
+            var preloadTask = p.PreloadAppearanceModelsAsync();
+
             // Load assets in background
             try
             {
-                await p.Load();
-                _logger.LogDebug($"[Spawn] p.Load() completed for {name}.");
-                // Skip preloading to avoid blocking
-                _logger.LogDebug($"[Spawn] Skipping preloading for {name}.");
+                var loadTask = p.Load();
+                await Task.WhenAll(preloadTask, loadTask);
+                _logger.LogDebug($"[Spawn] Assets preloaded and Load() completed for {name}.");
             }
             catch (Exception ex)
             {
@@ -498,7 +499,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 if (packet.Length < EXPECTED_MIN_LENGTH)
                 {
                     _logger.LogWarning("AppearanceChanged packet has invalid length: {Length}. Expected at least {Expected}.", packet.Length, EXPECTED_MIN_LENGTH);
-                        }
+                }
 
                 var span = packet.Span;
                 ushort rawKey = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(span.Slice(OBJECT_ID_OFFSET));
@@ -532,8 +533,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 _logger.LogDebug("Parsed AppearanceChanged for ID {Id:X4}: Slot={Slot}, Group={Group}, Number={Number}, Type={Type}, Level={Level}",
                     maskedId, itemSlot, itemGroup, itemNumber, finalItemType, itemLevel);
 
-                await HandleEquipAsync(maskedId, itemSlot, itemGroup, itemNumber, finalItemType, itemLevel, 
-                    itemOptions, hasExcellent ? excellentFlags : (byte)0, 
+                await HandleEquipAsync(maskedId, itemSlot, itemGroup, itemNumber, finalItemType, itemLevel,
+                    itemOptions, hasExcellent ? excellentFlags : (byte)0,
                     hasAncient ? ancientDiscriminator : (byte)0, isAncientSetComplete);
             }
             catch (Exception ex)
@@ -571,8 +572,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
-        private Task HandleEquipAsync(ushort maskedId, byte itemSlot, byte itemGroup, byte itemNumber, 
-            int finalItemType, byte itemLevel, byte itemOptions, byte excellentFlags, 
+        private Task HandleEquipAsync(ushort maskedId, byte itemSlot, byte itemGroup, byte itemNumber,
+            int finalItemType, byte itemLevel, byte itemOptions, byte excellentFlags,
             byte ancientDiscriminator, bool isAncientSetComplete)
         {
             MuGame.ScheduleOnMainThread(async () =>
@@ -704,7 +705,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         dmgText = $"{totalDmg}{multiplier}";
                     }
 
-                    var txt = new DamageTextObject(
+                    var txt = DamageTextObject.Rent(
                         dmgText,
                         maskedId,
                         dmgColor
@@ -1031,7 +1032,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         {
                             world.Objects.Remove(obj);
                             // Dispose asynchronously to avoid blocking
-                            _ = Task.Run(() => obj.Dispose());
+                            _ = Task.Run(() => obj.Recycle());
                             _logger.LogDebug("Removed DroppedItemObject {Id:X4} from world (scope gone).", masked);
                         }
                     }
@@ -1536,7 +1537,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             await tcs.Task;
         }
 
-        private async void ProcessDroppedItemOnMainThread(ScopeObject dropObj, ushort maskedId, string soundPath, TaskCompletionSource<bool> tcs)
+        private void ProcessDroppedItemOnMainThread(ScopeObject dropObj, ushort maskedId, string soundPath, TaskCompletionSource<bool> tcs)
         {
             try
             {
@@ -1552,10 +1553,10 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     world.Objects.Remove(existing);
                     // Dispose asynchronously to avoid blocking
-                    _ = Task.Run(() => existing.Dispose());
+                    _ = Task.Run(() => existing.Recycle());
                 }
 
-                var obj = new DroppedItemObject(dropObj, _characterState.Id, _networkManager.GetCharacterService(), _loggerFactory.CreateLogger<DroppedItemObject>());
+                var obj = DroppedItemObject.Rent(dropObj, _characterState.Id, _networkManager.GetCharacterService(), _loggerFactory.CreateLogger<DroppedItemObject>());
 
                 // Set World property before adding to world objects
                 obj.World = world;
@@ -1563,33 +1564,43 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 // Add to world so World.Scene is available
                 world.Objects.Add(obj);
 
-                // Load assets
-                try
+                // Queue load to avoid long stalls on the main thread
+                bool enqueued = MuGame.TaskScheduler.QueueTask(async () =>
                 {
-                    await obj.Load();
-                }
-                catch (Exception ex)
+                    try
+                    {
+                        await obj.Load();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, $"Error loading dropped item assets for {maskedId:X4}");
+                        world.Objects.Remove(obj);
+                        obj.Recycle();
+                        tcs.TrySetResult(false);
+                        return;
+                    }
+
+                    // Play drop sound
+                    SoundController.Instance.PlayBufferWithAttenuation(soundPath, obj.Position, world.Walker.Position);
+
+                    // Don't set Hidden immediately - let WorldObject.Update handle visibility checks
+                    // The immediate visibility check was causing items to be Hidden incorrectly
+                    _logger.LogDebug($"Spawned dropped item ({obj.DisplayName}) at {obj.Position.X},{obj.Position.Y},{obj.Position.Z}. RawId: {obj.RawId:X4}, MaskedId: {obj.NetworkId:X4}");
+                    tcs.TrySetResult(true);
+                }, Controllers.TaskScheduler.Priority.Low);
+
+                if (!enqueued)
                 {
-                    _logger.LogError(ex, $"Error loading dropped item assets for {maskedId:X4}");
+                    _logger.LogWarning("Failed to queue dropped item load task for {Id:X4} – scheduler at capacity.", maskedId);
                     world.Objects.Remove(obj);
-                    obj.Dispose();
-                    tcs.SetResult(false);
-                    return;
+                    obj.Recycle();
+                    tcs.TrySetResult(false);
                 }
-
-                // Play drop sound
-                SoundController.Instance.PlayBufferWithAttenuation(soundPath, obj.Position, world.Walker.Position);
-
-                // Don't set Hidden immediately - let WorldObject.Update handle visibility checks
-                // The immediate visibility check was causing items to be Hidden incorrectly
-                _logger.LogDebug($"Spawned dropped item ({obj.DisplayName}) at {obj.Position.X},{obj.Position.Y},{obj.Position.Z}. RawId: {obj.RawId:X4}, MaskedId: {obj.NetworkId:X4}");
-
-                tcs.SetResult(true);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Error processing dropped item on main thread for {maskedId:X4}");
-                tcs.SetResult(false);
+                tcs.TrySetResult(false);
             }
         }
 

@@ -628,11 +628,11 @@ namespace Client.Main.Scenes
         }
 
         // ─────────────────── Import NPCs & Monsters ───────────────────
-        private async Task ImportPendingNpcsMonsters()
+        private Task ImportPendingNpcsMonsters()
         {
-            if (World is not WalkableWorldControl w) return;
+            if (World is not WalkableWorldControl w) return Task.CompletedTask;
             var list = ScopeHandler.TakePendingNpcsMonsters();
-            if (list.Count == 0) return;
+            if (list.Count == 0) return Task.CompletedTask;
 
             foreach (var s in list)
             {
@@ -647,30 +647,35 @@ namespace Client.Main.Scenes
                     npcMonster.Direction = (Models.Direction)s.Direction;
                     npcMonster.World = w;
 
-                    try
+                    MuGame.TaskScheduler.QueueTask(async () =>
                     {
-                        await npcMonster.Load();
-                        w.Objects.Add(npcMonster);
+                        try
+                        {
+                            await npcMonster.Load();
+                            w.Objects.Add(npcMonster);
 
-                        // Track the added object
-                        if (npcMonster is MonsterObject)
-                            _activeMonsterIds.Add(s.Id);
-                        else
-                            _activeNpcIds.Add(s.Id);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.LogError(ex, $"Error loading pending NPC/Monster {s.Id:X4}");
-                        npcMonster.Dispose();
-                    }
+                            // Track the added object
+                            if (npcMonster is MonsterObject)
+                                _activeMonsterIds.Add(s.Id);
+                            else
+                                _activeNpcIds.Add(s.Id);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.LogError(ex, $"Error loading pending NPC/Monster {s.Id:X4}");
+                            npcMonster.Dispose();
+                        }
+                    }, Controllers.TaskScheduler.Priority.High);
                 }
             }
+
+            return Task.CompletedTask;
         }
 
         // ─────────────────── Import Remote Players ───────────────────
-        private async Task ImportPendingRemotePlayers()
+        private Task ImportPendingRemotePlayers()
         {
-            if (World is not WalkableWorldControl w) return;
+            if (World is not WalkableWorldControl w) return Task.CompletedTask;
             var list = ScopeHandler.TakePendingPlayers();
 
             var heroId = MuGame.Network.GetCharacterState().Id;
@@ -691,20 +696,25 @@ namespace Client.Main.Scenes
                     World = w
                 };
 
-                try
+                MuGame.TaskScheduler.QueueTask(async () =>
                 {
-                    await remote.Load();
-                    w.Objects.Add(remote);
+                    try
+                    {
+                        await remote.Load();
+                        w.Objects.Add(remote);
 
-                    // Track the added player
-                    _activePlayerIds.Add(s.Id);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogError(ex, $"Error loading pending remote player {s.Name} ({s.Id:X4})");
-                    remote.Dispose();
-                }
+                        // Track the added player
+                        _activePlayerIds.Add(s.Id);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, $"Error loading pending remote player {s.Name} ({s.Id:X4})");
+                        remote.Dispose();
+                    }
+                }, Controllers.TaskScheduler.Priority.High);
             }
+
+            return Task.CompletedTask;
         }
 
         // ─────────────────── Import Dropped Items ───────────────────
@@ -726,13 +736,13 @@ namespace Client.Main.Scenes
                     continue;
 
                 // Load and add dropped items on main thread to ensure World.Scene is available
-                MuGame.ScheduleOnMainThread(async () =>
+                MuGame.ScheduleOnMainThread(() =>
                 {
                     if (w.Status != GameControlStatus.Ready ||
                         _activeItemIds.Contains(s.Id))
                         return;
 
-                    var obj = new DroppedItemObject(
+                    var obj = DroppedItemObject.Rent(
                         s,
                         MuGame.Network.GetCharacterState().Id,
                         MuGame.Network.GetCharacterService(),
@@ -747,18 +757,22 @@ namespace Client.Main.Scenes
                     // Track the added item
                     _activeItemIds.Add(s.Id);
 
-                    try
+                    // Queue load on main-thread scheduler to avoid blocking frame
+                    MuGame.TaskScheduler.QueueTask(async () =>
                     {
-                        await obj.Load();
-                        // Don't set Hidden immediately - let WorldObject.Update handle visibility checks
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.LogError(ex, $"Error loading pending dropped item {s.Id:X4}");
-                        w.Objects.Remove(obj);
-                        _activeItemIds.Remove(s.Id);
-                        obj.Dispose();
-                    }
+                        try
+                        {
+                            await obj.Load();
+                            // Don't set Hidden immediately - let WorldObject.Update handle visibility checks
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.LogError(ex, $"Error loading pending dropped item {s.Id:X4}");
+                            w.Objects.Remove(obj);
+                            _activeItemIds.Remove(s.Id);
+                            obj.Recycle();
+                        }
+                    }, Controllers.TaskScheduler.Priority.Low);
                 });
             }
 
@@ -837,7 +851,10 @@ namespace Client.Main.Scenes
                 foreach (var obj in objectsToRemove)
                 {
                     World.Objects.Remove(obj);
-                    obj.Dispose();
+                    if (obj is DroppedItemObject drop)
+                        drop.Recycle();
+                    else
+                        obj.Dispose();
                 }
 
                 _logger?.LogDebug("ClearObjectTracking: Removed {Count} objects from previous map", objectsToRemove.Count);

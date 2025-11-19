@@ -1,6 +1,4 @@
 using System;
-using System.Threading;
-using System.Threading.Tasks;
 using Client.Main.Models;
 using Client.Main.Objects;
 using Client.Main.Objects.Player;
@@ -13,11 +11,20 @@ namespace Client.Main.Controllers
     {
         private readonly WalkerObject _owner;
 
+        private enum AnimationTimerMode
+        {
+            None,
+            OneShotBackup,
+            DeathHold
+        }
+
         private ushort? _currentOneShot;
-        private CancellationTokenSource _timer;
         private bool _oneShotEnded;
         private bool _serverControlled;
         private volatile bool _forceReturnToIdle;
+        private AnimationTimerMode _timerMode = AnimationTimerMode.None;
+        private float _timerRemaining;
+        private ushort _timerAction;
 
         private const float DEATH_HOLD = 3.0f;
         private const float BACKUP_MARGIN = 0.1f;
@@ -50,9 +57,7 @@ namespace Client.Main.Controllers
 
             if (!AllowWhenDead(kind)) return;
 
-            _timer?.Cancel();
-            _timer?.Dispose();
-            _timer = null;
+            ClearTimer();
             _oneShotEnded = false;
             _forceReturnToIdle = false;
 
@@ -81,9 +86,7 @@ namespace Client.Main.Controllers
         public void Reset()
         {
             // Cancel any running timers
-            _timer?.Cancel();
-            _timer?.Dispose();
-            _timer = null;
+            ClearTimer();
 
             // Reset all state variables
             _oneShotEnded = false;
@@ -110,22 +113,7 @@ namespace Client.Main.Controllers
             if (!TryGetDuration(idx, out var real)) return;
             float wait = real + BACKUP_MARGIN;
 
-            _timer = new CancellationTokenSource();
-            // Debug.WriteLine($"[AnimCtrl] backup {wait:F2}s for {idx}");
-
-            Task.Delay(TimeSpan.FromSeconds(wait), _timer.Token).ContinueWith(t =>
-            {
-                if (t.IsCanceled || _forceReturnToIdle) return;
-
-                MuGame.ScheduleOnMainThread(() =>
-                {
-                    if (!_oneShotEnded && _currentOneShot == idx && !_forceReturnToIdle)
-                    {
-                        // Debug.WriteLine($"[AnimCtrl] backup fired → idle");
-                        ReturnToIdle();
-                    }
-                });
-            }, TaskContinuationOptions.OnlyOnRanToCompletion);
+            ArmTimer(AnimationTimerMode.OneShotBackup, idx, wait);
         }
 
         /* ----------------------------------------------------------------- */
@@ -136,22 +124,7 @@ namespace Client.Main.Controllers
             if (!TryGetDuration(idx, out var anim)) anim = 0;
             float hold = Math.Min(anim + DEATH_HOLD, DEATH_HOLD);
 
-            _timer = new CancellationTokenSource();
-            // Debug.WriteLine($"[AnimCtrl] death hold {hold:F2}s");
-
-            Task.Delay(TimeSpan.FromSeconds(hold), _timer.Token).ContinueWith(t =>
-            {
-                if (t.IsCanceled) return;
-
-                MuGame.ScheduleOnMainThread(() =>
-                {
-                    if (_owner is PlayerObject pl && pl.IsMainWalker)
-                    {
-                        var state = MuGame.Network?.GetCharacterState();
-                        if (state?.CurrentHealth > 0) ReturnToIdle();
-                    }
-                });
-            }, TaskContinuationOptions.OnlyOnRanToCompletion);
+            ArmTimer(AnimationTimerMode.DeathHold, idx, hold);
         }
 
         /* ----------------------------------------------------------------- */
@@ -165,9 +138,7 @@ namespace Client.Main.Controllers
             _forceReturnToIdle = true;
 
             // Anuluj wszelkie timery
-            _timer?.Cancel();
-            _timer?.Dispose();
-            _timer = null;
+            ClearTimer();
 
             if (_owner.Status == GameControlStatus.Disposed) return;
             if (GetAnimationType((ushort)_owner.CurrentAction) == AnimationType.Death
@@ -198,6 +169,60 @@ namespace Client.Main.Controllers
 
             duration = CalcDuration(act);
             return true;
+        }
+
+        public void Update(float deltaSeconds)
+        {
+            if (_timerMode == AnimationTimerMode.None)
+                return;
+
+            if (_forceReturnToIdle)
+            {
+                ClearTimer();
+                return;
+            }
+
+            _timerRemaining -= deltaSeconds;
+            if (_timerRemaining > 0f)
+                return;
+
+            var mode = _timerMode;
+            var action = _timerAction;
+            ClearTimer();
+
+            switch (mode)
+            {
+                case AnimationTimerMode.OneShotBackup:
+                    if (!_oneShotEnded && _currentOneShot == action && !_forceReturnToIdle)
+                    {
+                        ReturnToIdle();
+                    }
+                    break;
+                case AnimationTimerMode.DeathHold:
+                    if (_owner is PlayerObject pl && pl.IsMainWalker)
+                    {
+                        var state = MuGame.Network?.GetCharacterState();
+                        if (state?.CurrentHealth > 0)
+                        {
+                            ReturnToIdle();
+                        }
+                    }
+                    break;
+            }
+        }
+
+        private void ArmTimer(AnimationTimerMode mode, ushort actionIdx, float duration)
+        {
+            _timerMode = mode;
+            _timerAction = actionIdx;
+            _timerRemaining = Math.Max(0.01f, duration);
+        }
+
+        private void ClearTimer()
+        {
+            _timerMode = AnimationTimerMode.None;
+            _timerRemaining = 0f;
+            _timerAction = 0;
         }
 
         private static bool IsReturnable(AnimationType t)
@@ -277,8 +302,7 @@ namespace Client.Main.Controllers
 
         public void Dispose()
         {
-            _timer?.Cancel();
-            _timer?.Dispose();
+            ClearTimer();
         }
     }
 

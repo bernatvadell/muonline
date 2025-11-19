@@ -7,6 +7,7 @@ using Client.Main.Helpers;
 using Client.Main.Models;
 using Client.Main.Objects.Player;
 using Client.Main.Scenes;
+using Client.Main.Controls;
 
 namespace Client.Main.Objects.Effects
 {
@@ -16,9 +17,9 @@ namespace Client.Main.Objects.Effects
     public class DamageTextObject : WorldObject
     {
         // Public readonly data -------------------------------------------------
-        public string Text { get; }
-        public Color TextColor { get; }
-        public ushort TargetId { get; }
+        public string Text { get; private set; }
+        public Color TextColor { get; private set; }
+        public ushort TargetId { get; private set; }
 
         // Animation state ------------------------------------------------------
         private float _currentVerticalOffset;
@@ -31,13 +32,13 @@ namespace Client.Main.Objects.Effects
         private Vector2 _screenPosition;
 
         // Visual-effect helpers ------------------------------------------------
-        private readonly bool _isCritical;
-        private readonly float _wobbleAmplitude;
-        private readonly float _wobbleFrequency;
-        private readonly Vector2 _shadowOffset;
-        private readonly float _glowIntensity;
+        private bool _isCritical;
+        private float _wobbleAmplitude;
+        private float _wobbleFrequency;
+        private Vector2 _shadowOffset;
+        private float _glowIntensity;
         private float _pulsePhase;
-        private readonly Color _originalColor;
+        private Color _originalColor;
 
         // Tunables (already toned down vs. stock) ------------------------------
         private const float MaxVerticalOffset = 60f;
@@ -60,9 +61,38 @@ namespace Client.Main.Objects.Effects
         private const float GlowAlphaMul = 0.15f;  // was 0.30–0.60
         private const float HighlightAlphaMul = 0.075f; // was 0.15
 
+        private static readonly System.Collections.Concurrent.ConcurrentBag<DamageTextObject> _pool = new();
+
         // ---------------------------------------------------------------------
 
         public DamageTextObject(string text, ushort targetId, Color color)
+        {
+            Reset(text, targetId, color);
+        }
+
+        public static DamageTextObject Rent(string text, ushort targetId, Color color)
+        {
+            if (_pool.TryTake(out var obj))
+            {
+                obj.Reset(text, targetId, color);
+                return obj;
+            }
+            return new DamageTextObject(text, targetId, color);
+        }
+
+        public void Recycle()
+        {
+            try
+            {
+                Dispose();
+            }
+            finally
+            {
+                _pool.Add(this);
+            }
+        }
+
+        private void Reset(string text, ushort targetId, Color color)
         {
             Text = text;
             TargetId = targetId;
@@ -74,6 +104,15 @@ namespace Client.Main.Objects.Effects
             IsTransparent = true;
             AffectedByTransparency = false;
             Status = GameControlStatus.Ready;
+            Hidden = false;
+            _currentVerticalOffset = 0f;
+            _currentHorizontalOffset = 0f;
+            _verticalVelocity = 0f;
+            _horizontalVelocity = 0f;
+            _currentScale = StartScale;
+            _falling = false;
+            _elapsedTime = 0f;
+            _screenPosition = Vector2.Zero;
 
             // Critical hit detection - enhanced to detect more crit patterns
             _isCritical = text.Contains("!") || text.Contains("CRIT") || text.Contains("CRITICAL") ||
@@ -115,8 +154,9 @@ namespace Client.Main.Objects.Effects
             if (_elapsedTime >= Lifetime || Alpha <= 0.01f)
             {
                 Hidden = true;
-                World?.RemoveObject(this);
-                Dispose();
+                if (World is Controls.WorldControl wc)
+                    wc.RemoveObject(this);
+                Recycle();
                 return;
             }
 

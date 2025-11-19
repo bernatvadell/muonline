@@ -2,6 +2,7 @@
 using Client.Data.Texture;
 using Client.Main.Content;
 using Client.Main.Controllers;
+using Client.Main.Graphics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -366,6 +367,8 @@ namespace Client.Main.Objects
         public override async Task LoadContent()
         {
             await base.LoadContent();
+
+            ReleaseDynamicBuffers();
 
             if (Model == null)
             {
@@ -1544,6 +1547,7 @@ namespace Client.Main.Objects
             Model = null;
             BoneTransform = null;
             _invalidatedBufferFlags = 0;
+            ReleaseDynamicBuffers();
 
             // Release graphics resources and mark content as unloaded
             _boneVertexBuffers = null;
@@ -2274,6 +2278,49 @@ namespace Client.Main.Objects
             {
                 WorldPosition = newWorldPosition;
                 InvalidateBuffers(BUFFER_FLAG_TRANSFORM);
+            }
+        }
+
+        private void ReleaseDynamicBuffers()
+        {
+            var vertexBuffers = Interlocked.Exchange(ref _boneVertexBuffers, null);
+            if (vertexBuffers != null)
+            {
+                for (int i = 0; i < vertexBuffers.Length; i++)
+                {
+                    var buffer = vertexBuffers[i];
+                    if (buffer == null)
+                        continue;
+
+                    DynamicBufferPool.ReturnVertexBuffer(buffer);
+                    vertexBuffers[i] = null;
+                }
+            }
+
+            var indexBuffers = Interlocked.Exchange(ref _boneIndexBuffers, null);
+            if (indexBuffers != null)
+            {
+                for (int i = 0; i < indexBuffers.Length; i++)
+                {
+                    var buffer = indexBuffers[i];
+                    if (buffer == null)
+                        continue;
+
+                    DynamicBufferPool.ReturnIndexBuffer(buffer);
+                    indexBuffers[i] = null;
+                }
+            }
+
+            var meshCache = _meshBufferCache;
+            if (meshCache != null)
+            {
+                for (int i = 0; i < meshCache.Length; i++)
+                {
+                    ref var cache = ref meshCache[i];
+                    cache.VertexBuffer = null;
+                    cache.IndexBuffer = null;
+                    cache.IsValid = false;
+                }
             }
         }
     }

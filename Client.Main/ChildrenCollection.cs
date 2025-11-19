@@ -1,5 +1,6 @@
-using System.Collections.Generic;
 using System;
+using System.Buffers;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Client.Main
@@ -121,17 +122,37 @@ namespace Client.Main
             }
         }
 
-        public IEnumerator<T> GetEnumerator()
+        public IEnumerator<T> GetEnumerator() => EnumerateSnapshot().GetEnumerator();
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+        private IEnumerable<T> EnumerateSnapshot()
         {
+            int count;
+            T[] buffer = Array.Empty<T>();
+
             lock (_lock)
             {
-                return _controls.ToArray().AsEnumerable().GetEnumerator();  // Enumerar sobre una copia para evitar problemas de concurrencia
+                count = _controls.Count;
+                if (count > 0)
+                {
+                    buffer = ArrayPool<T>.Shared.Rent(count);
+                    _controls.CopyTo(buffer, 0);
+                }
             }
-        }
 
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
-        {
-            return this.GetEnumerator();
+            if (count == 0)
+                yield break;
+
+            try
+            {
+                for (int i = 0; i < count; i++)
+                    yield return buffer[i];
+            }
+            finally
+            {
+                ArrayPool<T>.Shared.Return(buffer, clearArray: true);
+            }
         }
 
         public bool Contains(T item)

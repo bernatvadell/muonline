@@ -35,23 +35,52 @@ namespace Client.Main.Objects
         private const float MinimumBoundingHeight = 24f; // Ensure some vertical interaction room
 
         // ─────────────────── deps / state
-        private readonly ScopeObject _scope;
-        private readonly ushort _mainPlayerId;
-        private readonly CharacterService _charSvc;
-        private readonly ILogger<DroppedItemObject> _log;
+        private ScopeObject _scope;
+        private ushort _mainPlayerId;
+        private CharacterService _charSvc;
+        private ILogger<DroppedItemObject> _log;
 
         private SpriteFont _font;
         private bool _pickedUp;
         private ModelObject _modelObj; // Optional 3D model when available
-        private readonly ItemDefinition _definition;
-        private readonly bool _isMoney;
+        private ItemDefinition _definition;
+        private bool _isMoney;
         private float _yawRadians;   // Static orientation in world (does not follow camera)
         private readonly List<ModelObject> _coinModels = new List<ModelObject>(); // Multiple coins for money piles
         private readonly List<Vector3> _childBoundsScratch = new(32); // Reuse buffer while fitting bounding boxes
 
         // ─────────────────── public helpers
-        public ushort RawId => _scope.RawId;
-        public new string DisplayName { get; }
+        public ushort RawId => _scope?.RawId ?? 0;
+        public new string DisplayName { get; private set; }
+
+        // Pool
+        private static readonly System.Collections.Concurrent.ConcurrentBag<DroppedItemObject> _pool = new();
+
+        public static DroppedItemObject Rent(
+              ScopeObject scope,
+              ushort mainPlayerId,
+              CharacterService charSvc,
+              ILogger<DroppedItemObject> logger = null)
+        {
+            if (_pool.TryTake(out var obj))
+            {
+                obj.ResetFromScope(scope, mainPlayerId, charSvc, logger);
+                return obj;
+            }
+            return new DroppedItemObject(scope, mainPlayerId, charSvc, logger);
+        }
+
+        public void Recycle()
+        {
+            try
+            {
+                Dispose();
+            }
+            finally
+            {
+                _pool.Add(this);
+            }
+        }
 
         // =====================================================================
         public DroppedItemObject(
@@ -60,6 +89,15 @@ namespace Client.Main.Objects
               CharacterService charSvc,
               ILogger<DroppedItemObject> logger = null)
         {
+            ResetFromScope(scope, mainPlayerId, charSvc, logger);
+        }
+
+        private void ResetFromScope(
+            ScopeObject scope,
+            ushort mainPlayerId,
+            CharacterService charSvc,
+            ILogger<DroppedItemObject> logger)
+        {
             _scope = scope ?? throw new ArgumentNullException(nameof(scope));
             _mainPlayerId = mainPlayerId;
             _charSvc = charSvc ?? throw new ArgumentNullException(nameof(charSvc));
@@ -67,6 +105,14 @@ namespace Client.Main.Objects
 
             NetworkId = scope.Id;
             Interactive = true;
+            Hidden = false;
+            Status = GameControlStatus.NonInitialized;
+            _pickedUp = false;
+            _modelObj = null;
+            _definition = null;
+            _isMoney = false;
+            _coinModels.Clear();
+            _childBoundsScratch.Clear();
 
             // Initialize position at ground level (will be adjusted in Load() after terrain height is known)
             Position = new(
@@ -76,7 +122,6 @@ namespace Client.Main.Objects
 
             string baseName = "Unknown Drop";
             ItemDatabase.ItemDetails itemDetails = default;
-            _ = ReadOnlySpan<byte>.Empty;
 
             if (scope is ItemScopeObject itemScope)
             {
@@ -93,9 +138,6 @@ namespace Client.Main.Objects
             }
 
             DisplayName = FormatItemDisplayName(baseName, itemDetails);
-
-            // LabelControl is not used anymore (it rendered above UI).
-            // We draw the item name in the world pass (depth-aware) by overriding DrawHoverName.
 
             // Initialize a deterministic static yaw based on the raw id to make items look natural but stable
             _yawRadians = ((RawId & 0xFF) / 255f) * MathHelper.TwoPi;

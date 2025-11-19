@@ -6,6 +6,7 @@ using Client.Main.Core.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Linq; // For ItemDatabase
+using MUnique.OpenMU.Network.Packets;
 
 namespace Client.Main.Core.Client
 {
@@ -18,6 +19,10 @@ namespace Client.Main.Core.Client
         private readonly ILogger<ScopeManager> _logger;
         private readonly CharacterState _characterState; // Needed for position-based calculations to determine proximity
         private readonly ConcurrentDictionary<ushort, ScopeObject> _objectsInScope = new(); // Thread-safe dictionary to store objects in scope, using masked IDs as keys
+        private readonly Stack<PlayerScopeObject> _playerPool = new();
+        private readonly Stack<NpcScopeObject> _npcPool = new();
+        private readonly Stack<MoneyScopeObject> _moneyPool = new();
+        private readonly object _poolLock = new();
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ScopeManager"/> class.
@@ -41,22 +46,24 @@ namespace Client.Main.Core.Client
         /// <param name="name">The name of the player.</param>
         public void AddOrUpdatePlayerInScope(ushort maskedId, ushort rawId, byte x, byte y, string name)
         {
-            var player = new PlayerScopeObject(maskedId, rawId, x, y, name);
-            _objectsInScope.AddOrUpdate(maskedId, player, (_, existing) =>
+            if (_objectsInScope.TryGetValue(maskedId, out var existing) && existing is PlayerScopeObject existingPlayer)
             {
-                // If existing object is not a PlayerScopeObject, replace it entirely
-                if (existing is not PlayerScopeObject existingPlayer)
-                {
-                    return player; // Replace with new player object
-                }
-
-                // Update existing player object
+                // Fast-path: mutate existing to avoid allocations
                 existingPlayer.PositionX = x;
                 existingPlayer.PositionY = y;
-                existingPlayer.Name = name; // Update player name in case it has changed
-                existingPlayer.LastUpdate = DateTime.UtcNow; // Update the last update timestamp
-                return existingPlayer;
-            });
+                existingPlayer.Name = name;
+                existingPlayer.LastUpdate = DateTime.UtcNow;
+            }
+            else
+            {
+                // Replace mismatched type or missing entry
+                if (existing != null)
+                {
+                    ReturnScopeObject(existing);
+                }
+                var player = RentPlayer(maskedId, rawId, x, y, name);
+                _objectsInScope[maskedId] = player;
+            }
             _logger.LogTrace("Scope Add/Update: Player {Name} ({Id:X4}, Raw: {RawId:X4}) at [{X},{Y}]", name, maskedId, rawId, x, y);
         }
 
@@ -72,23 +79,23 @@ namespace Client.Main.Core.Client
         /// <param name="name">The optional name of the NPC.</param>
         public void AddOrUpdateNpcInScope(ushort maskedId, ushort rawId, byte x, byte y, ushort typeNumber, string name = null)
         {
-            var npc = new NpcScopeObject(maskedId, rawId, x, y, typeNumber, name);
-            _objectsInScope.AddOrUpdate(maskedId, npc, (_, existing) =>
+            if (_objectsInScope.TryGetValue(maskedId, out var existing) && existing is NpcScopeObject existingNpc)
             {
-                // If existing object is not an NpcScopeObject, replace it entirely
-                if (existing is not NpcScopeObject existingNpc)
-                {
-                    return npc; // Replace with new NPC object
-                }
-
-                // Update existing NPC object
                 existingNpc.PositionX = x;
                 existingNpc.PositionY = y;
-                existingNpc.TypeNumber = typeNumber; // Update NPC type number if it has changed
-                existingNpc.Name = name; // Update NPC name if it has changed
-                existingNpc.LastUpdate = DateTime.UtcNow; // Update the last update timestamp
-                return existingNpc;
-            });
+                existingNpc.TypeNumber = typeNumber;
+                existingNpc.Name = name;
+                existingNpc.LastUpdate = DateTime.UtcNow;
+            }
+            else
+            {
+                if (existing != null)
+                {
+                    ReturnScopeObject(existing);
+                }
+                var npc = RentNpc(maskedId, rawId, x, y, typeNumber, name);
+                _objectsInScope[maskedId] = npc;
+            }
             _logger.LogTrace("Scope Add/Update: NPC Type {Type} ({Id:X4}, Raw: {RawId:X4}) at [{X},{Y}]", typeNumber, maskedId, rawId, x, y);
         }
 
@@ -103,15 +110,18 @@ namespace Client.Main.Core.Client
         /// <param name="itemData">The raw data of the item.</param>
         public void AddOrUpdateItemInScope(ushort maskedId, ushort rawId, byte x, byte y, ReadOnlySpan<byte> itemData)
         {
-            var item = new ItemScopeObject(maskedId, rawId, x, y, itemData);
-            _objectsInScope.AddOrUpdate(maskedId, item, (_, existing) =>
+            if (_objectsInScope.TryGetValue(maskedId, out var existing) && existing is ItemScopeObject existingItem)
             {
-                existing.PositionX = x;
-                existing.PositionY = y;
+                existingItem.PositionX = x;
+                existingItem.PositionY = y;
                 // Item data itself usually doesn't change while on the ground, so no update needed for ItemData/Description
-                existing.LastUpdate = DateTime.UtcNow; // Update the last update timestamp
-                return existing;
-            });
+                existingItem.LastUpdate = DateTime.UtcNow;
+            }
+            else
+            {
+                var item = new ItemScopeObject(maskedId, rawId, x, y, itemData);
+                _objectsInScope[maskedId] = item;
+            }
             _logger.LogTrace("Scope Add/Update: Item ({Id:X4}, Raw: {RawId:X4}) at [{X},{Y}]", maskedId, rawId, x, y);
         }
 
@@ -126,22 +136,22 @@ namespace Client.Main.Core.Client
         /// <param name="amount">The amount of money.</param>
         public void AddOrUpdateMoneyInScope(ushort maskedId, ushort rawId, byte x, byte y, uint amount)
         {
-            var money = new MoneyScopeObject(maskedId, rawId, x, y, amount);
-            _objectsInScope.AddOrUpdate(maskedId, money, (_, existing) =>
+            if (_objectsInScope.TryGetValue(maskedId, out var existing) && existing is MoneyScopeObject existingMoney)
             {
-                // If existing object is not a MoneyScopeObject, replace it entirely
-                if (existing is not MoneyScopeObject existingMoney)
-                {
-                    return money; // Replace with new money object
-                }
-
-                // Update existing money object
                 existingMoney.PositionX = x;
                 existingMoney.PositionY = y;
-                existingMoney.Amount = amount; // Update money amount, in case of merging drops
-                existingMoney.LastUpdate = DateTime.UtcNow; // Update the last update timestamp
-                return existingMoney;
-            });
+                existingMoney.Amount = amount;
+                existingMoney.LastUpdate = DateTime.UtcNow;
+            }
+            else
+            {
+                if (existing != null)
+                {
+                    ReturnScopeObject(existing);
+                }
+                var money = RentMoney(maskedId, rawId, x, y, amount);
+                _objectsInScope[maskedId] = money;
+            }
             _logger.LogTrace("Scope Add/Update: Money ({Id:X4}, Raw: {RawId:X4}) Amount {Amount} at [{X},{Y}]", maskedId, rawId, amount, x, y);
         }
 
@@ -154,6 +164,7 @@ namespace Client.Main.Core.Client
         {
             if (_objectsInScope.TryRemove(maskedId, out var removedObject))
             {
+                ReturnScopeObject(removedObject);
                 _logger.LogTrace("🔭 Scope Remove: ID {Id:X4} ({Type}) - Success", maskedId, removedObject.ObjectType);
                 return true;
             }
@@ -185,6 +196,76 @@ namespace Client.Main.Core.Client
                 return true;
             }
             return false;
+        }
+
+        // ---------- Pools ----------
+        private PlayerScopeObject RentPlayer(ushort maskedId, ushort rawId, byte x, byte y, string name)
+        {
+            lock (_poolLock)
+            {
+                if (_playerPool.Count > 0)
+                {
+                    var obj = _playerPool.Pop();
+                    obj.Reset(maskedId, rawId, x, y, name, CharacterClassNumber.DarkWizard, default);
+                    return obj;
+                }
+            }
+            return new PlayerScopeObject(maskedId, rawId, x, y, name);
+        }
+
+        private NpcScopeObject RentNpc(ushort maskedId, ushort rawId, byte x, byte y, ushort typeNumber, string name)
+        {
+            lock (_poolLock)
+            {
+                if (_npcPool.Count > 0)
+                {
+                    var obj = _npcPool.Pop();
+                    obj.Reset(maskedId, rawId, x, y, typeNumber, name);
+                    return obj;
+                }
+            }
+            return new NpcScopeObject(maskedId, rawId, x, y, typeNumber, name);
+        }
+
+        private MoneyScopeObject RentMoney(ushort maskedId, ushort rawId, byte x, byte y, uint amount)
+        {
+            lock (_poolLock)
+            {
+                if (_moneyPool.Count > 0)
+                {
+                    var obj = _moneyPool.Pop();
+                    obj.Reset(maskedId, rawId, x, y, amount);
+                    return obj;
+                }
+            }
+            return new MoneyScopeObject(maskedId, rawId, x, y, amount);
+        }
+
+        private void ReturnScopeObject(ScopeObject obj)
+        {
+            if (obj == null) return;
+
+            lock (_poolLock)
+            {
+                switch (obj)
+                {
+                    case PlayerScopeObject player:
+                        player.Name = string.Empty;
+                        player.AppearanceData = default;
+                        player.Class = CharacterClassNumber.DarkWizard;
+                        _playerPool.Push(player);
+                        break;
+                    case NpcScopeObject npc:
+                        npc.Name = null;
+                        npc.TypeNumber = 0;
+                        _npcPool.Push(npc);
+                        break;
+                    case MoneyScopeObject money:
+                        money.Amount = 0;
+                        _moneyPool.Push(money);
+                        break;
+                }
+            }
         }
 
         /// <summary>
@@ -228,6 +309,7 @@ namespace Client.Main.Core.Client
             {
                 if (_objectsInScope.TryRemove(maskedId, out var removedItem))
                 {
+                    ReturnScopeObject(removedItem);
                     _logger.LogDebug("🗑️ Cleared dropped item from scope during map change: ID {Id:X4} ({Type})",
                         maskedId, removedItem.ObjectType);
                 }

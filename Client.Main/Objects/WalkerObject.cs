@@ -163,6 +163,7 @@ namespace Client.Main.Objects
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
+            _animationController?.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
 
             // --- animation test ---
             // if (IsMainWalker)

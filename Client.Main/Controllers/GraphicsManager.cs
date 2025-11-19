@@ -1,4 +1,5 @@
 using Client.Main.Content;
+using Client.Main.Graphics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
@@ -58,6 +59,7 @@ namespace Client.Main.Controllers
             // Initialize resources needed for the game
             BMDLoader.Instance.SetGraphicsDevice(_graphicsDevice);
             TextureLoader.Instance.SetGraphicsDevice(_graphicsDevice);
+            DynamicBufferPool.SetGraphicsDevice(_graphicsDevice);
 
             Pixel = new Texture2D(_graphicsDevice, 1, 1);
             Pixel.SetData(new[] { Color.White });

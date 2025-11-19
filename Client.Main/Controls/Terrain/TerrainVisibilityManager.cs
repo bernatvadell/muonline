@@ -35,6 +35,8 @@ namespace Client.Main.Controls.Terrain
         private readonly TerrainData _data;
         private readonly TerrainBlockCache _blockCache;
         private readonly Queue<TerrainBlock> _visibleBlocks = new(64);
+        // Scratch list reused each frame to avoid per-update allocations
+        private readonly List<TerrainBlock> _visibleScratch = new(256);
         private Vector2 _lastCameraPosition;
         private readonly int[] _lodSteps = { 1, 4 };
 
@@ -106,7 +108,11 @@ namespace Client.Main.Controls.Terrain
             int endY = Math.Min(tilesPerAxis - 1, (int)((cameraPosition.Y + renderDist) / cellWorld) + Extra);
 
             var frustum = Camera.Instance.Frustum;
-            var visible = new List<TerrainBlock>((endX - startX + 1) * (endY - startY + 1));
+            int expected = (endX - startX + 1) * (endY - startY + 1);
+            var visible = _visibleScratch;
+            visible.Clear();
+            if (visible.Capacity < expected)
+                visible.Capacity = expected;
 
             for (int gy = startY; gy <= endY; gy++)
             {

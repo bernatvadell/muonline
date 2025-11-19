@@ -28,12 +28,12 @@ namespace Client.Main.Core.Models
         /// <summary>
         /// Gets the masked identifier of the scope object. This ID is used as a key in the scope management.
         /// </summary>
-        public ushort Id { get; init; } // MASKED ID (used as key for efficient lookup in scope)
+        public ushort Id { get; set; } // MASKED ID (used as key for efficient lookup in scope)
 
         /// <summary>
         /// Gets the original raw identifier of the scope object as received from the server.
         /// </summary>
-        public ushort RawId { get; init; } // Original Raw ID from server (unmasked)
+        public ushort RawId { get; set; } // Original Raw ID from server (unmasked)
 
         /// <summary>
         /// Gets or sets the X-coordinate of the object's position on the map.
@@ -106,6 +106,19 @@ namespace Client.Main.Core.Models
             AppearanceData = appearanceData;
         }
 
+        public void Reset(ushort maskedId, ushort rawId, byte x, byte y, string name,
+                          CharacterClassNumber cls, ReadOnlyMemory<byte> appearanceData)
+        {
+            Id = maskedId;
+            RawId = rawId;
+            PositionX = x;
+            PositionY = y;
+            Name = name;
+            Class = cls;
+            AppearanceData = appearanceData;
+            LastUpdate = DateTime.UtcNow;
+        }
+
         // Methods
         public override string ToString()
             => $"ID: {Id:X4} ({RawId:X4})  Player: {Name}  Class: {Class}  @[{PositionX},{PositionY}]";
@@ -149,7 +162,19 @@ namespace Client.Main.Core.Models
         {
             TypeNumber = typeNumber;
             Name = name;
-            Direction = 0; // Domyślna wartość
+            Direction = 0;
+        }
+
+        public void Reset(ushort maskedId, ushort rawId, byte x, byte y, ushort typeNumber, string name = null)
+        {
+            Id = maskedId;
+            RawId = rawId;
+            PositionX = x;
+            PositionY = y;
+            TypeNumber = typeNumber;
+            Name = name;
+            Direction = 0;
+            LastUpdate = DateTime.UtcNow;
         }
 
         // Methods
@@ -240,6 +265,16 @@ namespace Client.Main.Core.Models
             : base(maskedId, rawId, x, y)
         {
             Amount = amount;
+        }
+
+        public void Reset(ushort maskedId, ushort rawId, byte x, byte y, uint amount)
+        {
+            Id = maskedId;
+            RawId = rawId;
+            PositionX = x;
+            PositionY = y;
+            Amount = amount;
+            LastUpdate = DateTime.UtcNow;
         }
 
         // Methods

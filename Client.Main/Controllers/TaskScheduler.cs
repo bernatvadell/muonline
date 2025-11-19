@@ -15,9 +15,10 @@ namespace Client.Main.Controllers
         private readonly CancellationTokenSource _cts = new();
 
         // Configuration
-        private readonly int _maxTasksPerFrame = 10;
-        private readonly int _maxTotalQueuedTasks = 100;
-        private readonly TimeSpan _maxProcessingTimePerFrame = TimeSpan.FromMilliseconds(16); // ~60 FPS
+        // Lower per-frame budget to smooth out spikes when many spawn/load tasks enqueue at once
+        private readonly int _maxTasksPerFrame = 4;
+        private readonly int _maxTotalQueuedTasks = 150;
+        private readonly TimeSpan _maxProcessingTimePerFrame = TimeSpan.FromMilliseconds(8); // tighter per-frame slice
 
         // Statistics
         private long _processedTasks;

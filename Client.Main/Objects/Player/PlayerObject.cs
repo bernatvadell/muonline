@@ -1444,6 +1444,105 @@ namespace Client.Main.Objects.Player
             await Task.WhenAll(tasks);
         }
 
+        public Task PreloadAppearanceModelsAsync()
+        {
+            var paths = CollectAppearanceModelPaths();
+            if (paths.Count == 0)
+                return Task.CompletedTask;
+
+            var tasks = new Task[paths.Count];
+            for (int i = 0; i < paths.Count; i++)
+            {
+                tasks[i] = BMDLoader.Instance.Prepare(paths[i]);
+            }
+
+            return Task.WhenAll(tasks);
+        }
+
+        private List<string> CollectAppearanceModelPaths()
+        {
+            var uniquePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var path in EnumerateDefaultBodyModelPaths())
+            {
+                if (!string.IsNullOrWhiteSpace(path))
+                    uniquePaths.Add(path);
+            }
+
+            foreach (var path in EnumerateEquippedModelPaths())
+            {
+                if (!string.IsNullOrWhiteSpace(path))
+                    uniquePaths.Add(path);
+            }
+
+            return new List<string>(uniquePaths);
+        }
+
+        private IEnumerable<string> EnumerateDefaultBodyModelPaths()
+        {
+            PlayerClass mapped = MapNetworkClassToModelClass(_characterClass);
+            string suffix = ((int)mapped).ToString("D2");
+
+            yield return $"Player/HelmClass{suffix}.bmd";
+            yield return $"Player/ArmorClass{suffix}.bmd";
+            yield return $"Player/PantClass{suffix}.bmd";
+            yield return $"Player/GloveClass{suffix}.bmd";
+            yield return $"Player/BootClass{suffix}.bmd";
+        }
+
+        private IEnumerable<string> EnumerateEquippedModelPaths()
+        {
+            if (Appearance.RawData.IsEmpty)
+                yield break;
+
+            string NormalizePlayerPath(string path)
+                => string.IsNullOrWhiteSpace(path) ? null : path.Replace("Item/", "Player/");
+
+            string TryGetItemPath(int group, short itemIndex)
+            {
+                if (itemIndex is 0xFF or 255 || itemIndex < 0)
+                    return null;
+
+                var def = ItemDatabase.GetItemDefinition((byte)group, itemIndex);
+                return def?.TexturePath;
+            }
+
+            string path = NormalizePlayerPath(TryGetItemPath(7, Appearance.HelmItemIndex));
+            if (path != null) yield return path;
+
+            path = NormalizePlayerPath(TryGetItemPath(8, Appearance.ArmorItemIndex));
+            if (path != null) yield return path;
+
+            path = NormalizePlayerPath(TryGetItemPath(9, Appearance.PantsItemIndex));
+            if (path != null) yield return path;
+
+            path = NormalizePlayerPath(TryGetItemPath(10, Appearance.GlovesItemIndex));
+            if (path != null) yield return path;
+
+            path = NormalizePlayerPath(TryGetItemPath(11, Appearance.BootsItemIndex));
+            if (path != null) yield return path;
+
+            if (Appearance.LeftHandItemIndex != 0xFF && Appearance.LeftHandItemIndex != 255)
+            {
+                var leftHandDef = ItemDatabase.GetItemDefinition(Appearance.LeftHandItemGroup, Appearance.LeftHandItemIndex);
+                if (!string.IsNullOrWhiteSpace(leftHandDef?.TexturePath))
+                    yield return leftHandDef.TexturePath;
+            }
+
+            if (Appearance.RightHandItemIndex != 0xFF && Appearance.RightHandItemIndex != 255)
+            {
+                var rightHandDef = ItemDatabase.GetItemDefinition(Appearance.RightHandItemGroup, Appearance.RightHandItemIndex);
+                if (!string.IsNullOrWhiteSpace(rightHandDef?.TexturePath))
+                    yield return rightHandDef.TexturePath;
+            }
+
+            if (Appearance.WingInfo.HasWings)
+            {
+                int wingModelIndex = Appearance.WingInfo.Type + Appearance.WingInfo.Level + 1;
+                yield return $"Item/Wing{wingModelIndex:D2}.bmd";
+            }
+        }
+
         private async Task LoadPartAsync(ModelObject part, string modelPath)
         {
             if (part != null && !string.IsNullOrEmpty(modelPath))
