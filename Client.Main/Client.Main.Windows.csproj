@@ -3,11 +3,15 @@
     <ClientMainTargetFramework>net9.0-windows</ClientMainTargetFramework>
     <AssemblyName>Client.Main</AssemblyName>
     <RootNamespace>Client.Main</RootNamespace>
+    <RestoreAdditionalProjectProperties>
+      $(RestoreAdditionalProjectProperties);MonoGameFramework
+    </RestoreAdditionalProjectProperties>
   </PropertyGroup>
 
   <Import Project="Client.Main.Shared.props" />
 
   <ItemGroup>
-    <ProjectReference Include="..\Client.Data\Client.Data.Windows.csproj" />
+    <ProjectReference Include="..\Client.Data\Client.Data.Windows.csproj"
+                      AdditionalProperties="MonoGameFramework=$(MonoGameFramework)" />
   </ItemGroup>
 </Project>

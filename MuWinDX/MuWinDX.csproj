@@ -6,6 +6,10 @@
     <ClientMainTargetFramework>net9.0-windows</ClientMainTargetFramework>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
 
+    <!-- Specify DirectX backend for MonoGame -->
+    <MonoGameFramework>MonoGame.Framework.WindowsDX</MonoGameFramework>
+    <MonoGamePlatform>Windows</MonoGamePlatform>
+
     <RollForward>Major</RollForward>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
@@ -16,6 +20,9 @@
 
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Icon.ico</ApplicationIcon>
+    <RestoreAdditionalProjectProperties>
+      $(RestoreAdditionalProjectProperties);MonoGameFramework
+    </RestoreAdditionalProjectProperties>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -23,12 +30,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
+    <PackageReference Include="MonoGame.Framework.WindowsDX" Version="3.8.4.1" />
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Client.Main\Client.Main.Windows.csproj" />
+    <ProjectReference Include="..\Client.Main\Client.Main.Windows.csproj" AdditionalProperties="MonoGameFramework=$(MonoGameFramework)" />
   </ItemGroup>
 
   <ItemGroup>

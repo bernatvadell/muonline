@@ -7,6 +7,12 @@
     <TargetFramework>$(ClientDataTargetFramework)</TargetFramework>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <MonoGameFrameworkVersion Condition="'$(MonoGameFrameworkVersion)'==''">3.8.4.1</MonoGameFrameworkVersion>
+    <MonoGameFrameworkPackage Condition="'$(MonoGameFramework)'!=''">$(MonoGameFramework)</MonoGameFrameworkPackage>
+    <MonoGameFrameworkPackage Condition="'$(MonoGameFrameworkPackage)'==''">MonoGame.Framework.DesktopGL</MonoGameFrameworkPackage>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="BCnEncoder.Net" Version="2.2.1" />
     <PackageReference Include="BouncyCastle.NetCore" Version="2.2.1" />
@@ -19,7 +25,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)'!='net9.0-android' AND '$(TargetFramework)'!='net9.0-ios'">
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
+    <PackageReference Include="$(MonoGameFrameworkPackage)" Version="$(MonoGameFrameworkVersion)" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)'=='net9.0-android'">
     <PackageReference Include="MonoGame.Framework.Android" Version="3.8.4.1" />

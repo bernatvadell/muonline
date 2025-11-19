@@ -584,9 +584,16 @@ namespace Client.Main
             {
                 effect.Parameters["Resolution"]?.SetValue(new Vector2(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height));
             }
-            else if (effect == GraphicsManager.Instance.AlphaRGBEffect)
+
+            if (effect == GraphicsManager.Instance.FXAAEffect || effect == GraphicsManager.Instance.AlphaRGBEffect)
             {
-                Matrix worldViewProjection = Matrix.CreateOrthographicOffCenter(0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height, 0, 0, 1);
+                Matrix worldViewProjection = Matrix.CreateOrthographicOffCenter(
+                    0,
+                    GraphicsDevice.Viewport.Width,
+                    GraphicsDevice.Viewport.Height,
+                    0,
+                    0,
+                    1);
                 effect.Parameters["WorldViewProjection"]?.SetValue(worldViewProjection);
             }
 

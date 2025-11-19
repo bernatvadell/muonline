@@ -29,8 +29,9 @@ https://youtu.be/_ekXCQI2byE
 
 ## 🎮 Features
 
-- **🌐 Cross-Platform Support** - Windows, Linux, macOS, Android, and iOS
+- **🌐 Cross-Platform Support** - Windows (OpenGL/DirectX), Linux, macOS, Android, and iOS
 - **🎨 Full 3D Rendering** - MonoGame-based graphics engine with dynamic lighting and effects
+- **🎯 Dual Graphics Backends** - Choose between OpenGL (compatibility) or DirectX 11 (performance)
 - **📦 Original Data Compatibility** - Supports Season 20 (1.20.61) game data files
 - **🔌 Network Protocol** - Season 6 (S6) protocol implementation
 - **🎯 Multiplayer Ready** - Full networking stack with packet handling system
@@ -57,6 +58,12 @@ https://youtu.be/_ekXCQI2byE
 
 - Windows 10/11 (64-bit)
 - Visual Studio 2022 (optional, for IDE support)
+
+**Graphics Backend Options:**
+- **OpenGL (MuWinGL)** - Better hardware compatibility, works on older GPUs
+- **DirectX 11 (MuWinDX)** - Better performance on modern hardware, Windows-only
+
+**Recommended:** Try DirectX first for best performance. Use OpenGL if you encounter graphics issues or have older hardware.
 </details>
 
 <details>
@@ -172,8 +179,11 @@ dotnet build
 ### 7️⃣ Run the Client
 
 ```bash
-# Windows
-dotnet run --project ./MuWin/MuWin.csproj -f net9.0-windows -c Debug
+# Windows (DirectX 11 - Recommended)
+dotnet run --project ./MuWinDX/MuWinDX.csproj -f net9.0-windows -c Debug -p:MonoGameFramework=MonoGame.Framework.WindowsDX
+
+# Windows (OpenGL - For compatibility)
+dotnet run --project ./MuWinGL/MuWinGL.csproj -f net9.0-windows -c Debug -p:MonoGameFramework=MonoGame.Framework.DesktopGL
 
 # Linux
 dotnet run --project ./MuLinux/MuLinux.csproj -f net9.0 -c Debug
@@ -196,7 +206,8 @@ muonline/
 │   ├── Client.Data.Shared.props
 │   ├── Client.Data.*.csproj
 ├── Client.Editor/         # Asset editor tool
-├── MuWin/                 # Windows executable project
+├── MuWinGL/               # Windows OpenGL executable (MonoGame.Framework.DesktopGL)
+├── MuWinDX/               # Windows DirectX 11 executable (MonoGame.Framework.WindowsDX)
 ├── MuAndroid/             # Android executable project
 ├── MuIos/                 # iOS executable project
 ├── MuLinux/               # Linux executable project
@@ -208,8 +219,11 @@ muonline/
 > For predictable restores and to avoid missing workloads, build/clean one head at a time.
 
 ```bash
-# Windows
-dotnet clean MuWin/MuWin.csproj && dotnet build MuWin/MuWin.csproj -c Debug
+# Windows DirectX (Recommended)
+dotnet clean MuWinDX/MuWinDX.csproj && dotnet build MuWinDX/MuWinDX.csproj -c Debug -p:MonoGameFramework=MonoGame.Framework.WindowsDX
+
+# Windows OpenGL
+dotnet clean MuWinGL/MuWinGL.csproj && dotnet build MuWinGL/MuWinGL.csproj -c Debug -p:MonoGameFramework=MonoGame.Framework.DesktopGL
 
 # Linux
 dotnet clean MuLinux/MuLinux.csproj && dotnet build MuLinux/MuLinux.csproj -c Debug
@@ -233,10 +247,14 @@ Build outputs are placed in `bin/Release/` directories.
 #### Windows
 
 ```bash
-dotnet publish ./MuWin/MuWin.csproj -c Release -r win-x64 -o publish
+# DirectX 11 (Recommended for modern hardware)
+dotnet publish ./MuWinDX/MuWinDX.csproj -c Release -r win-x64 -o publish-dx -p:MonoGameFramework=MonoGame.Framework.WindowsDX
+
+# OpenGL (Better hardware compatibility)
+dotnet publish ./MuWinGL/MuWinGL.csproj -c Release -r win-x64 -o publish-gl -p:MonoGameFramework=MonoGame.Framework.DesktopGL
 ```
 
-The GitHub Actions workflow automatically builds Windows releases on every push to `main` and publishes them to GitHub Pages.
+The GitHub Actions workflow automatically builds **both** Windows versions (OpenGL and DirectX) on every push to `main` and publishes them to GitHub Pages.
 
 #### Linux
 
@@ -275,7 +293,7 @@ This project implements a layered architecture with clear separation of concerns
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    Platform Layer                       │
-│         (MuWin, MuLinux, MuMac, MuAndroid, MuIos)       │
+│  (MuWinGL/MuWinDX, MuLinux, MuMac, MuAndroid, MuIos)    │
 └─────────────────────────────────────────────────────────┘
                            ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -387,6 +405,46 @@ Debug vs Release builds have different configurations:
 }
 ```
 
+## 🎨 Graphics Backend Comparison
+
+### Windows: OpenGL vs DirectX 11
+
+| Feature | OpenGL (MuWinGL) | DirectX 11 (MuWinDX) |
+|---------|------------------|----------------------|
+| **Performance** | Good | Excellent (modern GPUs) |
+| **Compatibility** | Excellent (older hardware) | Windows 10/11 only |
+| **Shader Model** | 3.0 (vs_3_0/ps_3_0) | 4.0 (vs_4_0/ps_4_0) |
+| **Visual Quality** | Identical | Identical |
+| **Cross-Platform** | Yes (same as Linux/macOS) | Windows-only |
+| **Stability** | Very stable | Stable (fixed GPU sync issues) |
+
+### When to Use OpenGL (MuWinGL)
+- ✅ Older GPUs or integrated graphics
+- ✅ Need exact same rendering as Linux/macOS
+- ✅ Experiencing graphics driver issues with DirectX
+- ✅ Better compatibility with virtualization/remote desktop
+
+### When to Use DirectX (MuWinDX)
+- ✅ Modern dedicated GPU (NVIDIA/AMD)
+- ✅ Want best performance on Windows
+- ✅ Latest graphics drivers installed
+- ✅ Windows 10/11 with DirectX 11 support
+
+### Technical Notes
+
+Both versions produce **identical visual results** but use different rendering paths:
+
+**Shader Compatibility:**
+- All shaders use conditional compilation (`#if OPENGL`) to support both backends
+- DirectX version includes fixes for GPU buffer synchronization
+- Explicit vertex declarations ensure correct memory layout
+
+**Known Fixed Issues (DirectX):**
+- ✅ GPU/CPU race conditions in buffer pooling (now disabled for DirectX)
+- ✅ Vertex stride mismatches between C# and HLSL shaders
+- ✅ Async model loading deadlocks in UI rendering
+- ✅ Shadow rendering artifacts
+
 ## 🐛 Troubleshooting
 
 <details>
@@ -422,6 +480,42 @@ Verify the path exists and contains files like `Data/Player.bmd`, `Data/Item`, e
    ```
 3. Update graphics drivers
 4. Try disabling MSAA in Constants.cs
+5. **If using DirectX:** Try the OpenGL version (MuWinGL) instead
+</details>
+
+<details>
+<summary><b>❌ DirectX: Graphics glitches, objects flickering or "exploding"</b></summary>
+
+**Solution:**
+These issues have been fixed in the latest version. If you still experience them:
+
+1. **Update to latest version** from GitHub
+2. **Clean build:**
+   ```bash
+   dotnet clean ./MuWinDX/MuWinDX.csproj
+   dotnet build ./MuWinDX/MuWinDX.csproj -p:MonoGameFramework=MonoGame.Framework.WindowsDX
+   ```
+3. **Try OpenGL version** as fallback:
+   ```bash
+   dotnet run --project ./MuWinGL/MuWinGL.csproj -f net9.0-windows -c Debug -p:MonoGameFramework=MonoGame.Framework.DesktopGL
+   ```
+
+**What was fixed:**
+- GPU/CPU race conditions in dynamic buffer pooling
+- Vertex declaration mismatches in custom shaders
+- Async loading deadlocks in inventory rendering
+</details>
+
+<details>
+<summary><b>❌ DirectX: Client freezes when opening inventory</b></summary>
+
+**Solution:**
+Fixed in latest version. The issue was caused by async model loading blocking the main thread.
+
+If still experiencing freezes:
+1. Update to latest code
+2. Verify you're using the fixed `BmdPreviewRenderer.cs` (checks `modelTask.IsCompleted`)
+3. Switch to OpenGL version temporarily
 </details>
 
 <details>

@@ -1,1 +1,6 @@
-<Project />
+<Project>
+  <!-- Default MonoGame backend (can be overridden by command line or project file) -->
+  <PropertyGroup>
+    <MonoGameFramework Condition="'$(MonoGameFramework)'==''">MonoGame.Framework.DesktopGL</MonoGameFramework>
+  </PropertyGroup>
+</Project>

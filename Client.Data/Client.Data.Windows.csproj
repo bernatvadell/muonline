@@ -3,6 +3,9 @@
     <ClientDataTargetFramework>net9.0-windows</ClientDataTargetFramework>
     <AssemblyName>Client.Data</AssemblyName>
     <RootNamespace>Client.Data</RootNamespace>
+    <RestoreAdditionalProjectProperties>
+      $(RestoreAdditionalProjectProperties);MonoGameFramework
+    </RestoreAdditionalProjectProperties>
   </PropertyGroup>
 
   <Import Project="Client.Data.Shared.props" />

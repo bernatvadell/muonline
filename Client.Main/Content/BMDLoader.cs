@@ -43,6 +43,12 @@ namespace Client.Main.Content
             public override int GetHashCode() => HashCode.Combine(AssetId, MeshIndex);
         }
 
+#if WINDOWS_DX
+        private const bool DisableGlobalMeshCache = false;
+#else
+        private const bool DisableGlobalMeshCache = false;
+#endif
+
         // Enhanced cache state for GetModelBuffers to avoid redundant calculations
         private readonly Dictionary<MeshCacheKey, BufferCacheEntry> _bufferCacheState = [];
         // Per-mesh optimization: track which bones influence a mesh
@@ -52,9 +58,6 @@ namespace Client.Main.Content
         // Track if index data has been uploaded for this (asset,mesh) so we can skip re-upload
         private readonly HashSet<MeshCacheKey> _indexInitialized = [];
 
-        // Frame tracking for DISCARD/NoOverwrite optimization
-        private uint _currentFrame = 0;
-        private readonly Dictionary<MeshCacheKey, uint> _lastWriteFrame = [];
         // Track chosen index element size per mesh (true => 16-bit)
         private readonly Dictionary<MeshCacheKey, bool> _indexIs16Bit = [];
 
@@ -174,7 +177,6 @@ namespace Client.Main.Content
             LastFrameCacheMisses = FrameCacheMisses;
 
             // Reset counters for the new frame
-            _currentFrame++;
             FrameVBUpdates = 0;
             FrameIBUploads = 0;
             FrameVerticesTransformed = 0;
@@ -355,14 +357,17 @@ namespace Client.Main.Content
             // Calculate a hash over only the bones influencing this mesh
             int boneMatrixHash = CalculateBoneMatrixHashSubset(boneMatrix, usedBones);
             
+            bool canUseCache = !DisableGlobalMeshCache &&
+                               !skipCache &&
+                               _bufferCacheState.TryGetValue(cacheKey, out var cacheEntry) &&
+                               cacheEntry.IsValid &&
+                               cacheEntry.LastColor == color &&
+                               cacheEntry.LastBoneMatrixHash == boneMatrixHash &&
+                               vertexBuffer != null &&
+                               indexBuffer != null;
+
             // Check if we can use cached data (only if caching is enabled)
-            if (!skipCache &&
-                _bufferCacheState.TryGetValue(cacheKey, out var cacheEntry) &&
-                cacheEntry.IsValid &&
-                cacheEntry.LastColor == color &&
-                cacheEntry.LastBoneMatrixHash == boneMatrixHash &&
-                vertexBuffer != null &&
-                indexBuffer != null)
+            if (canUseCache)
             {
                 // Cache hit - reuse existing buffers
                 FrameCacheHits++;
@@ -460,11 +465,9 @@ namespace Client.Main.Content
                     }
                 }
 
-                // Optimize SetData with DISCARD/NoOverwrite based on frame tracking
-                bool isFirstWriteThisFrame = !_lastWriteFrame.TryGetValue(cacheKey, out uint lastFrame) || lastFrame != _currentFrame;
-                var setDataOptions = isFirstWriteThisFrame ? SetDataOptions.Discard : SetDataOptions.NoOverwrite;
-
-                vertexBuffer.SetData(vertices, 0, totalVertices, setDataOptions);
+                // Always discard the previous contents because we rewrite the whole buffer each time.
+                // Using NoOverwrite was causing DX to reuse in-flight data -> animated meshes glitch.
+                vertexBuffer.SetData(vertices, 0, totalVertices, SetDataOptions.Discard);
                 FrameVBUpdates++;
                 FrameVerticesTransformed += uniqueTransformed;
 
@@ -502,11 +505,8 @@ namespace Client.Main.Content
                     FrameIBUploads++;
                 }
 
-                // Update frame tracking
-                _lastWriteFrame[cacheKey] = _currentFrame;
-
-                // Update cache entry only if caching is enabled
-                if (!skipCache)
+                // Update cache entry only if caching is enabled for this platform
+                if (!skipCache && !DisableGlobalMeshCache)
                 {
                     _bufferCacheState[cacheKey] = new BufferCacheEntry(color, boneMatrixHash);
                 }
@@ -655,7 +655,6 @@ namespace Client.Main.Content
         public void ClearBufferCache()
         {
             _bufferCacheState.Clear();
-            _lastWriteFrame.Clear();
             _indexInitialized.Clear();
             _indexIs16Bit.Clear();
         }

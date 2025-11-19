@@ -322,13 +322,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
                 if (rendered == null)
                 {
-                    if (entry == null)
-                    {
-                        _failedRenders.Add(key);
-                        return null;
-                    }
-
-                    return entry.Texture;
+                    // Don't mark as failed immediately - model might still be loading
+                    // Will retry on next frame. Only mark as failed after exception or repeated failures.
+                    return entry?.Texture;
                 }
 
                 if (!useCache)
@@ -381,7 +377,19 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     return target;
 
                 var modelTask = BMDLoader.Instance.Prepare(def.TexturePath);
-                var bmd = modelTask.ConfigureAwait(false).GetAwaiter().GetResult();
+
+                // DirectX requires more careful thread synchronization to avoid deadlocks
+                // Only wait for model if it's already completed, otherwise return and retry next frame
+                if (!modelTask.IsCompleted)
+                {
+                    // Model still loading - ensure task is running and return early
+                    // Caller will retry on next frame when model is ready
+                    _ = modelTask; // Reference task to ensure it stays alive
+                    return target;
+                }
+
+                // Model is loaded, safe to get result synchronously
+                var bmd = modelTask.Result;
                 if (bmd == null)
                     return target;
 

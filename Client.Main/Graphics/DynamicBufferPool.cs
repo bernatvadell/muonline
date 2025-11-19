@@ -21,6 +21,23 @@ namespace Client.Main.Graphics
 
         private static GraphicsDevice _graphicsDevice;
 
+        // Explicit VertexDeclaration to ensure correct layout on DirectX
+        private static VertexDeclaration _explicitVertexDeclaration;
+
+        private static VertexDeclaration GetExplicitVertexDeclaration()
+        {
+            if (_explicitVertexDeclaration == null)
+            {
+                _explicitVertexDeclaration = new VertexDeclaration(
+                    new VertexElement(0, VertexElementFormat.Vector3, VertexElementUsage.Position, 0),           // 12 bytes
+                    new VertexElement(12, VertexElementFormat.Color, VertexElementUsage.Color, 0),               // 4 bytes
+                    new VertexElement(16, VertexElementFormat.Vector3, VertexElementUsage.Normal, 0),            // 12 bytes
+                    new VertexElement(28, VertexElementFormat.Vector2, VertexElementUsage.TextureCoordinate, 0) // 8 bytes
+                );                                                                                                // Total: 36 bytes
+            }
+            return _explicitVertexDeclaration;
+        }
+
         public static void SetGraphicsDevice(GraphicsDevice graphicsDevice)
         {
             _graphicsDevice = graphicsDevice;
@@ -32,6 +49,10 @@ namespace Client.Main.Graphics
             if (_graphicsDevice == null || requiredVertexCount <= 0)
                 return null;
 
+            // TEMPORARILY DISABLED: Pooling causes race conditions in DirectX
+            // where GPU is still using a buffer while CPU writes new data to it
+            // TODO: Implement proper GPU fence synchronization for DirectX
+            /*
             lock (_vertexLock)
             {
                 foreach (var kvp in _vertexPools)
@@ -48,10 +69,11 @@ namespace Client.Main.Graphics
                         return buffer;
                 }
             }
+            */
 
             return new DynamicVertexBuffer(
                 _graphicsDevice,
-                VertexPositionColorNormalTexture.VertexDeclaration,
+                GetExplicitVertexDeclaration(),
                 requiredVertexCount,
                 BufferUsage.WriteOnly);
         }
@@ -61,6 +83,8 @@ namespace Client.Main.Graphics
             if (_graphicsDevice == null || requiredIndexCount <= 0)
                 return null;
 
+            // TEMPORARILY DISABLED: Pooling causes race conditions in DirectX
+            /*
             var targetPools = prefer16Bit ? _index16Pools : _index32Pools;
             var targetLock = prefer16Bit ? _index16Lock : _index32Lock;
 
@@ -80,6 +104,7 @@ namespace Client.Main.Graphics
                         return buffer;
                 }
             }
+            */
 
             return new DynamicIndexBuffer(
                 _graphicsDevice,
@@ -93,6 +118,11 @@ namespace Client.Main.Graphics
             if (buffer == null || buffer.IsDisposed)
                 return;
 
+            // TEMPORARILY DISABLED: Pooling causes race conditions in DirectX
+            // Just dispose the buffer immediately to avoid GPU/CPU synchronization issues
+            buffer.Dispose();
+
+            /*
             lock (_vertexLock)
             {
                 if (!_vertexPools.TryGetValue(buffer.VertexCount, out var stack))
@@ -109,6 +139,7 @@ namespace Client.Main.Graphics
 
                 stack.Push(buffer);
             }
+            */
         }
 
         public static void ReturnIndexBuffer(DynamicIndexBuffer buffer)
@@ -116,6 +147,11 @@ namespace Client.Main.Graphics
             if (buffer == null || buffer.IsDisposed)
                 return;
 
+            // TEMPORARILY DISABLED: Pooling causes race conditions in DirectX
+            // Just dispose the buffer immediately to avoid GPU/CPU synchronization issues
+            buffer.Dispose();
+
+            /*
             var pools = buffer.IndexElementSize == IndexElementSize.SixteenBits ? _index16Pools : _index32Pools;
             var targetLock = buffer.IndexElementSize == IndexElementSize.SixteenBits ? _index16Lock : _index32Lock;
 
@@ -135,6 +171,7 @@ namespace Client.Main.Graphics
 
                 stack.Push(buffer);
             }
+            */
         }
 
         private static void ClearPools()

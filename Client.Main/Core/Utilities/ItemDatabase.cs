@@ -14,15 +14,24 @@ namespace Client.Main.Core.Utilities
     public static class ItemDatabase
     {
         /// <summary>Lookup cache: (Group, Id) → item definition.</summary>
-        private static readonly Dictionary<(byte Group, short Id), ItemDefinition> _definitions;
+        private static readonly Lazy<Dictionary<(byte Group, short Id), ItemDefinition>> _definitions;
         private static readonly ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger("ItemDatabase");
 
-        static ItemDatabase() => _definitions = InitializeItemData();
+        static ItemDatabase()
+        {
+            // Use Lazy with Task.Run to avoid blocking the static constructor
+            // This prevents deadlocks when ItemBMDReader.Load() needs the UI thread
+            _definitions = new Lazy<Dictionary<(byte Group, short Id), ItemDefinition>>(() =>
+            {
+                // Run initialization on a background thread to avoid deadlock
+                return Task.Run(InitializeItemDataAsync).GetAwaiter().GetResult();
+            });
+        }
 
         /// <summary>
         /// Loads items.bmd from an embedded resource and builds the definition table.
         /// </summary>
-        private static Dictionary<(byte, short), ItemDefinition> InitializeItemData()
+        private static async Task<Dictionary<(byte, short), ItemDefinition>> InitializeItemDataAsync()
         {
             var data = new Dictionary<(byte, short), ItemDefinition>();
 
@@ -59,12 +68,10 @@ namespace Client.Main.Core.Utilities
                 try
                 {
                     using (var tempFs = File.OpenWrite(tempPath))
-                        resourceStream.CopyTo(tempFs);
+                        await resourceStream.CopyToAsync(tempFs);
 
-                    items = reader.Load(tempPath)
-                                  .ConfigureAwait(false)
-                                  .GetAwaiter()
-                                  .GetResult();
+                    // Load asynchronously to avoid blocking the thread
+                    items = await reader.Load(tempPath).ConfigureAwait(false);
                 }
                 finally
                 {
@@ -129,19 +136,19 @@ namespace Client.Main.Core.Utilities
 
         public static ItemDefinition GetItemDefinition(byte group, short id)
         {
-            _definitions.TryGetValue((group, id), out var def);
+            _definitions.Value.TryGetValue((group, id), out var def);
 
             return def;
         }
 
         public static IEnumerable<ItemDefinition> GetItemDefinitions(byte group)
         {
-            return _definitions.Where(predicate => predicate.Key.Group == group).Select(p => p.Value);
+            return _definitions.Value.Where(predicate => predicate.Key.Group == group).Select(p => p.Value);
         }
 
         public static IEnumerable<ItemDefinition> GetWeapons()
         {
-            return _definitions.Where(predicate => predicate.Key.Group <= 6).Select(p => p.Value);
+            return _definitions.Value.Where(predicate => predicate.Key.Group <= 6).Select(p => p.Value);
         }
         public static IEnumerable<ItemDefinition> GetWings()
         {
@@ -161,15 +168,15 @@ namespace Client.Main.Core.Utilities
                 467, 468, 469, 472, 473, 474,
                 480, 489, 490, 496,
             ];
-            return _definitions.Where(predicate => predicate.Key.Group == 12 && wingIds.Contains(predicate.Key.Id)).Select(p => p.Value);
+            return _definitions.Value.Where(predicate => predicate.Key.Group == 12 && wingIds.Contains(predicate.Key.Id)).Select(p => p.Value);
         }
         public static IEnumerable<ItemDefinition> GetArmors()
         {
-            return _definitions.Where(predicate => predicate.Key.Group == 8).Select(p => p.Value);
+            return _definitions.Value.Where(predicate => predicate.Key.Group == 8).Select(p => p.Value);
         }
         public static IEnumerable<ItemDefinition> GetPets()
         {
-            return _definitions.Where(predicate => predicate.Key.Group == 13).Select(p => p.Value);
+            return _definitions.Value.Where(predicate => predicate.Key.Group == 13).Select(p => p.Value);
         }
 
         public static ItemDefinition GetItemDefinition(ReadOnlySpan<byte> itemData)

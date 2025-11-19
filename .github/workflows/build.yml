@@ -14,6 +14,17 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - name: OpenGL
+            project: MuWinGL/MuWinGL.csproj
+            framework: MonoGame.Framework.DesktopGL
+            artifact: muonline-windows-opengl
+          - name: DirectX
+            project: MuWinDX/MuWinDX.csproj
+            framework: MonoGame.Framework.WindowsDX
+            artifact: muonline-windows-directx
     steps:
       - uses: actions/checkout@v4
 
@@ -25,17 +36,17 @@ jobs:
       - name: Restore tools
         run: dotnet tool restore
 
-      - name: Publish Windows Build
-        run: dotnet publish MuWin/MuWin.csproj -c Release -r win-x64 -o publish
+      - name: Publish ${{ matrix.name }} Build
+        run: dotnet publish ${{ matrix.project }} -c Release -r win-x64 -o publish-${{ matrix.name }} -p:MonoGameFramework=${{ matrix.framework }}
 
       - name: Create Zip
-        run: powershell -Command "Compress-Archive -Path publish\* -DestinationPath muonline-windows.zip"
+        run: powershell -Command "Compress-Archive -Path publish-${{ matrix.name }}\* -DestinationPath ${{ matrix.artifact }}.zip"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: muonline-windows
-          path: muonline-windows.zip
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.zip
 
   pages:
     needs: build
@@ -48,9 +59,16 @@ jobs:
       cancel-in-progress: false
 
     steps:
-      - uses: actions/download-artifact@v4
+      - name: Download OpenGL Artifact
+        uses: actions/download-artifact@v4
         with:
-          name: muonline-windows     # <<< WAŻNE – pobiera tylko jeden artefakt
+          name: muonline-windows-opengl
+          path: artifacts
+
+      - name: Download DirectX Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: muonline-windows-directx
           path: artifacts
 
       - name: Prepare site
@@ -59,7 +77,11 @@ jobs:
           cp artifacts/* site/
           cd site
           echo '<html><body><h1>MuOnline Builds</h1>' > index.html
-          for f in *.zip; do echo "<a href=\"$f\">$f</a><br/>" >> index.html; done
+          echo '<h2>Windows Builds</h2>' >> index.html
+          echo '<ul>' >> index.html
+          echo '<li><a href="muonline-windows-opengl.zip">Windows (OpenGL) - Compatible with older hardware</a></li>' >> index.html
+          echo '<li><a href="muonline-windows-directx.zip">Windows (DirectX 11) - Better performance on modern GPUs</a></li>' >> index.html
+          echo '</ul>' >> index.html
           echo '</body></html>' >> index.html
 
       - uses: actions/upload-pages-artifact@v3

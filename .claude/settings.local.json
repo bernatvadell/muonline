@@ -11,7 +11,11 @@
       "Bash(dotnet restore:*)",
       "Bash(dotnet msbuild:*)",
       "Bash(logfile=build.log)",
-      "Bash(dotnet list:*)"
+      "Bash(dotnet list:*)",
+      "Bash(mv:*)",
+      "Bash(dotnet nuget:*)",
+      "Bash(dotnet run)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }

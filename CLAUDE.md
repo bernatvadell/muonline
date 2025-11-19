@@ -15,7 +15,8 @@ This is a MuOnline clone built with .NET 9.0 and MonoGame framework. It supports
 - **Client.Data**: Data readers for game files (BMD, ATT, MAP, OZB, etc.)
 - **Client.Main**: Core game logic, rendering, UI, networking, and game objects
 - **Client.Editor**: Editor tool for game assets
-- **MuWin**: Windows platform executable
+- **MuWinGL**: Windows platform executable (OpenGL via MonoGame.Framework.DesktopGL)
+- **MuWinDX**: Windows platform executable (DirectX 11 via MonoGame.Framework.WindowsDX)
 - **MuAndroid**: Android platform executable
 - **MuIos**: iOS platform executable
 - **MuLinux**: Linux platform executable
@@ -29,7 +30,13 @@ This is a MuOnline clone built with .NET 9.0 and MonoGame framework. It supports
 dotnet build
 
 # Run on specific platforms
-dotnet run --project ./MuWin/MuWin.csproj -f net9.0-windows -c Debug     # Windows
+# Windows (OpenGL) - IMPORTANT: Must specify MonoGameFramework property
+dotnet run --project ./MuWinGL/MuWinGL.csproj -f net9.0-windows -c Debug -p:MonoGameFramework=MonoGame.Framework.DesktopGL
+
+# Windows (DirectX 11) - IMPORTANT: Must specify MonoGameFramework property
+dotnet run --project ./MuWinDX/MuWinDX.csproj -f net9.0-windows -c Debug -p:MonoGameFramework=MonoGame.Framework.WindowsDX
+
+# Other platforms
 dotnet run --project ./MuLinux/MuLinux.csproj -f net9.0 -c Debug         # Linux
 dotnet run --project ./MuMac/MuMac.csproj -f net9.0 -c Debug             # macOS
 dotnet run --project ./MuIos/MuIos.csproj -f net9.0-ios -c Debug         # iOS (macOS only)
@@ -37,8 +44,11 @@ dotnet run --project ./MuIos/MuIos.csproj -f net9.0-ios -c Debug         # iOS (
 
 ### Production Builds
 ```bash
-# Windows
-dotnet publish ./MuWin/MuWin.csproj -f net9.0-windows -c Release
+# Windows (OpenGL) - IMPORTANT: Must specify MonoGameFramework property
+dotnet publish ./MuWinGL/MuWinGL.csproj -f net9.0-windows -c Release -p:MonoGameFramework=MonoGame.Framework.DesktopGL
+
+# Windows (DirectX 11) - IMPORTANT: Must specify MonoGameFramework property
+dotnet publish ./MuWinDX/MuWinDX.csproj -f net9.0-windows -c Release -p:MonoGameFramework=MonoGame.Framework.WindowsDX
 
 # Android
 dotnet publish ./MuAndroid/MuAndroid.csproj -f net9.0-android -c Release
@@ -57,6 +67,54 @@ dotnet publish ./MuIos/MuIos.csproj -f net9.0-ios -c Release
 ```bash
 # Restore .NET tools (required after clone)
 dotnet tool restore
+```
+
+## Windows Graphics Backends
+
+The project includes two Windows executables using different graphics backends:
+
+### MuWinGL (OpenGL)
+- Uses `MonoGame.Framework.DesktopGL`
+- Cross-platform shader model: **Shader Model 3.0** (vs_3_0, ps_3_0)
+- Better compatibility with older hardware
+- Same rendering backend as Linux and macOS versions
+
+### MuWinDX (DirectX 11)
+- Uses `MonoGame.Framework.WindowsDX`
+- Windows-only shader model: **Shader Model 5.0** (vs_5_0, ps_5_0)
+- Better performance on modern Windows systems with dedicated GPUs
+- Full DirectX 11 feature set
+
+**Visual Parity:** Both versions produce identical or near-identical visual results. Shaders use conditional compilation (`#if OPENGL`) to adapt to each platform while maintaining the same visual effects.
+
+**Shader Files:**
+- All shaders in `Content/*.fx` support both backends via conditional compilation
+- OpenGL: Uses `vs_3_0/ps_3_0` profiles
+- DirectX: Uses `vs_5_0/ps_5_0` profiles
+- Platform is automatically detected during build
+
+### Build Configuration for Graphics Backends
+
+**IMPORTANT:** When building MuWinDX or MuWinGL, you **must** pass the `MonoGameFramework` property to ensure the correct MonoGame package is used for all dependent libraries (Client.Data, Client.Main).
+
+**How it works:**
+1. Each executable project (MuWinDX.csproj, MuWinGL.csproj) defines `MonoGameFramework` property
+2. This property is passed to referenced projects via `AdditionalProperties` in `ProjectReference`
+3. Dependent projects (Client.Data, Client.Main) use this property to select the correct MonoGame NuGet package
+4. The `RestoreAdditionalProjectProperties` ensures the property affects NuGet restore, creating separate package caches for each backend
+
+**Why explicit property is required:**
+- MSBuild's `AdditionalProperties` in ProjectReference works during build phase
+- However, the property needs to be explicitly passed during restore to ensure correct package resolution
+- Without the explicit property, libraries default to `MonoGame.Framework.DesktopGL`
+
+**Example:**
+```bash
+# Correct - Libraries will use WindowsDX package
+dotnet build ./MuWinDX/MuWinDX.csproj -p:MonoGameFramework=MonoGame.Framework.WindowsDX
+
+# Incorrect - Libraries will use DesktopGL package (wrong!)
+dotnet build ./MuWinDX/MuWinDX.csproj
 ```
 
 ## Configuration

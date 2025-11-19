@@ -21,11 +21,17 @@
   <PropertyGroup Condition="'$(TargetFramework)'=='net9.0-windows'">
     <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(MonoGameFramework)'=='MonoGame.Framework.WindowsDX'">
+    <DefineConstants>$(DefineConstants);WINDOWS_DX</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(MonoGameFramework)'=='MonoGame.Framework.DesktopGL'">
+    <DefineConstants>$(DefineConstants);WINDOWS_GL</DefineConstants>
+  </PropertyGroup>
 
   <!-- MONOGAME -->
-  <ItemGroup Condition="'$(TargetFramework)'!='net9.0-android' AND '$(TargetFramework)'!='net9.0-ios'">
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
-  </ItemGroup>
+  <!-- Allow parent project to specify MonoGame framework via MonoGameFramework property -->
+  <!-- For desktop platforms (Windows, Linux, macOS), don't include MonoGame here - let the exe project provide it -->
+  <!-- This prevents conflicts when MuWinDX wants DirectX but Client.Main would pull in DesktopGL -->
   <ItemGroup Condition="'$(TargetFramework)'=='net9.0-android'">
     <PackageReference Include="MonoGame.Framework.Android" Version="3.8.4.1" />
   </ItemGroup>
