@@ -144,6 +144,8 @@ namespace Client.Main.Objects
         private static readonly Vector3[] _cachedLightColors = new Vector3[16];
         private static readonly float[] _cachedLightRadii = new float[16];
         private static readonly float[] _cachedLightIntensities = new float[16];
+        private static readonly float[] _cachedLightScores = new float[16];
+        private const float MinLightInfluence = 0.001f;
 
         // Cache for Environment.TickCount to reduce system calls
         private static float _cachedTime = 0f;
@@ -624,6 +626,14 @@ namespace Client.Main.Objects
             Matrix shadowMatrix = Matrix.Identity;
             if (!isAfterDraw && RenderShadow && !LowQuality)
                 doShadow = TryGetShadowMatrix(out shadowMatrix);
+            float shadowOpacity = ShadowOpacity;
+            if (doShadow && World?.Terrain != null)
+            {
+                // Fade blob shadow slightly in strong local light so ground illumination stays visible.
+                var dyn = World.Terrain.EvaluateDynamicLight(new Vector2(worldPos.Translation.X, worldPos.Translation.Y));
+                float lum = (0.2126f * dyn.X + 0.7152f * dyn.Y + 0.0722f * dyn.Z) / 255f;
+                shadowOpacity *= MathHelper.Clamp(1f - lum * 0.6f, 0.35f, 1f);
+            }
 
             bool highlightAllowed = !isAfterDraw && !LowQuality && IsMouseHover &&
                                    !(this is MonsterObject m && m.IsDead);
@@ -681,7 +691,7 @@ namespace Client.Main.Objects
 
                     // Object-level shadow and highlight passes
                     if (doShadow)
-                        DrawMeshesShadow(meshIndices, shadowMatrix, view, projection);
+                        DrawMeshesShadow(meshIndices, shadowMatrix, view, projection, shadowOpacity);
                     if (highlightAllowed)
                         DrawMeshesHighlight(meshIndices, highlightMatrix, highlightColor);
 
@@ -814,10 +824,10 @@ namespace Client.Main.Objects
             }
         }
 
-        private void DrawMeshesShadow(List<int> meshIndices, Matrix shadowMatrix, Matrix view, Matrix projection)
+        private void DrawMeshesShadow(List<int> meshIndices, Matrix shadowMatrix, Matrix view, Matrix projection, float shadowOpacity)
         {
             for (int n = 0; n < meshIndices.Count; n++)
-                DrawShadowMesh(meshIndices[n], view, projection, shadowMatrix);
+                DrawShadowMesh(meshIndices[n], view, projection, shadowMatrix, shadowOpacity);
         }
 
         private void DrawMeshesHighlight(List<int> meshIndices, Matrix highlightMatrix, Vector3 highlightColor)
@@ -1277,24 +1287,17 @@ namespace Client.Main.Objects
                     if (activeLights != null && activeLights.Count > 0)
                     {
                         int maxLights = Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16;
-                        int lightCount = Math.Min(activeLights.Count, maxLights);
+                        int lightCount = SelectRelevantLights(activeLights, worldTranslation, maxLights);
                         effect.Parameters["ActiveLightCount"]?.SetValue(lightCount);
                         effect.Parameters["MaxLightsToProcess"]?.SetValue(maxLights);
 
-                        // Use cached arrays to avoid allocations
-                        for (int i = 0; i < lightCount; i++)
+                        if (lightCount > 0)
                         {
-                            var light = activeLights[i];
-                            _cachedLightPositions[i] = light.Position;
-                            _cachedLightColors[i] = light.Color; // Already in 0-1 range
-                            _cachedLightRadii[i] = light.Radius;
-                            _cachedLightIntensities[i] = light.Intensity;
+                            effect.Parameters["LightPositions"]?.SetValue(_cachedLightPositions);
+                            effect.Parameters["LightColors"]?.SetValue(_cachedLightColors);
+                            effect.Parameters["LightRadii"]?.SetValue(_cachedLightRadii);
+                            effect.Parameters["LightIntensities"]?.SetValue(_cachedLightIntensities);
                         }
-
-                        effect.Parameters["LightPositions"]?.SetValue(_cachedLightPositions);
-                        effect.Parameters["LightColors"]?.SetValue(_cachedLightColors);
-                        effect.Parameters["LightRadii"]?.SetValue(_cachedLightRadii);
-                        effect.Parameters["LightIntensities"]?.SetValue(_cachedLightIntensities);
                     }
                     else
                     {
@@ -1330,6 +1333,73 @@ namespace Client.Main.Objects
                 _logger?.LogDebug("Error in DrawMeshWithDynamicLighting: {Message}", ex.Message);
                 DrawMesh(mesh); // Fallback to standard rendering
             }
+        }
+
+        private int SelectRelevantLights(IReadOnlyList<DynamicLight> activeLights, Vector3 worldTranslation, int maxLights)
+        {
+            maxLights = Math.Min(maxLights, _cachedLightPositions.Length);
+            if (activeLights == null || activeLights.Count == 0 || maxLights <= 0)
+                return 0;
+
+            int selected = 0;
+            float weakestScore = float.MaxValue;
+            int weakestIndex = 0;
+            var obj2D = new Vector2(worldTranslation.X, worldTranslation.Y);
+
+            for (int i = 0; i < activeLights.Count; i++)
+            {
+                var light = activeLights[i];
+                float radius = light.Radius;
+                float radiusSq = radius * radius;
+
+                var diff = new Vector2(light.Position.X, light.Position.Y) - obj2D;
+                float distSq = diff.LengthSquared();
+                if (distSq >= radiusSq)
+                    continue;
+
+                float influence = (1f - distSq / radiusSq) * light.Intensity;
+                if (influence <= MinLightInfluence)
+                    continue;
+
+                if (selected < maxLights)
+                {
+                    _cachedLightScores[selected] = influence;
+                    _cachedLightPositions[selected] = light.Position;
+                    _cachedLightColors[selected] = light.Color;
+                    _cachedLightRadii[selected] = radius;
+                    _cachedLightIntensities[selected] = light.Intensity;
+
+                    if (influence < weakestScore)
+                    {
+                        weakestScore = influence;
+                        weakestIndex = selected;
+                    }
+
+                    selected++;
+                }
+                else if (influence > weakestScore)
+                {
+                    _cachedLightScores[weakestIndex] = influence;
+                    _cachedLightPositions[weakestIndex] = light.Position;
+                    _cachedLightColors[weakestIndex] = light.Color;
+                    _cachedLightRadii[weakestIndex] = radius;
+                    _cachedLightIntensities[weakestIndex] = light.Intensity;
+
+                    weakestScore = _cachedLightScores[0];
+                    weakestIndex = 0;
+                    for (int j = 1; j < selected; j++)
+                    {
+                        float score = _cachedLightScores[j];
+                        if (score < weakestScore)
+                        {
+                            weakestScore = score;
+                            weakestIndex = j;
+                        }
+                    }
+                }
+            }
+
+            return selected;
         }
 
         public virtual void DrawMeshHighlight(int mesh, Matrix highlightMatrix, Vector3 highlightColor)
@@ -1451,7 +1521,7 @@ namespace Client.Main.Objects
             }
         }
 
-        public virtual void DrawShadowMesh(int mesh, Matrix view, Matrix projection, Matrix shadowWorld)
+        public virtual void DrawShadowMesh(int mesh, Matrix view, Matrix projection, Matrix shadowWorld, float shadowOpacity)
         {
             try
             {
@@ -1496,7 +1566,7 @@ namespace Client.Main.Objects
 
                     effect.Parameters["World"]?.SetValue(shadowWorld);
                     effect.Parameters["ViewProjection"]?.SetValue(view * projection);
-                    effect.Parameters["ShadowTint"]?.SetValue(new Vector4(0, 0, 0, 1f * ShadowOpacity));
+                    effect.Parameters["ShadowTint"]?.SetValue(new Vector4(0, 0, 0, shadowOpacity));
                     effect.Parameters["ShadowTexture"]?.SetValue(_boneTextures[mesh]);
 
                     foreach (var pass in effect.CurrentTechnique.Passes)

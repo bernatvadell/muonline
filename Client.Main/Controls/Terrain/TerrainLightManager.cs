@@ -3,7 +3,6 @@ using Client.Main.Controls;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Client.Main.Controls.Terrain
 {
@@ -12,22 +11,37 @@ namespace Client.Main.Controls.Terrain
     /// </summary>
     public class TerrainLightManager
     {
+        private struct PrecomputedLight
+        {
+            public Vector2 Position;
+            public Vector3 ColorScaled;
+            public float Radius;
+            public float RadiusSq;
+            public float InvRadiusSq;
+        }
+
         private readonly List<DynamicLight> _dynamicLights = new();
         private readonly List<DynamicLight> _activeLights = new(32);
+        private readonly List<PrecomputedLight> _precomputedActiveLights = new(32);
         private readonly TerrainData _data;
         private readonly GameControl _parent;
         private float _lightUpdateTimer = 0;
         private const float LightUpdateInterval = 0.0f; // Update lights every frame for smoother pulsing
+        private const int MaxLightCacheEntries = 4096;
+        private const float CacheQuantization = 8f; // Smaller cell to avoid cross-tile flicker
+        private const float InvCacheQuantization = 1f / CacheQuantization;
 
         // Spatial partitioning for dynamic lights
         private const int LightGridSize = 16; // Grid cells per side (16x16 = 256 cells for 256x256 terrain)
         private const float LightGridCellSize = Constants.TERRAIN_SIZE * Constants.TERRAIN_SCALE / LightGridSize;
-        private readonly List<DynamicLight>[,] _lightGrid = new List<DynamicLight>[LightGridSize, LightGridSize];
-        
-        // Light influence cache
-        private readonly Dictionary<int, Vector3> _lightInfluenceCache = new(1024);
-        private int _lastLightUpdateFrame = -1;
+        private readonly List<int>[,] _lightGrid = new List<int>[LightGridSize, LightGridSize];
+        private readonly int[,] _lightGridVersion = new int[LightGridSize, LightGridSize];
+        private int _currentLightGridVersion = 0;
 
+        // Per-frame influence cache to avoid recalculating the same sample positions
+        private readonly Dictionary<long, Vector3> _lightInfluenceCache = new(MaxLightCacheEntries);
+        private int _lastLightUpdateFrame = -1;
+        
         public IReadOnlyList<DynamicLight> DynamicLights => _dynamicLights;
         public IReadOnlyList<DynamicLight> ActiveLights => _activeLights;
 
@@ -41,7 +55,7 @@ namespace Client.Main.Controls.Terrain
             {
                 for (int x = 0; x < LightGridSize; x++)
                 {
-                    _lightGrid[x, y] = new List<DynamicLight>(4);
+                    _lightGrid[x, y] = new List<int>(4);
                 }
             }
         }
@@ -81,8 +95,8 @@ namespace Client.Main.Controls.Terrain
                 }
             }
 
-            foreach (var v in _data.Normals)
-                v.Normalize();
+            for (int i = 0; i < _data.Normals.Length; i++)
+                _data.Normals[i] = Vector3.Normalize(_data.Normals[i]);
         }
 
         public void CreateFinalLightmap(Vector3 lightDirection)
@@ -106,12 +120,16 @@ namespace Client.Main.Controls.Terrain
             _lightUpdateTimer = 0;
             
             _activeLights.Clear();
-            if (_dynamicLights.Count == 0 || _parent.World == null) return;
-
-            var lightsSnapshot = _dynamicLights.ToArray();
-
-            foreach (var light in lightsSnapshot)
+            if (_dynamicLights.Count == 0 || _parent.World == null)
             {
+                ClearLightGridState();
+                InvalidateLightCache();
+                return;
+            }
+
+            for (int i = 0; i < _dynamicLights.Count; i++)
+            {
+                var light = _dynamicLights[i];
                 if (light.Intensity <= 0.001f) continue;
 
                 bool isLoginScene = _parent.Scene is LoginScene;
@@ -125,8 +143,8 @@ namespace Client.Main.Controls.Terrain
                         continue;
                 }
 
-                if (_parent.World.IsLightInView(light))
-                    _activeLights.Add(light);
+                // Keep all relevant lights; spatial grid + distance checks handle performance.
+                _activeLights.Add(light);
             }
 
             // Sort lights by distance from player, closest first
@@ -152,15 +170,21 @@ namespace Client.Main.Controls.Terrain
 
         public Vector3 EvaluateDynamicLight(Vector2 position)
         {
-            // Use time-based caching to avoid repeated calculations within the same frame
-            int frameKey = MuGame.FrameIndex; // stable per-Update frame index
-            if (frameKey == _lastLightUpdateFrame)
+            // Per-frame cache (fine quantization) to avoid repeated calculations
+            if (_precomputedActiveLights.Count == 0)
+                return Vector3.Zero;
+
+            int frameKey = MuGame.FrameIndex;
+            if (frameKey != _lastLightUpdateFrame)
             {
-                int posKey = GetPositionKey(position);
-                if (_lightInfluenceCache.TryGetValue(posKey, out Vector3 cachedResult))
-                    return cachedResult;
+                _lightInfluenceCache.Clear();
+                _lastLightUpdateFrame = frameKey;
             }
             
+            long posKey = GetPositionKey(position);
+            if (_lightInfluenceCache.TryGetValue(posKey, out Vector3 cached))
+                return cached;
+
             Vector3 result = Vector3.Zero;
             
             // Use spatial partitioning to only check nearby lights
@@ -177,63 +201,54 @@ namespace Client.Main.Controls.Terrain
                     
                     if (gx < 0 || gx >= LightGridSize || gy < 0 || gy >= LightGridSize)
                         continue;
+
+                    if (_lightGridVersion[gx, gy] != _currentLightGridVersion)
+                        continue;
                         
                     var cellLights = _lightGrid[gx, gy];
-                    foreach (var light in cellLights)
+                    foreach (int lightIndex in cellLights)
                     {
-                        if (light.Intensity <= 0.001f) continue;
-
-                        var diff = new Vector2(light.Position.X, light.Position.Y) - position;
+                        if ((uint)lightIndex >= (uint)_precomputedActiveLights.Count) // Safety guard
+                            continue;
+                        
+                        var light = _precomputedActiveLights[lightIndex];
+                        var diff = light.Position - position;
                         float distSq = diff.LengthSquared();
-                        float radiusSq = light.Radius * light.Radius;
-                        if (distSq > radiusSq) continue;
+                        if (distSq > light.RadiusSq) continue;
 
                         // Performance optimization: avoid expensive sqrt by using quadratic falloff
-                        float normalizedDistSq = distSq / radiusSq;
+                        float normalizedDistSq = distSq * light.InvRadiusSq;
                         float factor = 1f - normalizedDistSq; // Quadratic falloff, no sqrt needed
-                        result += light.Color * (255f * light.Intensity * factor);
+                        result += light.ColorScaled * factor;
                     }
                 }
             }
             
-            // Cache the result for this frame
-            if (frameKey != _lastLightUpdateFrame)
-            {
-                _lightInfluenceCache.Clear();
-                _lastLightUpdateFrame = frameKey;
-            }
-            
-            if (_lightInfluenceCache.Count < 1000) // Limit cache size
-            {
-                int posKey = GetPositionKey(position);
+            if (_lightInfluenceCache.Count < MaxLightCacheEntries)
                 _lightInfluenceCache[posKey] = result;
-            }
-            
+
             return result;
         }
 
         private void RebuildLightGrid()
         {
-            // Clear all grid cells
-            for (int y = 0; y < LightGridSize; y++)
-            {
-                for (int x = 0; x < LightGridSize; x++)
-                {
-                    _lightGrid[x, y].Clear();
-                }
-            }
+            IncrementGridVersion();
+            _precomputedActiveLights.Clear();
             
             // Add active lights to appropriate grid cells (use _activeLights which are already filtered)
             foreach (var light in _activeLights)
             {
                 if (light.Intensity > 0.001f) // Double-check intensity
                 {
-                    AddLightToGrid(light);
+                    int lightIndex = _precomputedActiveLights.Count;
+                    var precomputedLight = PrecomputeLight(light);
+                    _precomputedActiveLights.Add(precomputedLight);
+                    AddLightToGrid(precomputedLight, lightIndex);
                 }
             }
         }
         
-        private void AddLightToGrid(DynamicLight light)
+        private void AddLightToGrid(PrecomputedLight light, int lightIndex)
         {
             // Calculate which grid cells this light affects (based on its radius)
             float radius = light.Radius;
@@ -246,17 +261,53 @@ namespace Client.Main.Controls.Terrain
             {
                 for (int x = minX; x <= maxX; x++)
                 {
-                    _lightGrid[x, y].Add(light);
+                    if (_lightGridVersion[x, y] != _currentLightGridVersion)
+                    {
+                        _lightGrid[x, y].Clear();
+                        _lightGridVersion[x, y] = _currentLightGridVersion;
+                    }
+                    _lightGrid[x, y].Add(lightIndex);
                 }
             }
         }
-        
-        private static int GetPositionKey(Vector2 position)
+
+        private static PrecomputedLight PrecomputeLight(DynamicLight light)
         {
-            // Create a hash key for position caching (8x8 precision to balance memory vs accuracy)
-            int x = (int)(position.X / 64f);
-            int y = (int)(position.Y / 64f);
-            return (x << 16) | (y & 0xFFFF);
+            float radius = light.Radius;
+            float radiusSq = radius * radius;
+            float invRadiusSq = radiusSq > 0.0001f ? 1f / radiusSq : 0f;
+
+            return new PrecomputedLight
+            {
+                Position = new Vector2(light.Position.X, light.Position.Y),
+                ColorScaled = light.Color * (255f * light.Intensity),
+                Radius = radius,
+                RadiusSq = radiusSq,
+                InvRadiusSq = invRadiusSq
+            };
+        }
+
+        private void ClearLightGridState()
+        {
+            IncrementGridVersion();
+            _precomputedActiveLights.Clear();
+        }
+
+        private void IncrementGridVersion()
+        {
+            _currentLightGridVersion++;
+            if (_currentLightGridVersion == int.MaxValue)
+            {
+                Array.Clear(_lightGridVersion, 0, _lightGridVersion.Length);
+                _currentLightGridVersion = 1;
+            }
+        }
+        
+        private static long GetPositionKey(Vector2 position)
+        {
+            int x = (int)(position.X * InvCacheQuantization);
+            int y = (int)(position.Y * InvCacheQuantization);
+            return ((long)x << 32) | (uint)y;
         }
         
         private void InvalidateLightCache()
