@@ -114,6 +114,26 @@ namespace Client.Main
 #endif
                 public static string DataPathUrl = "http://192.168.55.220/Data.zip";
                 public static string DefaultDataPathUrl = "https://full-wkr.mu.webzen.co.kr/muweb/full/MU_Red_1_20_61_Full.zip";
+                /// <summary>
+                /// Enables/disables global sun-like directional light effect.
+                /// </summary>
+                public static bool SUN_ENABLED = true;
+                /// <summary>
+                /// Direction vector for sun-like directional light. Adjust to steer sun position (will be normalized).
+                /// </summary>
+                public static Vector3 SUN_DIRECTION = new Vector3(-1f, 0f, -0.6f);
+                /// <summary>
+                /// Intensity multiplier for sun light contribution.
+                /// </summary>
+                public static float SUN_STRENGTH = 0.35f;
+                /// <summary>
+                /// Strength of sun-driven shadowing
+                /// </summary>
+                public static float SUN_SHADOW_STRENGTH = 0.6f;
+                /// <summary>
+                /// Worlds (by WorldIndex) that should use sun lighting. Leave empty to allow sun everywhere.
+                /// </summary>
+                public static short[] SUN_WORLD_INDICES = new short[] { 0, 2, 7, 1 };
 #if DEBUG
                 public static bool UNLIMITED_FPS = true;
 #else

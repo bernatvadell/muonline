@@ -24,6 +24,10 @@ sampler2D SamplerState0 = sampler_state
 // Lighting parameters  
 float3 AmbientLight = float3(0.8, 0.8, 0.8);
 float Alpha = 1.0;
+float3 SunDirection = float3(1.0, 0.0, -0.6);
+float3 SunColor = float3(1.0, 0.95, 0.85);
+float SunStrength = 0.8;
+float ShadowStrength = 0.5;
 
 // Dynamic lights
 #define MAX_LIGHTS 16
@@ -139,13 +143,26 @@ float4 PS_Main(PixelInput input) : SV_Target
     if (finalAlpha < 0.01)
         discard;
     
-    // Skip expensive calculations if ActiveLightCount is 0
-    float3 finalLight = AmbientLight;
+    float3 rawNormal = input.Normal;
+    float normalLenSq = dot(rawNormal, rawNormal);
+    float3 normal = normalize(rawNormal);
+    if (normalLenSq < 0.0001)
+    {
+        // Fallback normal for meshes/billboards without valid normals (e.g., leaves, curtains)
+        normal = float3(0.0, 0.0, 1.0);
+    }
+    float3 sunDir = normalize(SunDirection);
+
+    float ndotlRaw = dot(normal, -sunDir);
+    float ndotl = saturate(ndotlRaw); // front face
+    float backfill = saturate(-ndotlRaw) * 0.35; // give a bit of light to flipped normals/backfaces (thin planes, leaves)
+    ndotl += backfill;
+    float shadowFactor = saturate(lerp(1.0 - ShadowStrength, 1.0, ndotl));
+    float3 sunLight = SunColor * ndotl * SunStrength;
+
+    float3 finalLight = AmbientLight * shadowFactor + sunLight;
     if (ActiveLightCount > 0)
     {
-        // Normalize only when needed
-        float3 normal = normalize(input.Normal);
-        
         // Calculate dynamic lighting with mathematical optimizations
         float3 dynamicLight = CalculateDynamicLighting(input.WorldPos, normal);
         
@@ -155,8 +172,8 @@ float4 PS_Main(PixelInput input) : SV_Target
             return float4(0, 0, 0, finalAlpha); // Black color for debug
         }
         
-        // Combine ambient and dynamic lighting
-        finalLight = AmbientLight + dynamicLight * 1.5;
+        // Combine ambient, sun, and dynamic lighting
+        finalLight += dynamicLight * 1.5;
     }
     
     // Apply lighting with single multiply

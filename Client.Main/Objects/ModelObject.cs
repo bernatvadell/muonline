@@ -138,6 +138,7 @@ namespace Client.Main.Objects
         public float GlowIntensity { get; set; } = 0.0f;
         public bool EnableCustomShader { get; set; } = false;
         public bool SimpleColorMode { get; set; } = false;
+        public bool UseSunLight { get; set; } = true;
 
         // Cached arrays for dynamic lighting to avoid allocations
         private static readonly Vector3[] _cachedLightPositions = new Vector3[16];
@@ -157,12 +158,26 @@ namespace Client.Main.Objects
         private static readonly Vector3 _greenHighlight = new Vector3(0, 1, 0);
         private static readonly Vector3 _maxValueVector = new Vector3(float.MaxValue);
         private static readonly Vector3 _minValueVector = new Vector3(float.MinValue);
+        private static readonly Vector3 _sunColor = new Vector3(1f, 0.95f, 0.85f);
 
         // Cache common graphics states to avoid repeated property access
         private static readonly RasterizerState _cullClockwise = RasterizerState.CullClockwise;
         private static readonly RasterizerState _cullNone = RasterizerState.CullNone;
 
         private static int _animationStrideSeed = 0;
+
+        private bool HasWalkerAncestor()
+        {
+            // Disable sun-lighting for objects that belong to player/NPC/monster hierarchies
+            ModelObject current = this;
+            while (current != null)
+            {
+                if (current is WalkerObject)
+                    return true;
+                current = current.Parent as ModelObject;
+            }
+            return false;
+        }
 
         private static float GetCachedTime()
         {
@@ -1263,6 +1278,16 @@ namespace Client.Main.Objects
                     Matrix worldViewProjection = WorldPosition * Camera.Instance.View * Camera.Instance.Projection;
                     effect.Parameters["WorldViewProjection"]?.SetValue(worldViewProjection);
                     effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
+                    Vector3 sunDir = Constants.SUN_DIRECTION;
+                    if (sunDir.LengthSquared() < 0.0001f)
+                        sunDir = new Vector3(1f, 0f, -0.6f);
+                    sunDir = Vector3.Normalize(sunDir);
+                    bool worldAllowsSun = World is WorldControl wc ? wc.IsSunWorld : true;
+                    bool sunEnabled = Constants.SUN_ENABLED && worldAllowsSun && UseSunLight && !HasWalkerAncestor();
+                    effect.Parameters["SunDirection"]?.SetValue(sunDir);
+                    effect.Parameters["SunColor"]?.SetValue(_sunColor);
+                    effect.Parameters["SunStrength"]?.SetValue(sunEnabled ? Constants.SUN_STRENGTH : 0f);
+                    effect.Parameters["ShadowStrength"]?.SetValue(sunEnabled ? Constants.SUN_SHADOW_STRENGTH : 0f);
 
                     // Set texture
                     effect.Parameters["DiffuseTexture"]?.SetValue(texture);

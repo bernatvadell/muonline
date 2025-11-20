@@ -107,6 +107,7 @@ namespace Client.Main.Objects
         protected WalkerObject()
         {
             _animationController = new AnimationController(this);
+            UseSunLight = false; // Characters (players/NPCs/monsters) rely on dynamic lights only, no sun-tint
         }
 
         public new virtual async Task Load()

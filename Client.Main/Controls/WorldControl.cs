@@ -118,6 +118,7 @@ namespace Client.Main.Controls
         public TerrainControl Terrain { get; }
 
         public short WorldIndex { get; private set; }
+        public bool IsSunWorld { get; protected set; } = true;
         
         public bool EnableShadows { get; protected set; } = true;
 
@@ -137,6 +138,10 @@ namespace Client.Main.Controls
             AutoViewSize = false;
             ViewSize = new(MuGame.Instance.Width, MuGame.Instance.Height);
             WorldIndex = worldIndex;
+            if (Constants.SUN_WORLD_INDICES != null && Constants.SUN_WORLD_INDICES.Length > 0)
+            {
+                IsSunWorld = Array.IndexOf(Constants.SUN_WORLD_INDICES, worldIndex) >= 0;
+            }
 
             var worldInfo = (WorldInfoAttribute)Attribute.GetCustomAttribute(GetType(), typeof(WorldInfoAttribute));
             if (worldInfo != null)

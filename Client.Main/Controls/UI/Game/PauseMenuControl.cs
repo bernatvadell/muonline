@@ -534,6 +534,8 @@ namespace Client.Main.Controls.UI.Game
         {
             private readonly PauseMenuControl _owner;
             private readonly List<IOptionRow> _options = new();
+            private readonly List<GameControl> _dynamicControls = new();
+            private const int ContentStartY = 140;
             private readonly ButtonControl _closeButton;
             private readonly int _panelWidth;
 
@@ -541,7 +543,7 @@ namespace Client.Main.Controls.UI.Game
             {
                 _owner = owner;
                 AutoViewSize = false;
-                ControlSize = new Point(460, 580);
+                ControlSize = new Point(480, 700);
                 ViewSize = ControlSize;
                 Align = Models.ControlAlign.HorizontalCenter | Models.ControlAlign.VerticalCenter;
                 BackgroundColor = new Color(20, 20, 30, 230);
@@ -561,73 +563,27 @@ namespace Client.Main.Controls.UI.Game
                 };
                 Controls.Add(title);
 
-                int currentY = 60;
-                int rowHeight = 22;
+                const int rowHeight = 22;
+                int categoryStartY = 60;
+                int categoryX = 20;
+                int categoryWidth = 130;
+                int categoryHeight = 26;
+                int categorySpacing = 10;
+                int categoriesPerRow = 3;
+                int categoryIndex = 0;
 
-                AddOption("Background Music", () => Constants.BACKGROUND_MUSIC, value =>
-                {
-                    Constants.BACKGROUND_MUSIC = value;
-                    _owner.ApplyBackgroundMusicSetting(value);
-                }, ref currentY, rowHeight);
-
-                AddOption("Sound Effects", () => Constants.SOUND_EFFECTS, value =>
-                {
-                    Constants.SOUND_EFFECTS = value;
-                    _owner.ApplySoundEffectsVolume();
-                }, ref currentY, rowHeight);
-                AddVolumeControl("Music Volume", () => Constants.BACKGROUND_MUSIC_VOLUME, value =>
-                {
-                    Constants.BACKGROUND_MUSIC_VOLUME = value;
-                    _owner.ApplyBackgroundMusicVolume();
-                }, ref currentY, rowHeight);
-                AddVolumeControl("Effects Volume", () => Constants.SOUND_EFFECTS_VOLUME, value =>
-                {
-                    Constants.SOUND_EFFECTS_VOLUME = value;
-                    _owner.ApplySoundEffectsVolume();
-                }, ref currentY, rowHeight);
-                AddOption("Draw Bounding Boxes", () => Constants.DRAW_BOUNDING_BOXES, value => Constants.DRAW_BOUNDING_BOXES = value, ref currentY, rowHeight);
-                AddOption("Draw Bounding Boxes (Interactives)", () => Constants.DRAW_BOUNDING_BOXES_INTERACTIVES, value => Constants.DRAW_BOUNDING_BOXES_INTERACTIVES = value, ref currentY, rowHeight);
-                AddOption("Draw Grass", () => Constants.DRAW_GRASS, value => Constants.DRAW_GRASS = value, ref currentY, rowHeight);
-                AddOption("Low Quality Switch", () => Constants.ENABLE_LOW_QUALITY_SWITCH, value => Constants.ENABLE_LOW_QUALITY_SWITCH = value, ref currentY, rowHeight);
-                AddOption("Low Quality in Login", () => Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE, value => Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE = value, ref currentY, rowHeight);
-
-                // Render scale options
-                AddOption("Render Scale: 300%", () => Math.Abs(Constants.RENDER_SCALE - 3.0f) < 0.01f, value =>
-                {
-                    if (value) { SetRenderScale(3.0f); }
-                }, ref currentY, rowHeight);
-                AddOption("Render Scale: 200%", () => Math.Abs(Constants.RENDER_SCALE - 2.0f) < 0.01f, value => {
-                    if (value) { SetRenderScale(2.0f); }
-                }, ref currentY, rowHeight);
-                AddOption("Render Scale: 150%", () => Math.Abs(Constants.RENDER_SCALE - 1.5f) < 0.01f, value => {
-                    if (value) { SetRenderScale(1.5f); }
-                }, ref currentY, rowHeight);
-                AddOption("Render Scale: 125%", () => Math.Abs(Constants.RENDER_SCALE - 1.25f) < 0.01f, value => {
-                    if (value) { SetRenderScale(1.25f); }
-                }, ref currentY, rowHeight);
-                AddOption("Render Scale: 100%", () => Math.Abs(Constants.RENDER_SCALE - 1.0f) < 0.01f, value => {
-                    if (value) { SetRenderScale(1.0f); }
-                }, ref currentY, rowHeight);
-                AddOption("Render Scale: 75%", () => Math.Abs(Constants.RENDER_SCALE - 0.75f) < 0.01f, value => {
-                    if (value) { SetRenderScale(0.75f); }
-                }, ref currentY, rowHeight);
-
-                AddOption("High Quality Textures", () => Constants.HIGH_QUALITY_TEXTURES, value => Constants.HIGH_QUALITY_TEXTURES = value, ref currentY, rowHeight);
-                AddOption("Disable V-Sync (Higher FPS)", () => Constants.DISABLE_VSYNC, value => {
-                    Constants.DISABLE_VSYNC = value;
-                    _owner.ApplyGraphicsSettings(); // Apply V-Sync changes
-                }, ref currentY, rowHeight);
-                AddOption("Dynamic Lighting Shader", () => Constants.ENABLE_DYNAMIC_LIGHTING_SHADER, value => Constants.ENABLE_DYNAMIC_LIGHTING_SHADER = value, ref currentY, rowHeight);
-                AddOption("Optimize for Integrated GPU", () => Constants.OPTIMIZE_FOR_INTEGRATED_GPU, value => Constants.OPTIMIZE_FOR_INTEGRATED_GPU = value, ref currentY, rowHeight);
-                AddOption("Debug Lighting Areas", () => Constants.DEBUG_LIGHTING_AREAS, value => Constants.DEBUG_LIGHTING_AREAS = value, ref currentY, rowHeight);
-                AddOption("Item Material Shader", () => Constants.ENABLE_ITEM_MATERIAL_SHADER, value => Constants.ENABLE_ITEM_MATERIAL_SHADER = value, ref currentY, rowHeight);
-                AddOption("Monster Material Shader", () => Constants.ENABLE_MONSTER_MATERIAL_SHADER, value => Constants.ENABLE_MONSTER_MATERIAL_SHADER = value, ref currentY, rowHeight);
-                AddOption("Unlimited FPS", () => Constants.UNLIMITED_FPS, value => Constants.UNLIMITED_FPS = value, ref currentY, rowHeight, _owner.ApplyGraphicsSettings);
-                AddOption("Debug Panel", () => Constants.SHOW_DEBUG_PANEL, value =>
-                {
-                    Constants.SHOW_DEBUG_PANEL = value;
-                    _owner.ApplyDebugPanelSetting();
-                }, ref currentY, rowHeight);
+                AddCategoryButton("Audio", () => BuildAudioCategory(), categoryStartY,
+                    ref categoryX, categoryWidth, categoryHeight, categorySpacing, categoriesPerRow, ref categoryIndex);
+                AddCategoryButton("World & Visibility", () => BuildWorldCategory(), categoryStartY,
+                    ref categoryX, categoryWidth, categoryHeight, categorySpacing, categoriesPerRow, ref categoryIndex);
+                AddCategoryButton("Render Scale", () => BuildRenderScaleCategory(), categoryStartY,
+                    ref categoryX, categoryWidth, categoryHeight, categorySpacing, categoriesPerRow, ref categoryIndex);
+                AddCategoryButton("Graphics", () => BuildGraphicsCategory(), categoryStartY,
+                    ref categoryX, categoryWidth, categoryHeight, categorySpacing, categoriesPerRow, ref categoryIndex);
+                AddCategoryButton("Lighting", () => BuildLightingCategory(), categoryStartY,
+                    ref categoryX, categoryWidth, categoryHeight, categorySpacing, categoriesPerRow, ref categoryIndex);
+                AddCategoryButton("Performance", () => BuildPerformanceCategory(), categoryStartY,
+                    ref categoryX, categoryWidth, categoryHeight, categorySpacing, categoriesPerRow, ref categoryIndex);
 
                 _closeButton = new ButtonControl
                 {
@@ -635,7 +591,7 @@ namespace Client.Main.Controls.UI.Game
                     ControlSize = new Point(140, 32),
                     ViewSize = new Point(140, 32),
                     X = (ControlSize.X - 140) / 2,
-                    Y = currentY + 10,
+                    Y = ContentStartY,
                     AutoViewSize = false,
                     BackgroundColor = new Color(50, 50, 80, 200),
                     HoverBackgroundColor = new Color(70, 70, 110, 220),
@@ -645,6 +601,187 @@ namespace Client.Main.Controls.UI.Game
                 };
                 _closeButton.Click += (s, e) => _owner.ToggleOptionsPanel();
                 Controls.Add(_closeButton);
+
+                BuildAudioCategory(); // default category
+            }
+
+            private delegate void CategoryBuilder(ref int currentY);
+
+            private void ClearDynamicControls()
+            {
+                foreach (var ctrl in _dynamicControls)
+                {
+                    Controls.Remove(ctrl);
+                }
+                _dynamicControls.Clear();
+                _options.Clear();
+            }
+
+            private void BuildCategory(string categoryName, CategoryBuilder builder)
+            {
+                ClearDynamicControls();
+
+                int currentY = ContentStartY;
+                AddHeading(categoryName, ref currentY);
+                builder(ref currentY);
+
+                _closeButton.Y = currentY + 10;
+                _closeButton.BringToFront();
+            }
+
+            private void BuildAudioCategory()
+            {
+                BuildCategory("Audio", (ref int currentY) =>
+                {
+                    const int rowHeight = 22;
+                    AddOption("Background Music", () => Constants.BACKGROUND_MUSIC, value =>
+                    {
+                        Constants.BACKGROUND_MUSIC = value;
+                        _owner.ApplyBackgroundMusicSetting(value);
+                    }, ref currentY, rowHeight);
+
+                    AddOption("Sound Effects", () => Constants.SOUND_EFFECTS, value =>
+                    {
+                        Constants.SOUND_EFFECTS = value;
+                        _owner.ApplySoundEffectsVolume();
+                    }, ref currentY, rowHeight);
+                    AddVolumeControl("Music Volume", () => Constants.BACKGROUND_MUSIC_VOLUME, value =>
+                    {
+                        Constants.BACKGROUND_MUSIC_VOLUME = value;
+                        _owner.ApplyBackgroundMusicVolume();
+                    }, ref currentY, rowHeight);
+                    AddVolumeControl("Effects Volume", () => Constants.SOUND_EFFECTS_VOLUME, value =>
+                    {
+                        Constants.SOUND_EFFECTS_VOLUME = value;
+                        _owner.ApplySoundEffectsVolume();
+                    }, ref currentY, rowHeight);
+                });
+            }
+
+            private void BuildWorldCategory()
+            {
+                BuildCategory("World & Visibility", (ref int currentY) =>
+                {
+                    const int rowHeight = 22;
+                    AddOption("Draw Bounding Boxes", () => Constants.DRAW_BOUNDING_BOXES, value => Constants.DRAW_BOUNDING_BOXES = value, ref currentY, rowHeight);
+                    AddOption("Draw Bounding Boxes (Interactives)", () => Constants.DRAW_BOUNDING_BOXES_INTERACTIVES, value => Constants.DRAW_BOUNDING_BOXES_INTERACTIVES = value, ref currentY, rowHeight);
+                    AddOption("Draw Grass", () => Constants.DRAW_GRASS, value => Constants.DRAW_GRASS = value, ref currentY, rowHeight);
+                    AddOption("Low Quality Switch", () => Constants.ENABLE_LOW_QUALITY_SWITCH, value => Constants.ENABLE_LOW_QUALITY_SWITCH = value, ref currentY, rowHeight);
+                    AddOption("Low Quality in Login", () => Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE, value => Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE = value, ref currentY, rowHeight);
+                });
+            }
+
+            private void BuildRenderScaleCategory()
+            {
+                BuildCategory("Render Scale", (ref int currentY) =>
+                {
+                    const int rowHeight = 22;
+                    AddOption("Render Scale: 300%", () => Math.Abs(Constants.RENDER_SCALE - 3.0f) < 0.01f, value =>
+                    {
+                        if (value) { SetRenderScale(3.0f); }
+                    }, ref currentY, rowHeight);
+                    AddOption("Render Scale: 200%", () => Math.Abs(Constants.RENDER_SCALE - 2.0f) < 0.01f, value => {
+                        if (value) { SetRenderScale(2.0f); }
+                    }, ref currentY, rowHeight);
+                    AddOption("Render Scale: 150%", () => Math.Abs(Constants.RENDER_SCALE - 1.5f) < 0.01f, value => {
+                        if (value) { SetRenderScale(1.5f); }
+                    }, ref currentY, rowHeight);
+                    AddOption("Render Scale: 125%", () => Math.Abs(Constants.RENDER_SCALE - 1.25f) < 0.01f, value => {
+                        if (value) { SetRenderScale(1.25f); }
+                    }, ref currentY, rowHeight);
+                    AddOption("Render Scale: 100%", () => Math.Abs(Constants.RENDER_SCALE - 1.0f) < 0.01f, value => {
+                        if (value) { SetRenderScale(1.0f); }
+                    }, ref currentY, rowHeight);
+                    AddOption("Render Scale: 75%", () => Math.Abs(Constants.RENDER_SCALE - 0.75f) < 0.01f, value => {
+                        if (value) { SetRenderScale(0.75f); }
+                    }, ref currentY, rowHeight);
+                });
+            }
+
+            private void BuildGraphicsCategory()
+            {
+                BuildCategory("Graphics", (ref int currentY) =>
+                {
+                    const int rowHeight = 22;
+                    AddOption("High Quality Textures", () => Constants.HIGH_QUALITY_TEXTURES, value => Constants.HIGH_QUALITY_TEXTURES = value, ref currentY, rowHeight);
+                    AddOption("Disable V-Sync (Higher FPS)", () => Constants.DISABLE_VSYNC, value => {
+                        Constants.DISABLE_VSYNC = value;
+                        _owner.ApplyGraphicsSettings(); // Apply V-Sync changes
+                    }, ref currentY, rowHeight);
+                });
+            }
+
+            private void BuildLightingCategory()
+            {
+                BuildCategory("Lighting & Materials", (ref int currentY) =>
+                {
+                    const int rowHeight = 22;
+                    AddOption("Sun Light", () => Constants.SUN_ENABLED, value => Constants.SUN_ENABLED = value, ref currentY, rowHeight);
+                    AddOption("Sun From +X", () => Constants.SUN_DIRECTION.X >= 0f, value =>
+                    {
+                        var dir = Constants.SUN_DIRECTION;
+                        if (dir.LengthSquared() < 0.0001f)
+                            dir = new Vector3(1f, 0f, -0.6f);
+                        dir.X = Math.Abs(dir.X) * (value ? 1f : -1f);
+                        Constants.SUN_DIRECTION = dir;
+                    }, ref currentY, rowHeight);
+                    AddVolumeControl("Sun Strength (%)", () => Constants.SUN_STRENGTH * 100f, value =>
+                    {
+                        Constants.SUN_STRENGTH = MathHelper.Clamp(value, 0f, 200f) / 100f;
+                    }, ref currentY, rowHeight, 0f, 200f, 5f);
+                    AddVolumeControl("Sun Shadow (%)", () => Constants.SUN_SHADOW_STRENGTH * 100f, value =>
+                    {
+                        Constants.SUN_SHADOW_STRENGTH = MathHelper.Clamp(value, 0f, 100f) / 100f;
+                    }, ref currentY, rowHeight, 0f, 100f, 5f);
+                    AddOption("Dynamic Lighting Shader", () => Constants.ENABLE_DYNAMIC_LIGHTING_SHADER, value => Constants.ENABLE_DYNAMIC_LIGHTING_SHADER = value, ref currentY, rowHeight);
+                    AddOption("Optimize for Integrated GPU", () => Constants.OPTIMIZE_FOR_INTEGRATED_GPU, value => Constants.OPTIMIZE_FOR_INTEGRATED_GPU = value, ref currentY, rowHeight);
+                    AddOption("Debug Lighting Areas", () => Constants.DEBUG_LIGHTING_AREAS, value => Constants.DEBUG_LIGHTING_AREAS = value, ref currentY, rowHeight);
+                    AddOption("Item Material Shader", () => Constants.ENABLE_ITEM_MATERIAL_SHADER, value => Constants.ENABLE_ITEM_MATERIAL_SHADER = value, ref currentY, rowHeight);
+                    AddOption("Monster Material Shader", () => Constants.ENABLE_MONSTER_MATERIAL_SHADER, value => Constants.ENABLE_MONSTER_MATERIAL_SHADER = value, ref currentY, rowHeight);
+                });
+            }
+
+            private void BuildPerformanceCategory()
+            {
+                BuildCategory("Performance & Debug", (ref int currentY) =>
+                {
+                    const int rowHeight = 22;
+                    AddOption("Unlimited FPS", () => Constants.UNLIMITED_FPS, value => Constants.UNLIMITED_FPS = value, ref currentY, rowHeight, _owner.ApplyGraphicsSettings);
+                    AddOption("Debug Panel", () => Constants.SHOW_DEBUG_PANEL, value =>
+                    {
+                        Constants.SHOW_DEBUG_PANEL = value;
+                        _owner.ApplyDebugPanelSetting();
+                    }, ref currentY, rowHeight);
+                });
+            }
+
+            private void AddCategoryButton(string label, Action onClick, int startY,
+                ref int currentX, int width, int height, int spacing, int perRow, ref int index)
+            {
+                int row = index / perRow;
+                int col = index % perRow;
+                int x = 20 + col * (width + spacing);
+                int y = startY + row * (height + spacing);
+
+                var button = new ButtonControl
+                {
+                    Text = label,
+                    X = x,
+                    Y = y,
+                    ControlSize = new Point(width, height),
+                    ViewSize = new Point(width, height),
+                    AutoViewSize = false,
+                    BackgroundColor = new Color(50, 50, 80, 200),
+                    HoverBackgroundColor = new Color(70, 70, 110, 220),
+                    PressedBackgroundColor = new Color(40, 40, 70, 220),
+                    FontSize = 12f,
+                    TextColor = Color.White
+                };
+                button.Click += (s, e) => onClick();
+                Controls.Add(button);
+
+                currentX += width + spacing;
+                index++;
             }
 
             private void SetRenderScale(float scale)
@@ -670,8 +807,24 @@ namespace Client.Main.Controls.UI.Game
                     onChanged?.Invoke();
                 }, currentY, _panelWidth);
                 option.AddTo(Controls);
+                option.CollectControls(_dynamicControls);
                 _options.Add(option);
                 currentY += rowHeight;
+            }
+
+            private void AddHeading(string label, ref int currentY)
+            {
+                var heading = new LabelControl
+                {
+                    Text = label,
+                    X = 14,
+                    Y = currentY,
+                    FontSize = 13f,
+                    TextColor = new Color(180, 200, 255)
+                };
+                Controls.Add(heading);
+                _dynamicControls.Add(heading);
+                currentY += 18;
             }
 
             public void Refresh()
@@ -682,10 +835,11 @@ namespace Client.Main.Controls.UI.Game
                 }
             }
 
-            private void AddVolumeControl(string label, Func<float> getter, Action<float> setter, ref int currentY, int rowHeight)
+            private void AddVolumeControl(string label, Func<float> getter, Action<float> setter, ref int currentY, int rowHeight, float minValue = 0f, float maxValue = 100f, float step = 5f)
             {
-                var option = new OptionVolume(label, getter, setter, currentY, _panelWidth);
+                var option = new OptionVolume(label, getter, setter, currentY, _panelWidth, minValue, maxValue, step);
                 option.AddTo(Controls);
+                option.CollectControls(_dynamicControls);
                 _options.Add(option);
                 currentY += rowHeight;
             }
@@ -694,6 +848,7 @@ namespace Client.Main.Controls.UI.Game
             {
                 void AddTo(ChildrenCollection<GameControl> controls);
                 void Refresh();
+                void CollectControls(List<GameControl> controls);
             }
 
             private sealed class OptionToggle : IOptionRow
@@ -751,6 +906,12 @@ namespace Client.Main.Controls.UI.Game
                     bool value = _getter();
                     _button.Text = value ? "On" : "Off";
                 }
+
+                public void CollectControls(List<GameControl> controls)
+                {
+                    controls.Add(_label);
+                    controls.Add(_button);
+                }
             }
 
             private sealed class OptionVolume : IOptionRow
@@ -761,13 +922,17 @@ namespace Client.Main.Controls.UI.Game
                 private readonly ButtonControl _plusButton;
                 private readonly Func<float> _getter;
                 private readonly Action<float> _setter;
-                private const float MaxValue = 100f;
-                private const float Step = 5f;
+                private readonly float _minValue;
+                private readonly float _maxValue;
+                private readonly float _step;
 
-                public OptionVolume(string label, Func<float> getter, Action<float> setter, int y, int panelWidth)
+                public OptionVolume(string label, Func<float> getter, Action<float> setter, int y, int panelWidth, float minValue = 0f, float maxValue = 100f, float step = 5f)
                 {
                     _getter = getter;
                     _setter = setter;
+                    _minValue = minValue;
+                    _maxValue = maxValue;
+                    _step = step;
 
                     _label = new LabelControl
                     {
@@ -819,15 +984,15 @@ namespace Client.Main.Controls.UI.Game
                         TextColor = Color.White
                     };
 
-                    _minusButton.Click += (s, e) => AdjustVolume(-Step);
-                    _plusButton.Click += (s, e) => AdjustVolume(Step);
+                    _minusButton.Click += (s, e) => AdjustVolume(-_step);
+                    _plusButton.Click += (s, e) => AdjustVolume(_step);
 
                     Refresh();
                 }
 
                 private void AdjustVolume(float delta)
                 {
-                    float value = MathHelper.Clamp(_getter() + delta, 0f, MaxValue);
+                    float value = MathHelper.Clamp(_getter() + delta, _minValue, _maxValue);
                     value = (float)Math.Round(value);
                     _setter(value);
                     Refresh();
@@ -843,8 +1008,18 @@ namespace Client.Main.Controls.UI.Game
 
                 public void Refresh()
                 {
-                    float value = MathHelper.Clamp(_getter(), 0f, MaxValue);
+                    float value = MathHelper.Clamp(_getter(), _minValue, _maxValue);
                     _valueLabel.Text = $"{Math.Round(value)}%";
+                    _minusButton.Enabled = value > _minValue;
+                    _plusButton.Enabled = value < _maxValue;
+                }
+
+                public void CollectControls(List<GameControl> controls)
+                {
+                    controls.Add(_label);
+                    controls.Add(_valueLabel);
+                    controls.Add(_minusButton);
+                    controls.Add(_plusButton);
                 }
             }
         }
