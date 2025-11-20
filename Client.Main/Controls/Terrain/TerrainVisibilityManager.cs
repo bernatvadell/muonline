@@ -68,7 +68,7 @@ namespace Client.Main.Controls.Terrain
                         for (int x = 0; x < BlockSize; x++)
                         {
                             int idx = GetTerrainIndexRepeat(block.Xi + x, block.Yi + y);
-                            float h = _data.HeightMap[idx].B * 1.5f;
+                            float h = _data.HeightMap[idx].R * 1.5f;
                             if (h < block.MinZ) block.MinZ = h;
                             if (h > block.MaxZ) block.MaxZ = h;
                         }
@@ -189,10 +189,10 @@ namespace Client.Main.Controls.Terrain
                     int i3 = GetTerrainIndexRepeat(x + 1, y + 1);
                     int i4 = GetTerrainIndexRepeat(x, y + 1);
 
-                    float hmin = MathF.Min(MathF.Min(_data.HeightMap[i1].B, _data.HeightMap[i2].B),
-                                           MathF.Min(_data.HeightMap[i3].B, _data.HeightMap[i4].B)) * 1.5f;
-                    float hmax = MathF.Max(MathF.Max(_data.HeightMap[i1].B, _data.HeightMap[i2].B),
-                                           MathF.Max(_data.HeightMap[i3].B, _data.HeightMap[i4].B)) * 1.5f;
+                    float hmin = MathF.Min(MathF.Min(_data.HeightMap[i1].R, _data.HeightMap[i2].R),
+                                           MathF.Min(_data.HeightMap[i3].R, _data.HeightMap[i4].R)) * 1.5f;
+                    float hmax = MathF.Max(MathF.Max(_data.HeightMap[i1].R, _data.HeightMap[i2].R),
+                                           MathF.Max(_data.HeightMap[i3].R, _data.HeightMap[i4].R)) * 1.5f;
 
                     float sx = x * Constants.TERRAIN_SCALE;
                     float sy = y * Constants.TERRAIN_SCALE;

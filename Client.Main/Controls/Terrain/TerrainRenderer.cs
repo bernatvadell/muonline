@@ -102,7 +102,7 @@ namespace Client.Main.Controls.Terrain
             {
                 for (int i = 0; i < heightData.Length; i++)
                 {
-                    heightData[i] = _data.HeightMap[i].B / 255.0f;
+                    heightData[i] = _data.HeightMap[i].R / 255.0f;
                 }
                 _data.HeightMapTexture.SetData(heightData);
             }
@@ -333,10 +333,10 @@ namespace Client.Main.Controls.Terrain
 
         private void PrepareTileVertices(int xi, int yi, int i1, int i2, int i3, int i4, float lodFactor)
         {
-            float h1 = i1 < _data.HeightMap.Length ? _data.HeightMap[i1].B * 1.5f : 0f;
-            float h2 = i2 < _data.HeightMap.Length ? _data.HeightMap[i2].B * 1.5f : 0f;
-            float h3 = i3 < _data.HeightMap.Length ? _data.HeightMap[i3].B * 1.5f : 0f;
-            float h4 = i4 < _data.HeightMap.Length ? _data.HeightMap[i4].B * 1.5f : 0f;
+            float h1 = i1 < _data.HeightMap.Length ? _data.HeightMap[i1].R * 1.5f : 0f;
+            float h2 = i2 < _data.HeightMap.Length ? _data.HeightMap[i2].R * 1.5f : 0f;
+            float h3 = i3 < _data.HeightMap.Length ? _data.HeightMap[i3].R * 1.5f : 0f;
+            float h4 = i4 < _data.HeightMap.Length ? _data.HeightMap[i4].R * 1.5f : 0f;
 
             float sx = xi * Constants.TERRAIN_SCALE;
             float sy = yi * Constants.TERRAIN_SCALE;

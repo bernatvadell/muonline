@@ -56,10 +56,10 @@ namespace Client.Main.Controls.Terrain
             int i3 = y2 * Constants.TERRAIN_SIZE + x2;
             int i4 = y2 * Constants.TERRAIN_SIZE + x1;
 
-            float h1 = _data.HeightMap[i1].B;
-            float h2 = _data.HeightMap[i2].B;
-            float h3 = _data.HeightMap[i3].B;
-            float h4 = _data.HeightMap[i4].B;
+            float h1 = _data.HeightMap[i1].R;
+            float h2 = _data.HeightMap[i2].R;
+            float h3 = _data.HeightMap[i3].R;
+            float h4 = _data.HeightMap[i4].R;
 
             return (1 - xd) * (1 - yd) * h1
                  + xd * (1 - yd) * h2

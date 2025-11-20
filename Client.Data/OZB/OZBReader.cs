@@ -58,7 +58,7 @@ namespace Client.Data.OZB
                 Version = version,
                 Width = width,
                 Height = height,
-                Data = backTerrainHeight.Select(x => Color.FromArgb(255, x, x, x)).ToArray()
+                Data = backTerrainHeight.Select(x => Color.FromArgb(255, x, 0, 0)).ToArray()
             };
         }
 

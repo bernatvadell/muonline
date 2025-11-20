@@ -81,13 +81,13 @@ namespace Client.Main.Controls.Terrain
                 {
                     int i = GetTerrainIndex(x, y);
                     var v1 = new Vector3((x + 1) * Constants.TERRAIN_SCALE, y * Constants.TERRAIN_SCALE,
-                        _data.HeightMap[GetTerrainIndexRepeat(x + 1, y)].B);
+                        _data.HeightMap[GetTerrainIndexRepeat(x + 1, y)].R);
                     var v2 = new Vector3((x + 1) * Constants.TERRAIN_SCALE, (y + 1) * Constants.TERRAIN_SCALE,
-                        _data.HeightMap[GetTerrainIndexRepeat(x + 1, y + 1)].B);
+                        _data.HeightMap[GetTerrainIndexRepeat(x + 1, y + 1)].R);
                     var v3 = new Vector3(x * Constants.TERRAIN_SCALE, (y + 1) * Constants.TERRAIN_SCALE,
-                        _data.HeightMap[GetTerrainIndexRepeat(x, y + 1)].B);
+                        _data.HeightMap[GetTerrainIndexRepeat(x, y + 1)].R);
                     var v4 = new Vector3(x * Constants.TERRAIN_SCALE, y * Constants.TERRAIN_SCALE,
-                        _data.HeightMap[GetTerrainIndexRepeat(x, y)].B);
+                        _data.HeightMap[GetTerrainIndexRepeat(x, y)].R);
 
                     var n1 = MathUtils.FaceNormalize(v1, v2, v3);
                     var n2 = MathUtils.FaceNormalize(v3, v4, v1);
