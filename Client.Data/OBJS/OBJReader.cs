@@ -21,6 +21,8 @@
                     1 => br.ReadStructArray<MapObjectV1>(count).Cast<IMapObject>().ToArray(),
                     2 => br.ReadStructArray<MapObjectV2>(count).Cast<IMapObject>().ToArray(),
                     3 => br.ReadStructArray<MapObjectV3>(count).Cast<IMapObject>().ToArray(),
+                    4 => br.ReadStructArray<MapObjectV4>(count).Cast<IMapObject>().ToArray(),
+                    5 => br.ReadStructArray<MapObjectV5>(count).Cast<IMapObject>().ToArray(),
                     _ => throw new NotImplementedException($"Version {version} not implemented"),
                 };
 
