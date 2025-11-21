@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <ClientMainTargetFramework>net9.0-windows</ClientMainTargetFramework>
+    <ClientMainTargetFramework>net10.0-windows</ClientMainTargetFramework>
     <AssemblyName>Client.Main</AssemblyName>
     <RootNamespace>Client.Main</RootNamespace>
     <RestoreAdditionalProjectProperties>

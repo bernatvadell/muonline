@@ -3,7 +3,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PublishAot>true</PublishAot>
-    <ClientDataTargetFramework Condition="'$(ClientDataTargetFramework)'==''">net9.0</ClientDataTargetFramework>
+    <ClientDataTargetFramework Condition="'$(ClientDataTargetFramework)'==''">net10.0</ClientDataTargetFramework>
     <TargetFramework>$(ClientDataTargetFramework)</TargetFramework>
   </PropertyGroup>
 
@@ -24,13 +24,13 @@
     <PackageReference Include="NVorbis" Version="0.10.5" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)'!='net9.0-android' AND '$(TargetFramework)'!='net9.0-ios'">
+  <ItemGroup Condition="'$(TargetFramework)'!='net10.0-android' AND '$(TargetFramework)'!='net10.0-ios'">
     <PackageReference Include="$(MonoGameFrameworkPackage)" Version="$(MonoGameFrameworkVersion)" />
   </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)'=='net9.0-android'">
+  <ItemGroup Condition="'$(TargetFramework)'=='net10.0-android'">
     <PackageReference Include="MonoGame.Framework.Android" Version="3.8.4.1" />
   </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)'=='net9.0-ios'">
+  <ItemGroup Condition="'$(TargetFramework)'=='net10.0-ios'">
     <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.4.1" />
   </ItemGroup>
 </Project>

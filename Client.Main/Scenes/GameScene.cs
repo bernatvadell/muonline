@@ -1134,8 +1134,9 @@ namespace Client.Main.Scenes
                        DepthStencilState.None,
                        transform: UiScaler.SpriteTransform))
             {
-                foreach (var ctrl in Controls.ToArray())
+                for (int i = 0; i < Controls.Count; i++)
                 {
+                    var ctrl = Controls[i];
                     if (ctrl == null || ctrl == World || !ctrl.Visible)
                     {
                         continue;

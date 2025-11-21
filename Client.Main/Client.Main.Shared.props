@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <ClientMainTargetFramework Condition="'$(ClientMainTargetFramework)'==''">net9.0</ClientMainTargetFramework>
+    <ClientMainTargetFramework Condition="'$(ClientMainTargetFramework)'==''">net10.0</ClientMainTargetFramework>
     <TargetFramework>$(ClientMainTargetFramework)</TargetFramework>
     <OutputType>Library</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -12,13 +12,13 @@
   </PropertyGroup>
 
   <!-- Define platform constants -->
-  <PropertyGroup Condition="'$(TargetFramework)'=='net9.0-android'">
+  <PropertyGroup Condition="'$(TargetFramework)'=='net10.0-android'">
     <DefineConstants>$(DefineConstants);ANDROID</DefineConstants>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(TargetFramework)'=='net9.0-ios'">
+  <PropertyGroup Condition="'$(TargetFramework)'=='net10.0-ios'">
     <DefineConstants>$(DefineConstants);IOS</DefineConstants>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(TargetFramework)'=='net9.0-windows'">
+  <PropertyGroup Condition="'$(TargetFramework)'=='net10.0-windows'">
     <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
   </PropertyGroup>
   <PropertyGroup Condition="'$(MonoGameFramework)'=='MonoGame.Framework.WindowsDX'">
@@ -32,10 +32,10 @@
   <!-- Allow parent project to specify MonoGame framework via MonoGameFramework property -->
   <!-- For desktop platforms (Windows, Linux, macOS), don't include MonoGame here - let the exe project provide it -->
   <!-- This prevents conflicts when MuWinDX wants DirectX but Client.Main would pull in DesktopGL -->
-  <ItemGroup Condition="'$(TargetFramework)'=='net9.0-android'">
+  <ItemGroup Condition="'$(TargetFramework)'=='net10.0-android'">
     <PackageReference Include="MonoGame.Framework.Android" Version="3.8.4.1" />
   </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)'=='net9.0-ios'">
+  <ItemGroup Condition="'$(TargetFramework)'=='net10.0-ios'">
     <PackageReference Include="MonoGame.Framework.iOS" Version="3.8.4.1" />
   </ItemGroup>
 
@@ -70,7 +70,7 @@
   <!-- LOCAL CONFIG FILE END -->
 
   <!-- appsettings.json -->
-  <ItemGroup Condition="'$(TargetFramework)'=='net9.0-android'">
+  <ItemGroup Condition="'$(TargetFramework)'=='net10.0-android'">
     <AndroidAsset Include="appsettings.json" />
   </ItemGroup>
 
@@ -82,7 +82,7 @@
     <EmbeddedResource Include="Data\skill_eng.bmd" />
     <EmbeddedResource Include="Data\bmd_blending_config.json" />
   </ItemGroup>
-  <ItemGroup Condition="'$(TargetFramework)'!='net9.0-android'">
+  <ItemGroup Condition="'$(TargetFramework)'!='net10.0-android'">
     <None Update="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

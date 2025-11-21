@@ -166,16 +166,19 @@ namespace Client.Main.Controls
         /// </summary>
         private void CalculateMouseTilePos()
         {
-            var mousePos = Mouse.GetState().Position.ToVector2();
+            var mousePos = MuGame.Instance.Mouse.Position.ToVector2();
             var viewport = GraphicsManager.Instance.GraphicsDevice.Viewport;
+            var cam = Camera.Instance;
+            var proj = cam.Projection;
+            var view = cam.View;
 
             var near = viewport.Unproject(new Vector3(mousePos, 0f),
-                                          Camera.Instance.Projection,
-                                          Camera.Instance.View,
+                                          proj,
+                                          view,
                                           Matrix.Identity);
             var far = viewport.Unproject(new Vector3(mousePos, 1f),
-                                          Camera.Instance.Projection,
-                                          Camera.Instance.View,
+                                          proj,
+                                          view,
                                           Matrix.Identity);
 
             var ray = new Ray(near, Vector3.Normalize(far - near));

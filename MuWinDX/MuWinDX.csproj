@@ -2,8 +2,8 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0-windows</TargetFramework>
-    <ClientMainTargetFramework>net9.0-windows</ClientMainTargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ClientMainTargetFramework>net10.0-windows</ClientMainTargetFramework>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
 
     <!-- Specify DirectX backend for MonoGame -->

@@ -224,10 +224,11 @@ namespace Client.Main.Controls
             base.Update(time);
             if (Status != GameControlStatus.Ready) return;
 
-            // Iterate over a copy to avoid modification during update
-            foreach (var obj in Objects.ToArray())
+            // Iterate directly to skip per-frame array allocations; ChildrenCollection is already thread-safe
+            for (int i = 0; i < Objects.Count; i++)
             {
-                if (obj.Status != GameControlStatus.Disposed)
+                var obj = Objects[i];
+                if (obj != null && obj.Status != GameControlStatus.Disposed)
                     obj.Update(time);
             }
         }
@@ -384,13 +385,23 @@ namespace Client.Main.Controls
 
             var metrics = new ObjectPerformanceMetrics { TotalObjects = Objects.Count };
 
-            // Classify objects
-            foreach (var obj in Objects.ToArray())
+            var cam = Camera.Instance;
+            if (cam == null || _boundingFrustum == null) return;
+
+            Vector2 cam2D = new(cam.Position.X, cam.Position.Y);
+            float maxDist = cam.ViewFar + CullingOffset;
+            float maxDistSq = maxDist * maxDist;
+            var frustum = _boundingFrustum;
+
+            // Classify objects without allocating a snapshot array
+            for (int i = 0; i < Objects.Count; i++)
             {
+                var obj = Objects[i];
+                if (obj == null) continue;
                 if (obj.Status == GameControlStatus.Disposed || !obj.Visible) continue;
                 metrics.ConsideredForRender++;
 
-                if (!IsObjectInView(obj))
+                if (!IsObjectInView(obj, cam2D, maxDistSq, frustum))
                 {
                     metrics.CulledByFrustum++;
                     continue;
@@ -493,6 +504,17 @@ namespace Client.Main.Controls
 
             if (_boundingFrustum == null) return false;
             return _boundingFrustum.Contains(obj.BoundingBoxWorld) != ContainmentType.Disjoint;
+        }
+
+        // Fast path for loops where camera info is already cached
+        private static bool IsObjectInView(WorldObject obj, Vector2 cam2, float maxDistSq, BoundingFrustum frustum)
+        {
+            var pos3 = obj.WorldPosition.Translation;
+            var obj2 = new Vector2(pos3.X, pos3.Y);
+            if (Vector2.DistanceSquared(cam2, obj2) > maxDistSq)
+                return false;
+
+            return frustum != null && frustum.Contains(obj.BoundingBoxWorld) != ContainmentType.Disjoint;
         }
 
         // --- NEW METHOD FOR LIGHT CULLING ---

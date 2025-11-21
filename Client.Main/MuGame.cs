@@ -39,6 +39,10 @@ namespace Client.Main
         private ILogger _logger = AppLoggerFactory?.CreateLogger<MuGame>();
         private bool _networkDisposed = false;
         private float _scaleFactor;
+        private bool _effectCacheValid = false;
+        private Point _lastEffectTargetSize;
+        private Matrix _cachedEffectOrtho;
+        private Vector2 _cachedEffectResolution;
 
         // Public Instance Properties
         public BaseScene ActiveScene { get; private set; }
@@ -580,21 +584,16 @@ namespace Client.Main
             GraphicsDevice.SetRenderTarget(destination);
             GraphicsDevice.Clear(Color.Transparent);
 
+            EnsureEffectCache(destination.Width, destination.Height);
+
             if (effect == GraphicsManager.Instance.FXAAEffect)
             {
-                effect.Parameters["Resolution"]?.SetValue(new Vector2(GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height));
+                effect.Parameters["Resolution"]?.SetValue(_cachedEffectResolution);
             }
 
             if (effect == GraphicsManager.Instance.FXAAEffect || effect == GraphicsManager.Instance.AlphaRGBEffect)
             {
-                Matrix worldViewProjection = Matrix.CreateOrthographicOffCenter(
-                    0,
-                    GraphicsDevice.Viewport.Width,
-                    GraphicsDevice.Viewport.Height,
-                    0,
-                    0,
-                    1);
-                effect.Parameters["WorldViewProjection"]?.SetValue(worldViewProjection);
+                effect.Parameters["WorldViewProjection"]?.SetValue(_cachedEffectOrtho);
             }
 
             GraphicsManager.Instance.Sprite.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, GraphicsManager.GetQualityLinearSamplerState(), DepthStencilState.None, RasterizerState.CullNone, effect);
@@ -644,6 +643,26 @@ namespace Client.Main
                 Math.Max(1, graphics.UiVirtualHeight));
 
             _scaleFactor = UiScaler.Scale;
+        }
+
+        private void EnsureEffectCache(int width, int height)
+        {
+            var size = new Point(width, height);
+            if (_effectCacheValid && size == _lastEffectTargetSize)
+            {
+                return;
+            }
+
+            _lastEffectTargetSize = size;
+            _cachedEffectResolution = new Vector2(width, height);
+            _cachedEffectOrtho = Matrix.CreateOrthographicOffCenter(
+                0,
+                width,
+                height,
+                0,
+                0,
+                1);
+            _effectCacheValid = true;
         }
 
         /// <summary>
