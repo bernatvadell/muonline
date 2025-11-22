@@ -38,6 +38,9 @@ float LightIntensities[MAX_LIGHTS];
 int ActiveLightCount = 0;
 int MaxLightsToProcess = MAX_LIGHTS;
 bool DebugLightingAreas = false;
+bool UseVertexColorLighting = false;
+bool TerrainLightingPass = false;
+float TerrainDynamicIntensityScale = 1.5;
 
 // Terrain static lighting
 float3 TerrainLight = float3(1.0, 1.0, 1.0);
@@ -112,6 +115,12 @@ float3 CalculateDynamicLighting(float3 worldPos, float3 normal)
         // Fast attenuation using inverse distance (avoid division)
         float attenuation = 1.0 - (distance * (1.0 / lightRadius));
         attenuation = saturate(attenuation); // Clamp to 0-1 range
+        if (TerrainLightingPass)
+        {
+            // Only light points that are below the light (hemisphere)
+            float vertical = saturate((lightPos.z - worldPos.z) * (1.0 / lightRadius));
+            attenuation *= vertical;
+        }
         
         // Skip light if outside radius using multiplication instead of branches
         float inRange = step(distanceSquared, radiusSquared);
@@ -151,16 +160,26 @@ float4 PS_Main(PixelInput input) : SV_Target
         // Fallback normal for meshes/billboards without valid normals (e.g., leaves, curtains)
         normal = float3(0.0, 0.0, 1.0);
     }
-    float3 sunDir = normalize(SunDirection);
+    float3 baseLight;
+    if (UseVertexColorLighting)
+    {
+        baseLight = input.Color.rgb;
+    }
+    else
+    {
+        float3 sunDir = normalize(SunDirection);
 
-    float ndotlRaw = dot(normal, -sunDir);
-    float ndotl = saturate(ndotlRaw); // front face
-    float backfill = saturate(-ndotlRaw) * 0.35; // give a bit of light to flipped normals/backfaces (thin planes, leaves)
-    ndotl += backfill;
-    float shadowFactor = saturate(lerp(1.0 - ShadowStrength, 1.0, ndotl));
-    float3 sunLight = SunColor * ndotl * SunStrength;
+        float ndotlRaw = dot(normal, -sunDir);
+        float ndotl = saturate(ndotlRaw); // front face
+        float backfill = saturate(-ndotlRaw) * 0.35; // give a bit of light to flipped normals/backfaces (thin planes, leaves)
+        ndotl += backfill;
+        float shadowFactor = saturate(lerp(1.0 - ShadowStrength, 1.0, ndotl));
+        float3 sunLight = SunColor * ndotl * SunStrength;
 
-    float3 finalLight = AmbientLight * shadowFactor + sunLight;
+        baseLight = AmbientLight * shadowFactor + sunLight;
+    }
+
+    float3 finalLight = baseLight;
     if (ActiveLightCount > 0)
     {
         // Calculate dynamic lighting with mathematical optimizations
@@ -173,7 +192,7 @@ float4 PS_Main(PixelInput input) : SV_Target
         }
         
         // Combine ambient, sun, and dynamic lighting
-        finalLight += dynamicLight * 1.5;
+        finalLight += dynamicLight * TerrainDynamicIntensityScale;
     }
     
     // Apply lighting with single multiply

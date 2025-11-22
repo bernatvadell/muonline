@@ -20,6 +20,7 @@ namespace Client.Main.Controls.UI
         private LabelControl _bmdMetricsLabel;    // New label for BMD buffer metrics
         private LabelControl _poolingMetricsLabel; // NEW: Matrix pooling stats
         private LabelControl _batchSortingLabel;   // NEW: Batch sorting status
+        private LabelControl _lightingStatusLabel; // NEW: Lighting mode status
         private double _updateTimer = 0;
         private const double UPDATE_INTERVAL_MS = 100; // 100ms
         private StringBuilder _sb = new StringBuilder(350); // Increased capacity for new metrics
@@ -30,7 +31,7 @@ namespace Client.Main.Controls.UI
             Align = ControlAlign.Top | ControlAlign.Right;
             Margin = new Margin { Top = 10, Right = 10 };
             Padding = new Margin { Top = 15, Left = 15 };
-            ControlSize = new Point(380, 280); // Increased size for pooling + batch metrics
+            ControlSize = new Point(400, 300); // Increased size for lighting + pooling metrics
             BackgroundColor = Color.Black * 0.6f;
             BorderColor = Color.White * 0.3f;
             BorderThickness = 2;
@@ -46,6 +47,7 @@ namespace Client.Main.Controls.UI
             Controls.Add(_effectsStatusLabel = new LabelControl { Text = "FXAA: {0} - AlphaRGB:{1}", TextColor = Color.Yellow, X = posX, Y = posY += labelHeight });
             Controls.Add(_objectCursorLabel = new LabelControl { Text = "Cursor Object: {0}", TextColor = Color.CadetBlue, X = posX, Y = posY += labelHeight });
             Controls.Add(_tileFlagsLabel = new LabelControl { Text = "Tile Flags: {0}", TextColor = Color.Lime, X = posX, Y = posY += labelHeight });
+            Controls.Add(_lightingStatusLabel = new LabelControl { Text = "Lighting: {0}", TextColor = Color.White, X = posX, Y = posY += labelHeight });
             Controls.Add(_performanceMetricsLabel = new LabelControl { Text = "Perf: {0}", TextColor = Color.OrangeRed, X = posX, Y = posY += labelHeight });
             Controls.Add(_objectMetricsLabel = new LabelControl { Text = "Objects: {0}", TextColor = Color.LightCyan, X = posX, Y = posY += labelHeight });
             Controls.Add(_bmdMetricsLabel = new LabelControl { Text = "BMD: {0}", TextColor = Color.LightSkyBlue, X = posX, Y = posY += labelHeight });
@@ -101,6 +103,7 @@ namespace Client.Main.Controls.UI
                     _performanceMetricsLabel.Visible = true;
                     _objectMetricsLabel.Visible = true; // Show object metrics label
                     _bmdMetricsLabel.Visible = true;
+                    _lightingStatusLabel.Visible = true;
 
                     _sb.Clear().Append("Player Cords - X: ").Append(walkableWorld.Walker.Location.X)
                        .Append(", Y:").Append(walkableWorld.Walker.Location.Y);
@@ -114,6 +117,17 @@ namespace Client.Main.Controls.UI
                                                                          (int)walkableWorld.Walker.Location.Y);
                     _sb.Clear().Append("Tile Flags: ").Append(flags);
                     _tileFlagsLabel.Text = _sb.ToString();
+
+                    bool terrainGpu = walkableWorld.Terrain?.IsGpuTerrainLighting == true;
+                    bool shaderAvailable = walkableWorld.Terrain?.IsDynamicLightingShaderAvailable == true;
+                    bool objectsGpu = Constants.ENABLE_DYNAMIC_LIGHTING_SHADER && GraphicsManager.Instance.DynamicLightingEffect != null;
+                    _sb.Clear()
+                      .Append("Lighting: Terrain=")
+                      .Append(terrainGpu ? "GPU" : "CPU")
+                      .Append(shaderAvailable ? "" : " (shader missing)")
+                      .Append(" | Objects=")
+                      .Append(objectsGpu ? "GPU" : "CPU");
+                    _lightingStatusLabel.Text = _sb.ToString();
 
                     // Update terrain performance metrics display
                     var terrainMetrics = walkableWorld.Terrain.FrameMetrics;
@@ -166,6 +180,7 @@ namespace Client.Main.Controls.UI
                     _bmdMetricsLabel.Visible = false;
                     _poolingMetricsLabel.Visible = false;
                     _batchSortingLabel.Visible = false;
+                    _lightingStatusLabel.Visible = false;
                 }
             }
         }

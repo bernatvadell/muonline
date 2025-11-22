@@ -25,14 +25,14 @@ namespace Client.Main.Objects.Worlds.Lorencia
             public DynamicLight Light { get; } = new DynamicLight
             {
                 Color = new Vector3(1f, 0.7f, 0.4f),
-                Radius = 400f,
+                Radius = 260f,
                 Intensity = 1f
             };
         }
 
         private FlameSet _firstFlameSet;
         private FlameSet _secondFlameSet;
-        private float _baseHeight = 40f;
+        private float _baseHeight = 28f;
         private static readonly Random _random = new Random();
 
         // Constants
@@ -131,40 +131,16 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
         private void UpdateDynamicLight(FlameSet set, float intensity)
         {
-            set.Light.Position = GetFlameSetLightPosition(set);
+            set.Light.Position = GetLightAnchorWorld(set);
             set.Light.Intensity = intensity;
         }
 
-        private Vector3 GetFlameSetLightPosition(FlameSet set)
+        private Vector3 GetLightAnchorWorld(FlameSet set)
         {
-            Vector3 sum = Vector3.Zero;
-            int count = 0;
-
-            AccumulateFlamePositions(set.BaseFlames, ref sum, ref count);
-            AccumulateFlamePositions(set.MiddleFlames, ref sum, ref count);
-            AccumulateFlamePositions(set.TopFlames, ref sum, ref count);
-
-            if (count > 0)
-            {
-                return sum / count;
-            }
-
-            Vector3 fallbackLocal = set.BasePosition + new Vector3(0f, -5f, _baseHeight);
-            return Vector3.Transform(fallbackLocal, WorldPosition);
-        }
-
-        private static void AccumulateFlamePositions<T>(IReadOnlyList<T> flames, ref Vector3 sum, ref int count)
-            where T : SpriteObject
-        {
-            for (int i = 0; i < flames.Count; i++)
-            {
-                var flame = flames[i];
-                if (flame?.Status == GameControlStatus.Ready)
-                {
-                    sum += flame.WorldPosition.Translation;
-                    count++;
-                }
-            }
+            // Keep light anchored near the flame base to avoid penetrating surrounding geometry.
+            // BasePosition is in model space (relative to the bridge), so transform to world.
+            Vector3 localAnchor = set.BasePosition + new Vector3(0f, -5f, _baseHeight + 30f);
+            return Vector3.Transform(localAnchor, WorldPosition);
         }
 
         private void UpdateIndividualWindEffects(FlameSet flameSet, float time)

@@ -1,4 +1,5 @@
 using Client.Main.Controllers;
+using Client.Main.Graphics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -22,20 +23,28 @@ namespace Client.Main.Controls.Terrain
         private readonly GrassRenderer _grassRenderer;
 
         // Per-texture tile batches
-        private readonly VertexPositionColorTexture[][] _tileBatches = new VertexPositionColorTexture[256][];
+        private readonly TerrainVertexPositionColorNormalTexture[][] _tileBatches = new TerrainVertexPositionColorNormalTexture[256][];
         private readonly int[] _tileBatchCounts = new int[256];
-        private readonly VertexPositionColorTexture[][] _tileAlphaBatches = new VertexPositionColorTexture[256][];
+        private readonly TerrainVertexPositionColorNormalTexture[][] _tileAlphaBatches = new TerrainVertexPositionColorNormalTexture[256][];
         private readonly int[] _tileAlphaCounts = new int[256];
 
         // Buffers for a single terrain tile quad
-        private readonly VertexPositionColorTexture[] _terrainVertices = new VertexPositionColorTexture[6];
+        private readonly TerrainVertexPositionColorNormalTexture[] _terrainVertices = new TerrainVertexPositionColorNormalTexture[6];
         private readonly Vector2[] _terrainTextureCoords = new Vector2[4];
         private readonly Vector3[] _tempTerrainVertex = new Vector3[4];
+        private readonly Vector3[] _tempTerrainNormals = new Vector3[4];
         private readonly Color[] _tempTerrainLights = new Color[4];
+        private readonly VertexPositionColorTexture[] _fallbackTileBuffer = new VertexPositionColorTexture[TileBatchVerts];
 
         // State tracking for GPU optimization
         private Texture2D _lastBoundTexture = null;
         private BlendState _lastBlendState = null;
+        private bool _useDynamicLightingShader = false;
+
+        private readonly Vector3[] _cachedLightPositions = new Vector3[16];
+        private readonly Vector3[] _cachedLightColors = new Vector3[16];
+        private readonly float[] _cachedLightRadii = new float[16];
+        private readonly float[] _cachedLightIntensities = new float[16];
 
         private Vector2 _waterFlowDir = Vector2.UnitX;
         private float _waterTotal = 0f;
@@ -53,6 +62,8 @@ namespace Client.Main.Controls.Terrain
         public int DrawnTriangles { get; private set; }
         public int DrawnBlocks { get; private set; }
         public int DrawnCells { get; private set; }
+        public bool IsGpuLightingActive => _useDynamicLightingShader;
+        public bool IsDynamicLightingShaderAvailable => GraphicsManager.Instance.DynamicLightingEffect != null;
 
         public Vector2 WaterFlowDirection
         {
@@ -72,8 +83,8 @@ namespace Client.Main.Controls.Terrain
 
             for (int i = 0; i < 256; i++)
             {
-                _tileBatches[i] = new VertexPositionColorTexture[TileBatchVerts];
-                _tileAlphaBatches[i] = new VertexPositionColorTexture[TileBatchVerts];
+                _tileBatches[i] = new TerrainVertexPositionColorNormalTexture[TileBatchVerts];
+                _tileAlphaBatches[i] = new TerrainVertexPositionColorNormalTexture[TileBatchVerts];
             }
             
             // Precompute UV scales for all textures
@@ -121,19 +132,30 @@ namespace Client.Main.Controls.Terrain
         {
             if (_graphicsDevice == null) return; // Added null check for _graphicsDevice
             if (_data.HeightMap == null) return;
+            if (Camera.Instance == null) return; // Added null check for Camera.Instance
             if (!after)
             {
                 ResetMetrics();
                 _grassRenderer.ResetMetrics();
             }
 
-            var effect = GraphicsManager.Instance.BasicEffect3D;
-            if (effect == null) return; // Check for effect
+            _useDynamicLightingShader = Constants.ENABLE_TERRAIN_GPU_LIGHTING &&
+                                        Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
+                                        GraphicsManager.Instance.DynamicLightingEffect != null;
 
-            if (Camera.Instance == null) return; // Added null check for Camera.Instance
+            if (_useDynamicLightingShader)
+            {
+                if (!ConfigureDynamicLightingEffect())
+                    return;
+            }
+            else
+            {
+                var effect = GraphicsManager.Instance.BasicEffect3D;
+                if (effect == null) return; // Check for effect
 
-            effect.Projection = Camera.Instance.Projection;
-            effect.View = Camera.Instance.View;
+                effect.Projection = Camera.Instance.Projection;
+                effect.View = Camera.Instance.View;
+            }
 
             foreach (var block in _visibility.VisibleBlocks)
             {
@@ -161,6 +183,71 @@ namespace Client.Main.Controls.Terrain
             // Reset state tracking for new frame
             _lastBoundTexture = null;
             _lastBlendState = null;
+        }
+
+        private bool ConfigureDynamicLightingEffect()
+        {
+            var effect = GraphicsManager.Instance.DynamicLightingEffect;
+            if (effect == null || Camera.Instance == null)
+                return false;
+
+            Matrix world = Matrix.Identity;
+            effect.Parameters["World"]?.SetValue(world);
+            effect.Parameters["View"]?.SetValue(Camera.Instance.View);
+            effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
+            effect.Parameters["WorldViewProjection"]?.SetValue(world * Camera.Instance.View * Camera.Instance.Projection);
+            effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
+            effect.Parameters["UseVertexColorLighting"]?.SetValue(true);
+            effect.Parameters["TerrainLightingPass"]?.SetValue(true);
+            effect.Parameters["TerrainDynamicIntensityScale"]?.SetValue(1.0f);
+            effect.Parameters["Alpha"]?.SetValue(1f);
+            effect.Parameters["DebugLightingAreas"]?.SetValue(Constants.DEBUG_LIGHTING_AREAS);
+
+            // Ambient and sun are ignored when using baked vertex lighting, but keep sane defaults.
+            effect.Parameters["AmbientLight"]?.SetValue(new Vector3(AmbientLight));
+            Vector3 sunDir = Constants.SUN_DIRECTION;
+            if (sunDir.LengthSquared() < 0.0001f)
+                sunDir = new Vector3(1f, 0f, -0.6f);
+            sunDir = Vector3.Normalize(sunDir);
+            bool sunEnabled = Constants.SUN_ENABLED;
+            effect.Parameters["SunDirection"]?.SetValue(sunDir);
+            effect.Parameters["SunColor"]?.SetValue(new Vector3(1f, 0.95f, 0.85f));
+            effect.Parameters["SunStrength"]?.SetValue(sunEnabled ? Constants.SUN_STRENGTH : 0f);
+            effect.Parameters["ShadowStrength"]?.SetValue(sunEnabled ? Constants.SUN_SHADOW_STRENGTH : 0f);
+
+            UploadDynamicLights(effect);
+            return true;
+        }
+
+        private void UploadDynamicLights(Effect effect)
+        {
+            var activeLights = _lightManager.ActiveLights;
+            int maxLights = Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16;
+            int count = 0;
+
+            if (activeLights != null && activeLights.Count > 0)
+            {
+                int limit = Math.Min(activeLights.Count, maxLights);
+                for (int i = 0; i < limit; i++)
+                {
+                    var light = activeLights[i];
+                    _cachedLightPositions[count] = light.Position;
+                    _cachedLightColors[count] = light.Color;
+                    _cachedLightRadii[count] = light.Radius;
+                    _cachedLightIntensities[count] = light.Intensity;
+                    count++;
+                }
+            }
+
+            effect.Parameters["ActiveLightCount"]?.SetValue(count);
+            effect.Parameters["MaxLightsToProcess"]?.SetValue(maxLights);
+            if (count > 0)
+            {
+                effect.Parameters["LightPositions"]?.SetValue(_cachedLightPositions);
+                effect.Parameters["LightColors"]?.SetValue(_cachedLightColors);
+                effect.Parameters["LightRadii"]?.SetValue(_cachedLightRadii);
+                effect.Parameters["LightIntensities"]?.SetValue(_cachedLightIntensities);
+            }
         }
 
         private void RenderTerrainBlock(int xi, int yi, bool after, int lodStep, TerrainBlock block = null)
@@ -306,12 +393,12 @@ namespace Client.Main.Controls.Terrain
                 _terrainTextureCoords[3] = new Vector2(suf, svf + uvH);
             }
 
-            _terrainVertices[0] = new VertexPositionColorTexture(_tempTerrainVertex[0], _tempTerrainLights[0], _terrainTextureCoords[0]);
-            _terrainVertices[1] = new VertexPositionColorTexture(_tempTerrainVertex[1], _tempTerrainLights[1], _terrainTextureCoords[1]);
-            _terrainVertices[2] = new VertexPositionColorTexture(_tempTerrainVertex[2], _tempTerrainLights[2], _terrainTextureCoords[2]);
-            _terrainVertices[3] = new VertexPositionColorTexture(_tempTerrainVertex[2], _tempTerrainLights[2], _terrainTextureCoords[2]);
-            _terrainVertices[4] = new VertexPositionColorTexture(_tempTerrainVertex[3], _tempTerrainLights[3], _terrainTextureCoords[3]);
-            _terrainVertices[5] = new VertexPositionColorTexture(_tempTerrainVertex[0], _tempTerrainLights[0], _terrainTextureCoords[0]);
+            _terrainVertices[0] = new TerrainVertexPositionColorNormalTexture(_tempTerrainVertex[0], _tempTerrainLights[0], _tempTerrainNormals[0], _terrainTextureCoords[0]);
+            _terrainVertices[1] = new TerrainVertexPositionColorNormalTexture(_tempTerrainVertex[1], _tempTerrainLights[1], _tempTerrainNormals[1], _terrainTextureCoords[1]);
+            _terrainVertices[2] = new TerrainVertexPositionColorNormalTexture(_tempTerrainVertex[2], _tempTerrainLights[2], _tempTerrainNormals[2], _terrainTextureCoords[2]);
+            _terrainVertices[3] = new TerrainVertexPositionColorNormalTexture(_tempTerrainVertex[2], _tempTerrainLights[2], _tempTerrainNormals[2], _terrainTextureCoords[2]);
+            _terrainVertices[4] = new TerrainVertexPositionColorNormalTexture(_tempTerrainVertex[3], _tempTerrainLights[3], _tempTerrainNormals[3], _terrainTextureCoords[3]);
+            _terrainVertices[5] = new TerrainVertexPositionColorNormalTexture(_tempTerrainVertex[0], _tempTerrainLights[0], _tempTerrainNormals[0], _terrainTextureCoords[0]);
 
             if (useBatch)
             {
@@ -319,12 +406,34 @@ namespace Client.Main.Controls.Terrain
             }
             else
             {
-                var basicEffect = GraphicsManager.Instance.BasicEffect3D;
-                basicEffect.Texture = texture;
-                foreach (var pass in basicEffect.CurrentTechnique.Passes)
+                if (_useDynamicLightingShader)
                 {
-                    pass.Apply();
-                    _graphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, _terrainVertices, 0, 2);
+                    var effect = GraphicsManager.Instance.DynamicLightingEffect;
+                    if (effect == null) return;
+
+                    effect.Parameters["DiffuseTexture"]?.SetValue(texture);
+                    foreach (var pass in effect.CurrentTechnique.Passes)
+                    {
+                        pass.Apply();
+                        _graphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, _terrainVertices, 0, 2);
+                    }
+                }
+                else
+                {
+                    var basicEffect = GraphicsManager.Instance.BasicEffect3D;
+                    if (basicEffect == null) return;
+
+                    basicEffect.Texture = texture;
+                    for (int i = 0; i < 6; i++)
+                    {
+                        var v = _terrainVertices[i];
+                        _fallbackTileBuffer[i] = new VertexPositionColorTexture(v.Position, v.Color, v.TextureCoordinate);
+                    }
+                    foreach (var pass in basicEffect.CurrentTechnique.Passes)
+                    {
+                        pass.Apply();
+                        _graphicsDevice.DrawUserPrimitives(PrimitiveType.TriangleList, _fallbackTileBuffer, 0, 2);
+                    }
                 }
                 DrawCalls++;
                 DrawnTriangles += 2;
@@ -355,6 +464,11 @@ namespace Client.Main.Controls.Terrain
                 _tempTerrainVertex[2].Z += SpecialHeight;
             if (i4 < _data.Attributes.TerrainWall.Length && _data.Attributes.TerrainWall[i4].HasFlag(Data.ATT.TWFlags.Height))
                 _tempTerrainVertex[3].Z += SpecialHeight;
+
+            _tempTerrainNormals[0] = GetTerrainNormal(i1);
+            _tempTerrainNormals[1] = GetTerrainNormal(i2);
+            _tempTerrainNormals[2] = GetTerrainNormal(i3);
+            _tempTerrainNormals[3] = GetTerrainNormal(i4);
         }
 
         private void PrepareTileLights(int i1, int i2, int i3, int i4)
@@ -363,6 +477,18 @@ namespace Client.Main.Controls.Terrain
             _tempTerrainLights[1] = BuildVertexLight(i2, _tempTerrainVertex[1]);
             _tempTerrainLights[2] = BuildVertexLight(i3, _tempTerrainVertex[2]);
             _tempTerrainLights[3] = BuildVertexLight(i4, _tempTerrainVertex[3]);
+        }
+
+        private Vector3 GetTerrainNormal(int index)
+        {
+            if (_data.Normals == null || (uint)index >= (uint)_data.Normals.Length)
+                return Vector3.UnitZ;
+
+            var normal = _data.Normals[index];
+            if (normal.LengthSquared() < 1e-6f)
+                return Vector3.UnitZ;
+
+            return normal;
         }
 
         private Color BuildVertexLight(int index, Vector3 pos)
@@ -375,7 +501,10 @@ namespace Client.Main.Controls.Terrain
                 : Vector3.Zero;
 
             baseColor += new Vector3(AmbientLight * 255f);
-            baseColor += _lightManager.EvaluateDynamicLight(new Vector2(pos.X, pos.Y));
+            if (!_useDynamicLightingShader)
+            {
+                baseColor += _lightManager.EvaluateDynamicLight(new Vector2(pos.X, pos.Y));
+            }
             baseColor = Vector3.Clamp(baseColor, Vector3.Zero, new Vector3(255f));
 
             Color result = new Color((int)baseColor.X, (int)baseColor.Y, (int)baseColor.Z);
@@ -391,7 +520,7 @@ namespace Client.Main.Controls.Terrain
             _tempTerrainLights[3] *= a4 / 255f; _tempTerrainLights[3].A = a4;
         }
 
-        private void AddTileToBatch(int texIndex, VertexPositionColorTexture[] verts, bool alphaLayer)
+        private void AddTileToBatch(int texIndex, TerrainVertexPositionColorNormalTexture[] verts, bool alphaLayer)
         {
             var batch = alphaLayer ? _tileAlphaBatches[texIndex] : _tileBatches[texIndex];
             var counters = alphaLayer ? _tileAlphaCounts : _tileBatchCounts;
@@ -419,33 +548,69 @@ namespace Client.Main.Controls.Terrain
             if (vertCount == 0) return;
 
             var batch = alphaLayer ? _tileAlphaBatches[texIndex] : _tileBatches[texIndex];
-            var effect = GraphicsManager.Instance.BasicEffect3D;
-            if (effect == null || effect.CurrentTechnique == null) return; // Added null checks for effect and effect.CurrentTechnique
-            if (_data.Textures[texIndex] == null) return; // Added null check for texture
-
             var texture = _data.Textures[texIndex];
+            if (texture == null) return; // Added null check for texture
             var blendState = alphaLayer ? BlendState.AlphaBlend : BlendState.Opaque;
-            
-            // Avoid unnecessary state changes
-            if (_lastBoundTexture != texture)
-            {
-                effect.Texture = texture;
-                _lastBoundTexture = texture;
-            }
-            
-            if (_lastBlendState != blendState)
-            {
-                _graphicsDevice.BlendState = blendState;
-                _lastBlendState = blendState;
-            }
 
-            foreach (var pass in effect.CurrentTechnique.Passes)
+            if (_useDynamicLightingShader)
             {
-                pass.Apply();
-                _graphicsDevice.DrawUserPrimitives(
-                    PrimitiveType.TriangleList,
-                    batch, 0,
-                    vertCount / 3);
+                var effect = GraphicsManager.Instance.DynamicLightingEffect;
+                if (effect == null || effect.CurrentTechnique == null) return; // Added null checks for effect and effect.CurrentTechnique
+
+                // Avoid unnecessary state changes
+                if (_lastBoundTexture != texture)
+                {
+                    effect.Parameters["DiffuseTexture"]?.SetValue(texture);
+                    _lastBoundTexture = texture;
+                }
+                
+                if (_lastBlendState != blendState)
+                {
+                    _graphicsDevice.BlendState = blendState;
+                    _lastBlendState = blendState;
+                }
+
+                foreach (var pass in effect.CurrentTechnique.Passes)
+                {
+                    pass.Apply();
+                    _graphicsDevice.DrawUserPrimitives(
+                        PrimitiveType.TriangleList,
+                        batch, 0,
+                        vertCount / 3);
+                }
+            }
+            else
+            {
+                var effect = GraphicsManager.Instance.BasicEffect3D;
+                if (effect == null || effect.CurrentTechnique == null) return; // Added null checks for effect and effect.CurrentTechnique
+
+                // Avoid unnecessary state changes
+                if (_lastBoundTexture != texture)
+                {
+                    effect.Texture = texture;
+                    _lastBoundTexture = texture;
+                }
+                
+                if (_lastBlendState != blendState)
+                {
+                    _graphicsDevice.BlendState = blendState;
+                    _lastBlendState = blendState;
+                }
+
+                for (int i = 0; i < vertCount; i++)
+                {
+                    var v = batch[i];
+                    _fallbackTileBuffer[i] = new VertexPositionColorTexture(v.Position, v.Color, v.TextureCoordinate);
+                }
+
+                foreach (var pass in effect.CurrentTechnique.Passes)
+                {
+                    pass.Apply();
+                    _graphicsDevice.DrawUserPrimitives(
+                        PrimitiveType.TriangleList,
+                        _fallbackTileBuffer, 0,
+                        vertCount / 3);
+                }
             }
 
             DrawCalls++;

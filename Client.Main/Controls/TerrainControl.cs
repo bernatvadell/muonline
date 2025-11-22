@@ -51,6 +51,8 @@ namespace Client.Main.Controls
         public float GrassBrightness { get => _grassRenderer.GrassBrightness; set => _grassRenderer.GrassBrightness = value; }
         public Vector2 WaterFlowDirection { get => _renderer.WaterFlowDirection; set => _renderer.WaterFlowDirection = value; }
         public HashSet<byte> GrassTextureIndices => _grassRenderer.GrassTextureIndices;
+        public bool IsGpuTerrainLighting => _renderer?.IsGpuLightingActive == true;
+        public bool IsDynamicLightingShaderAvailable => _renderer?.IsDynamicLightingShaderAvailable == true;
         
         /// <summary>
         /// Configures grass settings for specific world requirements.

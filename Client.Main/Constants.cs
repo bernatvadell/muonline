@@ -31,6 +31,10 @@ namespace Client.Main
                 /// </summary>
                 public static bool ENABLE_DYNAMIC_LIGHTING_SHADER = true;
                 /// <summary>
+                /// Enables GPU dynamic lighting for terrain (reuses the dynamic lighting shader).
+                /// </summary>
+                public static bool ENABLE_TERRAIN_GPU_LIGHTING = true;
+                /// <summary>
                 /// Reduces MAX_LIGHTS for integrated GPU performance optimization.
                 /// When true, uses fewer lights but better performance on weak GPUs.
                 /// </summary>
@@ -80,6 +84,10 @@ namespace Client.Main
                 /// When disabled, falls back to CPU-based lighting calculations.
                 /// </summary>
                 public static bool ENABLE_DYNAMIC_LIGHTING_SHADER = true;
+                /// <summary>
+                /// Enables GPU dynamic lighting for terrain (reuses the dynamic lighting shader).
+                /// </summary>
+                public static bool ENABLE_TERRAIN_GPU_LIGHTING = true;
                 /// <summary>
                 /// Reduces MAX_LIGHTS for integrated GPU performance optimization.
                 /// When true, uses fewer lights but better performance on weak GPUs.

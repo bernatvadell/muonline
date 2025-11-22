@@ -1292,6 +1292,9 @@ namespace Client.Main.Objects
                     // Set texture
                     effect.Parameters["DiffuseTexture"]?.SetValue(texture);
                     effect.Parameters["Alpha"]?.SetValue(TotalAlpha);
+                    effect.Parameters["UseVertexColorLighting"]?.SetValue(false);
+                    effect.Parameters["TerrainLightingPass"]?.SetValue(false);
+                    effect.Parameters["TerrainDynamicIntensityScale"]?.SetValue(1.5f);
 
                     // Set terrain lighting
                     Vector3 worldTranslation = WorldPosition.Translation;
