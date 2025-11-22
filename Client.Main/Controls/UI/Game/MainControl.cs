@@ -86,7 +86,7 @@ namespace Client.Main.Controls.UI.Game
                 inventoryButton.Click += (_, _) =>
                 {
                     Scene?.SetMouseInputConsumed();
-                    var inventory = Scene?.Controls?.OfType<InventoryControl>().FirstOrDefault();
+                    var inventory = (Scene as GameScene)?.InventoryControl;
                     if (inventory == null)
                         return;
 
@@ -106,7 +106,7 @@ namespace Client.Main.Controls.UI.Game
                 settingsButton.Click += (_, _) =>
                 {
                     Scene?.SetMouseInputConsumed();
-                    var pauseMenu = Scene?.Controls?.OfType<PauseMenuControl>().FirstOrDefault();
+                    var pauseMenu = (Scene as GameScene)?.PauseMenu;
                     if (pauseMenu == null)
                         return;
 

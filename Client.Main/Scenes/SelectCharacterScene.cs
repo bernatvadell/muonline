@@ -523,8 +523,11 @@ namespace Client.Main.Scenes
             if (_selectWorld != null)
             {
                 _selectWorld.Interactive = false;
-                foreach (var charObj in _selectWorld.Objects.OfType<PlayerObject>())
+                var players = _selectWorld.Players;
+                for (int i = 0; i < players.Count; i++)
                 {
+                    var charObj = players[i];
+                    if (charObj == null) continue;
                     charObj.Interactive = false;
                 }
                 var characterLabels = _selectWorld.GetCharacterLabels();
@@ -558,8 +561,11 @@ namespace Client.Main.Scenes
             if (_selectWorld != null)
             {
                 _selectWorld.Interactive = true;
-                foreach (var charObj in _selectWorld.Objects.OfType<PlayerObject>())
+                var players = _selectWorld.Players;
+                for (int i = 0; i < players.Count; i++)
                 {
+                    var charObj = players[i];
+                    if (charObj == null) continue;
                     charObj.Interactive = true;
                 }
                 var characterLabels = _selectWorld.GetCharacterLabels();

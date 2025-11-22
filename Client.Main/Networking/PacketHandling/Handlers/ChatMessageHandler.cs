@@ -8,7 +8,6 @@ using Microsoft.Extensions.Logging;
 using MUnique.OpenMU.Network.Packets.ServerToClient;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -121,7 +120,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                 MuGame.ScheduleOnMainThread(() =>
                 {
-                    var chatLog = scene.Controls.OfType<ChatLogWindow>().FirstOrDefault();
+                    var chatLog = scene.ChatLog;
                     if (chatLog != null)
                     {
                         Models.MessageType uiType;
@@ -157,8 +156,18 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                         if (scene.World is WalkableWorldControl world)
                         {
-                            var player = world.Objects.OfType<PlayerObject>()
-                                                 .FirstOrDefault(p => string.Equals(p.Name, sender, StringComparison.OrdinalIgnoreCase));
+                            PlayerObject player = null;
+                            var players = world.Players;
+                            for (int i = 0; i < players.Count; i++)
+                            {
+                                var candidate = players[i];
+                                if (candidate != null &&
+                                    string.Equals(candidate.Name, sender, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    player = candidate;
+                                    break;
+                                }
+                            }
 
                             if (player == null && world is WalkableWorldControl walk &&
                                 walk.Walker is PlayerObject hero &&
@@ -169,8 +178,16 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                             if (player != null)
                             {
-                                var existingBubble = world.Objects.OfType<ChatBubbleObject>()
-                                    .FirstOrDefault(b => b.TargetId == player.NetworkId);
+                                ChatBubbleObject existingBubble = null;
+                                for (int i = 0; i < world.Objects.Count; i++)
+                                {
+                                    if (world.Objects[i] is ChatBubbleObject bubble &&
+                                        bubble.TargetId == player.NetworkId)
+                                    {
+                                        existingBubble = bubble;
+                                        break;
+                                    }
+                                }
                                 
                                 if (existingBubble != null)
                                 {

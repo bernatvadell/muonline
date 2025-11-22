@@ -72,6 +72,9 @@ namespace Client.Main.Scenes
 
         // ───────────────────────── Properties ─────────────────────────
         public PlayerObject Hero => _hero;
+        public ChatLogWindow ChatLog => _chatLog;
+        public InventoryControl InventoryControl => _inventoryControl;
+        public PauseMenuControl PauseMenu => _pauseMenu;
 
         public static readonly IReadOnlyDictionary<byte, Type> MapWorldRegistry = DiscoverWorlds();
 

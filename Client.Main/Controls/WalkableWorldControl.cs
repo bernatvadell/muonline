@@ -230,9 +230,11 @@ namespace Client.Main.Controls
         /// </summary>
         private MonsterObject FindMonsterAtTile(byte tileX, byte tileY)
         {
-            foreach (var obj in Objects)          // Objects list comes from WorldControl
+            var monsters = Monsters;
+            for (int i = 0; i < monsters.Count; i++)
             {
-                if (obj is MonsterObject m &&
+                var m = monsters[i];
+                if (m != null &&
                     m.Location.X == tileX &&
                     m.Location.Y == tileY)
                 {

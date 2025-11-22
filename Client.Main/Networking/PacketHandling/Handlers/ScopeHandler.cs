@@ -4,7 +4,6 @@ using Client.Main.Core.Utilities;
 using Client.Main.Core.Models;
 using System;
 using System.Threading.Tasks;
-using System.Linq;
 using MUnique.OpenMU.Network.Packets;
 using Client.Main.Controls;
 using Microsoft.Xna.Framework;
@@ -245,7 +244,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     _ = Task.Run(() => existingWalker.Dispose());
                 }
 
-                if (world.Objects.OfType<PlayerObject>().FirstOrDefault(pl => pl.NetworkId == maskedId) != null)
+                if (world.FindPlayerById(maskedId) != null)
                 {
                     _logger.LogWarning($"[Spawn] PlayerObject for {name} already exists. Aborting.");
                     p.Dispose();
@@ -437,9 +436,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     worldRef.Objects.Remove(existingWalker);
                 }
 
-                // Quick check for duplicates using LINQ
-                var duplicate = worldRef.Objects.OfType<WalkerObject>().FirstOrDefault(o => o.NetworkId == maskedId);
-                if (duplicate != null)
+                // Quick check for duplicates using cached walkers
+                if (worldRef.FindWalkerById(maskedId) != null)
                 {
                     obj.Dispose();
                     return;
@@ -1025,9 +1023,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                     foreach (var masked in objectsToRemove)
                     {
-                        var obj = world.Objects
-                                       .OfType<DroppedItemObject>()
-                                       .FirstOrDefault(d => d.NetworkId == masked);
+                        var obj = world.FindDroppedItemById(masked);
                         if (obj != null)
                         {
                             world.Objects.Remove(obj);
@@ -1093,9 +1089,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     foreach (var masked in objectsToRemove)
                     {
                         // ---- 1) Player --------------------------------------------------
-                        var player = world.Objects
-                                          .OfType<PlayerObject>()
-                                          .FirstOrDefault(p => p.NetworkId == masked);
+                        var player = world.FindPlayerById(masked);
                         if (player != null)
                         {
                             world.Objects.Remove(player);
@@ -1105,9 +1099,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         }
 
                         // ---- 2) Walker / NPC --------------------------------------------
-                        var walker = world.Objects
-                                          .OfType<WalkerObject>()
-                                          .FirstOrDefault(w => w.NetworkId == masked);
+                        var walker = world.FindWalkerById(masked);
                         if (walker != null)
                         {
                             world.Objects.Remove(walker);
@@ -1117,9 +1109,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         }
 
                         // ---- 3) Dropped item --------------------------------------------
-                        var drop = world.Objects
-                                         .OfType<DroppedItemObject>()
-                                         .FirstOrDefault(d => d.NetworkId == masked);
+                        var drop = world.FindDroppedItemById(masked);
                         if (drop != null)
                         {
                             world.Objects.Remove(drop);
@@ -1159,8 +1149,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     if (MuGame.Instance.ActiveScene?.World is WalkableWorldControl world)
                     {
-                        var objToMove = world.Objects.OfType<WalkerObject>()
-                                            .FirstOrDefault(w => w.NetworkId == maskedId);
+                        var objToMove = world.FindWalkerById(maskedId);
                         if (objToMove != null)
                         {
                             objToMove.Location = new Vector2(x, y);
@@ -1301,8 +1290,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     if (MuGame.Instance.ActiveScene?.World is not WorldControl world) return;
 
                     // Use same lookup as HandleObjectAnimation
-                    var player = world.Objects.OfType<PlayerObject>()
-                                   .FirstOrDefault(p => p.NetworkId == killed);
+                    var player = world.FindPlayerById(killed);
 
                     WalkerObject walker = null;
                     if (!world.TryGetWalkerById(killed, out walker) && player == null)
@@ -1390,8 +1378,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             {
                 if (MuGame.Instance.ActiveScene?.World is not WorldControl world) return;
 
-                var player = world.Objects.OfType<PlayerObject>()
-                               .FirstOrDefault(p => p.NetworkId == maskedId);
+                var player = world.FindPlayerById(maskedId);
 
                 if (!world.TryGetWalkerById(maskedId, out var walker) && player == null)
                 {
@@ -1548,7 +1535,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 }
 
                 // Remove existing visual object if it's already there
-                var existing = world.Objects.OfType<DroppedItemObject>().FirstOrDefault(d => d.NetworkId == maskedId);
+                var existing = world.FindDroppedItemById(maskedId);
                 if (existing != null)
                 {
                     world.Objects.Remove(existing);

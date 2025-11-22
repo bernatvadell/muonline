@@ -15,6 +15,7 @@ using System.Text;
 using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Helpers;
 using Client.Main.Content;
+using Client.Main.Scenes;
 
 namespace Client.Main.Objects
 {
@@ -366,8 +367,10 @@ namespace Client.Main.Objects
             float d = Vector3.Distance(w.Walker.Position, Position);
             if (d > PickupRange)
             {
-                World.Scene?.Controls.OfType<ChatLogWindow>()
-                    .FirstOrDefault()?.AddMessage("System", "Item is too far away.", MessageType.System);
+                if (World.Scene is GameScene scene)
+                {
+                    scene.ChatLog?.AddMessage("System", "Item is too far away.", MessageType.System);
+                }
                 return;
             }
 

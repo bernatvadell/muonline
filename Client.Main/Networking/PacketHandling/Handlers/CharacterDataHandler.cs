@@ -5,7 +5,6 @@ using Client.Main.Core.Utilities;
 using System;
 using System.Threading.Tasks;
 using Client.Main.Core.Client;
-using System.Linq;
 using Client.Main.Controllers;
 using Client.Main.Objects.Effects;
 using Client.Main.Scenes;
@@ -64,8 +63,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             var gameScene = MuGame.Instance?.ActiveScene as Scenes.GameScene;
                             if (gameScene != null)
                             {
-                                var chatLog = gameScene.Controls.OfType<Controls.UI.ChatLogWindow>().FirstOrDefault();
-                                chatLog?.AddMessage("System", "You received a buff from Elf Soldier that enhances attack and defense!", Models.MessageType.Info);
+                                gameScene.ChatLog?.AddMessage("System", "You received a buff from Elf Soldier that enhances attack and defense!", Models.MessageType.Info);
                             }
                         });
                     }
@@ -477,8 +475,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         gameScene.World.Objects.Add(levelUpEffect);
                         await levelUpEffect.Load(); // Asynchronously load the effect and its children
 
-                        gameScene.Controls.OfType<Controls.UI.ChatLogWindow>().FirstOrDefault()
-                            ?.AddMessage("System", $"You have reached Level {newLevel}! You have {newPoints} stat points remaining.", Models.MessageType.System);
+                        gameScene.ChatLog?.AddMessage("System", $"You have reached Level {newLevel}! You have {newPoints} stat points remaining.", Models.MessageType.System);
                     });
                 }
                 else
@@ -725,7 +722,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
                     if (gameScene != null)
                     {
-                        gameScene.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>().FirstOrDefault()?.AddMessage("System", $"Gained {addedExperience} experience.", Client.Main.Models.MessageType.System);
+                        gameScene.ChatLog?.AddMessage("System", $"Gained {addedExperience} experience.", Client.Main.Models.MessageType.System);
                     }
                 });
             }
@@ -1020,7 +1017,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
                         if (gameScene != null)
                         {
-                            gameScene.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>().FirstOrDefault()?.AddMessage("System", $"You have reached Master Level {mlvl}! You have {mpts} master points remaining.", Client.Main.Models.MessageType.System);
+                            gameScene.ChatLog?.AddMessage("System", $"You have reached Master Level {mlvl}! You have {mpts} master points remaining.", Client.Main.Models.MessageType.System);
                         }
                     });
                 }

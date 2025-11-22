@@ -5,7 +5,6 @@ using System;
 using System.Threading.Tasks;
 using Client.Main.Core.Client;
 using Client.Main.Controllers;
-using System.Linq;
 using Client.Main.Controls.UI;
 using Client.Main.Models;
 using Client.Main.Controls;
@@ -197,7 +196,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     MuGame.ScheduleOnMainThread(() =>
                     {
                         var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
-                        gameScene?.Controls.OfType<ChatLogWindow>().FirstOrDefault()?.AddMessage("System", messageToUser, uiMessageType);
+                        gameScene?.ChatLog?.AddMessage("System", messageToUser, uiMessageType);
                     });
                 }
             }
@@ -223,7 +222,17 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     return;
 
                 ushort masked = (ushort)(rawId.Value & 0x7FFF);
-                var obj = world.Objects.OfType<DroppedItemObject>().FirstOrDefault(d => d.NetworkId == masked);
+                DroppedItemObject obj = null;
+                var droppedItems = world.DroppedItems;
+                for (int i = 0; i < droppedItems.Count; i++)
+                {
+                    var candidate = droppedItems[i];
+                    if (candidate != null && candidate.NetworkId == masked)
+                    {
+                        obj = candidate;
+                        break;
+                    }
+                }
                 obj?.ResetPickupState();
             });
         }
@@ -281,8 +290,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         MuGame.ScheduleOnMainThread(() =>
                         {
                             var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
-                            gameScene?.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>()
-                                .FirstOrDefault()?.AddMessage("System", "Moving the item failed.", Client.Main.Models.MessageType.Error);
+                            gameScene?.ChatLog?.AddMessage("System", "Moving the item failed.", Client.Main.Models.MessageType.Error);
                         });
                     }
                     // Then, try restore any pending storage move (vault <-> inventory)
@@ -299,8 +307,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         {
                             _characterState.RaiseInventoryChanged();
                             var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
-                            gameScene?.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>()
-                                .FirstOrDefault()?.AddMessage("System", "Moving the item failed.", Client.Main.Models.MessageType.Error);
+                            gameScene?.ChatLog?.AddMessage("System", "Moving the item failed.", Client.Main.Models.MessageType.Error);
                         });
                     }
                     else
@@ -309,8 +316,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         MuGame.ScheduleOnMainThread(() =>
                         {
                             var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
-                            gameScene?.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>()
-                                .FirstOrDefault()?.AddMessage("System", "Moving the item failed.", Client.Main.Models.MessageType.Error);
+                            gameScene?.ChatLog?.AddMessage("System", "Moving the item failed.", Client.Main.Models.MessageType.Error);
                         });
                     }
                 }
@@ -401,8 +407,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     {
                         _characterState.RaiseInventoryChanged();
                         var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
-                        gameScene?.Controls.OfType<Client.Main.Controls.UI.ChatLogWindow>()
-                            .FirstOrDefault()?.AddMessage("System", "Dropping the item failed.", Client.Main.Models.MessageType.Error);
+                        gameScene?.ChatLog?.AddMessage("System", "Dropping the item failed.", Client.Main.Models.MessageType.Error);
                     });
                 }
             }

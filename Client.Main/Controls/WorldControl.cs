@@ -105,6 +105,10 @@ namespace Client.Main.Controls
         private readonly List<WorldObject> _solidBehind = new();
         private readonly List<WorldObject> _transparentObjects = new();
         private readonly List<WorldObject> _solidInFront = new();
+        private readonly List<WalkerObject> _walkers = new();
+        private readonly List<PlayerObject> _players = new();
+        private readonly List<MonsterObject> _monsters = new();
+        private readonly List<DroppedItemObject> _droppedItems = new();
 
         public Dictionary<ushort, WalkerObject> WalkerObjectsById { get; } = new();
 
@@ -124,6 +128,10 @@ namespace Client.Main.Controls
 
         public ChildrenCollection<WorldObject> Objects { get; private set; }
             = new ChildrenCollection<WorldObject>(null);
+        public IReadOnlyList<WalkerObject> Walkers => _walkers;
+        public IReadOnlyList<PlayerObject> Players => _players;
+        public IReadOnlyList<MonsterObject> Monsters => _monsters;
+        public IReadOnlyList<DroppedItemObject> DroppedItems => _droppedItems;
 
         public Type[] MapTileObjects { get; } = new Type[Constants.TERRAIN_SIZE];
 
@@ -251,6 +259,7 @@ namespace Client.Main.Controls
         private void OnObjectAdded(object sender, ChildrenEventArgs<WorldObject> e)
         {
             e.Control.World = this;
+            TrackObjectType(e.Control);
             if (e.Control is WalkerObject walker &&
                 walker.NetworkId != 0 &&
                 walker.NetworkId != 0xFFFF)
@@ -270,6 +279,7 @@ namespace Client.Main.Controls
 
         private void OnObjectRemoved(object sender, ChildrenEventArgs<WorldObject> e)
         {
+            UntrackObjectType(e.Control);
             if (e.Control is WalkerObject walker &&
                 walker.NetworkId != 0 &&
                 walker.NetworkId != 0xFFFF)
@@ -290,13 +300,43 @@ namespace Client.Main.Controls
             }
         }
 
+        private void TrackObjectType(WorldObject obj)
+        {
+            if (obj is WalkerObject walker)
+                _walkers.Add(walker);
+
+            if (obj is PlayerObject player)
+                _players.Add(player);
+
+            if (obj is MonsterObject monster)
+                _monsters.Add(monster);
+
+            if (obj is DroppedItemObject drop)
+                _droppedItems.Add(drop);
+        }
+
+        private void UntrackObjectType(WorldObject obj)
+        {
+            if (obj is WalkerObject walker)
+                _walkers.Remove(walker);
+
+            if (obj is PlayerObject player)
+                _players.Remove(player);
+
+            if (obj is MonsterObject monster)
+                _monsters.Remove(monster);
+
+            if (obj is DroppedItemObject drop)
+                _droppedItems.Remove(drop);
+        }
+
         public void DebugListWalkers()
         {
             _logger?.LogDebug("=== Walker Debug Info ===");
-            _logger?.LogDebug("Objects collection count: {Count}", Objects.OfType<WalkerObject>().Count());
+            _logger?.LogDebug("Objects collection count: {Count}", _walkers.Count);
             _logger?.LogDebug("WalkerObjectsById count: {Count}", WalkerObjectsById.Count);
 
-            foreach (var walker in Objects.OfType<WalkerObject>())
+            foreach (var walker in _walkers)
             {
                 _logger?.LogDebug("Objects: {Type} {Id:X4}", walker.GetType().Name, walker.NetworkId);
             }
@@ -333,24 +373,20 @@ namespace Client.Main.Controls
                 return true;
             }
 
-            // Third check: fallback search in Objects collection
-            // This handles cases where object might be in Objects but not in dictionary
-            walker = Objects.OfType<WalkerObject>()
-                           .FirstOrDefault(w => w.NetworkId == networkId);
-
-            if (walker == null)
-                walker = Objects.OfType<PlayerObject>()
-                .FirstOrDefault(p => p.NetworkId == networkId);
-
-            if (walker != null)
+            // Third check: fallback search in tracked walkers list
+            for (int i = 0; i < _walkers.Count; i++)
             {
-                // If found but not in dictionary, add it (sync issue fix)
-                if (!WalkerObjectsById.ContainsKey(networkId))
+                var candidate = _walkers[i];
+                if (candidate != null && candidate.NetworkId == networkId)
                 {
-                    WalkerObjectsById[networkId] = walker;
-                    _logger?.LogDebug("Sync fix: Added walker {Id:X4} to dictionary during lookup.", networkId);
+                    walker = candidate;
+                    if (!WalkerObjectsById.ContainsKey(networkId))
+                    {
+                        WalkerObjectsById[networkId] = walker;
+                        _logger?.LogDebug("Sync fix: Added walker {Id:X4} to dictionary during lookup.", networkId);
+                    }
+                    return true;
                 }
-                return true;
             }
 
             return false;
@@ -358,6 +394,42 @@ namespace Client.Main.Controls
 
         public bool ContainsWalkerId(ushort networkId) =>
             WalkerObjectsById.ContainsKey(networkId);
+
+        public WalkerObject FindWalkerById(ushort networkId) =>
+            TryGetWalkerById(networkId, out var walker) ? walker : null;
+
+        public PlayerObject FindPlayerById(ushort networkId)
+        {
+            for (int i = 0; i < _players.Count; i++)
+            {
+                var player = _players[i];
+                if (player != null && player.NetworkId == networkId)
+                    return player;
+            }
+            return null;
+        }
+
+        public DroppedItemObject FindDroppedItemById(ushort networkId)
+        {
+            for (int i = 0; i < _droppedItems.Count; i++)
+            {
+                var drop = _droppedItems[i];
+                if (drop != null && drop.NetworkId == networkId)
+                    return drop;
+            }
+            return null;
+        }
+
+        public MonsterObject FindMonsterById(ushort networkId)
+        {
+            for (int i = 0; i < _monsters.Count; i++)
+            {
+                var monster = _monsters[i];
+                if (monster != null && monster.NetworkId == networkId)
+                    return monster;
+            }
+            return null;
+        }
 
         /// <summary>
         /// Removes an object from the scene and dictionary if applicable.
@@ -575,6 +647,10 @@ namespace Client.Main.Controls
 
             Objects.Clear();
             WalkerObjectsById.Clear();
+            _walkers.Clear();
+            _players.Clear();
+            _monsters.Clear();
+            _droppedItems.Clear();
 
             sw.Stop();
             var elapsedObjects = sw.ElapsedMilliseconds;

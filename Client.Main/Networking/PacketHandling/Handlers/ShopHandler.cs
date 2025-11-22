@@ -8,6 +8,7 @@ using Client.Main.Networking;
 using Client.Main.Controls.UI.Game;
 using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Controls.UI;
+using Client.Main.Scenes;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
@@ -55,9 +56,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         shop.BringToFront();
 
                         // Also open the inventory side-by-side
-                        var scene = MuGame.Instance?.ActiveScene;
-                        var inv = scene?.Controls?.OfType<InventoryControl>().FirstOrDefault();
-                        inv?.Show();
+                        var scene = MuGame.Instance?.ActiveScene as GameScene;
+                        scene?.InventoryControl?.Show();
                     });
                 }
                 else if (resp.Window == NpcWindowResponse.NpcWindow.VaultStorage)
@@ -68,9 +68,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         var vault = VaultControl.Instance;
                         vault.Visible = true;
                         vault.BringToFront();
-                        var scene = MuGame.Instance?.ActiveScene;
-                        var inv = scene?.Controls?.OfType<InventoryControl>().FirstOrDefault();
-                        inv?.Show();
+                        var scene = MuGame.Instance?.ActiveScene as GameScene;
+                        scene?.InventoryControl?.Show();
                     });
                 }
             }

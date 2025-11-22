@@ -11,7 +11,7 @@ namespace Client.Main.Content
     {
         public static TextureLoader Instance { get; } = new TextureLoader();
 
-        private readonly ConcurrentDictionary<string, Task<TextureData>> _textureTasks = new();
+        private readonly ConcurrentDictionary<string, Lazy<Task<TextureData>>> _textureTasks = new();
         private readonly ConcurrentDictionary<string, ClientTexture> _textures = new();
         // Note: ConcurrentDictionary does not accept null values; store string.Empty as "not found" sentinel
         private readonly ConcurrentDictionary<string, string> _pathExistsCache = new();
@@ -49,7 +49,11 @@ namespace Client.Main.Content
                 throw new ArgumentException("Path cannot be null or whitespace.", nameof(path));
 
             string normalizedKey = path.ToLowerInvariant();
-            return _textureTasks.GetOrAdd(normalizedKey, key => InternalPrepare(key));
+            var lazyTextureTask = _textureTasks.GetOrAdd(
+                normalizedKey,
+                key => new Lazy<Task<TextureData>>(() => Task.Run(() => InternalPrepare(key))));
+
+            return lazyTextureTask.Value;
         }
 
         public async Task<Texture2D> PrepareAndGetTexture(string path)
