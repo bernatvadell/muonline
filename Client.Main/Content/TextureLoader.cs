@@ -393,29 +393,41 @@ namespace Client.Main.Content
         private void CleanupStaleTextures()
         {
             var cutoff = DateTime.UtcNow - _textureTtl;
-            foreach (var kvp in _textures.ToArray())
+            var staleKeys = _textures
+                .Where(kvp =>
+                    kvp.Value != null &&
+                    kvp.Value.LastAccessUtc <= cutoff &&
+                    (kvp.Value.Texture == null || kvp.Value.Texture.IsDisposed))
+                .Select(kvp => kvp.Key)
+                .ToArray();
+
+            if (staleKeys.Length == 0)
             {
-                var key = kvp.Key;
-                var value = kvp.Value;
-
-                if (value == null || value.LastAccessUtc > cutoff)
-                    continue;
-
-                if (_textures.TryRemove(key, out var removed))
-                {
-                    try
-                    {
-                        removed.Texture?.Dispose();
-                        removed.Texture = null;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.LogDebug(ex, "Failed disposing texture {Path} during cleanup.", key);
-                    }
-
-                    _textureTasks.TryRemove(key, out _);
-                }
+                return;
             }
+
+            // Dispose GPU resources on the main thread to avoid device hiccups and only
+            // for entries that don't currently hold a live Texture2D.
+            Client.Main.MuGame.ScheduleOnMainThread(() =>
+            {
+                foreach (var key in staleKeys)
+                {
+                    if (_textures.TryRemove(key, out var removed))
+                    {
+                        try
+                        {
+                            removed.Texture?.Dispose();
+                            removed.Texture = null;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.LogDebug(ex, "Failed disposing texture {Path} during cleanup.", key);
+                        }
+
+                        _textureTasks.TryRemove(key, out _);
+                    }
+                }
+            });
         }
     }
 }
