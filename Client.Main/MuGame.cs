@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Client.Main.Configuration;
 using Client.Main.Networking;
+using System;
 using System.Collections.Concurrent;
 using Client.Main.Core.Client;
 using Client.Main.Content;
@@ -22,7 +23,35 @@ namespace Client.Main
     {
         // Static Fields
         private static Controllers.TaskScheduler _taskScheduler;
-        private static readonly ConcurrentQueue<Action> _mainThreadActions = new ConcurrentQueue<Action>();
+        private static readonly ConcurrentQueue<IMainThreadAction> _mainThreadActions = new ConcurrentQueue<IMainThreadAction>();
+
+        private interface IMainThreadAction
+        {
+            void Invoke();
+        }
+
+        private sealed class QueuedAction : IMainThreadAction
+        {
+            private readonly Action _action;
+
+            public QueuedAction(Action action) => _action = action ?? throw new ArgumentNullException(nameof(action));
+
+            public void Invoke() => _action();
+        }
+
+        private sealed class QueuedAction<TState> : IMainThreadAction
+        {
+            private readonly Action<TState> _action;
+            private readonly TState _state;
+
+            public QueuedAction(Action<TState> action, TState state)
+            {
+                _action = action ?? throw new ArgumentNullException(nameof(action));
+                _state = state;
+            }
+
+            public void Invoke() => _action(_state);
+        }
 
         // Static Properties
         public static MuGame Instance { get; private set; }
@@ -111,7 +140,18 @@ namespace Client.Main
         {
             if (action != null)
             {
-                _mainThreadActions.Enqueue(action);
+                _mainThreadActions.Enqueue(new QueuedAction(action));
+            }
+        }
+
+        /// <summary>
+        /// Schedules a stateful action to be executed on the main game thread without creating a closure.
+        /// </summary>
+        public static void ScheduleOnMainThread<TState>(Action<TState> action, TState state)
+        {
+            if (action != null)
+            {
+                _mainThreadActions.Enqueue(new QueuedAction<TState>(action, state));
             }
         }
 
@@ -289,9 +329,9 @@ namespace Client.Main
         protected override void Update(GameTime gameTime)
         {
             // --- Process Main Thread Actions via TaskScheduler ---
-            while (_mainThreadActions.TryDequeue(out Action action))
+            while (_mainThreadActions.TryDequeue(out var action))
             {
-                _taskScheduler.QueueTask(action, Controllers.TaskScheduler.Priority.Normal);
+                _taskScheduler.QueueTask(action.Invoke, Controllers.TaskScheduler.Priority.Normal);
             }
 
             // Process prioritized tasks using the task scheduler

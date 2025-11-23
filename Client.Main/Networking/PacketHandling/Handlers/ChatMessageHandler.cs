@@ -118,94 +118,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 string rawText = chatMsg.Message;
                 var type = chatMsg.Type;
 
-                MuGame.ScheduleOnMainThread(() =>
-                {
-                    var chatLog = scene.ChatLog;
-                    if (chatLog != null)
-                    {
-                        Models.MessageType uiType;
-                        string display = rawText;
-
-                        if (type == MUnique.OpenMU.Network.Packets.ServerToClient.ChatMessage.ChatMessageType.Whisper)
-                        {
-                            uiType = Models.MessageType.Whisper;
-                            // Play whisper sound when receiving a whisper message
-                            Controllers.SoundController.Instance.PlayBuffer("Sound/iWhisper.wav");
-                        }
-                        else if (rawText.StartsWith("~"))
-                        {
-                            uiType = Models.MessageType.Party;
-                            display = rawText[1..].TrimStart();
-                        }
-                        else if (rawText.StartsWith("@"))
-                        {
-                            uiType = Models.MessageType.Guild;
-                            display = rawText[1..].TrimStart();
-                        }
-                        else if (rawText.StartsWith("$"))
-                        {
-                            uiType = Models.MessageType.Gens;
-                            display = rawText[1..].TrimStart();
-                        }
-                        else
-                        {
-                            uiType = Models.MessageType.Chat;
-                        }
-
-                        chatLog.AddMessage(sender, display, uiType);
-
-                        if (scene.World is WalkableWorldControl world)
-                        {
-                            PlayerObject player = null;
-                            var players = world.Players;
-                            for (int i = 0; i < players.Count; i++)
-                            {
-                                var candidate = players[i];
-                                if (candidate != null &&
-                                    string.Equals(candidate.Name, sender, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    player = candidate;
-                                    break;
-                                }
-                            }
-
-                            if (player == null && world is WalkableWorldControl walk &&
-                                walk.Walker is PlayerObject hero &&
-                                string.Equals(hero.Name, sender, StringComparison.OrdinalIgnoreCase))
-                            {
-                                player = hero;
-                            }
-
-                            if (player != null)
-                            {
-                                ChatBubbleObject existingBubble = null;
-                                for (int i = 0; i < world.Objects.Count; i++)
-                                {
-                                    if (world.Objects[i] is ChatBubbleObject bubble &&
-                                        bubble.TargetId == player.NetworkId)
-                                    {
-                                        existingBubble = bubble;
-                                        break;
-                                    }
-                                }
-                                
-                                if (existingBubble != null)
-                                {
-                                    existingBubble.AppendMessage(display);
-                                }
-                                else
-                                {
-                                    var bubble = new ChatBubbleObject(display, player.NetworkId, sender);
-                                    world.Objects.Add(bubble);
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        _logger.LogWarning("ChatLogWindow not found for ChatMessage from {Sender}.", sender);
-                    }
-                });
+                var dispatch = new ChatDispatch(scene, sender, rawText, type);
+                MuGame.ScheduleOnMainThread(ProcessChatOnMainThread, dispatch);
 
                 string prefix = type switch
                 {
@@ -221,6 +135,105 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             }
 
             return Task.CompletedTask;
+        }
+
+        private void ProcessChatOnMainThread(ChatDispatch dispatch)
+        {
+            var scene = dispatch.Scene;
+            if (scene == null)
+            {
+                _logger.LogWarning("ChatLogWindow not found for ChatMessage from {Sender}.", dispatch.Sender);
+                return;
+            }
+
+            var chatLog = scene.ChatLog;
+            if (chatLog == null)
+            {
+                _logger.LogWarning("ChatLogWindow not found for ChatMessage from {Sender}.", dispatch.Sender);
+                return;
+            }
+
+            var type = dispatch.Type;
+            var rawText = dispatch.RawText;
+
+            Models.MessageType uiType;
+            string display = rawText;
+
+            if (type == ChatMessage.ChatMessageType.Whisper)
+            {
+                uiType = Models.MessageType.Whisper;
+                // Play whisper sound when receiving a whisper message
+                Controllers.SoundController.Instance.PlayBuffer("Sound/iWhisper.wav");
+            }
+            else if (rawText.StartsWith("~"))
+            {
+                uiType = Models.MessageType.Party;
+                display = rawText[1..].TrimStart();
+            }
+            else if (rawText.StartsWith("@"))
+            {
+                uiType = Models.MessageType.Guild;
+                display = rawText[1..].TrimStart();
+            }
+            else if (rawText.StartsWith("$"))
+            {
+                uiType = Models.MessageType.Gens;
+                display = rawText[1..].TrimStart();
+            }
+            else
+            {
+                uiType = Models.MessageType.Chat;
+            }
+
+            chatLog.AddMessage(dispatch.Sender, display, uiType);
+
+            if (scene.World is WalkableWorldControl world)
+            {
+                PlayerObject player = null;
+                var players = world.Players;
+                for (int i = 0; i < players.Count; i++)
+                {
+                    var candidate = players[i];
+                    if (candidate != null &&
+                        string.Equals(candidate.Name, dispatch.Sender, StringComparison.OrdinalIgnoreCase))
+                    {
+                        player = candidate;
+                        break;
+                    }
+                }
+
+                if (player == null && world is WalkableWorldControl walk &&
+                    walk.Walker is PlayerObject hero &&
+                    string.Equals(hero.Name, dispatch.Sender, StringComparison.OrdinalIgnoreCase))
+                {
+                    player = hero;
+                }
+
+                if (player != null)
+                {
+                    ChatBubbleObject existingBubble = null;
+                    var objects = world.Objects.GetSnapshot();
+                    for (int i = 0; i < objects.Count; i++)
+                    {
+                        if (objects[i] is ChatBubbleObject bubble &&
+                            bubble.TargetId == player.NetworkId)
+                        {
+                            existingBubble = bubble;
+                            break;
+                        }
+                    }
+                    
+                    if (existingBubble != null)
+                    {
+                        existingBubble.AppendMessage(display);
+                    }
+                    else
+                    {
+                        var bubble = new ChatBubbleObject(display, player.NetworkId, dispatch.Sender);
+                        world.Objects.Add(bubble);
+                    }
+                }
+            }
         }
 
         // ───────────────────────── Static API ──────────────────────────
@@ -251,6 +264,22 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     return _lastBlueSystemMessage.Text;
                 }
                 return null;
+            }
+        }
+
+        private sealed class ChatDispatch
+        {
+            public GameScene Scene { get; }
+            public string Sender { get; }
+            public string RawText { get; }
+            public ChatMessage.ChatMessageType Type { get; }
+
+            public ChatDispatch(GameScene scene, string sender, string rawText, ChatMessage.ChatMessageType type)
+            {
+                Scene = scene;
+                Sender = sender;
+                RawText = rawText;
+                Type = type;
             }
         }
     }

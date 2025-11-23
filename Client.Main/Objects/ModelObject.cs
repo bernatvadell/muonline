@@ -1955,8 +1955,8 @@ namespace Client.Main.Objects
                 }
                 else
                 {
-                    // Interpolated keyframe - use more efficient linear interpolation for position
-                    Quaternion q = Quaternion.Slerp(bm.Quaternion[boneFrame0], bm.Quaternion[boneFrame1], boneT);
+                    // Interpolated keyframe - use fast normalized lerp instead of costly Slerp
+                    Quaternion q = Nlerp(bm.Quaternion[boneFrame0], bm.Quaternion[boneFrame1], boneT);
                     Vector3 p0 = bm.Position[boneFrame0];
                     Vector3 p1 = bm.Position[boneFrame1];
 
@@ -2045,6 +2045,26 @@ namespace Client.Main.Objects
             }
         }
 
+        private static Quaternion Nlerp(in Quaternion q1, in Quaternion q2, float t)
+        {
+            var target = q2;
+            if (Quaternion.Dot(q1, q2) < 0f)
+            {
+                target.X = -target.X;
+                target.Y = -target.Y;
+                target.Z = -target.Z;
+                target.W = -target.W;
+            }
+
+            var blended = new Quaternion(
+                q1.X + (target.X - q1.X) * t,
+                q1.Y + (target.Y - q1.Y) * t,
+                q1.Z + (target.Z - q1.Z) * t,
+                q1.W + (target.W - q1.W) * t);
+
+            return Quaternion.Normalize(blended);
+        }
+
 
         private void ComputeBoneMatrixTo(int actionIdx, int frame0, int frame1, float t, Matrix[] output)
         {
@@ -2080,7 +2100,7 @@ namespace Client.Main.Objects
                     if (frame0 == frame1) t = 0f;
                 }
 
-                Quaternion q = Quaternion.Slerp(bm.Quaternion[frame0], bm.Quaternion[frame1], t);
+                Quaternion q = Nlerp(bm.Quaternion[frame0], bm.Quaternion[frame1], t);
                 Matrix m = Matrix.CreateFromQuaternion(q);
 
                 Vector3 p0 = bm.Position[frame0];

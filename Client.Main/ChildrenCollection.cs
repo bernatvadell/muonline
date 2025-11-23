@@ -1,7 +1,5 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Client.Main
 {
@@ -23,6 +21,8 @@ namespace Client.Main
     public class ChildrenCollection<T> : ICollection<T> where T : class, IChildItem<T>
     {
         private List<T> _controls = new List<T>();
+        private volatile bool _snapshotDirty = true;
+        private T[] _snapshot = Array.Empty<T>();
         private readonly object _lock = new object();
 
         public T Parent { get; private set; }
@@ -45,6 +45,12 @@ namespace Client.Main
         {
             Parent = parent;
         }
+
+        /// <summary>
+        /// Returns a snapshot of the collection without taking a lock during iteration.
+        /// Snapshot is refreshed only when the collection changes.
+        /// </summary>
+        public IReadOnlyList<T> GetSnapshot() => GetSnapshotArray();
 
         public T this[int index]
         {
@@ -73,6 +79,7 @@ namespace Client.Main
             {
                 control.Parent = Parent;
                 _controls.Add(control);
+                InvalidateSnapshot();
             }
             ControlAdded?.Invoke(this, new ChildrenEventArgs<T>(control));
         }
@@ -93,7 +100,11 @@ namespace Client.Main
         {
             bool removed;
             lock (_lock)
+            {
                 removed = _controls.Remove(control);
+                if (removed)
+                    InvalidateSnapshot();
+            }
 
             if (removed)
             {
@@ -109,6 +120,7 @@ namespace Client.Main
             {
                 control.Parent = Parent;
                 _controls.Insert(index, control);
+                InvalidateSnapshot();
             }
 
             ControlAdded?.Invoke(this, new ChildrenEventArgs<T>(control));
@@ -128,31 +140,9 @@ namespace Client.Main
 
         private IEnumerable<T> EnumerateSnapshot()
         {
-            int count;
-            T[] buffer = Array.Empty<T>();
-
-            lock (_lock)
-            {
-                count = _controls.Count;
-                if (count > 0)
-                {
-                    buffer = ArrayPool<T>.Shared.Rent(count);
-                    _controls.CopyTo(buffer, 0);
-                }
-            }
-
-            if (count == 0)
-                yield break;
-
-            try
-            {
-                for (int i = 0; i < count; i++)
-                    yield return buffer[i];
-            }
-            finally
-            {
-                ArrayPool<T>.Shared.Return(buffer, clearArray: true);
-            }
+            var snapshot = GetSnapshotArray();
+            for (int i = 0; i < snapshot.Length; i++)
+                yield return snapshot[i];
         }
 
         public bool Contains(T item)
@@ -177,6 +167,8 @@ namespace Client.Main
             lock (_lock)
             {
                 removed = _controls.Remove(control);
+                if (removed)
+                    InvalidateSnapshot();
             }
 
             if (removed)
@@ -198,6 +190,7 @@ namespace Client.Main
             {
                 control = _controls[index];
                 _controls.RemoveAt(index);
+                InvalidateSnapshot();
             }
 
             control.Parent = null;
@@ -214,6 +207,7 @@ namespace Client.Main
             {
                 controls = _controls.ToArray();
                 _controls.Clear();
+                InvalidateSnapshot();
             }
 
             foreach (var control in controls)
@@ -229,6 +223,27 @@ namespace Client.Main
         bool ICollection<T>.Remove(T control)
         {
             return this.Remove(control);
+        }
+
+        private void InvalidateSnapshot() => _snapshotDirty = true;
+
+        private T[] GetSnapshotArray()
+        {
+            if (!_snapshotDirty)
+                return _snapshot;
+
+            lock (_lock)
+            {
+                if (!_snapshotDirty)
+                    return _snapshot;
+
+                _snapshot = _controls.Count == 0
+                    ? Array.Empty<T>()
+                    : _controls.ToArray();
+
+                _snapshotDirty = false;
+                return _snapshot;
+            }
         }
     }
 }

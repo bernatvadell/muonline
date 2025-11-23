@@ -232,10 +232,11 @@ namespace Client.Main.Controls
             base.Update(time);
             if (Status != GameControlStatus.Ready) return;
 
-            // Iterate directly to skip per-frame array allocations; ChildrenCollection is already thread-safe
-            for (int i = 0; i < Objects.Count; i++)
+            // Iterate over a stable snapshot to avoid per-object lock contention
+            var snapshot = Objects.GetSnapshot();
+            for (int i = 0; i < snapshot.Count; i++)
             {
-                var obj = Objects[i];
+                var obj = snapshot[i];
                 if (obj != null && obj.Status != GameControlStatus.Disposed)
                     obj.Update(time);
             }
@@ -455,7 +456,8 @@ namespace Client.Main.Controls
             _transparentObjects.Clear();
             _solidInFront.Clear();
 
-            var metrics = new ObjectPerformanceMetrics { TotalObjects = Objects.Count };
+            var objects = Objects.GetSnapshot();
+            var metrics = new ObjectPerformanceMetrics { TotalObjects = objects.Count };
 
             var cam = Camera.Instance;
             if (cam == null || _boundingFrustum == null) return;
@@ -465,10 +467,10 @@ namespace Client.Main.Controls
             float maxDistSq = maxDist * maxDist;
             var frustum = _boundingFrustum;
 
-            // Classify objects without allocating a snapshot array
-            for (int i = 0; i < Objects.Count; i++)
+            // Classify objects using the cached snapshot to avoid per-object locks
+            for (int i = 0; i < objects.Count; i++)
             {
-                var obj = Objects[i];
+                var obj = objects[i];
                 if (obj == null) continue;
                 if (obj.Status == GameControlStatus.Disposed || !obj.Visible) continue;
                 metrics.ConsideredForRender++;
