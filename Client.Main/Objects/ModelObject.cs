@@ -1510,23 +1510,14 @@ namespace Client.Main.Objects
                 terrainH += terrainH * 0.5f;
 
                 float heightAboveTerrain = position.Z - terrainH;
-                float sampleDist = heightAboveTerrain + 10f;
                 float angleRad = MathHelper.ToRadians(45);
-
-                float offX = sampleDist * (float)Math.Cos(angleRad);
-                float offY = sampleDist * (float)Math.Sin(angleRad);
-
-                float hX1 = World.Terrain.RequestTerrainHeight(position.X - offX, position.Y - offY);
-                float hX2 = World.Terrain.RequestTerrainHeight(position.X + offX, position.Y + offY);
-
-                float slopeX = (float)Math.Atan2(hX2 - hX1, sampleDist * 0.4f);
 
                 Vector3 shadowPos = new(
                     position.X - (heightAboveTerrain / 2),
                     position.Y - (heightAboveTerrain / 4.5f),
                     terrainH + 1f);
 
-                float yaw = TotalAngle.Y + MathHelper.ToRadians(110) - slopeX / 2;
+                float yaw = TotalAngle.Y + MathHelper.ToRadians(110);
                 float pitch = TotalAngle.X + MathHelper.ToRadians(120);
                 float roll = TotalAngle.Z + MathHelper.ToRadians(90);
 
@@ -1536,7 +1527,7 @@ namespace Client.Main.Objects
                 shadowWorld =
                       Matrix.CreateFromQuaternion(rotQ)
                     * Matrix.CreateScale(1.0f * TotalScale, 0.01f * TotalScale, 1.0f * TotalScale)
-                    * Matrix.CreateRotationX(Math.Max(-MathHelper.PiOver2, -MathHelper.PiOver2 - slopeX))
+                    * Matrix.CreateRotationX(-MathHelper.PiOver2) // keep shadow flat; skip extra terrain samples
                     * Matrix.CreateRotationZ(angleRad)
                     * Matrix.CreateTranslation(shadowPos + new Vector3(0f, 0f, shadowBias));
 

@@ -3,6 +3,7 @@ using MUnique.OpenMU.Network.Packets.ServerToClient;
 using Client.Main.Core.Utilities;
 using Client.Main.Core.Models;
 using System;
+using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using MUnique.OpenMU.Network.Packets;
 using Client.Main.Controls;
@@ -15,6 +16,7 @@ using Client.Main.Objects.Effects;
 using Client.Main.Core.Client;
 using Client.Main.Scenes;
 using Client.Main.Controllers;
+using System.Threading;
 using Client.Data.ATT;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
@@ -35,6 +37,11 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
         private static readonly List<NpcScopeObject> _pendingNpcsMonsters = new List<NpcScopeObject>();
         private static readonly List<PlayerScopeObject> _pendingPlayers = new List<PlayerScopeObject>();
+        private static readonly ConcurrentQueue<NpcSpawnRequest> _npcSpawnQueue = new();
+        private static int _npcSpawnsInFlight;
+        private const int MaxNpcSpawnsPerFrame = 8;
+        private const int MaxConcurrentNpcSpawns = 8;
+        private static ScopeHandler _activeInstance;
 
         // ─────────────────────── Constructors ────────────────────────
         public ScopeHandler(
@@ -52,6 +59,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             _partyManager = partyManager;
             _targetVersion = targetVersion;
             _loggerFactory = loggerFactory;
+            _activeInstance = this;
         }
 
         // ───────────────────── Internal API ────────────────────────
@@ -274,18 +282,18 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         [PacketHandler(0x13, PacketRouter.NoSubCode)] // AddNpcToScope
         public Task HandleAddNpcToScopeAsync(Memory<byte> packet)
         {
-            _ = ParseAndAddNpcsToScopeWithStaggeringAsync(packet.ToArray());
+            ParseAndQueueNpcSpawns(packet.ToArray());
             return Task.CompletedTask;
         }
 
         [PacketHandler(0x16, PacketRouter.NoSubCode)] // AddMonstersToScope
         public Task HandleAddMonstersToScopeAsync(Memory<byte> packet)
         {
-            _ = ParseAndAddNpcsToScopeWithStaggeringAsync(packet.ToArray());
+            ParseAndQueueNpcSpawns(packet.ToArray());
             return Task.CompletedTask;
         }
 
-        private async Task ParseAndAddNpcsToScopeWithStaggeringAsync(byte[] packetData)
+        private void ParseAndQueueNpcSpawns(byte[] packetData)
         {
             Memory<byte> packet = packetData;
             int npcCount = 0, firstOffset = 0, dataSize = 0;
@@ -321,8 +329,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
             _logger.LogInformation("ScopeHandler: AddNpcToScope received {Count} objects.", npcCount);
 
-            var spawnTasks = new List<Task>();
             int currentPacketOffset = firstOffset;
+            ushort currentMapId = _characterState.MapId;
 
             for (int i = 0; i < npcCount; i++)
             {
@@ -340,24 +348,69 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                 _scopeManager.AddOrUpdateNpcInScope(maskedId, rawId, x, y, type, name);
 
-                // Process NPC/Monster spawning asynchronously without blocking
-                spawnTasks.Add(ProcessNpcSpawnAsync(maskedId, rawId, x, y, direction, type, name));
-
-                // Process in batches to avoid overwhelming the system
-                if (spawnTasks.Count >= 10)
-                {
-                    await Task.WhenAll(spawnTasks);
-                    spawnTasks.Clear();
-                    // Small delay to prevent overwhelming the system
-                    await Task.Delay(1);
-                }
+                _npcSpawnQueue.Enqueue(new NpcSpawnRequest(maskedId, rawId, x, y, direction, type, name, currentMapId));
             }
+        }
 
-            // Process remaining tasks
-            if (spawnTasks.Count > 0)
+        internal static void PumpNpcSpawnQueue(WalkableWorldControl world, int maxPerFrame = MaxNpcSpawnsPerFrame)
+        {
+            if (world == null || world.Status != GameControlStatus.Ready)
             {
-                await Task.WhenAll(spawnTasks);
+                return;
             }
+
+            var handler = _activeInstance;
+            if (handler == null || _npcSpawnQueue.IsEmpty)
+            {
+                return;
+            }
+
+            int startedThisFrame = 0;
+            while (startedThisFrame < maxPerFrame
+                && Volatile.Read(ref _npcSpawnsInFlight) < MaxConcurrentNpcSpawns
+                && _npcSpawnQueue.TryDequeue(out var request))
+            {
+                if (request.MapId != handler._characterState.MapId)
+                {
+                    handler._logger.LogDebug("Discarding queued NPC/Monster spawn {SpawnId:X4} for map {RequestMap} after map changed to {CurrentMap}.", request.MaskedId, request.MapId, handler._characterState.MapId);
+                    continue;
+                }
+
+                startedThisFrame++;
+                handler.StartNpcSpawn(request);
+            }
+        }
+
+        private void StartNpcSpawn(NpcSpawnRequest request)
+        {
+            if (request.MapId != _characterState.MapId)
+            {
+                _logger.LogDebug("Skipping queued NPC/Monster spawn {SpawnId:X4} for stale map {RequestMap} (current: {CurrentMap}).", request.MaskedId, request.MapId, _characterState.MapId);
+                return;
+            }
+
+            Interlocked.Increment(ref _npcSpawnsInFlight);
+
+            _ = ProcessNpcSpawnAsync(request).ContinueWith(t =>
+            {
+                if (t.IsFaulted && t.Exception != null)
+                {
+                    _logger.LogError(t.Exception, "ScopeHandler: Error processing NPC/Monster spawn {SpawnId:X4}.", request.MaskedId);
+                }
+
+                Interlocked.Decrement(ref _npcSpawnsInFlight);
+            }, global::System.Threading.Tasks.TaskScheduler.Default);
+        }
+
+        private Task ProcessNpcSpawnAsync(NpcSpawnRequest request)
+        {
+            if (request.MapId != _characterState.MapId)
+            {
+                _logger.LogDebug("Dropping NPC/Monster spawn {SpawnId:X4} queued for map {RequestMap} after map changed to {CurrentMap}.", request.MaskedId, request.MapId, _characterState.MapId);
+                return Task.CompletedTask;
+            }
+
+            return ProcessNpcSpawnAsync(request.MaskedId, request.RawId, request.X, request.Y, request.Direction, request.Type, request.Name);
         }
 
         private async Task ProcessNpcSpawnAsync(ushort maskedId, ushort rawId, byte x, byte y, byte direction, ushort type, string name)
@@ -473,6 +526,30 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     }
                 }
             });
+        }
+
+        private readonly struct NpcSpawnRequest
+        {
+            public NpcSpawnRequest(ushort maskedId, ushort rawId, byte x, byte y, byte direction, ushort type, string name, ushort mapId)
+            {
+                MaskedId = maskedId;
+                RawId = rawId;
+                X = x;
+                Y = y;
+                Direction = direction;
+                Type = type;
+                Name = name;
+                MapId = mapId;
+            }
+
+            public ushort MaskedId { get; }
+            public ushort RawId { get; }
+            public byte X { get; }
+            public byte Y { get; }
+            public byte Direction { get; }
+            public ushort Type { get; }
+            public string Name { get; }
+            public ushort MapId { get; }
         }
 
         [PacketHandler(0x25, PacketRouter.NoSubCode)]

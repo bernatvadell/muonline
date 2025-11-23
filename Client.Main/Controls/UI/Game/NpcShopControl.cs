@@ -240,7 +240,7 @@ namespace Client.Main.Controls.UI.Game
 
         private void HandleKeyboardInput()
         {
-            var keyboardState = Keyboard.GetState();
+            var keyboardState = MuGame.Instance.Keyboard;
             bool escapeDown = keyboardState.IsKeyDown(Keys.Escape);
 
             if (escapeDown && !_escapeHandled)

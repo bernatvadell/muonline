@@ -15,6 +15,7 @@ namespace Client.Main.Content
         private readonly ConcurrentDictionary<string, ClientTexture> _textures = new();
         // Note: ConcurrentDictionary does not accept null values; store string.Empty as "not found" sentinel
         private readonly ConcurrentDictionary<string, string> _pathExistsCache = new();
+        private readonly ConcurrentDictionary<string, string> _resolvedPathCache = new();
         private GraphicsDevice _graphicsDevice;
 
         private readonly Dictionary<string, BaseReader<TextureData>> _readers = new()
@@ -125,8 +126,10 @@ namespace Client.Main.Content
 
         private string GetActualPath(string path)
         {
+            string cacheKey = NormalizePathKey(path);
+
             // Check cache first
-            if (_pathExistsCache.TryGetValue(path, out var cachedPath))
+            if (_pathExistsCache.TryGetValue(cacheKey, out var cachedPath))
                 return string.IsNullOrEmpty(cachedPath) ? null : cachedPath;
 
             string result = null;
@@ -142,15 +145,24 @@ namespace Client.Main.Content
             }
 
             // Cache the result (store empty string for "not found" to avoid null values)
-            _pathExistsCache.TryAdd(path, result ?? string.Empty);
+            _pathExistsCache.TryAdd(cacheKey, result ?? string.Empty);
             return result;
         }
 
         private string ResolveCaseInsensitivePath(string path)
         {
+            string cacheKey = NormalizePathKey(path);
+            if (_resolvedPathCache.TryGetValue(cacheKey, out var cached))
+            {
+                return string.IsNullOrEmpty(cached) ? null : cached;
+            }
+
             // Start from the base path and resolve each component case-insensitively
             if (string.IsNullOrEmpty(path))
+            {
+                _resolvedPathCache.TryAdd(cacheKey, string.Empty);
                 return null;
+            }
 
             // Split path into components
             var parts = path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
@@ -216,7 +228,16 @@ namespace Client.Main.Content
                 currentPath = found;
             }
 
-            return File.Exists(currentPath) || Directory.Exists(currentPath) ? currentPath : null;
+            string resolved = (File.Exists(currentPath) || Directory.Exists(currentPath)) ? currentPath : null;
+            _resolvedPathCache.TryAdd(cacheKey, resolved ?? string.Empty);
+            return resolved;
+        }
+
+        private static string NormalizePathKey(string path)
+        {
+            return string.IsNullOrWhiteSpace(path)
+                ? string.Empty
+                : path.Replace('\\', '/').ToLowerInvariant();
         }
 
         private static TextureScript ParseScript(string fileName)

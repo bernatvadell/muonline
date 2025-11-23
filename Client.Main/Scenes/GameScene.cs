@@ -935,7 +935,7 @@ namespace Client.Main.Scenes
                 return;
             }
 
-            var currentKeyboardState = Keyboard.GetState();
+            var currentKeyboardState = MuGame.Instance.Keyboard;
 
             // Toggle pause menu on ESC (edge-triggered)
             if (currentKeyboardState.IsKeyDown(Keys.Escape) && _previousKeyboardState.IsKeyUp(Keys.Escape))
@@ -1016,6 +1016,11 @@ namespace Client.Main.Scenes
             _notificationManager?.Update(gameTime);
             ProcessPendingNotifications();
 
+            if (World is WalkableWorldControl walkableWorld)
+            {
+                ScopeHandler.PumpNpcSpawnQueue(walkableWorld);
+            }
+
             if (World == null || World.Status != GameControlStatus.Ready)
             {
                 _previousKeyboardState = currentKeyboardState;
@@ -1045,10 +1050,10 @@ namespace Client.Main.Scenes
                 MuGame.Instance.PrevMouseState.RightButton == ButtonState.Released && // Fresh press
                 _skillQuickSlot?.SelectedSkill != null) // Must have skill selected
             {
-                if (Hero != null && World is WalkableWorldControl walkableWorld)
+                if (Hero != null && World is WalkableWorldControl walkableForSkills)
                 {
                     // Check if player is in SafeZone
-                    var terrainFlags = walkableWorld.Terrain.RequestTerrainFlag((int)Hero.Location.X, (int)Hero.Location.Y);
+                    var terrainFlags = walkableForSkills.Terrain.RequestTerrainFlag((int)Hero.Location.X, (int)Hero.Location.Y);
                     if (terrainFlags.HasFlag(TWFlags.SafeZone))
                     {
                         _logger?.LogDebug("Cannot use skill in SafeZone");

@@ -24,6 +24,7 @@ namespace Client.Main.Objects
         private Matrix _worldPosition;
         private WorldControl _world;
         private bool _interactive;
+        private bool _isTransformDirty = true;
 
         private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<WorldObject>();
 
@@ -100,10 +101,10 @@ namespace Client.Main.Objects
         public float Alpha { get; set; } = 1f;
         public float TotalAlpha { get => (Parent?.TotalAlpha ?? 1f) * Alpha; }
         public Vector3 Position { get => _position; set { if (_position != value) { _position = value; OnPositionChanged(); } } }
-        public Vector3 Angle { get => _angle; set { _angle = value; OnAngleChanged(); } }
+        public Vector3 Angle { get => _angle; set { if (_angle != value) { _angle = value; OnAngleChanged(); } } }
         public Vector3 TotalAngle { get => (Parent?.TotalAngle ?? Vector3.Zero) + Angle; }
 
-        public float Scale { get => _scale; set { _scale = value; OnScaleChanged(); } }
+        public float Scale { get => _scale; set { if (_scale != value) { _scale = value; OnScaleChanged(); } } }
         public float TotalScale { get => (Parent?.Scale ?? 1f) * Scale; }
         public Matrix WorldPosition { get => _worldPosition; set { _worldPosition = value; OnWorldPositionChanged(); } }
         public bool Interactive { get => _interactive || (Parent?.Interactive ?? false); set { _interactive = value; } }
@@ -512,9 +513,23 @@ namespace Client.Main.Objects
             _whiteTexture?.Dispose();
         }
 
-        protected virtual void OnPositionChanged() => RecalculateWorldPosition();
-        protected virtual void OnAngleChanged() => RecalculateWorldPosition();
-        protected virtual void OnScaleChanged() => RecalculateWorldPosition();
+        protected virtual void OnPositionChanged()
+        {
+            MarkTransformDirty();
+            RecalculateWorldPosition();
+        }
+
+        protected virtual void OnAngleChanged()
+        {
+            MarkTransformDirty();
+            RecalculateWorldPosition();
+        }
+
+        protected virtual void OnScaleChanged()
+        {
+            MarkTransformDirty();
+            RecalculateWorldPosition();
+        }
         protected virtual void OnParentChanged(WorldObject current, WorldObject prev)
         {
             if (prev != null)
@@ -523,33 +538,45 @@ namespace Client.Main.Objects
                 prev.Children.Remove(this);
             }
             if (current != null) current.MatrixChanged += OnParentMatrixChanged;
+            MarkTransformDirty();
             RecalculateWorldPosition();
         }
         protected virtual void OnBoundingBoxLocalChanged() => UpdateWorldBoundingBox();
 
-        private void OnParentMatrixChanged(Object s, EventArgs e) => RecalculateWorldPosition();
+        private void OnParentMatrixChanged(Object s, EventArgs e)
+        {
+            MarkTransformDirty();
+            RecalculateWorldPosition();
+        }
+
+        protected void MarkTransformDirty()
+        {
+            _isTransformDirty = true;
+        }
         protected virtual void RecalculateWorldPosition()
         {
+            if (!_isTransformDirty)
+            {
+                return;
+            }
+
             Matrix localMatrix = Matrix.CreateScale(Scale)
                 * Matrix.CreateFromQuaternion(MathUtils.AngleQuaternion(Angle))
                 * Matrix.CreateTranslation(Position);
 
+            _isTransformDirty = false;
             if (Parent != null)
             {
                 Matrix worldMatrix = localMatrix * Parent.WorldPosition;
-                if (WorldPosition != worldMatrix)
+                if (_worldPosition != worldMatrix)
                 {
                     WorldPosition = worldMatrix;
                 }
             }
-            else if (WorldPosition != localMatrix)
+            else if (_worldPosition != localMatrix)
             {
                 WorldPosition = localMatrix;
             }
-
-            // Use direct indexing instead of ToArray() to avoid allocation
-            for (int i = 0; i < Children.Count; i++)
-                Children[i].RecalculateWorldPosition();
         }
 
         private void OnWorldPositionChanged()

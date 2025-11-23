@@ -183,7 +183,8 @@ namespace Client.Main.Controls
 
             var ray = new Ray(near, Vector3.Normalize(far - near));
             const float maxDistance = 10000f;
-            float step = Constants.TERRAIN_SCALE / 10f;
+            float baseStep = Constants.TERRAIN_SCALE / 10f;
+            float coarseStep = baseStep * 4f; // march fast until we cross the terrain
             float traveled = 0f;
 
             var lastPos = ray.Position;
@@ -193,17 +194,40 @@ namespace Client.Main.Controls
 
             while (traveled < maxDistance)
             {
-                traveled += step;
+                traveled += coarseStep;
                 var pos = ray.Position + ray.Direction * traveled;
                 float terrainZ = Terrain.RequestTerrainHeight(pos.X, pos.Y) + ExtraHeight;
                 float diff = pos.Z - terrainZ;
 
                 if (lastDiff > 0f && diff <= 0f)
                 {
-                    float t = lastDiff / (lastDiff - diff);
-                    hitPos = Vector3.Lerp(lastPos, pos, t);
-                    hit = true;
-                    break;
+                    // refine within the overshoot segment using smaller steps
+                    float backtrackStart = traveled - coarseStep;
+                    float refineTraveled = backtrackStart;
+                    var refineLastPos = ray.Position + ray.Direction * backtrackStart;
+                    float refineLastDiff = refineLastPos.Z - Terrain.RequestTerrainHeight(refineLastPos.X, refineLastPos.Y) + ExtraHeight;
+
+                    while (refineTraveled <= traveled)
+                    {
+                        refineTraveled += baseStep;
+                        var refinePos = ray.Position + ray.Direction * refineTraveled;
+                        float refineTerrainZ = Terrain.RequestTerrainHeight(refinePos.X, refinePos.Y) + ExtraHeight;
+                        float refineDiff = refinePos.Z - refineTerrainZ;
+
+                        if (refineLastDiff > 0f && refineDiff <= 0f)
+                        {
+                            float t = refineLastDiff / (refineLastDiff - refineDiff);
+                            hitPos = Vector3.Lerp(refineLastPos, refinePos, t);
+                            hit = true;
+                            break;
+                        }
+
+                        refineLastPos = refinePos;
+                        refineLastDiff = refineDiff;
+                    }
+
+                    if (hit)
+                        break;
                 }
 
                 lastPos = pos;

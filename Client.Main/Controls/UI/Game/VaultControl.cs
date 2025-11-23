@@ -384,7 +384,7 @@ namespace Client.Main.Controls.UI.Game
 
         private void HandleKeyboardInput()
         {
-            var keyboard = Keyboard.GetState();
+            var keyboard = MuGame.Instance.Keyboard;
             bool escapeDown = keyboard.IsKeyDown(Keys.Escape);
 
             if (escapeDown && !_escapeHandled)
