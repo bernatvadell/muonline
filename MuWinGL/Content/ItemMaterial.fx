@@ -7,6 +7,12 @@
     #define PS_SHADERMODEL ps_4_0_level_9_1
 #endif
 
+#if OPENGL
+static const float GlowIntensityScale = 1.0;
+#else
+static const float GlowIntensityScale = 0.65; // Tone down glow on DirectX
+#endif
+
 float4x4 World;
 float4x4 View;
 float4x4 Projection;
@@ -105,7 +111,7 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     float3 view = normalize(input.ViewDirection) + normal + float3(10000.5, 10000.5, 10000.5);
     
     // Determine glow parameters based on item level
-    float3 effectColor = GlowColor;
+    float3 effectColor = GlowColor * GlowIntensityScale;
     float brightness = 1.0;
     float ghostIntensity = 0.0;
     
@@ -118,21 +124,21 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     else if (itemLevel < 9)
     {
         // Level 7-8: low ghosting
-        effectColor = GlowColor;
+        effectColor = GlowColor * GlowIntensityScale;
         brightness = 1.6;
         ghostIntensity = 0.3;
     }
     else if (itemLevel < 10)
     {
         // Level 9: medium ghosting
-        effectColor = GlowColor;
+        effectColor = GlowColor * GlowIntensityScale;
         brightness = 1.8;
         ghostIntensity = 0.6;
     }
     else
     {
         // Level 10+: full ghosting with increasing brightness per level
-        effectColor = GlowColor;
+        effectColor = GlowColor * GlowIntensityScale;
         brightness = 1.8 + (itemLevel - 10) * 0.2;
         ghostIntensity = 0.8;
     }
@@ -172,10 +178,10 @@ float4 MainPS(VertexShaderOutput input) : COLOR
         // Apply metallic effect for +7 and higher  
         float3 metallic = effectColor * 0.8;
         color.rgb = color.rgb * metallic * brightness * subtlePulse;
-        color.rgb += ghost1.rgb * (0.8 * ghostIntensity) * shimmer;
-        color.rgb += ghost2.rgb * (0.6 * ghostIntensity) * shimmer;
-        color.rgb += ghost3.rgb * (0.5 * ghostIntensity) * shimmer;
-        color.rgb += ghost4.rgb * (0.4 * ghostIntensity) * shimmer;
+        color.rgb += ghost1.rgb * (0.8 * ghostIntensity) * shimmer * GlowIntensityScale;
+        color.rgb += ghost2.rgb * (0.6 * ghostIntensity) * shimmer * GlowIntensityScale;
+        color.rgb += ghost3.rgb * (0.5 * ghostIntensity) * shimmer * GlowIntensityScale;
+        color.rgb += ghost4.rgb * (0.4 * ghostIntensity) * shimmer * GlowIntensityScale;
     }
     else
     {

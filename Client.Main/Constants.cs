@@ -68,6 +68,11 @@ namespace Client.Main
                 /// Enables continuous item material shader animation (e.g., glow) in UI previews when running in debug builds.
                 /// </summary>
                 public static bool ENABLE_ITEM_MATERIAL_ANIMATION = true;
+                /// <summary>
+                /// Enables pooling for dynamic vertex and index buffers (safe reuse windowed for DX).
+                /// Disable to force per-draw allocations when investigating GPU buffer hazards.
+                /// </summary>
+                public static bool ENABLE_DYNAMIC_BUFFER_POOL = true;
                 public static string DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
                 //public static string DataPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
 #else
@@ -126,6 +131,11 @@ namespace Client.Main
                 /// Enables continuous item material shader animation (e.g., glow) in UI previews when running in release builds.
                 /// </summary>
                 public static bool ENABLE_ITEM_MATERIAL_ANIMATION = true;
+                /// <summary>
+                /// Enables pooling for dynamic vertex and index buffers (safe reuse windowed for DX).
+                /// Disable to force per-draw allocations when investigating GPU buffer hazards.
+                /// </summary>
+                public static bool ENABLE_DYNAMIC_BUFFER_POOL = true;
                 public static string DataPath = System.IO.Path.Combine(System.AppDomain.CurrentDomain.BaseDirectory, "Data");
 #endif
                 public static string DataPathUrl = "http://192.168.55.220/Data.zip";

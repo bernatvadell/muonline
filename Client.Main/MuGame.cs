@@ -12,6 +12,7 @@ using System;
 using System.Collections.Concurrent;
 using Client.Main.Core.Client;
 using Client.Main.Content;
+using Client.Main.Graphics;
 #if ANDROID
 using Android.App;
 using System.IO;
@@ -405,6 +406,7 @@ namespace Client.Main
             try
             {
                 // Initialize frame-based optimizations
+                DynamicBufferPool.BeginFrame(FrameIndex);
                 BMDLoader.Instance.BeginFrame();
                 
                 FPSCounter.Instance.CalcFPS(gameTime);

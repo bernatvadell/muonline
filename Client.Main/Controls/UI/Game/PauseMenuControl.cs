@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using Client.Main.Core.Client; // ClientConnectionState
 using Client.Main;
 using Client.Main.Controllers;
+using Client.Main.Graphics;
 using MUnique.OpenMU.Network.Packets; // LogOutType
 
 namespace Client.Main.Controls.UI.Game
@@ -748,6 +749,10 @@ namespace Client.Main.Controls.UI.Game
                 {
                     const int rowHeight = 22;
                     AddOption("Unlimited FPS", () => Constants.UNLIMITED_FPS, value => Constants.UNLIMITED_FPS = value, ref currentY, rowHeight, _owner.ApplyGraphicsSettings);
+                    AddOption("Dynamic Buffer Pool", () => Constants.ENABLE_DYNAMIC_BUFFER_POOL, value =>
+                    {
+                        DynamicBufferPool.SetEnabled(value);
+                    }, ref currentY, rowHeight);
                     AddOption("Debug Panel", () => Constants.SHOW_DEBUG_PANEL, value =>
                     {
                         Constants.SHOW_DEBUG_PANEL = value;
