@@ -8,5 +8,6 @@ namespace Client.Main.Content
         public TextureData Info { get; set; }
         public TextureScript Script { get; set; }
         public Texture2D Texture { get; set; }
+        public DateTime LastAccessUtc { get; set; } = DateTime.UtcNow;
     }
 }

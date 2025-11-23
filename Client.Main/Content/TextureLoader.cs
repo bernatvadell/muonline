@@ -1,4 +1,8 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Client.Data;
 using Client.Data.Texture;
 using Microsoft.Xna.Framework;
@@ -16,6 +20,10 @@ namespace Client.Main.Content
         // Note: ConcurrentDictionary does not accept null values; store string.Empty as "not found" sentinel
         private readonly ConcurrentDictionary<string, string> _pathExistsCache = new();
         private readonly ConcurrentDictionary<string, string> _resolvedPathCache = new();
+        private readonly CancellationTokenSource _cleanupCts = new();
+        private readonly TimeSpan _cleanupInterval = TimeSpan.FromSeconds(60);
+        private readonly TimeSpan _textureTtl = TimeSpan.FromMinutes(5);
+        private readonly Task _cleanupTask;
         private GraphicsDevice _graphicsDevice;
 
         private readonly Dictionary<string, BaseReader<TextureData>> _readers = new()
@@ -31,6 +39,11 @@ namespace Client.Main.Content
         };
 
         private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<TextureLoader>();
+
+        private TextureLoader()
+        {
+            _cleanupTask = Task.Run(() => CleanupLoopAsync(_cleanupCts.Token));
+        }
 
         // Precompiled logging messages to minimize overhead in hot paths
         private static readonly Action<ILogger, string, Exception> _logUnsupportedExt =
@@ -89,7 +102,8 @@ namespace Client.Main.Content
                 var clientTexture = new ClientTexture
                 {
                     Info = data,
-                    Script = ParseScript(path)
+                    Script = ParseScript(path),
+                    LastAccessUtc = DateTime.UtcNow
                 };
 
                 _textures.TryAdd(path.ToLowerInvariant(), clientTexture);
@@ -272,11 +286,11 @@ namespace Client.Main.Content
 
         public TextureData Get(string path) =>
             string.IsNullOrWhiteSpace(path) ? null :
-            _textures.TryGetValue(path.ToLowerInvariant(), out var value) ? value.Info : null;
+            _textures.TryGetValue(path.ToLowerInvariant(), out var value) ? TouchAndReturn(value).Info : null;
 
         public TextureScript GetScript(string path) =>
             string.IsNullOrWhiteSpace(path) ? null :
-            _textures.TryGetValue(path.ToLowerInvariant(), out var value) ? value.Script : null;
+            _textures.TryGetValue(path.ToLowerInvariant(), out var value) ? TouchAndReturn(value).Script : null;
 
         public Texture2D GetTexture2D(string path)
         {
@@ -287,6 +301,8 @@ namespace Client.Main.Content
 
             if (!_textures.TryGetValue(normalizedKey, out ClientTexture clientTexture))
                 return null;
+
+            Touch(clientTexture);
 
             if (clientTexture.Texture != null)
                 return clientTexture.Texture;
@@ -338,6 +354,68 @@ namespace Client.Main.Content
 
             clientTexture.Texture = texture;
             return texture;
+        }
+
+        private ClientTexture TouchAndReturn(ClientTexture texture)
+        {
+            Touch(texture);
+            return texture;
+        }
+
+        private void Touch(ClientTexture texture)
+        {
+            if (texture != null)
+            {
+                texture.LastAccessUtc = DateTime.UtcNow;
+            }
+        }
+
+        private async Task CleanupLoopAsync(CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(_cleanupInterval, token).ConfigureAwait(false);
+                    CleanupStaleTextures();
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogDebug(ex, "TextureLoader cleanup loop error.");
+                }
+            }
+        }
+
+        private void CleanupStaleTextures()
+        {
+            var cutoff = DateTime.UtcNow - _textureTtl;
+            foreach (var kvp in _textures.ToArray())
+            {
+                var key = kvp.Key;
+                var value = kvp.Value;
+
+                if (value == null || value.LastAccessUtc > cutoff)
+                    continue;
+
+                if (_textures.TryRemove(key, out var removed))
+                {
+                    try
+                    {
+                        removed.Texture?.Dispose();
+                        removed.Texture = null;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogDebug(ex, "Failed disposing texture {Path} during cleanup.", key);
+                    }
+
+                    _textureTasks.TryRemove(key, out _);
+                }
+            }
         }
     }
 }

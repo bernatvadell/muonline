@@ -1,8 +1,8 @@
-﻿using Client.Main.Objects.Particles.Effects;
+﻿using Client.Main.Models;
+using Client.Main.Objects.Particles.Effects;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 
 namespace Client.Main.Objects.Particles
@@ -17,16 +17,11 @@ namespace Client.Main.Objects.Particles
         public float ScaleMax { get; set; } = 1f;
         public bool Rotation { get; set; }
         public List<BaseEffect> Effects { get; set; } = [];
+        private readonly Queue<Particle> _pool = new();
 
         public Particle Emit()
         {
-            var particle = new Particle(ParticleType)
-            {
-                Position = RandomPosition(),
-                Scale = RandomScale(),
-                Angle = RandomAngle(),
-                Effects = [.. Effects.Select(x => x.Copy())]
-            };
+            var particle = RentParticle();
 
             return particle;
         }
@@ -81,6 +76,53 @@ namespace Client.Main.Objects.Particles
                 (float)(MuGame.Random.NextDouble() * MathF.PI * 2),
                 (float)(MuGame.Random.NextDouble() * MathF.PI * 2)
             );
+        }
+
+        private Particle RentParticle()
+        {
+            var position = RandomPosition();
+            var angle = RandomAngle();
+            var scale = RandomScale();
+            var effects = Effects.Select(x => x.Copy()).ToArray();
+
+            for (int i = 0; i < effects.Length; i++)
+            {
+                if (effects[i] is DurationEffect duration)
+                {
+                    duration.OnExpired = System.RecycleParticle;
+                }
+            }
+
+            Particle particle;
+            if (_pool.Count > 0)
+            {
+                particle = _pool.Dequeue();
+                particle.OwnerRegister = this;
+                particle.Hidden = false;
+                bool initNow = particle.Status == Models.GameControlStatus.Ready;
+                particle.ConfigureForReuse(position, angle, scale, effects, initNow);
+            }
+            else
+            {
+                particle = new Particle(ParticleType)
+                {
+                    OwnerRegister = this
+                };
+                particle.ConfigureForReuse(position, angle, scale, effects, initializeEffects: false);
+            }
+
+            return particle;
+        }
+
+        internal void ReturnToPool(Particle particle)
+        {
+            if (particle == null)
+                return;
+
+            particle.Hidden = true;
+            particle.Effects = Array.Empty<BaseEffect>();
+            particle.OwnerRegister = this;
+            _pool.Enqueue(particle);
         }
     }
 }

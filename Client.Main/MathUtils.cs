@@ -26,56 +26,28 @@ namespace Client.Main
 
         public static Vector3 FaceNormalize(Vector3 v1, Vector3 v2, Vector3 v3)
         {
-            // Minimal optimization by eliminating intermediate variables
-            float nx = (v2.Y - v1.Y) * (v3.Z - v1.Z) - (v3.Y - v1.Y) * (v2.Z - v1.Z);
-            float ny = (v2.Z - v1.Z) * (v3.X - v1.X) - (v3.Z - v1.Z) * (v2.X - v1.X);
-            float nz = (v2.X - v1.X) * (v3.Y - v1.Y) - (v3.X - v1.X) * (v2.Y - v1.Y);
+            var edge1 = v2 - v1;
+            var edge2 = v3 - v1;
+            var normal = Vector3.Cross(edge1, edge2);
 
-            // Use LengthSquared to check for zero length
-            float lengthSquared = nx * nx + ny * ny + nz * nz;
-            if (lengthSquared == 0) return Vector3.Zero;
-
-            float invLength = 1.0f / (float)Math.Sqrt(lengthSquared);
-            return new Vector3(nx * invLength, ny * invLength, nz * invLength);
+            return normal.LengthSquared() <= float.Epsilon
+                ? Vector3.Zero
+                : Vector3.Normalize(normal);
         }
 
         public static Vector3 VectorRotate(Vector3 in1, Matrix in2)
         {
-            return new Vector3(
-                in1.X * in2.M11 + in1.Y * in2.M21 + in1.Z * in2.M31,
-                in1.X * in2.M12 + in1.Y * in2.M22 + in1.Z * in2.M32,
-                in1.X * in2.M13 + in1.Y * in2.M23 + in1.Z * in2.M33
-            );
+            return Vector3.Transform(in1, in2);
         }
 
         public static Vector3 VectorIRotate(Vector3 in1, Matrix in2)
         {
-            return new Vector3(
-                in1.X * in2.M11 + in1.Y * in2.M21 + in1.Z * in2.M31,
-                in1.X * in2.M12 + in1.Y * in2.M22 + in1.Z * in2.M32,
-                in1.X * in2.M13 + in1.Y * in2.M23 + in1.Z * in2.M33
-            );
+            return Vector3.Transform(in1, in2);
         }
 
         public static Quaternion AngleQuaternion(Vector3 angles)
         {
-            float halfRoll = angles.Z * 0.5f;
-            float halfYaw = angles.Y * 0.5f;
-            float halfPitch = angles.X * 0.5f;
-
-            float sr = (float)Math.Sin(halfPitch);
-            float cr = (float)Math.Cos(halfPitch);
-            float sp = (float)Math.Sin(halfYaw);
-            float cp = (float)Math.Cos(halfYaw);
-            float sy = (float)Math.Sin(halfRoll);
-            float cy = (float)Math.Cos(halfRoll);
-
-            float x = sr * cp * cy - cr * sp * sy;
-            float y = cr * sp * cy + sr * cp * sy;
-            float z = cr * cp * sy - sr * sp * cy;
-            float w = cr * cp * cy + sr * sp * sy;
-
-            return new Quaternion(x, y, z, w);
+            return Quaternion.CreateFromYawPitchRoll(angles.Y, angles.X, angles.Z);
         }
     }
 }

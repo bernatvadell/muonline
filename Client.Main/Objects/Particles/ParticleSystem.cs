@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+﻿using Client.Main.Models;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -46,7 +47,11 @@ namespace Client.Main.Objects.Particles
                 var particleType = _particles[randomIndex];
                 var particle = particleType.Emit();
                 Children.Add(particle);
-                Task.Run(() => particle.Load());
+
+                if (particle.Status == Models.GameControlStatus.NonInitialized)
+                {
+                    Task.Run(() => particle.Load());
+                }
             }
         }
 
@@ -73,6 +78,21 @@ namespace Client.Main.Objects.Particles
         public static ParticleSystem Create()
         {
             return new ParticleSystem();
+        }
+
+        internal void RecycleParticle(Particle particle)
+        {
+            if (particle == null)
+                return;
+
+            // Detach without disposing so we can reuse the instance.
+            bool detached = Children.Detach(particle);
+            if (!detached)
+            {
+                return;
+            }
+
+            particle.OwnerRegister?.ReturnToPool(particle);
         }
     }
 }

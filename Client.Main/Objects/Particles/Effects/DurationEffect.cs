@@ -8,6 +8,7 @@ namespace Client.Main.Objects.Particles.Effects
         public float Duration { get; set; }
         public float MinDuration { get; set; }
         public float MaxDuration { get; set; }
+        public Action<Particle> OnExpired { get; set; }
 
         public override void Init()
         {
@@ -20,7 +21,14 @@ namespace Client.Main.Objects.Particles.Effects
 
             if (Duration <= 0)
             {
-                Particle?.Dispose();
+                if (OnExpired != null && Particle != null)
+                {
+                    OnExpired(Particle);
+                }
+                else
+                {
+                    Particle?.Dispose();
+                }
                 return;
             }
         }

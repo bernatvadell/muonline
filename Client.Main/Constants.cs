@@ -141,7 +141,7 @@ namespace Client.Main
                 /// <summary>
                 /// Worlds (by WorldIndex) that should use sun lighting. Leave empty to allow sun everywhere.
                 /// </summary>
-                public static short[] SUN_WORLD_INDICES = new short[] { 0, 2, 7, 1 };
+                public static short[] SUN_WORLD_INDICES = new short[] { 0, 2, 7, 1, 3 };
 #if DEBUG
                 public static bool UNLIMITED_FPS = true;
 #else
