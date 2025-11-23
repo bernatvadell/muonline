@@ -4,6 +4,8 @@ using NLayer;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Microsoft.Extensions.Logging;
 
@@ -19,6 +21,9 @@ namespace Client.Main.Controllers
         private SoundEffectInstance _activeAmbientSoundInstance;
         private string _currentAmbientSoundPath;
         private HashSet<string> _failedPaths = new HashSet<string>();
+        private readonly Dictionary<string, Task<SoundEffect>> _soundEffectLoadTasks = new Dictionary<string, Task<SoundEffect>>(StringComparer.OrdinalIgnoreCase);
+        private readonly object _soundCacheLock = new object();
+        private int _backgroundMusicRequestId;
 
         private sealed class ManagedLoopData
         {
@@ -35,6 +40,12 @@ namespace Client.Main.Controllers
         }
 
         public void StopBackgroundMusic()
+        {
+            Interlocked.Increment(ref _backgroundMusicRequestId);
+            StopBackgroundMusicInstance();
+        }
+
+        private void StopBackgroundMusicInstance()
         {
             _activeBackgroundMusicInstance?.Stop(true);
             _activeBackgroundMusicInstance?.Dispose();
@@ -58,31 +69,10 @@ namespace Client.Main.Controllers
                 return;
             }
 
-            StopBackgroundMusic();
+            var requestId = Interlocked.Increment(ref _backgroundMusicRequestId);
+            StopBackgroundMusicInstance();
 
-            SoundEffect musicEffect = LoadSoundEffectData(Path.Combine(Constants.DataPath, relativePath));
-            if (musicEffect != null)
-            {
-                _activeBackgroundMusicInstance = musicEffect.CreateInstance();
-                _activeBackgroundMusicInstance.IsLooped = true;
-                try
-                {
-                    ApplyBackgroundMusicVolume();
-                    _activeBackgroundMusicInstance.Play();
-                    _currentBackgroundMusicPath = relativePath;
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogDebug($"[PlayBackgroundMusic] Error playing sound '{relativePath}': {ex.Message}");
-                    _activeBackgroundMusicInstance.Dispose();
-                    _activeBackgroundMusicInstance = null;
-                    _currentBackgroundMusicPath = null;
-                }
-            }
-            else
-            {
-                _logger?.LogDebug($"[PlayBackgroundMusic] Failed to load SoundEffect for: {relativePath}");
-            }
+            _ = PlayBackgroundMusicAsync(relativePath, requestId);
         }
 
         public void PreloadBackgroundMusic(string relativePath)
@@ -90,7 +80,7 @@ namespace Client.Main.Controllers
             if ((!Constants.BACKGROUND_MUSIC && !Constants.SOUND_EFFECTS) || string.IsNullOrEmpty(relativePath))
                 return;
 
-            LoadSoundEffectData(Path.Combine(Constants.DataPath, relativePath));
+            _ = LoadSoundEffectDataAsync(Path.Combine(Constants.DataPath, relativePath));
         }
 
         public void StopAmbientSound()
@@ -345,20 +335,18 @@ namespace Client.Main.Controllers
         private SoundEffect LoadSoundEffectData(string fullPath)
         {
             string cacheKey = fullPath.ToLowerInvariant();
-            if (_soundEffectCache.TryGetValue(cacheKey, out SoundEffect sfx))
+            var cached = GetCachedSoundEffect(cacheKey);
+            if (cached != null)
             {
-                if (sfx != null && !sfx.IsDisposed)
-                    return sfx;
-                else
-                    _soundEffectCache.Remove(cacheKey);
+                return cached;
             }
 
-            if (_failedPaths.Contains(cacheKey)) return null;
+            if (IsFailedPath(cacheKey)) return null;
 
             if (!File.Exists(fullPath))
             {
                 _logger?.LogDebug($"[LoadSoundEffectData] File not found: {fullPath}");
-                _failedPaths.Add(cacheKey);
+                MarkFailedPath(cacheKey);
                 return null;
             }
 
@@ -380,26 +368,26 @@ namespace Client.Main.Controllers
                     else
                     {
                         _logger?.LogDebug($"[LoadSoundEffectData] Failed to load PCM data from MP3: {fullPath}");
-                        _failedPaths.Add(cacheKey);
+                        MarkFailedPath(cacheKey);
                     }
                 }
                 else
                 {
                     _logger?.LogDebug($"[LoadSoundEffectData] Unsupported audio file extension: {extension} for path {fullPath}");
-                    _failedPaths.Add(cacheKey);
+                    MarkFailedPath(cacheKey);
                     return null;
                 }
 
                 if (loadedSfx != null)
                 {
-                    _soundEffectCache[cacheKey] = loadedSfx;
+                    CacheSoundEffect(cacheKey, loadedSfx);
                 }
                 return loadedSfx;
             }
             catch (Exception ex)
             {
                 _logger?.LogDebug($"[LoadSoundEffectData] Error loading sound data from '{fullPath}': {ex.Message}");
-                _failedPaths.Add(cacheKey);
+                MarkFailedPath(cacheKey);
             }
             return null;
         }
@@ -465,11 +453,19 @@ namespace Client.Main.Controllers
         {
             StopBackgroundMusic();
 
-            foreach (var sfx in _soundEffectCache.Values)
+            List<SoundEffect> cached;
+            lock (_soundCacheLock)
+            {
+                cached = new List<SoundEffect>(_soundEffectCache.Values);
+                _soundEffectCache.Clear();
+                _soundEffectLoadTasks.Clear();
+                _failedPaths.Clear();
+            }
+
+            foreach (var sfx in cached)
             {
                 sfx?.Dispose();
             }
-            _soundEffectCache.Clear();
 
             foreach (var instanceEntry in _managedLoopingInstances)
             {
@@ -483,13 +479,139 @@ namespace Client.Main.Controllers
             }
             _managedLoopingInstances.Clear();
 
-            _failedPaths.Clear();
             _logger?.LogDebug("SoundController: SoundEffect cache and managed looping instances cleared.");
         }
 
         public void Dispose()
         {
             ClearSoundCaches();
+        }
+
+        private async Task PlayBackgroundMusicAsync(string relativePath, int requestId)
+        {
+            SoundEffect musicEffect = null;
+            var fullPath = Path.Combine(Constants.DataPath, relativePath);
+            try
+            {
+                musicEffect = await LoadSoundEffectDataAsync(fullPath).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug($"[PlayBackgroundMusic] Error loading sound '{relativePath}': {ex.Message}");
+            }
+
+            if (musicEffect == null)
+            {
+                _logger?.LogDebug($"[PlayBackgroundMusic] Failed to load SoundEffect for: {relativePath}");
+                return;
+            }
+
+            MuGame.ScheduleOnMainThread(() =>
+            {
+                if (requestId != _backgroundMusicRequestId || !Constants.BACKGROUND_MUSIC)
+                {
+                    return;
+                }
+
+                _activeBackgroundMusicInstance?.Stop(true);
+                _activeBackgroundMusicInstance?.Dispose();
+                _activeBackgroundMusicInstance = musicEffect.CreateInstance();
+                _activeBackgroundMusicInstance.IsLooped = true;
+                try
+                {
+                    ApplyBackgroundMusicVolume();
+                    _activeBackgroundMusicInstance.Play();
+                    _currentBackgroundMusicPath = relativePath;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogDebug($"[PlayBackgroundMusic] Error playing sound '{relativePath}': {ex.Message}");
+                    StopBackgroundMusicInstance();
+                }
+            });
+        }
+
+        private Task<SoundEffect> LoadSoundEffectDataAsync(string fullPath)
+        {
+            string cacheKey = fullPath.ToLowerInvariant();
+
+            var cached = GetCachedSoundEffect(cacheKey);
+            if (cached != null)
+            {
+                return Task.FromResult(cached);
+            }
+
+            if (IsFailedPath(cacheKey))
+            {
+                return Task.FromResult<SoundEffect>(null);
+            }
+
+            lock (_soundCacheLock)
+            {
+                if (_soundEffectLoadTasks.TryGetValue(cacheKey, out var existingTask))
+                {
+                    return existingTask;
+                }
+
+                var task = Task.Run(() =>
+                {
+                    try
+                    {
+                        return LoadSoundEffectData(fullPath);
+                    }
+                    finally
+                    {
+                        lock (_soundCacheLock)
+                        {
+                            _soundEffectLoadTasks.Remove(cacheKey);
+                        }
+                    }
+                });
+
+                _soundEffectLoadTasks[cacheKey] = task;
+                return task;
+            }
+        }
+
+        private SoundEffect GetCachedSoundEffect(string cacheKey)
+        {
+            lock (_soundCacheLock)
+            {
+                if (_soundEffectCache.TryGetValue(cacheKey, out var sfx))
+                {
+                    if (sfx != null && !sfx.IsDisposed)
+                    {
+                        return sfx;
+                    }
+                    _soundEffectCache.Remove(cacheKey);
+                }
+            }
+
+            return null;
+        }
+
+        private void CacheSoundEffect(string cacheKey, SoundEffect effect)
+        {
+            lock (_soundCacheLock)
+            {
+                _soundEffectCache[cacheKey] = effect;
+            }
+        }
+
+        private bool IsFailedPath(string cacheKey)
+        {
+            lock (_soundCacheLock)
+            {
+                return _failedPaths.Contains(cacheKey);
+            }
+        }
+
+        private void MarkFailedPath(string cacheKey)
+        {
+            lock (_soundCacheLock)
+            {
+                _failedPaths.Add(cacheKey);
+            }
         }
     }
 }
