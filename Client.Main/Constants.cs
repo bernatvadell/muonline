@@ -55,6 +55,10 @@ namespace Client.Main
                 /// </summary>
                 public static bool ENABLE_MONSTER_MATERIAL_SHADER = true;
                 /// <summary>
+                /// Enables simple weapon trail ribbon while swinging melee weapons.
+                /// </summary>
+                public static bool ENABLE_WEAPON_TRAIL = true;
+                /// <summary>
                 /// Enables batch-optimized sorting of objects before rendering.
                 /// Groups objects by Model/Texture to minimize state changes and improve GPU cache coherency.
                 /// Provides 10-20% performance improvement with many similar objects.
@@ -108,6 +112,10 @@ namespace Client.Main
                 /// When disabled, uses standard rendering for all monsters.
                 /// </summary>
                 public static bool ENABLE_MONSTER_MATERIAL_SHADER = true;
+                /// <summary>
+                /// Enables simple weapon trail ribbon while swinging melee weapons.
+                /// </summary>
+                public static bool ENABLE_WEAPON_TRAIL = true;
                 /// <summary>
                 /// Enables batch-optimized sorting of objects before rendering.
                 /// Groups objects by Model/Texture to minimize state changes and improve GPU cache coherency.
