@@ -63,6 +63,7 @@ namespace Client.Main.Objects
         private float _blendMeshLight = 1f;
         protected double _animTime = 0.0;
         private bool _contentLoaded = false;
+        private bool _boundingComputed = false;
         public float ShadowOpacity { get; set; } = 1f;
         public Color Color { get; set; } = Color.White;
         protected Matrix[] BoneTransform { get; set; }
@@ -564,7 +565,9 @@ namespace Client.Main.Objects
                 {
                     // Reduce throttling for PlayerObjects to ensure proper rendering
                     bool isMainPlayer = this is PlayerObject p && p.IsMainWalker;
-                    double lightUpdateInterval = isMainPlayer ? 16.67 : 50; // 60Hz for main player, 20Hz for others
+                    double lightUpdateInterval = isMainPlayer
+                        ? 16.67
+                        : (RequiresPerFrameAnimation ? 50 : 1000); // throttle static objects heavily
                     float lightThreshold = isMainPlayer ? 0.001f : 0.01f;   // More sensitive for main player
 
                     double currentTime = gameTime.TotalGameTime.TotalMilliseconds;
@@ -1650,6 +1653,7 @@ namespace Client.Main.Objects
             _meshTexturePath = null;
             _blendMeshIndicesScratch = null;
             _contentLoaded = false;
+            _boundingComputed = false;
 
             // Clear cache references
             _cachedBoneMatrix = null;
@@ -1679,6 +1683,9 @@ namespace Client.Main.Objects
 
         private void UpdateBoundings()
         {
+            if (!RequiresPerFrameAnimation && _contentLoaded && _boundingComputed)
+                return;
+
             // Recalculate bounding box only every few frames
             if (_boundingFrameCounter++ < BoundingUpdateInterval)
                 return;
@@ -1727,7 +1734,10 @@ namespace Client.Main.Objects
             }
 
             if (hasValidVertices)
+            {
                 BoundingBoxLocal = new BoundingBox(min, max);
+                _boundingComputed = true;
+            }
         }
 
         private void Animation(GameTime gameTime)

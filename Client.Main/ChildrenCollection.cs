@@ -22,7 +22,7 @@ namespace Client.Main
     {
         private List<T> _controls = new List<T>();
         private volatile bool _snapshotDirty = true;
-        private T[] _snapshot = Array.Empty<T>();
+        private IReadOnlyList<T> _snapshot = Array.Empty<T>();
         private readonly object _lock = new object();
 
         public T Parent { get; private set; }
@@ -141,7 +141,7 @@ namespace Client.Main
         private IEnumerable<T> EnumerateSnapshot()
         {
             var snapshot = GetSnapshotArray();
-            for (int i = 0; i < snapshot.Length; i++)
+            for (int i = 0; i < snapshot.Count; i++)
                 yield return snapshot[i];
         }
 
@@ -227,21 +227,17 @@ namespace Client.Main
 
         private void InvalidateSnapshot() => _snapshotDirty = true;
 
-        private T[] GetSnapshotArray()
+        private IReadOnlyList<T> GetSnapshotArray()
         {
-            if (!_snapshotDirty)
-                return _snapshot;
-
             lock (_lock)
             {
-                if (!_snapshotDirty)
-                    return _snapshot;
-
-                _snapshot = _controls.Count == 0
-                    ? Array.Empty<T>()
-                    : _controls.ToArray();
-
-                _snapshotDirty = false;
+                if (_snapshotDirty)
+                {
+                    _snapshot = _controls.Count == 0
+                        ? Array.Empty<T>()
+                        : _controls.ToArray(); // new snapshot instance prevents in-place mutation during iteration
+                    _snapshotDirty = false;
+                }
                 return _snapshot;
             }
         }

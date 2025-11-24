@@ -14,7 +14,7 @@ namespace Client.Main.Controls.Terrain
     public class TerrainRenderer
     {
         private const float SpecialHeight = 1200f;
-        private const int TileBatchVerts = 4096 * 6;
+        private const int TileBatchVerts = 16384 * 6;
 
         private readonly GraphicsDevice _graphicsDevice;
         private readonly TerrainData _data;
@@ -81,12 +81,6 @@ namespace Client.Main.Controls.Terrain
             _lightManager = lightManager;
             _grassRenderer = grassRenderer;
 
-            for (int i = 0; i < 256; i++)
-            {
-                _tileBatches[i] = new TerrainVertexPositionColorNormalTexture[TileBatchVerts];
-                _tileAlphaBatches[i] = new TerrainVertexPositionColorNormalTexture[TileBatchVerts];
-            }
-            
             // Precompute UV scales for all textures
             PrecomputeUVScales();
         }
@@ -522,7 +516,7 @@ namespace Client.Main.Controls.Terrain
 
         private void AddTileToBatch(int texIndex, TerrainVertexPositionColorNormalTexture[] verts, bool alphaLayer)
         {
-            var batch = alphaLayer ? _tileAlphaBatches[texIndex] : _tileBatches[texIndex];
+            var batch = GetTileBatchBuffer(texIndex, alphaLayer);
             var counters = alphaLayer ? _tileAlphaCounts : _tileBatchCounts;
 
             int dstOff = counters[texIndex];
@@ -547,7 +541,7 @@ namespace Client.Main.Controls.Terrain
             int vertCount = alphaLayer ? _tileAlphaCounts[texIndex] : _tileBatchCounts[texIndex];
             if (vertCount == 0) return;
 
-            var batch = alphaLayer ? _tileAlphaBatches[texIndex] : _tileBatches[texIndex];
+            var batch = GetTileBatchBuffer(texIndex, alphaLayer);
             var texture = _data.Textures[texIndex];
             if (texture == null) return; // Added null check for texture
             var blendState = alphaLayer ? BlendState.AlphaBlend : BlendState.Opaque;
@@ -557,6 +551,7 @@ namespace Client.Main.Controls.Terrain
                 var effect = GraphicsManager.Instance.DynamicLightingEffect;
                 if (effect == null || effect.CurrentTechnique == null) return; // Added null checks for effect and effect.CurrentTechnique
 
+                int triCount = vertCount / 3;
                 // Avoid unnecessary state changes
                 if (_lastBoundTexture != texture)
                 {
@@ -570,13 +565,40 @@ namespace Client.Main.Controls.Terrain
                     _lastBlendState = blendState;
                 }
 
-                foreach (var pass in effect.CurrentTechnique.Passes)
+                var vertexBuffer = DynamicBufferPool.RentVertexBuffer(vertCount);
+                if (vertexBuffer == null)
                 {
-                    pass.Apply();
-                    _graphicsDevice.DrawUserPrimitives(
-                        PrimitiveType.TriangleList,
-                        batch, 0,
-                        vertCount / 3);
+                    // Fallback to old path if pooling unavailable
+                    foreach (var pass in effect.CurrentTechnique.Passes)
+                    {
+                        pass.Apply();
+                        _graphicsDevice.DrawUserPrimitives(
+                            PrimitiveType.TriangleList,
+                            batch, 0,
+                            triCount);
+                    }
+                }
+                else
+                {
+                    try
+                    {
+                        vertexBuffer.SetData(batch, 0, vertCount, SetDataOptions.Discard);
+                        _graphicsDevice.SetVertexBuffer(vertexBuffer);
+
+                        foreach (var pass in effect.CurrentTechnique.Passes)
+                        {
+                            pass.Apply();
+                            _graphicsDevice.DrawPrimitives(
+                                PrimitiveType.TriangleList,
+                                0,
+                                triCount);
+                        }
+                    }
+                    finally
+                    {
+                        _graphicsDevice.SetVertexBuffer(null);
+                        DynamicBufferPool.ReturnVertexBuffer(vertexBuffer);
+                    }
                 }
             }
             else
@@ -648,5 +670,17 @@ namespace Client.Main.Controls.Terrain
 
         private static int GetTerrainIndex(int x, int y)
             => y * Constants.TERRAIN_SIZE + x;
+
+        private TerrainVertexPositionColorNormalTexture[] GetTileBatchBuffer(int texIndex, bool alphaLayer)
+        {
+            var batches = alphaLayer ? _tileAlphaBatches : _tileBatches;
+            var buffer = batches[texIndex];
+            if (buffer == null || buffer.Length != TileBatchVerts)
+            {
+                buffer = new TerrainVertexPositionColorNormalTexture[TileBatchVerts];
+                batches[texIndex] = buffer;
+            }
+            return buffer;
+        }
     }
 }

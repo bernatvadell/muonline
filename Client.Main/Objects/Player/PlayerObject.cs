@@ -1580,20 +1580,21 @@ namespace Client.Main.Objects.Player
         {
             base.UpdateWorldBoundingBox();
 
-            var allCorners = new List<Vector3>(BoundingBoxWorld.GetCorners());
+            Vector3 min = BoundingBoxWorld.Min;
+            Vector3 max = BoundingBoxWorld.Max;
 
-            foreach (var child in Children)
+            for (int i = 0; i < Children.Count; i++)
             {
+                var child = Children[i];
                 if (child is ModelObject modelChild && modelChild.Visible && modelChild.Model != null)
                 {
-                    allCorners.AddRange(modelChild.BoundingBoxWorld.GetCorners());
+                    var childBox = modelChild.BoundingBoxWorld;
+                    min = Vector3.Min(min, childBox.Min);
+                    max = Vector3.Max(max, childBox.Max);
                 }
             }
 
-            if (allCorners.Count > 0)
-            {
-                BoundingBoxWorld = BoundingBox.CreateFromPoints(allCorners);
-            }
+            BoundingBoxWorld = new BoundingBox(min, max);
         }
 
         /// <summary>

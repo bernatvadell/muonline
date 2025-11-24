@@ -19,8 +19,11 @@ namespace Client.Main.Controls.UI.Game
             get => _currentHP;
             set
             {
-                _currentHP = value;
-                UpdatePercent();
+                if (_currentHP != value)
+                {
+                    _currentHP = value;
+                    UpdatePercent();
+                }
             }
         }
 
@@ -29,8 +32,11 @@ namespace Client.Main.Controls.UI.Game
             get => _maxHP;
             set
             {
-                _maxHP = value;
-                UpdatePercent();
+                if (_maxHP != value)
+                {
+                    _maxHP = value;
+                    UpdatePercent();
+                }
             }
         }
 
@@ -92,6 +98,9 @@ namespace Client.Main.Controls.UI.Game
 
         public void SetValues(int current, int max)  // Convenience setter
         {
+            if (_currentHP == current && _maxHP == max)
+                return;
+
             _currentHP = current;
             _maxHP = max;
             UpdatePercent();

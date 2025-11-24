@@ -29,7 +29,7 @@ namespace Client.Main.Controls.Terrain
             if (nowMs - _lastUpdateTime < UpdateIntervalMs) return;
 
             float windSpeed = (float)(nowMs % 720_000 * 0.002);
-            if (Math.Abs(windSpeed - _lastWindSpeed) < 0.01f) return;
+            if (Math.Abs(windSpeed - _lastWindSpeed) < 0.001f) return;
 
             _lastWindSpeed = windSpeed;
             _lastUpdateTime = nowMs;
@@ -37,20 +37,22 @@ namespace Client.Main.Controls.Terrain
             var cam = Camera.Instance;
             int cx = (int)(cam.Position.X / Constants.TERRAIN_SCALE);
             int cy = (int)(cam.Position.Y / Constants.TERRAIN_SCALE);
-            int startX = Math.Max(0, cx - 32), startY = Math.Max(0, cy - 32);
-            int endX = Math.Min(Constants.TERRAIN_SIZE - 1, startX + 64);
-            int endY = Math.Min(Constants.TERRAIN_SIZE - 1, startY + 64);
+            int startX = Math.Max(0, cx - 32);
+            int startY = Math.Max(0, cy - 32);
+            int endX = Math.Min(Constants.TERRAIN_SIZE - 1, cx + 32);
+            int endY = Math.Min(Constants.TERRAIN_SIZE - 1, cy + 32);
             const float Step = 5f;
+            int terrainSize = Constants.TERRAIN_SIZE;
 
-            Parallel.For(startY, endY + 1, y =>
+            for (int y = startY; y <= endY; y++)
             {
-                int baseIdx = y * Constants.TERRAIN_SIZE;
+                int baseIdx = y * terrainSize;
                 for (int x = startX; x <= endX; x++)
                 {
                     _data.GrassWind[baseIdx + x] =
                         _windCache.FastSin(windSpeed + x * Step) * WindScale;
                 }
-            });
+            }
         }
 
         public float GetWindValue(int x, int y)

@@ -17,12 +17,26 @@ namespace Client.Main.Controls.UI.Game
         public int CurrentMP
         {
             get => _currentMP;
-            set { _currentMP = value; UpdatePercent(); }
+            set
+            {
+                if (_currentMP != value)
+                {
+                    _currentMP = value;
+                    UpdatePercent();
+                }
+            }
         }
         public int MaxMP
         {
             get => _maxMP;
-            set { _maxMP = value; UpdatePercent(); }
+            set
+            {
+                if (_maxMP != value)
+                {
+                    _maxMP = value;
+                    UpdatePercent();
+                }
+            }
         }
 
         public MainMPControl()
@@ -81,6 +95,9 @@ namespace Client.Main.Controls.UI.Game
 
         public void SetValues(int current, int max)
         {
+            if (_currentMP == current && _maxMP == max)
+                return;
+
             _currentMP = current;
             _maxMP  = max;
             UpdatePercent();

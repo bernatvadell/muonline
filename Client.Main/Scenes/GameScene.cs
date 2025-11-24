@@ -53,6 +53,7 @@ namespace Client.Main.Scenes
         private MapNameControl _currentMapNameControl; // Track active map name display
         private LabelControl _pingLabel; // Displays current ping
         private double _pingTimer = 0;
+        private int? _lastPingValue = null;
         private PauseMenuControl _pauseMenu; // ESC menu
         private Controls.UI.Game.Skills.SkillQuickSlot _skillQuickSlot; // Skill quick slot
         private Controls.UI.Game.Skills.SkillSelectionPanel _skillSelectionPanel; // Skill selection panel (independent)
@@ -1179,6 +1180,10 @@ namespace Client.Main.Scenes
             SoundController.Instance.PreloadSound("Sound/pDropMoney.wav");
             SoundController.Instance.PreloadSound("Sound/mGem.wav");
             SoundController.Instance.PreloadSound("Sound/pGetItem.wav");
+            SoundController.Instance.PreloadSound("Sound/pWalk(Grass).wav");
+            SoundController.Instance.PreloadSound("Sound/pWalk(Snow).wav");
+            SoundController.Instance.PreloadSound("Sound/pWalk(Soil).wav");
+            SoundController.Instance.PreloadSound("Sound/pSwim.wav");
         }
 
         /// <summary>
@@ -1253,6 +1258,13 @@ namespace Client.Main.Scenes
             int? ping = await MuGame.Network.PingServerAsync();
             MuGame.ScheduleOnMainThread(() =>
             {
+                if (_pingLabel == null)
+                    return;
+
+                if (ping == _lastPingValue)
+                    return;
+
+                _lastPingValue = ping;
                 _pingLabel.Text = ping.HasValue ? $"Ping: {ping.Value} ms" : "Ping: --";
             });
         }

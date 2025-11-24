@@ -18,6 +18,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
+using System.Net.NetworkInformation;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -43,6 +44,7 @@ namespace Client.Main.Networking
         private readonly ScopeManager _scopeManager;
         private readonly Dictionary<byte, byte> _serverDirectionMap;
         private string _selectedCharacterNameForLogin = string.Empty;
+        private readonly Ping _pingSender = new Ping();
 
         private ClientConnectionState _currentState = ClientConnectionState.Initial;
         private List<ServerInfo> _serverList = new();
@@ -655,8 +657,7 @@ namespace Client.Main.Networking
 
             try
             {
-                using var p = new System.Net.NetworkInformation.Ping();
-                var reply = await p.SendPingAsync(_currentHost, timeoutMs);
+                var reply = await _pingSender.SendPingAsync(_currentHost, timeoutMs);
                 return reply.Status == System.Net.NetworkInformation.IPStatus.Success
                     ? (int?)reply.RoundtripTime
                     : null;
@@ -687,6 +688,7 @@ namespace Client.Main.Networking
         {
             _logger.LogInformation("Disposing NetworkManager...");
             _managerCts.Cancel();
+            _pingSender.Dispose();
             await _connectionManager.DisposeAsync();
             _managerCts.Dispose();
             _logger.LogInformation("NetworkManager disposed.");

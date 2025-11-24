@@ -19,7 +19,8 @@ namespace Client.Main.Graphics
 #else
         private const int MinFramesBeforeReuse = 2;   // avoid same-frame reuse elsewhere too
 #endif
-        private const int MaxIdleFrames = 300;        // drop long-idle buffers to cap VRAM usage
+        // Increase idle window to avoid churn on iGPU: ~60s at 60 FPS
+        private const int MaxIdleFrames = 3600;        // drop long-idle buffers to cap VRAM usage
 
         private static readonly SortedDictionary<int, Queue<PoolEntry<DynamicVertexBuffer>>> _vertexPools = new();
         private static readonly SortedDictionary<int, Queue<PoolEntry<DynamicIndexBuffer>>> _index16Pools = new();
@@ -307,6 +308,8 @@ namespace Client.Main.Graphics
         {
             int currentFrame = CurrentFrameId;
             List<int> emptyBuckets = null;
+            const int MaxDisposePerFrame = 2;
+            int disposedCount = 0;
 
             lock (poolLock)
             {
@@ -317,19 +320,25 @@ namespace Client.Main.Graphics
                     for (int i = 0; i < count; i++)
                     {
                         var entry = queue.Dequeue();
+                        bool drop = false;
+
                         if (entry.Buffer == null || entry.Buffer.IsDisposed || entry.Buffer.GraphicsDevice != _graphicsDevice)
                         {
                             entry.Buffer?.Dispose();
-                            continue;
+                            drop = true;
                         }
-
-                        if (ShouldTrim(currentFrame, entry.LastUsedFrame))
+                        else if (disposedCount < MaxDisposePerFrame && ShouldTrim(currentFrame, entry.LastUsedFrame))
                         {
                             entry.Buffer.Dispose();
-                            continue;
+                            disposedCount++;
+                            drop = true;
                         }
 
-                        queue.Enqueue(entry);
+                        if (!drop)
+                            queue.Enqueue(entry);
+
+                        if (disposedCount >= MaxDisposePerFrame)
+                            break;
                     }
 
                     if (queue.Count == 0)
@@ -337,6 +346,9 @@ namespace Client.Main.Graphics
                         emptyBuckets ??= new List<int>();
                         emptyBuckets.Add(kvp.Key);
                     }
+
+                    if (disposedCount >= MaxDisposePerFrame)
+                        break;
                 }
 
                 if (emptyBuckets != null)
