@@ -203,19 +203,22 @@ namespace Client.Main.Objects.Player
                 _ => Vector3.UnitZ
             };
 
-            float bestAbsProj = -1f;
-            SelectTipVertex(model, restBones, centroid, axisVec, preferSkinned: true, ref _trailTipLocal, ref _trailTipBone, ref bestAbsProj);
+            Vector3 refPoint = (restBones != null && restBones.Length > 0) ? restBones[0].Translation : Vector3.Zero;
 
-            // Fallback: allow unskinned vertices if none chosen.
-            if (_trailTipBone < 0)
+            if (!SelectTipVertex(model, restBones, centroid, axisVec, refPoint, preferSkinned: true, out _trailTipLocal, out _trailTipBone))
             {
-                bestAbsProj = -1f;
-                SelectTipVertex(model, restBones, centroid, axisVec, preferSkinned: false, ref _trailTipLocal, ref _trailTipBone, ref bestAbsProj);
+                SelectTipVertex(model, restBones, centroid, axisVec, refPoint, preferSkinned: false, out _trailTipLocal, out _trailTipBone);
             }
         }
 
-        private static void SelectTipVertex(BMD model, Matrix[] restBones, Vector3 centroid, Vector3 axisVec, bool preferSkinned, ref Vector3 tipLocal, ref int tipBone, ref float bestAbsProj)
+        private static bool SelectTipVertex(BMD model, Matrix[] restBones, Vector3 centroid, Vector3 axisVec, Vector3 refPoint, bool preferSkinned, out Vector3 tipLocal, out int tipBone)
         {
+            bool hasMin = false, hasMax = false;
+            Vector3 minLocal = Vector3.Zero, maxLocal = Vector3.Zero;
+            int minBone = -1, maxBone = -1;
+            float minProj = 0f, maxProj = 0f;
+            Vector3 minPosWorld = Vector3.Zero, maxPosWorld = Vector3.Zero;
+
             foreach (var mesh in model.Meshes)
             {
                 var verts = mesh.Vertices;
@@ -229,15 +232,72 @@ namespace Client.Main.Objects.Player
 
                     Vector3 pos = TransformVertex(restBones, vert);
                     float proj = Vector3.Dot(pos - centroid, axisVec);
-                    float absProj = MathF.Abs(proj);
-                    if (absProj > bestAbsProj)
+                    if (!hasMax || proj > maxProj)
                     {
-                        bestAbsProj = absProj;
-                        tipLocal = ToXna(vert.Position);
-                        tipBone = vert.Node;
+                        hasMax = true;
+                        maxProj = proj;
+                        maxLocal = ToXna(vert.Position);
+                        maxBone = vert.Node;
+                        maxPosWorld = pos;
+                    }
+                    if (!hasMin || proj < minProj)
+                    {
+                        hasMin = true;
+                        minProj = proj;
+                        minLocal = ToXna(vert.Position);
+                        minBone = vert.Node;
+                        minPosWorld = pos;
                     }
                 }
             }
+
+            if (!hasMin && !hasMax)
+            {
+                tipLocal = Vector3.Zero;
+                tipBone = -1;
+                return false;
+            }
+
+            // Choose the endpoint farther from the weapon's root/reference point to bias toward the blade tip.
+            float maxDist = hasMax ? Vector3.DistanceSquared(refPoint, maxPosWorld) : float.MinValue;
+            float minDist = hasMin ? Vector3.DistanceSquared(refPoint, minPosWorld) : float.MinValue;
+
+            // Recompute world positions if we skipped skinning (posWorld would be local).
+            if (hasMax && maxBone >= 0 && restBones != null && maxBone < restBones.Length)
+            {
+                maxDist = Vector3.DistanceSquared(refPoint, Vector3.Transform(maxLocal, restBones[maxBone]));
+            }
+            if (hasMin && minBone >= 0 && restBones != null && minBone < restBones.Length)
+            {
+                minDist = Vector3.DistanceSquared(refPoint, Vector3.Transform(minLocal, restBones[minBone]));
+            }
+
+            if (maxDist > minDist || !hasMin)
+            {
+                tipLocal = maxLocal;
+                tipBone = maxBone;
+            }
+            else if (minDist > maxDist || !hasMax)
+            {
+                tipLocal = minLocal;
+                tipBone = minBone;
+            }
+            else
+            {
+                // Distances tied; pick the side with larger absolute projection.
+                if (MathF.Abs(maxProj) >= MathF.Abs(minProj))
+                {
+                    tipLocal = maxLocal;
+                    tipBone = maxBone;
+                }
+                else
+                {
+                    tipLocal = minLocal;
+                    tipBone = minBone;
+                }
+            }
+
+            return true;
         }
 
         private static Matrix[] BuildRestPose(BMD model)

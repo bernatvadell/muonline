@@ -36,6 +36,7 @@ namespace Client.Main.Objects.Worlds.Devias
         private Vector3 _targetPosition;   // Target position for animation
         public Vector3 SlidingDirection { get; set; } // Sliding direction
         private const float SLIDING_DISTANCE = 150f;    // Sliding distance – adjust as needed
+        private bool _isFullyLoaded = false;            // Flag to prevent pairing before load completes
 
         // --- Dictionary of pairs (for rotating doors, e.g., 88/65) ---
         // For other types (e.g., 20 or 86), pair doors of the same type.
@@ -59,6 +60,7 @@ namespace Client.Main.Objects.Worlds.Devias
                 _closedPosition = Position;
             }
 
+            _isFullyLoaded = true;
             FindPairedDoor();
         }
 
@@ -80,6 +82,7 @@ namespace Client.Main.Objects.Worlds.Devias
             // - a different object than this,
             // - of type targetType,
             // - not yet paired,
+            // - fully loaded (prevents using uninitialized _closedPosition),
             // - located within a certain radius.
             var nearbyDoor = walkableWorld.Objects
                 .OfType<SteelDoorObject>()
@@ -87,6 +90,7 @@ namespace Client.Main.Objects.Worlds.Devias
                     door != this &&
                     door.Type == targetType &&
                     door._pairedDoor == null &&
+                    door._isFullyLoaded &&
                     Vector2.Distance(
                         new Vector2(Position.X, Position.Y),
                         new Vector2(door.Position.X, door.Position.Y)
@@ -270,10 +274,14 @@ namespace Client.Main.Objects.Worlds.Devias
 
             if (_isSlidingDoor)
             {
-                if (!_isSlidingAnimating && !_isOpen && playerInProximity)
-                    StartSliding(true);
-                else if (!_isSlidingAnimating && _isOpen && !playerInProximity)
-                    StartSliding(false);
+                // Only allow sliding if doors are properly paired and _openPosition is calculated
+                if (_pairedDoor != null && _openPosition != Vector3.Zero)
+                {
+                    if (!_isSlidingAnimating && !_isOpen && playerInProximity)
+                        StartSliding(true);
+                    else if (!_isSlidingAnimating && _isOpen && !playerInProximity)
+                        StartSliding(false);
+                }
 
                 UpdateSliding(gameTime);
                 // Removed redundant update call for paired door

@@ -1,26 +1,26 @@
 [
   {
     "Name": "Board",
-    "ScreenX": 1.5,
-    "ScreenY": 240,
-    "Width": 371,
-    "Height": 300,
-    "Z": 3
+    "ScreenX": 0,
+    "ScreenY": 0,
+    "Width": 420,
+    "Height": 690,
+    "Z": 1
   },
   {
     "Name": "TopCorner",
     "ScreenX": 0,
-    "ScreenY": 0,
-    "Width": 377,
-    "Height": 70,
-    "Z": 1
+    "ScreenY": -20,
+    "Width": 420,
+    "Height": 90,
+    "Z": 3
   },
   {
     "Name": "ContentBorder",
-    "ScreenX": -1,
+    "ScreenX": 0,
     "ScreenY": 60,
-    "Width": 371,
-    "Height": 180,
+    "Width": 420,
+    "Height": 210,
     "Z": 2
   }
 ]

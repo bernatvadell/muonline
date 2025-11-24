@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace Client.Main.Controllers
 {
@@ -31,8 +32,19 @@ namespace Client.Main.Controllers
             public float BaseVolume;
         }
 
+        private sealed class RecentPlayInfo
+        {
+            public double LastTimeMs;
+            public float LastVolume;
+        }
+
         private readonly Dictionary<string, ManagedLoopData> _managedLoopingInstances = new Dictionary<string, ManagedLoopData>();
         private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<SoundController>();
+        private readonly Stopwatch _playStopwatch = Stopwatch.StartNew();
+        private readonly Dictionary<string, RecentPlayInfo> _recentOneShots = new Dictionary<string, RecentPlayInfo>(StringComparer.OrdinalIgnoreCase);
+        private readonly object _recentOneShotsLock = new object();
+        private const double OneShotMinIntervalMs = 120.0; // prevent identical bursts stacking on the same frame
+        private const float OneShotVolumeSlack = 0.05f;   // allow slightly louder instances to break through the throttle
 
         private SoundController()
         {
@@ -158,6 +170,7 @@ namespace Client.Main.Controllers
             float distance = Vector3.Distance(sourcePosition, listenerPosition);
             float volume = 1.0f - (distance / maxDistance);
             volume = MathHelper.Clamp(volume, 0f, 1f);
+            float fxFactor = Constants.SOUND_EFFECTS_VOLUME / 100f;
 
             if (loop)
             {
@@ -182,7 +195,6 @@ namespace Client.Main.Controllers
                 }
 
                 var instance = managed.Instance;
-                float fxFactor = Constants.SOUND_EFFECTS_VOLUME / 100f;
                 managed.BaseVolume = MathHelper.Clamp(volume, 0f, 1f);
                 UpdateManagedLoopVolume(managed);
 
@@ -213,24 +225,30 @@ namespace Client.Main.Controllers
             }
             else
             {
+                float scaledVolume = MathHelper.Clamp(volume * fxFactor, 0f, 1f);
+                if (scaledVolume <= 0.01f || fxFactor <= 0f)
+                {
+                    return;
+                }
+
+                if (ShouldThrottleOneShot(fullPath, scaledVolume))
+                {
+                    return;
+                }
+
                 SoundEffect sfx = LoadSoundEffectData(fullPath); // LoadSoundEffectData używa cache
                 if (sfx == null || sfx.IsDisposed)
                 {
                     return;
                 }
 
-                float fxFactor = Constants.SOUND_EFFECTS_VOLUME / 100f;
-                if (volume > 0.01f && fxFactor > 0f)
+                try
                 {
-                    try
-                    {
-                        var scaled = MathHelper.Clamp(volume * fxFactor, 0f, 1f);
-                        sfx.Play(scaled, 0.0f, 0.0f);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.LogDebug($"[PlayEffectWithAttenuation] Error playing sound '{relativePath}': {ex.Message}");
-                    }
+                    sfx.Play(scaledVolume, 0.0f, 0.0f);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogDebug($"[PlayEffectWithAttenuation] Error playing sound '{relativePath}': {ex.Message}");
                 }
             }
         }
@@ -612,6 +630,36 @@ namespace Client.Main.Controllers
             {
                 _failedPaths.Add(cacheKey);
             }
+        }
+
+        private bool ShouldThrottleOneShot(string cacheKey, float finalVolume)
+        {
+            var nowMs = _playStopwatch.Elapsed.TotalMilliseconds;
+            lock (_recentOneShotsLock)
+            {
+                if (_recentOneShots.TryGetValue(cacheKey, out var info))
+                {
+                    var elapsed = nowMs - info.LastTimeMs;
+                    bool isQuieterOrEqual = finalVolume <= info.LastVolume + OneShotVolumeSlack;
+                    if (elapsed < OneShotMinIntervalMs && isQuieterOrEqual)
+                    {
+                        return true;
+                    }
+
+                    info.LastTimeMs = nowMs;
+                    info.LastVolume = Math.Max(finalVolume, info.LastVolume);
+                }
+                else
+                {
+                    _recentOneShots[cacheKey] = new RecentPlayInfo
+                    {
+                        LastTimeMs = nowMs,
+                        LastVolume = finalVolume
+                    };
+                }
+            }
+
+            return false;
         }
     }
 }

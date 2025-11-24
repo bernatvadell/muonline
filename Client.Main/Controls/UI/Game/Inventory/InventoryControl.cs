@@ -41,15 +41,25 @@ namespace Client.Main.Controls.UI.Game.Inventory
             "Interface/newui_msgbox_back.jpg"
         };
 
-        private const int WINDOW_WIDTH = 377;
-        private const int WINDOW_HEIGHT = 540;
+        private const int WINDOW_WIDTH = 420;
+        private const int WINDOW_HEIGHT = 690;
+
+        private const int HEADER_HEIGHT = 70;
+        private const int FOOTER_HEIGHT = 48;
+        private const int PAPERDOLL_TOP = HEADER_HEIGHT;
+        private const int PAPERDOLL_PADDING = 6;
+        private const int COLUMN_SPACING = 24;
+        private const int BEAM_HEIGHT = 8;
+        private const int BEAM_SPACING = 4;
+        private const int GRID_TOP_SPACING = 4;
+        private const int FOOTER_SPACING = 5;
+        private const int FOOTER_BUTTON_SIZE = 42;
 
         public const int INVENTORY_SQUARE_WIDTH = 35;
         public const int INVENTORY_SQUARE_HEIGHT = 35;
 
         public const int Columns = 8;
         public const int Rows = 8;
-        private const int EquipRows = 2;
         private const int InventorySlotOffsetConstant = 12;
 
         private static readonly Rectangle SlotSourceRect = new(546, 220, 29, 29);
@@ -71,6 +81,24 @@ namespace Client.Main.Controls.UI.Game.Inventory
             public int Y { get; init; }
             public int Width { get; init; }
             public int Height { get; init; }
+        }
+
+        private sealed class EquipSlotLayout
+        {
+            public EquipSlotLayout(byte slot, Rectangle rect, Point size, string label, bool accentRed = false)
+            {
+                Slot = slot;
+                Rect = rect;
+                Size = size;
+                Label = label;
+                AccentRed = accentRed;
+            }
+
+            public byte Slot { get; }
+            public Rectangle Rect { get; }
+            public Point Size { get; }
+            public string Label { get; }
+            public bool AccentRed { get; }
         }
 
         private enum TextAlignment
@@ -110,12 +138,15 @@ namespace Client.Main.Controls.UI.Game.Inventory
         private Texture2D _texTableLeftPixel;
         private Texture2D _texTableRightPixel;
         private Texture2D _texBackground;
+        private Texture2D _circleTexture;
+        private Texture2D _coinTexture;
 
         private RenderTarget2D _staticSurface;
         private bool _staticSurfaceDirty = true;
 
         private readonly List<InventoryTextEntry> _texts = new();
         private InventoryTextEntry _titleText;
+        private InventoryTextEntry _subtitleText;
         private InventoryTextEntry _zenText;
 
         private readonly Dictionary<string, Texture2D> _itemTextureCache = new(StringComparer.OrdinalIgnoreCase);
@@ -130,13 +161,25 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private SpriteFont _font;
 
-        private readonly Point _gridOffset = new(50, 80);
+        private Rectangle _headerRect;
+        private Rectangle _paperdollPanelRect;
+        private Rectangle _beamRect;
+        private Rectangle _gridRect;
+        private Rectangle _gridFrameRect;
+        private Rectangle _footerRect;
+        private Rectangle _zenFieldRect;
+        private Rectangle _zenIconRect;
+        private Rectangle _closeButtonRect;
+        private Rectangle _footerLeftButtonRect;
+        private Rectangle _footerRightButtonRect;
 
         private InventoryItem _hoveredItem;
         private Point _hoveredSlot = new(-1, -1);
         private int _hoveredEquipSlot = -1;
         private int _pickedFromEquipSlot = -1;
         private Point _pickedItemOriginalGrid = new(-1, -1);
+        private Point _pickedAtMousePos;
+        private bool _itemDragMoved;
 
         private bool _isDragging;
         private Point _dragOffset;
@@ -144,29 +187,18 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private long _zenAmount;
         private GameTime _currentGameTime;
+        private bool _closeHovered;
+        private bool _leftFooterHovered;
+        private bool _rightFooterHovered;
 
         public readonly PickedItemRenderer _pickedItemRenderer;
 
         private readonly List<LayoutInfo> _layoutInfos = new();
         private readonly Dictionary<string, TextureRectData> _textureRectLookup = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<byte, EquipSlotLayout> _equipSlots = new();
+        private Vector2 _layoutScale = Vector2.One;
 
         private static InventoryControl _instance;
-
-        private static readonly Dictionary<byte, Point> s_equipLayout = new()
-        {
-            { 0, new Point(0,0) },
-            { 2, new Point(1,0) },
-            { 3, new Point(2,0) },
-            { 1, new Point(3,0) },
-            { 7, new Point(4,0) },
-            { 9, new Point(5,0) },
-            { 8, new Point(0,1) },
-            { 5, new Point(1,1) },
-            { 4, new Point(2,1) },
-            { 6, new Point(3,1) },
-            { 10, new Point(4,1) },
-            { 11, new Point(5,1) }
-        };
 
         public InventoryControl(NetworkManager networkManager = null, ILoggerFactory loggerFactory = null)
         {
@@ -175,6 +207,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             _logger = factory?.CreateLogger<InventoryControl>();
 
             LoadLayoutDefinitions();
+            BuildLayoutMetrics();
 
             ControlSize = new Point(WINDOW_WIDTH, WINDOW_HEIGHT);
             ViewSize = ControlSize;
@@ -243,10 +276,43 @@ namespace Client.Main.Controls.UI.Game.Inventory
             _slotTexture = _layoutTexture;
 
             _font = GraphicsManager.Instance.Font;
+            EnsurePrimitiveTextures();
 
             UpdateZenFromNetwork();
             UpdateZenText();
             InvalidateStaticSurface();
+        }
+
+        private void EnsurePrimitiveTextures()
+        {
+            var device = GraphicsManager.Instance?.GraphicsDevice;
+            if (device == null)
+            {
+                return;
+            }
+
+            _circleTexture ??= CreateCircleTexture(device, 48, Color.White);
+            _coinTexture ??= CreateCircleTexture(device, 18, Color.White);
+        }
+
+        private static Texture2D CreateCircleTexture(GraphicsDevice device, int diameter, Color color)
+        {
+            var texture = new Texture2D(device, diameter, diameter);
+            var data = new Color[diameter * diameter];
+            float radius = (diameter - 1) / 2f;
+            var center = new Vector2(radius, radius);
+
+            for (int y = 0; y < diameter; y++)
+            {
+                for (int x = 0; x < diameter; x++)
+                {
+                    float dist = Vector2.Distance(new Vector2(x, y), center);
+                    data[y * diameter + x] = dist <= radius ? color : Color.Transparent;
+                }
+            }
+
+            texture.SetData(data);
+            return texture;
         }
 
         public void Preload()
@@ -277,7 +343,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             {
                 InventoryItem itemToReturn = _pickedItemRenderer.Item;
                 AddItem(itemToReturn);
-                _pickedItemRenderer.ReleaseItem();
+                ReleasePickedItem();
             }
 
             Visible = false;
@@ -324,15 +390,8 @@ namespace Client.Main.Controls.UI.Game.Inventory
             if (MuGame.Instance.Keyboard.IsKeyDown(Keys.Escape) &&
                 MuGame.Instance.PrevKeyboard.IsKeyUp(Keys.Escape))
             {
-                if (_pickedItemRenderer.Item != null)
-                {
-                    InventoryItem itemToReturn = _pickedItemRenderer.Item;
-                    AddItem(itemToReturn);
-                    _pickedItemRenderer.ReleaseItem();
-                }
-
-                Visible = false;
-                _zenText.Visible = false;
+                Hide();
+                return;
             }
 
             if (!Visible)
@@ -347,10 +406,16 @@ namespace Client.Main.Controls.UI.Game.Inventory
             _hoveredItem = null;
             _hoveredSlot = new Point(-1, -1);
             _hoveredEquipSlot = GetEquipSlotAtScreenPosition(mousePos);
+            UpdateChromeHover(mousePos);
 
             bool leftPressed = MuGame.Instance.UiMouseState.LeftButton == ButtonState.Pressed;
             bool leftJustPressed = leftPressed && MuGame.Instance.PrevUiMouseState.LeftButton == ButtonState.Released;
             bool leftJustReleased = !leftPressed && MuGame.Instance.PrevUiMouseState.LeftButton == ButtonState.Pressed;
+
+            if (leftJustPressed && HandleChromeClick())
+            {
+                return;
+            }
 
             if (leftJustPressed && IsMouseOverDragArea() && !_isDragging)
             {
@@ -383,9 +448,23 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 HandleInventoryInteraction(mousePos, leftJustPressed, leftJustReleased);
             }
 
-            if (leftJustReleased && _pickedItemRenderer.Item != null && !_isDragging && !IsMouseOverGrid())
+            if (_hoveredItem == null && _hoveredEquipSlot >= 0 && _equippedItems.TryGetValue((byte)_hoveredEquipSlot, out var hoveredEquip))
+            {
+                _hoveredItem = hoveredEquip;
+            }
+
+            if (leftJustReleased && _pickedItemRenderer.Item != null && !_isDragging && !IsMouseOverGrid() && _itemDragMoved)
             {
                 HandleDropOutsideInventory();
+            }
+
+            if (_pickedItemRenderer.Item != null && !_itemDragMoved)
+            {
+                var current = MuGame.Instance.UiMouseState.Position;
+                if (Vector2.Distance(current.ToVector2(), _pickedAtMousePos.ToVector2()) > 2f)
+                {
+                    _itemDragMoved = true;
+                }
             }
 
             _pickedItemRenderer.Update(gameTime);
@@ -422,7 +501,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
                 DrawInventoryItems(spriteBatch);
                 DrawEquippedItems(spriteBatch);
+                DrawEquipHighlights(spriteBatch);
                 DrawGridOverlays(spriteBatch);
+                DrawChrome(spriteBatch);
                 DrawTexts(spriteBatch);
                 DrawTooltip(spriteBatch);
             }
@@ -437,6 +518,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
             base.Dispose();
             _staticSurface?.Dispose();
             _staticSurface = null;
+            _circleTexture?.Dispose();
+            _circleTexture = null;
+            _coinTexture?.Dispose();
+            _coinTexture = null;
         }
 
         protected override void OnScreenSizeChanged()
@@ -449,10 +534,13 @@ namespace Client.Main.Controls.UI.Game.Inventory
         {
             _texts.Clear();
 
-            _titleText = CreateText(new Vector2(WINDOW_WIDTH / 2f, 36f), 13f, Color.Orange, TextAlignment.Center);
+            _titleText = CreateText(new Vector2(WINDOW_WIDTH / 2f, HEADER_HEIGHT * 0.5f - 6f), 14f, Color.White, TextAlignment.Center);
             _titleText.Text = "Inventory";
 
-            _zenText = CreateText(new Vector2(_gridOffset.X, CalculateZenTextY()), 14f, Color.Gold);
+            _subtitleText = CreateText(new Vector2(WINDOW_WIDTH / 2f, HEADER_HEIGHT - 18f), 9.5f, new Color(170, 170, 170), TextAlignment.Center);
+            _subtitleText.Text = "[Set option]   [Socket option]";
+
+            _zenText = CreateText(new Vector2(_zenFieldRect.X + 8, _zenFieldRect.Y + _zenFieldRect.Height * 0.5f - 7f), 13f, new Color(235, 210, 120));
             _zenText.Visible = false;
         }
 
@@ -462,13 +550,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
             var entry = new InventoryTextEntry(basePosition, fontScale, color, alignment);
             _texts.Add(entry);
             return entry;
-        }
-
-        private float CalculateZenTextY()
-        {
-            int gridBottomY = _gridOffset.Y + Rows * INVENTORY_SQUARE_HEIGHT;
-            int equipAreaBottomY = gridBottomY + 20 + (EquipRows * INVENTORY_SQUARE_HEIGHT);
-            return equipAreaBottomY + 10f;
         }
 
         private void UpdateZenFromNetwork()
@@ -486,7 +567,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
         {
             if (_zenText != null)
             {
-                _zenText.Text = $"ZEN: {ZenAmount}";
+                _zenText.Text = ZenAmount.ToString();
             }
         }
 
@@ -510,11 +591,130 @@ namespace Client.Main.Controls.UI.Game.Inventory
                         _textureRectLookup[rect.Name] = rect;
                     }
                 }
+
+                if (_layoutInfos.Count == 0)
+                {
+                    _layoutInfos.Add(new LayoutInfo
+                    {
+                        Name = "Board",
+                        ScreenX = 0,
+                        ScreenY = 0,
+                        Width = WINDOW_WIDTH,
+                        Height = WINDOW_HEIGHT,
+                        Z = 0
+                    });
+                }
+
+                RecalculateLayoutScale();
             }
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Failed to load inventory layout definitions.");
             }
+        }
+
+        private void RecalculateLayoutScale()
+        {
+            // For inventory we want the JSON sizes to be used directly (no auto-scaling).
+            _layoutScale = Vector2.One;
+        }
+
+        private void BuildLayoutMetrics()
+        {
+            BuildEquipSlots();
+
+            _headerRect = new Rectangle(0, 0, WINDOW_WIDTH, HEADER_HEIGHT);
+
+            var hasUnion = false;
+            var union = new Rectangle();
+            foreach (var slot in _equipSlots.Values)
+            {
+                if (!hasUnion)
+                {
+                    union = slot.Rect;
+                    hasUnion = true;
+                }
+                else
+                {
+                    union = Rectangle.Union(union, slot.Rect);
+                }
+            }
+
+            if (!hasUnion)
+            {
+                union = new Rectangle(PAPERDOLL_TOP, PAPERDOLL_TOP, INVENTORY_SQUARE_WIDTH * 4, INVENTORY_SQUARE_HEIGHT * 4);
+            }
+
+            union.Inflate(PAPERDOLL_PADDING, PAPERDOLL_PADDING);
+            _paperdollPanelRect = union;
+
+            _beamRect = Rectangle.Empty;
+
+            int gridX = (WINDOW_WIDTH - Columns * INVENTORY_SQUARE_WIDTH) / 2;
+            int gridY = _paperdollPanelRect.Bottom + GRID_TOP_SPACING;
+            _gridRect = new Rectangle(gridX, gridY, Columns * INVENTORY_SQUARE_WIDTH, Rows * INVENTORY_SQUARE_HEIGHT);
+            _gridFrameRect = new Rectangle(_gridRect.X - 12, _gridRect.Y - 12, _gridRect.Width + 24, _gridRect.Height + 24);
+
+            _footerRect = new Rectangle(10, _gridRect.Bottom + FOOTER_SPACING, WINDOW_WIDTH - 20, FOOTER_HEIGHT);
+            int buttonY = _footerRect.Bottom - FOOTER_BUTTON_SIZE - 4;
+            _footerLeftButtonRect = new Rectangle(_footerRect.X + 6, buttonY, FOOTER_BUTTON_SIZE, FOOTER_BUTTON_SIZE);
+            _footerRightButtonRect = new Rectangle(_footerRect.Right - FOOTER_BUTTON_SIZE - 6, buttonY, FOOTER_BUTTON_SIZE, FOOTER_BUTTON_SIZE);
+
+            _zenIconRect = new Rectangle(_footerLeftButtonRect.Right + 10, _footerRect.Y + 10, 18, 18);
+            int zenFieldX = _zenIconRect.Right + 6;
+            int zenFieldRightLimit = _footerRightButtonRect.X - 16;
+            int zenFieldWidth = Math.Max(110, zenFieldRightLimit - zenFieldX);
+            _zenFieldRect = new Rectangle(zenFieldX, _footerRect.Y + 8, zenFieldWidth, FOOTER_BUTTON_SIZE - 6);
+
+            _closeButtonRect = new Rectangle(_headerRect.Right - 34, _headerRect.Y + 10, 28, 28);
+        }
+
+        private void BuildEquipSlots()
+        {
+            _equipSlots.Clear();
+
+            const byte PendantSlot = 9;
+            const byte LeftRingSlot = 10;
+            const byte RightRingSlot = 11;
+
+            int cell = INVENTORY_SQUARE_WIDTH;
+            int centerX = (WINDOW_WIDTH - cell * 2) / 2;
+            int lateralOffset = COLUMN_SPACING + INVENTORY_SQUARE_WIDTH + 8;
+            int leftX = centerX - (cell * 2 + lateralOffset);
+            int rightX = centerX + cell * 2 + lateralOffset;
+            int topY = PAPERDOLL_TOP;
+            int ringOffset = 16;
+
+            AddEquipSlot(8, new Point(leftX, topY), new Point(2, 2), "PET");
+            int leftWeaponY = topY + cell * 2 + 4;
+            AddEquipSlot(0, new Point(leftX, leftWeaponY), new Point(2, 3), "LEFT", accentRed: true);
+            int glovesY = leftWeaponY + cell * 3 + 6;
+            AddEquipSlot(5, new Point(leftX, glovesY), new Point(2, 2), "GLOVES");
+
+            AddEquipSlot(2, new Point(centerX, topY - 2), new Point(2, 2), "HELM");
+            int chestY = topY - 2 + cell * 2;
+            int pendantY = chestY + cell / 2;
+            // Pendant aligned horizontally with left ring
+            AddEquipSlot(PendantSlot, new Point(centerX - (ringOffset + cell), pendantY), new Point(1, 1), "PEND");
+            AddEquipSlot(3, new Point(centerX, chestY), new Point(2, 3), "CHEST");
+            int pantsY = chestY + cell * 3 + 2;
+            AddEquipSlot(4, new Point(centerX, pantsY), new Point(2, 2), "PANTS");
+            int ringsY = pantsY + cell / 2;
+            AddEquipSlot(LeftRingSlot, new Point(centerX - (ringOffset + cell), ringsY), new Point(1, 1), "RING");
+            AddEquipSlot(RightRingSlot, new Point(centerX + cell * 2 + ringOffset, ringsY), new Point(1, 1), "RING");
+
+            int wingsX = rightX - cell / 2;
+            AddEquipSlot(7, new Point(wingsX, topY - 6), new Point(3, 2), "WINGS");
+            int rightWeaponY = topY + cell * 2 + 4;
+            AddEquipSlot(1, new Point(rightX, rightWeaponY), new Point(2, 3), "RIGHT");
+            int bootsY = rightWeaponY + cell * 3 + 6;
+            AddEquipSlot(6, new Point(rightX, bootsY), new Point(2, 2), "BOOTS");
+        }
+
+        private void AddEquipSlot(byte slot, Point origin, Point size, string ghostLabel, bool accentRed = false)
+        {
+            var rect = new Rectangle(origin.X, origin.Y, size.X * INVENTORY_SQUARE_WIDTH, size.Y * INVENTORY_SQUARE_HEIGHT);
+            _equipSlots[slot] = new EquipSlotLayout(slot, rect, size, ghostLabel, accentRed);
         }
 
         private static T LoadEmbeddedJson<T>(string resourceName)
@@ -564,65 +764,100 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void DrawStaticElements(SpriteBatch spriteBatch)
         {
-            if (_texBackground != null)
-            {
-                spriteBatch.Draw(_texBackground, new Rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT), Color.White);
-            }
-            else if (GraphicsManager.Instance?.Pixel != null)
-            {
-                spriteBatch.Draw(GraphicsManager.Instance.Pixel, new Rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT), new Color(10, 10, 10, 220));
-            }
+            var pixel = GraphicsManager.Instance?.Pixel;
+            var fullRect = new Rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
 
             if (_layoutTexture != null && _layoutInfos.Count > 0)
             {
                 foreach (var info in _layoutInfos)
                 {
                     var destRect = new Rectangle(
-                        (int)MathF.Round(info.ScreenX),
-                        (int)MathF.Round(info.ScreenY),
-                        info.Width,
-                        info.Height);
+                        (int)MathF.Round(info.ScreenX * _layoutScale.X),
+                        (int)MathF.Round(info.ScreenY * _layoutScale.Y),
+                        (int)MathF.Round(info.Width * _layoutScale.X),
+                        (int)MathF.Round(info.Height * _layoutScale.Y));
 
-                    if (_textureRectLookup.TryGetValue(info.Name, out var texRect))
+                    if (_textureRectLookup.TryGetValue(info.Name, out var src))
                     {
-                        var sourceRect = new Rectangle(texRect.X, texRect.Y, texRect.Width, texRect.Height);
+                        var sourceRect = new Rectangle(src.X, src.Y, src.Width, src.Height);
                         spriteBatch.Draw(_layoutTexture, destRect, sourceRect, Color.White);
                     }
                     else
                     {
-                        spriteBatch.Draw(_layoutTexture, destRect, Color.White * 0.2f);
+                        spriteBatch.Draw(_layoutTexture, destRect, Color.White);
                     }
                 }
             }
+            else if (_layoutTexture != null && _textureRectLookup.TryGetValue("Board", out var board))
+            {
+                var src = new Rectangle(board.X, board.Y, board.Width, board.Height);
+                spriteBatch.Draw(_layoutTexture, fullRect, src, Color.White);
+            }
+            else if (pixel != null)
+            {
+                spriteBatch.Draw(pixel, fullRect, new Color(10, 10, 10, 220));
+            }
 
-            DrawGridBackground(spriteBatch);
-            DrawEquipBackground(spriteBatch);
+            if (pixel != null)
+            {
+                DrawHeaderBar(spriteBatch, pixel);
+                DrawEquipBackground(spriteBatch);
+                DrawGridBackground(spriteBatch);
+                DrawFooterBase(spriteBatch, pixel);
+            }
+        }
+
+        private void DrawHeaderBar(SpriteBatch spriteBatch, Texture2D pixel)
+        {
+            // Intentionally left blank: header uses base layout only (no extra bar).
+        }
+
+        private void DrawBeam(SpriteBatch spriteBatch, Texture2D pixel)
+        {
+            // Separator removed for compact layout.
         }
 
         private void DrawGridBackground(SpriteBatch spriteBatch)
         {
-            for (int y = 0; y < Rows; y++)
+            var pixel = GraphicsManager.Instance?.Pixel;
+            if (pixel == null)
             {
-                for (int x = 0; x < Columns; x++)
-                {
-                    Rectangle slotRect = new(
-                        _gridOffset.X + x * INVENTORY_SQUARE_WIDTH,
-                        _gridOffset.Y + y * INVENTORY_SQUARE_HEIGHT,
-                        INVENTORY_SQUARE_WIDTH,
-                        INVENTORY_SQUARE_HEIGHT);
+                return;
+            }
 
-                    if (_slotTexture != null)
+            DrawInsetPanel(spriteBatch, _gridFrameRect, new Color(12, 12, 12, 220), new Color(80, 80, 80, 180), new Color(0, 0, 0, 220), 2);
+            spriteBatch.Draw(pixel, _gridRect, new Color(4, 4, 4, 235));
+            DrawBevel(spriteBatch, _gridRect, new Color(60, 60, 60, 180), new Color(0, 0, 0, 200));
+
+            Color gridLine = new Color(28, 28, 28, 180);
+            for (int x = 1; x < Columns; x++)
+            {
+                int lineX = _gridRect.X + x * INVENTORY_SQUARE_WIDTH;
+                spriteBatch.Draw(pixel, new Rectangle(lineX, _gridRect.Y, 1, _gridRect.Height), gridLine);
+            }
+
+            for (int y = 1; y < Rows; y++)
+            {
+                int lineY = _gridRect.Y + y * INVENTORY_SQUARE_HEIGHT;
+                spriteBatch.Draw(pixel, new Rectangle(_gridRect.X, lineY, _gridRect.Width, 1), gridLine);
+            }
+
+            if (_slotTexture != null)
+            {
+                for (int y = 0; y < Rows; y++)
+                {
+                    for (int x = 0; x < Columns; x++)
                     {
-                        spriteBatch.Draw(_slotTexture, slotRect, SlotSourceRect, Color.White);
-                    }
-                    else if (GraphicsManager.Instance?.Pixel != null)
-                    {
-                        spriteBatch.Draw(GraphicsManager.Instance.Pixel, slotRect, Color.DarkSlateGray * 0.3f);
+                        var slotRect = new Rectangle(
+                            _gridRect.X + x * INVENTORY_SQUARE_WIDTH,
+                            _gridRect.Y + y * INVENTORY_SQUARE_HEIGHT,
+                            INVENTORY_SQUARE_WIDTH,
+                            INVENTORY_SQUARE_HEIGHT);
+                        spriteBatch.Draw(_slotTexture, slotRect, SlotSourceRect, Color.White * 0.18f);
                     }
                 }
             }
         }
-
         private void DrawEquipBackground(SpriteBatch spriteBatch)
         {
             var pixel = GraphicsManager.Instance?.Pixel;
@@ -631,45 +866,99 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 return;
             }
 
-            Point equipTopLeft = GetEquipAreaTopLeft();
+            DrawInsetPanel(spriteBatch, _paperdollPanelRect, new Color(20, 20, 22, 200), new Color(80, 80, 90, 150), new Color(6, 6, 6, 200), 2);
 
-            int equipCols = 6;
-            int panelWidth = equipCols * INVENTORY_SQUARE_WIDTH + 16;
-            int panelHeight = EquipRows * INVENTORY_SQUARE_WIDTH + 24;
-
-            var panelRect = new Rectangle(
-                equipTopLeft.X - 8,
-                equipTopLeft.Y - 14,
-                panelWidth,
-                panelHeight);
-
-            spriteBatch.Draw(pixel, panelRect, new Color(8, 8, 8, 180));
-            spriteBatch.Draw(pixel, new Rectangle(panelRect.X, panelRect.Y, panelRect.Width, 1), Color.Black * 0.6f);
-            spriteBatch.Draw(pixel, new Rectangle(panelRect.X, panelRect.Bottom - 1, panelRect.Width, 1), Color.Black * 0.6f);
-            spriteBatch.Draw(pixel, new Rectangle(panelRect.X, panelRect.Y, 1, panelRect.Height), Color.Black * 0.6f);
-            spriteBatch.Draw(pixel, new Rectangle(panelRect.Right - 1, panelRect.Y, 1, panelRect.Height), Color.Black * 0.6f);
-
-            foreach (var kv in s_equipLayout)
+            foreach (var layout in _equipSlots.Values)
             {
-                var cell = kv.Value;
-                Rectangle slotRect = new(
-                    equipTopLeft.X + cell.X * INVENTORY_SQUARE_WIDTH,
-                    equipTopLeft.Y + cell.Y * INVENTORY_SQUARE_HEIGHT,
-                    INVENTORY_SQUARE_WIDTH,
-                    INVENTORY_SQUARE_HEIGHT);
+                DrawEquipSlot(spriteBatch, layout);
+            }
+        }
 
-                if (_slotTexture != null)
+        private void DrawEquipSlot(SpriteBatch spriteBatch, EquipSlotLayout layout)
+        {
+            var pixel = GraphicsManager.Instance?.Pixel;
+            if (pixel == null)
+            {
+                return;
+            }
+
+            Rectangle rect = layout.Rect;
+            DrawInsetPanel(spriteBatch, rect, new Color(5, 5, 5, 200), new Color(70, 70, 70, 160), new Color(0, 0, 0, 200), 1);
+
+            if (_slotTexture != null)
+            {
+                for (int y = 0; y < layout.Size.Y; y++)
                 {
-                    spriteBatch.Draw(_slotTexture, slotRect, SlotSourceRect, Color.White);
+                    for (int x = 0; x < layout.Size.X; x++)
+                    {
+                        Rectangle slotRect = new(
+                            rect.X + x * INVENTORY_SQUARE_WIDTH,
+                            rect.Y + y * INVENTORY_SQUARE_HEIGHT,
+                            INVENTORY_SQUARE_WIDTH,
+                            INVENTORY_SQUARE_HEIGHT);
+                        spriteBatch.Draw(_slotTexture, slotRect, SlotSourceRect, Color.White * 0.35f);
+                    }
                 }
-                else
-                {
-                    spriteBatch.Draw(pixel, slotRect, Color.DarkSlateGray * 0.3f);
-                    spriteBatch.Draw(pixel, new Rectangle(slotRect.X, slotRect.Y, slotRect.Width, 1), Color.Gray * 0.8f);
-                    spriteBatch.Draw(pixel, new Rectangle(slotRect.X, slotRect.Bottom - 1, slotRect.Width, 1), Color.Gray * 0.8f);
-                    spriteBatch.Draw(pixel, new Rectangle(slotRect.X, slotRect.Y, 1, slotRect.Height), Color.Gray * 0.8f);
-                    spriteBatch.Draw(pixel, new Rectangle(slotRect.Right - 1, slotRect.Y, 1, slotRect.Height), Color.Gray * 0.8f);
-                }
+            }
+            else
+            {
+                spriteBatch.Draw(pixel, rect, new Color(24, 24, 24, 200));
+            }
+
+            DrawGhostIcon(spriteBatch, layout);
+        }
+
+        private void DrawGhostIcon(SpriteBatch spriteBatch, EquipSlotLayout layout)
+        {
+            if (_font == null || string.IsNullOrEmpty(layout.Label))
+            {
+                return;
+            }
+
+            const float scale = 0.35f;
+            Vector2 size = _font.MeasureString(layout.Label) * scale;
+            Vector2 center = new(layout.Rect.X + layout.Rect.Width / 2f, layout.Rect.Y + layout.Rect.Height / 2f);
+            Vector2 pos = center - size / 2f;
+
+            spriteBatch.DrawString(_font, layout.Label, pos + new Vector2(1f, 1f), new Color(0, 0, 0, 120), 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            spriteBatch.DrawString(_font, layout.Label, pos, new Color(90, 90, 90, 200), 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+        }
+
+        private void DrawFooterBase(SpriteBatch spriteBatch, Texture2D pixel)
+        {
+            // Only draw the zen field; no footer panel block.
+            DrawInsetPanel(spriteBatch, _zenFieldRect, new Color(12, 12, 12, 230), new Color(80, 80, 80, 180), new Color(0, 0, 0, 210));
+        }
+
+        private static void DrawBevel(SpriteBatch spriteBatch, Rectangle rect, Color light, Color dark)
+        {
+            var pixel = GraphicsManager.Instance?.Pixel;
+            if (pixel == null)
+            {
+                return;
+            }
+
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 1), light);
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 1, rect.Width, 1), dark);
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, 1, rect.Height), light);
+            spriteBatch.Draw(pixel, new Rectangle(rect.Right - 1, rect.Y, 1, rect.Height), dark);
+        }
+
+        private static void DrawInsetPanel(SpriteBatch spriteBatch, Rectangle rect, Color fill, Color light, Color dark, int thickness = 1)
+        {
+            var pixel = GraphicsManager.Instance?.Pixel;
+            if (pixel == null)
+            {
+                return;
+            }
+
+            spriteBatch.Draw(pixel, rect, fill);
+            for (int i = 0; i < thickness; i++)
+            {
+                spriteBatch.Draw(pixel, new Rectangle(rect.X + i, rect.Y + i, rect.Width - i * 2, 1), light);
+                spriteBatch.Draw(pixel, new Rectangle(rect.X + i, rect.Bottom - 1 - i, rect.Width - i * 2, 1), dark);
+                spriteBatch.Draw(pixel, new Rectangle(rect.X + i, rect.Y + i, 1, rect.Height - i * 2), light);
+                spriteBatch.Draw(pixel, new Rectangle(rect.Right - 1 - i, rect.Y + i, 1, rect.Height - i * 2), dark);
             }
         }
 
@@ -769,6 +1058,39 @@ namespace Client.Main.Controls.UI.Game.Inventory
             return new Dictionary<byte, byte[]>(_networkManager.GetCharacterState().GetInventoryItems());
         }
 
+        private void UpdateChromeHover(Point mousePos)
+        {
+            var closeRect = Translate(_closeButtonRect);
+            var leftRect = Translate(_footerLeftButtonRect);
+            var rightRect = Translate(_footerRightButtonRect);
+
+            _closeHovered = closeRect.Contains(mousePos);
+            _leftFooterHovered = leftRect.Contains(mousePos);
+            _rightFooterHovered = rightRect.Contains(mousePos);
+        }
+
+        private bool HandleChromeClick()
+        {
+            if (_closeHovered)
+            {
+                Hide();
+                return true;
+            }
+
+            if (_leftFooterHovered)
+            {
+                Hide();
+                return true;
+            }
+
+            if (_rightFooterHovered)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
         private void HandleInventoryInteraction(Point mousePos, bool leftJustPressed, bool leftJustReleased)
         {
             Point gridSlot = GetSlotAtScreenPosition(mousePos);
@@ -789,8 +1111,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                             {
                                 itemToPlace.GridPosition = gridSlot;
                                 AddItem(itemToPlace);
-                                _pickedItemRenderer.ReleaseItem();
-                                _pickedItemOriginalGrid = new Point(-1, -1);
+                                ReleasePickedItem();
                                 return;
                             }
 
@@ -827,15 +1148,15 @@ namespace Client.Main.Controls.UI.Game.Inventory
                                 });
                             }
 
-                            _pickedItemRenderer.ReleaseItem();
-                            _pickedItemOriginalGrid = new Point(-1, -1);
-                            _pickedFromEquipSlot = -1;
+                            ReleasePickedItem();
                         }
                     }
                     else if (_hoveredItem != null)
                     {
                         _pickedItemRenderer.PickUpItem(_hoveredItem);
                         _pickedItemOriginalGrid = _hoveredItem.GridPosition;
+                        _pickedAtMousePos = mousePos;
+                        _itemDragMoved = false;
                         RemoveItemFromGrid(_hoveredItem);
                         _items.Remove(_hoveredItem);
                         _hoveredItem = null;
@@ -917,9 +1238,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                             });
                         }
 
-                        _pickedItemRenderer.ReleaseItem();
-                        _pickedItemOriginalGrid = new Point(-1, -1);
-                        _pickedFromEquipSlot = -1;
+                        ReleasePickedItem();
                     }
                     else
                     {
@@ -929,6 +1248,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
                             _equippedItems.Remove((byte)_hoveredEquipSlot);
                             _pickedFromEquipSlot = _hoveredEquipSlot;
                             _pickedItemOriginalGrid = new Point(-1, -1);
+                            _pickedAtMousePos = mousePos;
+                            _itemDragMoved = false;
+                            _hoveredItem = eqItem;
                         }
                     }
                 }
@@ -943,7 +1265,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 return;
             }
 
-            byte slotIndex = (byte)(InventorySlotOffsetConstant + (item.GridPosition.Y * Columns) + item.GridPosition.X);
+            byte slotIndex = _pickedFromEquipSlot >= 0
+                ? (byte)_pickedFromEquipSlot
+                : (byte)(InventorySlotOffsetConstant + (item.GridPosition.Y * Columns) + item.GridPosition.X);
 
             var shop = Game.NpcShopControl.Instance;
             if (shop != null && shop.Visible && shop.DisplayRectangle.Contains(MuGame.Instance.UiMouseState.Position))
@@ -952,9 +1276,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 var originalGrid = _pickedItemOriginalGrid;
                 int fromEquipSlot = _pickedFromEquipSlot;
 
-                _pickedItemRenderer.ReleaseItem();
-                _pickedItemOriginalGrid = new Point(-1, -1);
-                _pickedFromEquipSlot = -1;
+                ReleasePickedItem();
 
                 ShowSellConfirmation(itemToSell, slotIndex, originalGrid, fromEquipSlot);
             }
@@ -986,15 +1308,13 @@ namespace Client.Main.Controls.UI.Game.Inventory
                         }
                     });
 
-                    _pickedItemRenderer.ReleaseItem();
-                    _pickedItemOriginalGrid = new Point(-1, -1);
+                    ReleasePickedItem();
                 }
                 else
                 {
                     AddItem(item);
                     _networkManager?.GetCharacterState()?.RaiseInventoryChanged();
-                    _pickedItemRenderer.ReleaseItem();
-                    _pickedItemOriginalGrid = new Point(-1, -1);
+                    ReleasePickedItem();
                 }
             }
             else if (Scene?.World is Controls.WalkableWorldControl world && _network_manager_exists())
@@ -1014,14 +1334,12 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     }
                 });
 
-                _pickedItemRenderer.ReleaseItem();
-                _pickedItemOriginalGrid = new Point(-1, -1);
+                ReleasePickedItem();
             }
             else
             {
                 AddItem(item);
-                _pickedItemRenderer.ReleaseItem();
-                _pickedItemOriginalGrid = new Point(-1, -1);
+                ReleasePickedItem();
             }
         }
 
@@ -1286,7 +1604,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 return;
             }
 
-            Point gridTopLeft = new(DisplayRectangle.X + _gridOffset.X, DisplayRectangle.Y + _gridOffset.Y);
+            Point gridTopLeft = Translate(_gridRect).Location;
             var font = GraphicsManager.Instance.Font;
 
             foreach (var item in _items.ToList())
@@ -1324,17 +1642,13 @@ namespace Client.Main.Controls.UI.Game.Inventory
         {
             foreach (var kv in _equippedItems)
             {
-                if (!s_equipLayout.TryGetValue(kv.Key, out var cell))
+                if (!_equipSlots.TryGetValue(kv.Key, out var slot))
                 {
                     continue;
                 }
 
                 var item = kv.Value;
-                Rectangle itemRect = new(
-                    GetEquipAreaTopLeft().X + cell.X * INVENTORY_SQUARE_WIDTH,
-                    GetEquipAreaTopLeft().Y + cell.Y * INVENTORY_SQUARE_WIDTH,
-                    INVENTORY_SQUARE_WIDTH,
-                    INVENTORY_SQUARE_WIDTH);
+                Rectangle itemRect = Translate(slot.Rect);
 
                 Texture2D itemTexture = ResolveItemTexture(item, itemRect.Width, itemRect.Height);
 
@@ -1437,40 +1751,60 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 return;
             }
 
-            Point gridTopLeft = new(DisplayRectangle.X + _gridOffset.X, DisplayRectangle.Y + _gridOffset.Y);
+            Rectangle gridRect = Translate(_gridRect);
             var dragged = _pickedItem_renderer_item() ?? Game.VaultControl.Instance?.GetDraggedItem();
+            bool isOverGrid = IsMouseOverGrid();
 
             for (int y = 0; y < Rows; y++)
             {
                 for (int x = 0; x < Columns; x++)
                 {
                     Rectangle slotRect = new(
-                        gridTopLeft.X + x * INVENTORY_SQUARE_WIDTH,
-                        gridTopLeft.Y + y * INVENTORY_SQUARE_WIDTH,
+                        gridRect.X + x * INVENTORY_SQUARE_WIDTH,
+                        gridRect.Y + y * INVENTORY_SQUARE_HEIGHT,
                         INVENTORY_SQUARE_WIDTH,
-                        INVENTORY_SQUARE_WIDTH);
+                        INVENTORY_SQUARE_HEIGHT);
 
-                    if (dragged != null && IsMouseOverGrid())
-                    {
-                        var highlight = GetSlotHighlightColor(new Point(x, y), dragged);
-                        if (highlight.HasValue)
-                        {
-                            spriteBatch.Draw(GraphicsManager.Instance.Pixel, slotRect, highlight.Value);
-                        }
-                    }
-                    else if (IsMouseOverGrid() && dragged == null)
-                    {
-                        if (_hoveredSlot.X == x && _hoveredSlot.Y == y)
-                        {
-                            spriteBatch.Draw(GraphicsManager.Instance.Pixel, slotRect, Color.Yellow * 0.3f);
-                        }
-                        else if (_hoveredItem != null && IsSlotOccupiedByItem(new Point(x, y), _hoveredItem))
-                        {
-                            spriteBatch.Draw(GraphicsManager.Instance.Pixel, slotRect, Color.CornflowerBlue * 0.35f);
-                        }
-                    }
+            if (dragged != null && isOverGrid)
+            {
+                var highlight = GetSlotHighlightColor(new Point(x, y), dragged);
+                if (highlight.HasValue)
+                {
+                    spriteBatch.Draw(GraphicsManager.Instance.Pixel, slotRect, highlight.Value);
                 }
             }
+            else if (isOverGrid && dragged == null)
+            {
+                if (_hoveredSlot.X == x && _hoveredSlot.Y == y)
+                {
+                    spriteBatch.Draw(GraphicsManager.Instance.Pixel, slotRect, new Color(180, 170, 90, 120));
+                }
+                else if (_hoveredItem != null && IsSlotOccupiedByItem(new Point(x, y), _hoveredItem))
+                {
+                    spriteBatch.Draw(GraphicsManager.Instance.Pixel, slotRect, new Color(90, 140, 220, 90));
+                }
+            }
+        }
+    }
+}
+
+        private void DrawEquipHighlights(SpriteBatch spriteBatch)
+        {
+            var pixel = GraphicsManager.Instance?.Pixel;
+            if (pixel == null || _hoveredEquipSlot < 0)
+            {
+                return;
+            }
+
+            if (!_equipSlots.TryGetValue((byte)_hoveredEquipSlot, out var layout))
+            {
+                return;
+            }
+
+            Rectangle rect = Translate(layout.Rect);
+            Color overlay = layout.AccentRed ? new Color(200, 60, 60, 140) : new Color(120, 170, 240, 90);
+            spriteBatch.Draw(pixel, rect, overlay);
+            DrawBevel(spriteBatch, rect, layout.AccentRed ? new Color(255, 140, 140, 140) : new Color(170, 200, 240, 120), new Color(10, 10, 10, 160));
         }
 
         private void DrawTexts(SpriteBatch spriteBatch)
@@ -1506,6 +1840,80 @@ namespace Client.Main.Controls.UI.Game.Inventory
             }
         }
 
+        private void DrawChrome(SpriteBatch spriteBatch)
+        {
+            var pixel = GraphicsManager.Instance?.Pixel;
+            if (pixel == null)
+            {
+                return;
+            }
+
+            DrawCloseButton(spriteBatch);
+            DrawFooterButton(spriteBatch, _footerLeftButtonRect, "X", _leftFooterHovered);
+            DrawFooterButton(spriteBatch, _footerRightButtonRect, "+", _rightFooterHovered);
+            DrawCoinAndField(spriteBatch, pixel);
+        }
+
+        private void DrawCloseButton(SpriteBatch spriteBatch)
+        {
+            Rectangle rect = Translate(_closeButtonRect);
+            if (_circleTexture != null)
+            {
+                var outer = rect;
+                var inner = new Rectangle(rect.X + 3, rect.Y + 3, rect.Width - 6, rect.Height - 6);
+                spriteBatch.Draw(_circleTexture, outer, new Color(120, 60, 20, 230));
+                spriteBatch.Draw(_circleTexture, inner, _closeHovered ? new Color(255, 170, 90) : new Color(236, 142, 60));
+            }
+            else
+            {
+                spriteBatch.Draw(GraphicsManager.Instance.Pixel, rect, new Color(236, 142, 60));
+            }
+
+            if (_font != null)
+            {
+                float scale = 0.6f;
+                Vector2 size = _font.MeasureString("X") * scale;
+                Vector2 pos = new(rect.X + (rect.Width - size.X) / 2f, rect.Y + (rect.Height - size.Y) / 2f);
+                spriteBatch.DrawString(_font, "X", pos + new Vector2(1, 1), Color.Black * 0.8f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                spriteBatch.DrawString(_font, "X", pos, new Color(12, 12, 12), 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            }
+        }
+
+        private void DrawFooterButton(SpriteBatch spriteBatch, Rectangle rectLocal, string text, bool hovered)
+        {
+            var rect = Translate(rectLocal);
+            DrawInsetPanel(spriteBatch, rect, new Color(30, 28, 26, 230), new Color(110, 100, 80, 200), new Color(8, 8, 8, 220));
+            spriteBatch.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.X, rect.Y, rect.Width, rect.Height / 2), new Color(70, 60, 50, hovered ? 200 : 150));
+            spriteBatch.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.X, rect.Y + rect.Height / 2, rect.Width, rect.Height / 2), new Color(30, 24, 20, hovered ? 200 : 150));
+
+            if (_font != null)
+            {
+                float scale = 0.7f;
+                Vector2 size = _font.MeasureString(text) * scale;
+                Vector2 pos = new(rect.X + (rect.Width - size.X) / 2f, rect.Y + (rect.Height - size.Y) / 2f);
+                spriteBatch.DrawString(_font, text, pos + new Vector2(1, 1), new Color(0, 0, 0, 180), 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                spriteBatch.DrawString(_font, text, pos, new Color(255, 150, 70), 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            }
+        }
+
+        private void DrawCoinAndField(SpriteBatch spriteBatch, Texture2D pixel)
+        {
+            Rectangle iconRect = Translate(_zenIconRect);
+            if (_coinTexture != null)
+            {
+                spriteBatch.Draw(_coinTexture, iconRect, new Color(240, 188, 90));
+                var inner = new Rectangle(iconRect.X + 3, iconRect.Y + 3, Math.Max(0, iconRect.Width - 6), Math.Max(0, iconRect.Height - 6));
+                spriteBatch.Draw(_coinTexture, inner, new Color(255, 230, 140));
+            }
+            else
+            {
+                spriteBatch.Draw(pixel, iconRect, new Color(240, 188, 90));
+            }
+
+            Rectangle fieldRect = Translate(_zenFieldRect);
+            DrawBevel(spriteBatch, fieldRect, new Color(70, 70, 70, 200), new Color(0, 0, 0, 220));
+        }
+
         private void DrawTooltip(SpriteBatch spriteBatch)
         {
             if (_pickedItem_renderer_item() != null || _hoveredItem == null || _font == null)
@@ -1529,12 +1937,20 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             Point mousePosition = MuGame.Instance.UiMouseState.Position;
 
-            Point gridTopLeft = new(DisplayRectangle.X + _gridOffset.X, DisplayRectangle.Y + _gridOffset.Y);
-            Rectangle hoveredItemRect = new(
-                gridTopLeft.X + _hoveredItem.GridPosition.X * INVENTORY_SQUARE_WIDTH,
-                gridTopLeft.Y + _hoveredItem.GridPosition.Y * INVENTORY_SQUARE_WIDTH,
-                _hoveredItem.Definition.Width * INVENTORY_SQUARE_WIDTH,
-                _hoveredItem.Definition.Height * INVENTORY_SQUARE_WIDTH);
+            Rectangle hoveredItemRect;
+            if (_hoveredEquipSlot >= 0 && _equipSlots.TryGetValue((byte)_hoveredEquipSlot, out var layout))
+            {
+                hoveredItemRect = Translate(layout.Rect);
+            }
+            else
+            {
+                Point gridTopLeft = Translate(_gridRect).Location;
+                hoveredItemRect = new Rectangle(
+                    gridTopLeft.X + _hoveredItem.GridPosition.X * INVENTORY_SQUARE_WIDTH,
+                    gridTopLeft.Y + _hoveredItem.GridPosition.Y * INVENTORY_SQUARE_HEIGHT,
+                    _hoveredItem.Definition.Width * INVENTORY_SQUARE_WIDTH,
+                    _hoveredItem.Definition.Height * INVENTORY_SQUARE_HEIGHT);
+            }
 
             Rectangle tooltipRect = new(mousePosition.X + 15, mousePosition.Y + 15, width, height);
             Rectangle screenBounds = new(0, 0, UiScaler.VirtualSize.X, UiScaler.VirtualSize.Y);
@@ -1726,14 +2142,28 @@ namespace Client.Main.Controls.UI.Game.Inventory
                    slot.Y < item.GridPosition.Y + item.Definition.Height;
         }
 
+        private Rectangle Translate(Rectangle rect)
+        {
+            return new Rectangle(DisplayRectangle.X + rect.X, DisplayRectangle.Y + rect.Y, rect.Width, rect.Height);
+        }
+
+        private void ReleasePickedItem()
+        {
+            _pickedItemRenderer.ReleaseItem();
+            ResetPickedState();
+        }
+
+        private void ResetPickedState()
+        {
+            _pickedItemOriginalGrid = new Point(-1, -1);
+            _pickedFromEquipSlot = -1;
+            _itemDragMoved = false;
+        }
+
         private bool IsMouseOverGrid()
         {
             Point mousePos = MuGame.Instance.UiMouseState.Position;
-            Rectangle gridScreenRect = new(
-                DisplayRectangle.X + _gridOffset.X,
-                DisplayRectangle.Y + _gridOffset.Y,
-                Columns * INVENTORY_SQUARE_WIDTH,
-                Rows * INVENTORY_SQUARE_WIDTH);
+            Rectangle gridScreenRect = Translate(_gridRect);
 
             return gridScreenRect.Contains(mousePos);
         }
@@ -1741,14 +2171,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
         private bool IsMouseOverDragArea()
         {
             Point mousePos = MuGame.Instance.UiMouseState.Position;
-            int dragAreaHeight = DisplayRectangle.Height / 10;
-            Rectangle dragRect = new(
-                DisplayRectangle.X,
-                DisplayRectangle.Y,
-                DisplayRectangle.Width,
-                dragAreaHeight);
-
-            return dragRect.Contains(mousePos);
+            return Translate(_headerRect).Contains(mousePos);
         }
 
         private Point GetSlotAtScreenPosition(Point screenPos)
@@ -1759,12 +2182,12 @@ namespace Client.Main.Controls.UI.Game.Inventory
             }
 
             Point localPos = new(
-                screenPos.X - DisplayRectangle.X - _gridOffset.X,
-                screenPos.Y - DisplayRectangle.Y - _gridOffset.Y);
+                screenPos.X - DisplayRectangle.X - _gridRect.X,
+                screenPos.Y - DisplayRectangle.Y - _gridRect.Y);
 
             if (localPos.X < 0 || localPos.Y < 0 ||
-                localPos.X >= Columns * INVENTORY_SQUARE_WIDTH ||
-                localPos.Y >= Rows * INVENTORY_SQUARE_WIDTH)
+                localPos.X >= _gridRect.Width ||
+                localPos.Y >= _gridRect.Height)
             {
                 return new Point(-1, -1);
             }
@@ -1774,25 +2197,15 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 Math.Min(Rows - 1, localPos.Y / INVENTORY_SQUARE_WIDTH));
         }
 
-        private Point GetEquipAreaTopLeft()
-        {
-            int gridBottomY = DisplayRectangle.Y + _gridOffset.Y + Rows * INVENTORY_SQUARE_WIDTH;
-            return new Point(DisplayRectangle.X + _gridOffset.X, gridBottomY + 20);
-        }
-
         private int GetEquipSlotAtScreenPosition(Point screenPos)
         {
-            Point equipTopLeft = GetEquipAreaTopLeft();
-            foreach (var kv in s_equipLayout)
+            foreach (var layout in _equipSlots.Values)
             {
-                var cell = kv.Value;
-                var slotRect = new Rectangle(
-                    equipTopLeft.X + cell.X * INVENTORY_SQUARE_WIDTH,
-                    equipTopLeft.Y + cell.Y * INVENTORY_SQUARE_WIDTH,
-                    INVENTORY_SQUARE_WIDTH,
-                    INVENTORY_SQUARE_WIDTH);
+                var slotRect = Translate(layout.Rect);
                 if (slotRect.Contains(screenPos))
-                    return kv.Key;
+                {
+                    return layout.Slot;
+                }
             }
             return -1;
         }
