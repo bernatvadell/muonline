@@ -407,6 +407,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 var originalBlendState = gd.BlendState;
                 var originalDepthStencilState = gd.DepthStencilState;
                 var originalRasterizerState = gd.RasterizerState;
+                var originalSamplerState = gd.SamplerStates[0];
 
                 gd.SetRenderTarget(rt);
                 gd.Clear(Color.Transparent);
@@ -414,6 +415,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 gd.BlendState = BlendState.AlphaBlend;
                 gd.DepthStencilState = DepthStencilState.Default;
                 gd.RasterizerState = RasterizerState.CullNone;
+                gd.SamplerStates[0] = GraphicsManager.GetQualityLinearSamplerState();
 
                 Matrix view = Matrix.CreateLookAt(new Vector3(0, 0, 40f), Vector3.Zero, Vector3.Up);
                 Matrix projection = Matrix.CreatePerspectiveFieldOfView(MathHelper.ToRadians(30f), (float)width / height, 1f, 100f);
@@ -515,6 +517,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 gd.BlendState = originalBlendState;
                 gd.DepthStencilState = originalDepthStencilState;
                 gd.RasterizerState = originalRasterizerState;
+                gd.SamplerStates[0] = originalSamplerState;
 
                 return rt;
             }

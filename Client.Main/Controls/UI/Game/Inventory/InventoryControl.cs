@@ -41,28 +41,76 @@ namespace Client.Main.Controls.UI.Game.Inventory
             "Interface/newui_msgbox_back.jpg"
         };
 
-        private const int WINDOW_WIDTH = 420;
-        private const int WINDOW_HEIGHT = 690;
+        // ═══════════════════════════════════════════════════════════════
+        // WINDOW DIMENSIONS - REDESIGNED
+        // ═══════════════════════════════════════════════════════════════
+        private const int WINDOW_WIDTH = 396;
+        private const int WINDOW_HEIGHT = 700;
 
-        private const int HEADER_HEIGHT = 70;
-        private const int FOOTER_HEIGHT = 48;
-        private const int PAPERDOLL_TOP = HEADER_HEIGHT;
-        private const int PAPERDOLL_PADDING = 6;
-        private const int COLUMN_SPACING = 24;
-        private const int BEAM_HEIGHT = 8;
-        private const int BEAM_SPACING = 4;
-        private const int GRID_TOP_SPACING = 4;
-        private const int FOOTER_SPACING = 5;
-        private const int FOOTER_BUTTON_SIZE = 42;
+        private const int HEADER_HEIGHT = 52;
+        private const int SECTION_SPACING = 16;
+        private const int PANEL_PADDING = 12;
+        private const int EQUIP_SECTION_HEIGHT = 270;
 
-        public const int INVENTORY_SQUARE_WIDTH = 35;
-        public const int INVENTORY_SQUARE_HEIGHT = 35;
+        public const int INVENTORY_SQUARE_WIDTH = 34;
+        public const int INVENTORY_SQUARE_HEIGHT = 34;
 
         public const int Columns = 8;
         public const int Rows = 8;
         private const int InventorySlotOffsetConstant = 12;
 
-        private static readonly Rectangle SlotSourceRect = new(546, 220, 29, 29);
+        // ═══════════════════════════════════════════════════════════════
+        // MODERN DARK THEME
+        // ═══════════════════════════════════════════════════════════════
+        private static class Theme
+        {
+            // Background layers
+            public static readonly Color BgDarkest = new(8, 10, 14, 252);
+            public static readonly Color BgDark = new(16, 20, 26, 250);
+            public static readonly Color BgMid = new(24, 30, 38, 248);
+            public static readonly Color BgLight = new(35, 42, 52, 245);
+            public static readonly Color BgLighter = new(48, 56, 68, 240);
+
+            // Accent - Warm Gold
+            public static readonly Color Accent = new(212, 175, 85);
+            public static readonly Color AccentBright = new(255, 215, 120);
+            public static readonly Color AccentDim = new(140, 115, 55);
+            public static readonly Color AccentGlow = new(255, 200, 80, 40);
+
+            // Secondary accent - Cool Blue
+            public static readonly Color Secondary = new(90, 140, 200);
+            public static readonly Color SecondaryBright = new(130, 180, 240);
+            public static readonly Color SecondaryDim = new(50, 80, 120);
+
+            // Borders
+            public static readonly Color BorderOuter = new(5, 6, 8, 255);
+            public static readonly Color BorderInner = new(60, 70, 85, 200);
+            public static readonly Color BorderHighlight = new(100, 110, 130, 120);
+
+            // Slots
+            public static readonly Color SlotBg = new(12, 15, 20, 240);
+            public static readonly Color SlotBorder = new(45, 52, 65, 180);
+            public static readonly Color SlotHover = new(70, 85, 110, 150);
+            public static readonly Color SlotSelected = new(212, 175, 85, 100);
+
+            // Item rarity glow
+            public static readonly Color GlowNormal = new(150, 150, 150, 25);
+            public static readonly Color GlowMagic = new(100, 150, 255, 50);
+            public static readonly Color GlowExcellent = new(120, 255, 120, 60);
+            public static readonly Color GlowAncient = new(80, 200, 255, 70);
+            public static readonly Color GlowLegendary = new(255, 180, 80, 70);
+
+            // Text
+            public static readonly Color TextWhite = new(240, 240, 245);
+            public static readonly Color TextGold = new(255, 220, 130);
+            public static readonly Color TextGray = new(160, 165, 175);
+            public static readonly Color TextDark = new(100, 105, 115);
+
+            // Status colors
+            public static readonly Color Success = new(80, 200, 120);
+            public static readonly Color Warning = new(240, 180, 60);
+            public static readonly Color Danger = new(220, 80, 80);
+        }
 
         private readonly struct LayoutInfo
         {
@@ -138,8 +186,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
         private Texture2D _texTableLeftPixel;
         private Texture2D _texTableRightPixel;
         private Texture2D _texBackground;
-        private Texture2D _circleTexture;
-        private Texture2D _coinTexture;
 
         private RenderTarget2D _staticSurface;
         private bool _staticSurfaceDirty = true;
@@ -276,43 +322,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
             _slotTexture = _layoutTexture;
 
             _font = GraphicsManager.Instance.Font;
-            EnsurePrimitiveTextures();
 
             UpdateZenFromNetwork();
             UpdateZenText();
             InvalidateStaticSurface();
-        }
-
-        private void EnsurePrimitiveTextures()
-        {
-            var device = GraphicsManager.Instance?.GraphicsDevice;
-            if (device == null)
-            {
-                return;
-            }
-
-            _circleTexture ??= CreateCircleTexture(device, 48, Color.White);
-            _coinTexture ??= CreateCircleTexture(device, 18, Color.White);
-        }
-
-        private static Texture2D CreateCircleTexture(GraphicsDevice device, int diameter, Color color)
-        {
-            var texture = new Texture2D(device, diameter, diameter);
-            var data = new Color[diameter * diameter];
-            float radius = (diameter - 1) / 2f;
-            var center = new Vector2(radius, radius);
-
-            for (int y = 0; y < diameter; y++)
-            {
-                for (int x = 0; x < diameter; x++)
-                {
-                    float dist = Vector2.Distance(new Vector2(x, y), center);
-                    data[y * diameter + x] = dist <= radius ? color : Color.Transparent;
-                }
-            }
-
-            texture.SetData(data);
-            return texture;
         }
 
         public void Preload()
@@ -518,10 +531,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
             base.Dispose();
             _staticSurface?.Dispose();
             _staticSurface = null;
-            _circleTexture?.Dispose();
-            _circleTexture = null;
-            _coinTexture?.Dispose();
-            _coinTexture = null;
         }
 
         protected override void OnScreenSizeChanged()
@@ -534,13 +543,13 @@ namespace Client.Main.Controls.UI.Game.Inventory
         {
             _texts.Clear();
 
-            _titleText = CreateText(new Vector2(WINDOW_WIDTH / 2f, HEADER_HEIGHT * 0.5f - 6f), 14f, Color.White, TextAlignment.Center);
-            _titleText.Text = "Inventory";
+            // Title is now drawn in DrawModernHeader, so we skip _titleText
+            _titleText = null;
+            _subtitleText = null;
 
-            _subtitleText = CreateText(new Vector2(WINDOW_WIDTH / 2f, HEADER_HEIGHT - 18f), 9.5f, new Color(170, 170, 170), TextAlignment.Center);
-            _subtitleText.Text = "[Set option]   [Socket option]";
-
-            _zenText = CreateText(new Vector2(_zenFieldRect.X + 8, _zenFieldRect.Y + _zenFieldRect.Height * 0.5f - 7f), 13f, new Color(235, 210, 120));
+            // Zen text - positioned inside zen field
+            _zenText = CreateText(new Vector2(_zenFieldRect.X + 8, _zenFieldRect.Y + _zenFieldRect.Height * 0.5f - 6f),
+                                  12f, Theme.TextGold);
             _zenText.Visible = false;
         }
 
@@ -623,92 +632,85 @@ namespace Client.Main.Controls.UI.Game.Inventory
         {
             BuildEquipSlots();
 
+            // Header
             _headerRect = new Rectangle(0, 0, WINDOW_WIDTH, HEADER_HEIGHT);
 
-            var hasUnion = false;
-            var union = new Rectangle();
-            foreach (var slot in _equipSlots.Values)
+            // Equipment panel - centered, fixed height
+            int equipPanelWidth = WINDOW_WIDTH - PANEL_PADDING * 2;
+            int equipPanelTop = HEADER_HEIGHT + 8;
+            _paperdollPanelRect = new Rectangle(PANEL_PADDING, equipPanelTop, equipPanelWidth, EQUIP_SECTION_HEIGHT);
+
+            // Grid section - positioned BELOW equipment with proper spacing
+            int gridTotalWidth = Columns * INVENTORY_SQUARE_WIDTH;
+            int gridTotalHeight = Rows * INVENTORY_SQUARE_HEIGHT;
+            int gridX = (WINDOW_WIDTH - gridTotalWidth) / 2;
+            int minGridY = _paperdollPanelRect.Bottom + Math.Max(SECTION_SPACING / 2, 4);
+            int gridY = minGridY;
+
+            int footerHeight = 50;
+            int footerTop = WINDOW_HEIGHT - footerHeight - 10;
+
+            // Ensure grid section does not overlap footer
+            int availableBottom = footerTop - SECTION_SPACING;
+            int maxGridY = Math.Max(minGridY, availableBottom - gridTotalHeight - 8);
+            gridY = Math.Min(gridY, maxGridY);
+            if (gridY < minGridY)
             {
-                if (!hasUnion)
-                {
-                    union = slot.Rect;
-                    hasUnion = true;
-                }
-                else
-                {
-                    union = Rectangle.Union(union, slot.Rect);
-                }
+                gridY = minGridY;
             }
 
-            if (!hasUnion)
-            {
-                union = new Rectangle(PAPERDOLL_TOP, PAPERDOLL_TOP, INVENTORY_SQUARE_WIDTH * 4, INVENTORY_SQUARE_HEIGHT * 4);
-            }
+            _gridRect = new Rectangle(gridX, gridY, gridTotalWidth, gridTotalHeight);
+            _gridFrameRect = new Rectangle(gridX - 8, gridY - 8, gridTotalWidth + 16, gridTotalHeight + 16);
 
-            union.Inflate(PAPERDOLL_PADDING, PAPERDOLL_PADDING);
-            _paperdollPanelRect = union;
+            // Footer - at bottom
+            _footerRect = new Rectangle(PANEL_PADDING, footerTop,
+                                         WINDOW_WIDTH - PANEL_PADDING * 2, footerHeight);
 
+            // Zen display
+            _zenIconRect = new Rectangle(_footerRect.X + 12, _footerRect.Y + 14, 22, 22);
+            _zenFieldRect = new Rectangle(_zenIconRect.Right + 10, _footerRect.Y + 10, 160, 30);
+
+            // Buttons
+            int btnSize = 38;
+            _closeButtonRect = new Rectangle(WINDOW_WIDTH - btnSize - 12, 10, btnSize, btnSize);
+            _footerLeftButtonRect = new Rectangle(_footerRect.Right - btnSize * 2 - 20, _footerRect.Y + 6, btnSize, btnSize);
+            _footerRightButtonRect = new Rectangle(_footerRect.Right - btnSize - 8, _footerRect.Y + 6, btnSize, btnSize);
+
+            // Beam rect not used in new design
             _beamRect = Rectangle.Empty;
-
-            int gridX = (WINDOW_WIDTH - Columns * INVENTORY_SQUARE_WIDTH) / 2;
-            int gridY = _paperdollPanelRect.Bottom + GRID_TOP_SPACING;
-            _gridRect = new Rectangle(gridX, gridY, Columns * INVENTORY_SQUARE_WIDTH, Rows * INVENTORY_SQUARE_HEIGHT);
-            _gridFrameRect = new Rectangle(_gridRect.X - 12, _gridRect.Y - 12, _gridRect.Width + 24, _gridRect.Height + 24);
-
-            _footerRect = new Rectangle(10, _gridRect.Bottom + FOOTER_SPACING, WINDOW_WIDTH - 20, FOOTER_HEIGHT);
-            int buttonY = _footerRect.Bottom - FOOTER_BUTTON_SIZE - 4;
-            _footerLeftButtonRect = new Rectangle(_footerRect.X + 6, buttonY, FOOTER_BUTTON_SIZE, FOOTER_BUTTON_SIZE);
-            _footerRightButtonRect = new Rectangle(_footerRect.Right - FOOTER_BUTTON_SIZE - 6, buttonY, FOOTER_BUTTON_SIZE, FOOTER_BUTTON_SIZE);
-
-            _zenIconRect = new Rectangle(_footerLeftButtonRect.Right + 10, _footerRect.Y + 10, 18, 18);
-            int zenFieldX = _zenIconRect.Right + 6;
-            int zenFieldRightLimit = _footerRightButtonRect.X - 16;
-            int zenFieldWidth = Math.Max(110, zenFieldRightLimit - zenFieldX);
-            _zenFieldRect = new Rectangle(zenFieldX, _footerRect.Y + 8, zenFieldWidth, FOOTER_BUTTON_SIZE - 6);
-
-            _closeButtonRect = new Rectangle(_headerRect.Right - 34, _headerRect.Y + 10, 28, 28);
         }
 
         private void BuildEquipSlots()
         {
             _equipSlots.Clear();
 
-            const byte PendantSlot = 9;
-            const byte LeftRingSlot = 10;
-            const byte RightRingSlot = 11;
-
             int cell = INVENTORY_SQUARE_WIDTH;
-            int centerX = (WINDOW_WIDTH - cell * 2) / 2;
-            int lateralOffset = COLUMN_SPACING + INVENTORY_SQUARE_WIDTH + 8;
-            int leftX = centerX - (cell * 2 + lateralOffset);
-            int rightX = centerX + cell * 2 + lateralOffset;
-            int topY = PAPERDOLL_TOP;
-            int ringOffset = 16;
+            int panelCenterX = WINDOW_WIDTH / 2;
+            int baseY = HEADER_HEIGHT + 20;
 
-            AddEquipSlot(8, new Point(leftX, topY), new Point(2, 2), "PET");
-            int leftWeaponY = topY + cell * 2 + 4;
-            AddEquipSlot(0, new Point(leftX, leftWeaponY), new Point(2, 3), "LEFT", accentRed: true);
-            int glovesY = leftWeaponY + cell * 3 + 6;
-            AddEquipSlot(5, new Point(leftX, glovesY), new Point(2, 2), "GLOVES");
+            // Left column (pet, left-hand weapon, gloves)
+            int leftColX = panelCenterX - cell * 4 - 24;
+            AddEquipSlot(8, new Point(leftColX, baseY), new Point(2, 2), "PET");
+            AddEquipSlot(0, new Point(leftColX, baseY + cell * 2 + 8), new Point(2, 3), "L.HAND");
+            AddEquipSlot(5, new Point(leftColX, baseY + cell * 5 + 16), new Point(2, 2), "GLOVES");
 
-            AddEquipSlot(2, new Point(centerX, topY - 2), new Point(2, 2), "HELM");
-            int chestY = topY - 2 + cell * 2;
-            int pendantY = chestY + cell / 2;
-            // Pendant aligned horizontally with left ring
-            AddEquipSlot(PendantSlot, new Point(centerX - (ringOffset + cell), pendantY), new Point(1, 1), "PEND");
-            AddEquipSlot(3, new Point(centerX, chestY), new Point(2, 3), "CHEST");
-            int pantsY = chestY + cell * 3 + 2;
-            AddEquipSlot(4, new Point(centerX, pantsY), new Point(2, 2), "PANTS");
-            int ringsY = pantsY + cell / 2;
-            AddEquipSlot(LeftRingSlot, new Point(centerX - (ringOffset + cell), ringsY), new Point(1, 1), "RING");
-            AddEquipSlot(RightRingSlot, new Point(centerX + cell * 2 + ringOffset, ringsY), new Point(1, 1), "RING");
+            // Center column (helm, armor, pants + rings/pendant)
+            int centerColX = panelCenterX - cell;
+            AddEquipSlot(2, new Point(centerColX, baseY), new Point(2, 2), "HELM");
+            AddEquipSlot(3, new Point(centerColX, baseY + cell * 2 + 8), new Point(2, 3), "ARMOR");
+            AddEquipSlot(4, new Point(centerColX, baseY + cell * 5 + 16), new Point(2, 2), "PANTS");
 
-            int wingsX = rightX - cell / 2;
-            AddEquipSlot(7, new Point(wingsX, topY - 6), new Point(3, 2), "WINGS");
-            int rightWeaponY = topY + cell * 2 + 4;
-            AddEquipSlot(1, new Point(rightX, rightWeaponY), new Point(2, 3), "RIGHT");
-            int bootsY = rightWeaponY + cell * 3 + 6;
-            AddEquipSlot(6, new Point(rightX, bootsY), new Point(2, 2), "BOOTS");
+            // Rings and pendant next to the center column
+            int accessoryOffset = 6;
+            AddEquipSlot(9, new Point(centerColX - cell - accessoryOffset, baseY + cell * 2 + 20), new Point(1, 1), "PEND");
+            AddEquipSlot(10, new Point(centerColX - cell - accessoryOffset, baseY + cell * 5 + 28), new Point(1, 1), "RING");
+            AddEquipSlot(11, new Point(centerColX + cell * 2 + accessoryOffset, baseY + cell * 5 + 28), new Point(1, 1), "RING");
+
+            // Right column (wings, right-hand weapon, boots)
+            int rightColX = panelCenterX + cell * 2 + 16;
+            AddEquipSlot(7, new Point(rightColX - cell / 2, baseY - 4), new Point(3, 2), "WINGS");
+            AddEquipSlot(1, new Point(rightColX, baseY + cell * 2 + 8), new Point(2, 3), "R.HAND");
+            AddEquipSlot(6, new Point(rightColX, baseY + cell * 5 + 16), new Point(2, 2), "BOOTS");
         }
 
         private void AddEquipSlot(byte slot, Point origin, Point size, string ghostLabel, bool accentRed = false)
@@ -762,203 +764,439 @@ namespace Client.Main.Controls.UI.Game.Inventory
             _staticSurfaceDirty = false;
         }
 
-        private void DrawStaticElements(SpriteBatch spriteBatch)
+        // ═══════════════════════════════════════════════════════════════
+        // CORE DRAWING PRIMITIVES
+        // ═══════════════════════════════════════════════════════════════
+
+        private void DrawWindowBackground(SpriteBatch spriteBatch, Rectangle rect)
         {
-            var pixel = GraphicsManager.Instance?.Pixel;
-            var fullRect = new Rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
 
-            if (_layoutTexture != null && _layoutInfos.Count > 0)
-            {
-                foreach (var info in _layoutInfos)
-                {
-                    var destRect = new Rectangle(
-                        (int)MathF.Round(info.ScreenX * _layoutScale.X),
-                        (int)MathF.Round(info.ScreenY * _layoutScale.Y),
-                        (int)MathF.Round(info.Width * _layoutScale.X),
-                        (int)MathF.Round(info.Height * _layoutScale.Y));
+            // Outer border
+            spriteBatch.Draw(pixel, rect, Theme.BorderOuter);
 
-                    if (_textureRectLookup.TryGetValue(info.Name, out var src))
-                    {
-                        var sourceRect = new Rectangle(src.X, src.Y, src.Width, src.Height);
-                        spriteBatch.Draw(_layoutTexture, destRect, sourceRect, Color.White);
-                    }
-                    else
-                    {
-                        spriteBatch.Draw(_layoutTexture, destRect, Color.White);
-                    }
-                }
-            }
-            else if (_layoutTexture != null && _textureRectLookup.TryGetValue("Board", out var board))
-            {
-                var src = new Rectangle(board.X, board.Y, board.Width, board.Height);
-                spriteBatch.Draw(_layoutTexture, fullRect, src, Color.White);
-            }
-            else if (pixel != null)
-            {
-                spriteBatch.Draw(pixel, fullRect, new Color(10, 10, 10, 220));
-            }
+            // Main background with vertical gradient
+            var innerRect = new Rectangle(rect.X + 2, rect.Y + 2, rect.Width - 4, rect.Height - 4);
+            DrawVerticalGradient(spriteBatch, innerRect, Theme.BgDark, Theme.BgDarkest);
 
-            if (pixel != null)
-            {
-                DrawHeaderBar(spriteBatch, pixel);
-                DrawEquipBackground(spriteBatch);
-                DrawGridBackground(spriteBatch);
-                DrawFooterBase(spriteBatch, pixel);
-            }
+            // Subtle inner border highlight
+            spriteBatch.Draw(pixel, new Rectangle(innerRect.X, innerRect.Y, innerRect.Width, 1), Theme.BorderInner * 0.5f);
+            spriteBatch.Draw(pixel, new Rectangle(innerRect.X, innerRect.Y, 1, innerRect.Height), Theme.BorderInner * 0.3f);
+
+            // Corner accents
+            DrawCornerAccents(spriteBatch, rect, Theme.Accent * 0.4f);
         }
 
-        private void DrawHeaderBar(SpriteBatch spriteBatch, Texture2D pixel)
+        private void DrawVerticalGradient(SpriteBatch spriteBatch, Rectangle rect, Color top, Color bottom)
         {
-            // Intentionally left blank: header uses base layout only (no extra bar).
-        }
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
 
-        private void DrawBeam(SpriteBatch spriteBatch, Texture2D pixel)
-        {
-            // Separator removed for compact layout.
-        }
+            int steps = Math.Min(rect.Height, 64);
+            int stepHeight = Math.Max(1, rect.Height / steps);
 
-        private void DrawGridBackground(SpriteBatch spriteBatch)
-        {
-            var pixel = GraphicsManager.Instance?.Pixel;
-            if (pixel == null)
+            if (steps <= 1 || rect.Height <= 1)
             {
+                spriteBatch.Draw(pixel, rect, bottom);
                 return;
             }
 
-            DrawInsetPanel(spriteBatch, _gridFrameRect, new Color(12, 12, 12, 220), new Color(80, 80, 80, 180), new Color(0, 0, 0, 220), 2);
-            spriteBatch.Draw(pixel, _gridRect, new Color(4, 4, 4, 235));
-            DrawBevel(spriteBatch, _gridRect, new Color(60, 60, 60, 180), new Color(0, 0, 0, 200));
+            for (int i = 0; i < steps; i++)
+            {
+                float t = (float)i / (steps - 1);
+                Color color = Color.Lerp(top, bottom, t);
+                int y = rect.Y + i * stepHeight;
+                int height = (i == steps - 1) ? rect.Bottom - y : stepHeight;
+                spriteBatch.Draw(pixel, new Rectangle(rect.X, y, rect.Width, height), color);
+            }
+        }
 
-            Color gridLine = new Color(28, 28, 28, 180);
+        private void DrawHorizontalGradient(SpriteBatch spriteBatch, Rectangle rect, Color left, Color right)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            int steps = Math.Min(rect.Width, 64);
+            int stepWidth = Math.Max(1, rect.Width / steps);
+
+            if (steps <= 1 || rect.Width <= 1)
+            {
+                spriteBatch.Draw(pixel, rect, right);
+                return;
+            }
+
+            for (int i = 0; i < steps; i++)
+            {
+                float t = (float)i / (steps - 1);
+                Color color = Color.Lerp(left, right, t);
+                int x = rect.X + i * stepWidth;
+                int width = (i == steps - 1) ? rect.Right - x : stepWidth;
+                spriteBatch.Draw(pixel, new Rectangle(x, rect.Y, width, rect.Height), color);
+            }
+        }
+
+        private void DrawCornerAccents(SpriteBatch spriteBatch, Rectangle rect, Color color)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            int size = 12;
+            int thickness = 2;
+
+            // Top-left
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, size, thickness), color);
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, thickness, size), color);
+
+            // Top-right
+            spriteBatch.Draw(pixel, new Rectangle(rect.Right - size, rect.Y, size, thickness), color);
+            spriteBatch.Draw(pixel, new Rectangle(rect.Right - thickness, rect.Y, thickness, size), color);
+
+            // Bottom-left
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - thickness, size, thickness), color);
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - size, thickness, size), color);
+
+            // Bottom-right
+            spriteBatch.Draw(pixel, new Rectangle(rect.Right - size, rect.Bottom - thickness, size, thickness), color);
+            spriteBatch.Draw(pixel, new Rectangle(rect.Right - thickness, rect.Bottom - size, thickness, size), color);
+        }
+
+        private void DrawPanel(SpriteBatch spriteBatch, Rectangle rect, Color bgColor, bool withBorder = true, bool withGlow = false)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            if (withGlow)
+            {
+                // Outer glow
+                var glowRect = new Rectangle(rect.X - 1, rect.Y - 1, rect.Width + 2, rect.Height + 2);
+                spriteBatch.Draw(pixel, glowRect, Theme.Accent * 0.15f);
+            }
+
+            // Background
+            DrawVerticalGradient(spriteBatch, rect,
+                new Color(bgColor.R + 8, bgColor.G + 8, bgColor.B + 10, bgColor.A),
+                new Color(bgColor.R - 4, bgColor.G - 4, bgColor.B - 2, bgColor.A));
+
+            if (withBorder)
+            {
+                // Border
+                spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 1), Theme.BorderInner);
+                spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 1, rect.Width, 1), Theme.BorderOuter);
+                spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, 1, rect.Height), Theme.BorderInner * 0.7f);
+                spriteBatch.Draw(pixel, new Rectangle(rect.Right - 1, rect.Y, 1, rect.Height), Theme.BorderOuter);
+
+                // Inner highlight
+                spriteBatch.Draw(pixel, new Rectangle(rect.X + 1, rect.Y + 1, rect.Width - 2, 1), Theme.BorderHighlight * 0.3f);
+            }
+        }
+
+        private void DrawSectionHeader(SpriteBatch spriteBatch, string title, int x, int y, int width)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null || _font == null) return;
+
+            float scale = 0.36f;
+            Vector2 textSize = _font.MeasureString(title) * scale;
+
+            // Decorative lines on sides
+            int lineY = y + (int)(textSize.Y / 2);
+            int textPadding = 12;
+            int textX = x + (width - (int)textSize.X) / 2;
+
+            // Left line with fade
+            int leftLineWidth = textX - x - textPadding;
+            if (leftLineWidth > 20)
+            {
+                DrawHorizontalGradient(spriteBatch,
+                    new Rectangle(x, lineY, leftLineWidth, 1),
+                    Theme.Accent * 0.1f, Theme.Accent * 0.5f);
+                spriteBatch.Draw(pixel, new Rectangle(textX - textPadding - 3, lineY - 1, 3, 3), Theme.Accent * 0.6f);
+            }
+
+            // Right line with fade
+            int rightLineStart = textX + (int)textSize.X + textPadding;
+            int rightLineWidth = x + width - rightLineStart;
+            if (rightLineWidth > 20)
+            {
+                DrawHorizontalGradient(spriteBatch,
+                    new Rectangle(rightLineStart, lineY, rightLineWidth, 1),
+                    Theme.Accent * 0.5f, Theme.Accent * 0.1f);
+                spriteBatch.Draw(pixel, new Rectangle(rightLineStart, lineY - 1, 3, 3), Theme.Accent * 0.6f);
+            }
+
+            // Text shadow
+            spriteBatch.DrawString(_font, title, new Vector2(textX + 1, y + 1), Color.Black * 0.6f,
+                                   0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            // Text
+            spriteBatch.DrawString(_font, title, new Vector2(textX, y), Theme.TextGold,
+                                   0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+        }
+
+        private void DrawStaticElements(SpriteBatch spriteBatch)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            var fullRect = new Rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+            // ═══════════════════════════════════════════════════════════
+            // 1. MAIN WINDOW BACKGROUND
+            // ═══════════════════════════════════════════════════════════
+            DrawWindowBackground(spriteBatch, fullRect);
+
+            // ═══════════════════════════════════════════════════════════
+            // 2. HEADER
+            // ═══════════════════════════════════════════════════════════
+            DrawModernHeader(spriteBatch);
+
+            // ═══════════════════════════════════════════════════════════
+            // 3. EQUIPMENT SECTION
+            // ═══════════════════════════════════════════════════════════
+            DrawModernEquipSection(spriteBatch);
+
+            // ═══════════════════════════════════════════════════════════
+            // 4. INVENTORY GRID SECTION
+            // ═══════════════════════════════════════════════════════════
+            DrawModernGridSection(spriteBatch);
+
+            // ═══════════════════════════════════════════════════════════
+            // 5. FOOTER
+            // ═══════════════════════════════════════════════════════════
+            DrawModernFooter(spriteBatch);
+        }
+
+        private void DrawModernHeader(SpriteBatch spriteBatch)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            // Header background
+            var headerBg = new Rectangle(8, 6, WINDOW_WIDTH - 16, HEADER_HEIGHT - 8);
+            DrawPanel(spriteBatch, headerBg, Theme.BgMid);
+
+            // Gold accent line at very top
+            spriteBatch.Draw(pixel, new Rectangle(20, 8, WINDOW_WIDTH - 40, 2), Theme.Accent * 0.8f);
+            spriteBatch.Draw(pixel, new Rectangle(30, 10, WINDOW_WIDTH - 60, 1), Theme.AccentDim * 0.4f);
+
+            // Title
+            if (_font != null)
+            {
+                string title = "INVENTORY";
+                float scale = 0.55f;
+                Vector2 size = _font.MeasureString(title) * scale;
+                Vector2 pos = new((WINDOW_WIDTH - size.X) / 2, (HEADER_HEIGHT - size.Y) / 2 + 2);
+
+                // Glow behind text
+                spriteBatch.Draw(pixel, new Rectangle((int)pos.X - 20, (int)pos.Y - 4, (int)size.X + 40, (int)size.Y + 8),
+                                Theme.AccentGlow * 0.3f);
+
+                // Shadow
+                spriteBatch.DrawString(_font, title, pos + new Vector2(2, 2), Color.Black * 0.5f,
+                                       0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                // Main text
+                spriteBatch.DrawString(_font, title, pos, Theme.TextWhite,
+                                       0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            }
+
+            // Bottom separator
+            int separatorY = HEADER_HEIGHT - 2;
+            DrawHorizontalGradient(spriteBatch, new Rectangle(20, separatorY, (WINDOW_WIDTH - 40) / 2, 1),
+                                  Color.Transparent, Theme.BorderInner);
+            DrawHorizontalGradient(spriteBatch, new Rectangle(WINDOW_WIDTH / 2, separatorY, (WINDOW_WIDTH - 40) / 2, 1),
+                                  Theme.BorderInner, Color.Transparent);
+        }
+
+        private void DrawModernEquipSection(SpriteBatch spriteBatch)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            // Section title
+            DrawSectionHeader(spriteBatch, "EQUIPMENT", _paperdollPanelRect.X, _paperdollPanelRect.Y - 18, _paperdollPanelRect.Width);
+
+            // Main panel background
+            DrawPanel(spriteBatch, _paperdollPanelRect, Theme.BgMid);
+
+            // Character silhouette area (center darker region)
+            int silhouetteWidth = INVENTORY_SQUARE_WIDTH * 2 + 20;
+            int silhouetteX = (WINDOW_WIDTH - silhouetteWidth) / 2;
+            var silhouetteRect = new Rectangle(silhouetteX, _paperdollPanelRect.Y + 10,
+                                                silhouetteWidth, _paperdollPanelRect.Height - 20);
+            spriteBatch.Draw(pixel, silhouetteRect, Theme.BgDarkest * 0.5f);
+
+            // Draw vertical divider lines
+            int dividerX1 = silhouetteX - 30;
+            int dividerX2 = silhouetteX + silhouetteWidth + 30;
+            DrawVerticalGradient(spriteBatch,
+                new Rectangle(dividerX1, _paperdollPanelRect.Y + 20, 1, _paperdollPanelRect.Height - 40),
+                Theme.BorderInner * 0.3f, Theme.BorderInner * 0.1f);
+            DrawVerticalGradient(spriteBatch,
+                new Rectangle(dividerX2, _paperdollPanelRect.Y + 20, 1, _paperdollPanelRect.Height - 40),
+                Theme.BorderInner * 0.3f, Theme.BorderInner * 0.1f);
+
+            // Draw each equipment slot
+            foreach (var layout in _equipSlots.Values)
+            {
+                DrawModernEquipSlot(spriteBatch, layout);
+            }
+        }
+
+        private void DrawModernEquipSlot(SpriteBatch spriteBatch, EquipSlotLayout layout)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            Rectangle rect = layout.Rect;
+            bool hasItem = _equippedItems.ContainsKey(layout.Slot);
+
+            // Slot background
+            Color bgColor = hasItem ? Theme.BgLight : Theme.SlotBg;
+            DrawVerticalGradient(spriteBatch, rect, bgColor, Theme.BgDarkest);
+
+            // Border
+            Color borderColor = layout.AccentRed ? Theme.Danger : Theme.SlotBorder;
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 1), borderColor * 0.8f);
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 1, rect.Width, 1), Theme.BorderOuter);
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, 1, rect.Height), borderColor * 0.6f);
+            spriteBatch.Draw(pixel, new Rectangle(rect.Right - 1, rect.Y, 1, rect.Height), Theme.BorderOuter);
+
+            // Inner cell divisions
+            for (int y = 1; y < layout.Size.Y; y++)
+            {
+                int lineY = rect.Y + y * INVENTORY_SQUARE_HEIGHT;
+                spriteBatch.Draw(pixel, new Rectangle(rect.X + 2, lineY, rect.Width - 4, 1), Theme.BorderOuter * 0.5f);
+            }
+            for (int x = 1; x < layout.Size.X; x++)
+            {
+                int lineX = rect.X + x * INVENTORY_SQUARE_WIDTH;
+                spriteBatch.Draw(pixel, new Rectangle(lineX, rect.Y + 2, 1, rect.Height - 4), Theme.BorderOuter * 0.5f);
+            }
+
+            // Ghost label (only if no item)
+            if (!hasItem)
+            {
+                DrawSlotGhostLabel(spriteBatch, layout);
+            }
+        }
+
+        private void DrawSlotGhostLabel(SpriteBatch spriteBatch, EquipSlotLayout layout)
+        {
+            if (_font == null || string.IsNullOrEmpty(layout.Label)) return;
+
+            const float scale = 0.26f;
+            Vector2 size = _font.MeasureString(layout.Label) * scale;
+            Vector2 center = new(layout.Rect.X + layout.Rect.Width / 2f, layout.Rect.Y + layout.Rect.Height / 2f);
+            Vector2 pos = center - size / 2f;
+
+            Color textColor = layout.AccentRed ? new Color(100, 60, 60, 120) : Theme.TextDark * 0.6f;
+
+            spriteBatch.DrawString(_font, layout.Label, pos + Vector2.One, Color.Black * 0.3f,
+                                   0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            spriteBatch.DrawString(_font, layout.Label, pos, textColor,
+                                   0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+        }
+
+        private void DrawModernGridSection(SpriteBatch spriteBatch)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            // Section title
+            DrawSectionHeader(spriteBatch, "BACKPACK", _gridFrameRect.X, _gridFrameRect.Y + 4, _gridFrameRect.Width);
+
+            // Outer frame
+            DrawPanel(spriteBatch, _gridFrameRect, Theme.BgMid, withGlow: false);
+
+            // Grid background
+            spriteBatch.Draw(pixel, _gridRect, Theme.SlotBg);
+
+            // Inner shadow
+            spriteBatch.Draw(pixel, new Rectangle(_gridRect.X, _gridRect.Y, _gridRect.Width, 2), Color.Black * 0.4f);
+            spriteBatch.Draw(pixel, new Rectangle(_gridRect.X, _gridRect.Y, 2, _gridRect.Height), Color.Black * 0.3f);
+
+            // Grid lines
+            Color gridLine = new(40, 48, 60, 100);
+            Color gridLineMajor = new(55, 65, 80, 120);
+
             for (int x = 1; x < Columns; x++)
             {
                 int lineX = _gridRect.X + x * INVENTORY_SQUARE_WIDTH;
-                spriteBatch.Draw(pixel, new Rectangle(lineX, _gridRect.Y, 1, _gridRect.Height), gridLine);
+                bool isMajor = x == Columns / 2;
+                spriteBatch.Draw(pixel, new Rectangle(lineX, _gridRect.Y, 1, _gridRect.Height), isMajor ? gridLineMajor : gridLine);
             }
 
             for (int y = 1; y < Rows; y++)
             {
                 int lineY = _gridRect.Y + y * INVENTORY_SQUARE_HEIGHT;
-                spriteBatch.Draw(pixel, new Rectangle(_gridRect.X, lineY, _gridRect.Width, 1), gridLine);
+                bool isMajor = y == Rows / 2;
+                spriteBatch.Draw(pixel, new Rectangle(_gridRect.X, lineY, _gridRect.Width, 1), isMajor ? gridLineMajor : gridLine);
             }
 
-            if (_slotTexture != null)
+            // Border highlight
+            spriteBatch.Draw(pixel, new Rectangle(_gridRect.X, _gridRect.Bottom - 1, _gridRect.Width, 1), Theme.BorderHighlight * 0.2f);
+            spriteBatch.Draw(pixel, new Rectangle(_gridRect.Right - 1, _gridRect.Y, 1, _gridRect.Height), Theme.BorderHighlight * 0.15f);
+        }
+
+        private void DrawModernFooter(SpriteBatch spriteBatch)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            // Top separator line
+            int sepY = _footerRect.Y - 6;
+            DrawHorizontalGradient(spriteBatch, new Rectangle(30, sepY, (WINDOW_WIDTH - 60) / 2, 1),
+                                  Color.Transparent, Theme.Accent * 0.4f);
+            DrawHorizontalGradient(spriteBatch, new Rectangle(WINDOW_WIDTH / 2, sepY, (WINDOW_WIDTH - 60) / 2, 1),
+                                  Theme.Accent * 0.4f, Color.Transparent);
+
+            // Footer panel
+            DrawPanel(spriteBatch, _footerRect, Theme.BgMid);
+
+            // Zen display area
+            DrawZenDisplay(spriteBatch);
+        }
+
+        private void DrawZenDisplay(SpriteBatch spriteBatch)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            // Coin icon
+            Rectangle iconRect = _zenIconRect;
+
+            // Coin outer
+            DrawFilledCircle(spriteBatch, iconRect.X + iconRect.Width / 2, iconRect.Y + iconRect.Height / 2,
+                             iconRect.Width / 2, Theme.AccentDim);
+            // Coin inner
+            DrawFilledCircle(spriteBatch, iconRect.X + iconRect.Width / 2, iconRect.Y + iconRect.Height / 2,
+                             iconRect.Width / 2 - 3, Theme.Accent);
+            // Coin highlight
+            DrawFilledCircle(spriteBatch, iconRect.X + iconRect.Width / 2 - 2, iconRect.Y + iconRect.Height / 2 - 2,
+                             iconRect.Width / 4, Theme.AccentBright * 0.6f);
+
+            // Zen field background
+            DrawPanel(spriteBatch, _zenFieldRect, Theme.SlotBg);
+
+            // Inner darker area
+            var innerField = new Rectangle(_zenFieldRect.X + 2, _zenFieldRect.Y + 2,
+                                           _zenFieldRect.Width - 4, _zenFieldRect.Height - 4);
+            spriteBatch.Draw(pixel, innerField, Theme.BgDarkest * 0.7f);
+        }
+
+        private void DrawFilledCircle(SpriteBatch spriteBatch, int centerX, int centerY, int radius, Color color)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null || radius <= 0) return;
+
+            // Simple filled circle using rectangles
+            for (int y = -radius; y <= radius; y++)
             {
-                for (int y = 0; y < Rows; y++)
+                int halfWidth = (int)MathF.Sqrt(radius * radius - y * y);
+                if (halfWidth > 0)
                 {
-                    for (int x = 0; x < Columns; x++)
-                    {
-                        var slotRect = new Rectangle(
-                            _gridRect.X + x * INVENTORY_SQUARE_WIDTH,
-                            _gridRect.Y + y * INVENTORY_SQUARE_HEIGHT,
-                            INVENTORY_SQUARE_WIDTH,
-                            INVENTORY_SQUARE_HEIGHT);
-                        spriteBatch.Draw(_slotTexture, slotRect, SlotSourceRect, Color.White * 0.18f);
-                    }
+                    spriteBatch.Draw(pixel, new Rectangle(centerX - halfWidth, centerY + y, halfWidth * 2, 1), color);
                 }
-            }
-        }
-        private void DrawEquipBackground(SpriteBatch spriteBatch)
-        {
-            var pixel = GraphicsManager.Instance?.Pixel;
-            if (pixel == null)
-            {
-                return;
-            }
-
-            DrawInsetPanel(spriteBatch, _paperdollPanelRect, new Color(20, 20, 22, 200), new Color(80, 80, 90, 150), new Color(6, 6, 6, 200), 2);
-
-            foreach (var layout in _equipSlots.Values)
-            {
-                DrawEquipSlot(spriteBatch, layout);
-            }
-        }
-
-        private void DrawEquipSlot(SpriteBatch spriteBatch, EquipSlotLayout layout)
-        {
-            var pixel = GraphicsManager.Instance?.Pixel;
-            if (pixel == null)
-            {
-                return;
-            }
-
-            Rectangle rect = layout.Rect;
-            DrawInsetPanel(spriteBatch, rect, new Color(5, 5, 5, 200), new Color(70, 70, 70, 160), new Color(0, 0, 0, 200), 1);
-
-            if (_slotTexture != null)
-            {
-                for (int y = 0; y < layout.Size.Y; y++)
-                {
-                    for (int x = 0; x < layout.Size.X; x++)
-                    {
-                        Rectangle slotRect = new(
-                            rect.X + x * INVENTORY_SQUARE_WIDTH,
-                            rect.Y + y * INVENTORY_SQUARE_HEIGHT,
-                            INVENTORY_SQUARE_WIDTH,
-                            INVENTORY_SQUARE_HEIGHT);
-                        spriteBatch.Draw(_slotTexture, slotRect, SlotSourceRect, Color.White * 0.35f);
-                    }
-                }
-            }
-            else
-            {
-                spriteBatch.Draw(pixel, rect, new Color(24, 24, 24, 200));
-            }
-
-            DrawGhostIcon(spriteBatch, layout);
-        }
-
-        private void DrawGhostIcon(SpriteBatch spriteBatch, EquipSlotLayout layout)
-        {
-            if (_font == null || string.IsNullOrEmpty(layout.Label))
-            {
-                return;
-            }
-
-            const float scale = 0.35f;
-            Vector2 size = _font.MeasureString(layout.Label) * scale;
-            Vector2 center = new(layout.Rect.X + layout.Rect.Width / 2f, layout.Rect.Y + layout.Rect.Height / 2f);
-            Vector2 pos = center - size / 2f;
-
-            spriteBatch.DrawString(_font, layout.Label, pos + new Vector2(1f, 1f), new Color(0, 0, 0, 120), 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-            spriteBatch.DrawString(_font, layout.Label, pos, new Color(90, 90, 90, 200), 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-        }
-
-        private void DrawFooterBase(SpriteBatch spriteBatch, Texture2D pixel)
-        {
-            // Only draw the zen field; no footer panel block.
-            DrawInsetPanel(spriteBatch, _zenFieldRect, new Color(12, 12, 12, 230), new Color(80, 80, 80, 180), new Color(0, 0, 0, 210));
-        }
-
-        private static void DrawBevel(SpriteBatch spriteBatch, Rectangle rect, Color light, Color dark)
-        {
-            var pixel = GraphicsManager.Instance?.Pixel;
-            if (pixel == null)
-            {
-                return;
-            }
-
-            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 1), light);
-            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 1, rect.Width, 1), dark);
-            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, 1, rect.Height), light);
-            spriteBatch.Draw(pixel, new Rectangle(rect.Right - 1, rect.Y, 1, rect.Height), dark);
-        }
-
-        private static void DrawInsetPanel(SpriteBatch spriteBatch, Rectangle rect, Color fill, Color light, Color dark, int thickness = 1)
-        {
-            var pixel = GraphicsManager.Instance?.Pixel;
-            if (pixel == null)
-            {
-                return;
-            }
-
-            spriteBatch.Draw(pixel, rect, fill);
-            for (int i = 0; i < thickness; i++)
-            {
-                spriteBatch.Draw(pixel, new Rectangle(rect.X + i, rect.Y + i, rect.Width - i * 2, 1), light);
-                spriteBatch.Draw(pixel, new Rectangle(rect.X + i, rect.Bottom - 1 - i, rect.Width - i * 2, 1), dark);
-                spriteBatch.Draw(pixel, new Rectangle(rect.X + i, rect.Y + i, 1, rect.Height - i * 2), light);
-                spriteBatch.Draw(pixel, new Rectangle(rect.Right - 1 - i, rect.Y + i, 1, rect.Height - i * 2), dark);
             }
         }
 
@@ -1599,20 +1837,19 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void DrawInventoryItems(SpriteBatch spriteBatch)
         {
-            if (GraphicsManager.Instance?.Pixel == null || GraphicsManager.Instance?.Font == null)
-            {
+            if (GraphicsManager.Instance.Pixel == null || GraphicsManager.Instance.Font == null)
                 return;
-            }
+
+            using var scoped = new SpriteBatchScope(spriteBatch, SpriteSortMode.Deferred, BlendState.AlphaBlend, GraphicsManager.GetQualityLinearSamplerState(), transform: UiScaler.SpriteTransform);
 
             Point gridTopLeft = Translate(_gridRect).Location;
             var font = GraphicsManager.Instance.Font;
+            var pixel = GraphicsManager.Instance.Pixel;
 
             foreach (var item in _items.ToList())
             {
                 if (item == _pickedItem_renderer_item())
-                {
                     continue;
-                }
 
                 Rectangle itemRect = new(
                     gridTopLeft.X + item.GridPosition.X * INVENTORY_SQUARE_WIDTH,
@@ -1620,6 +1857,22 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     item.Definition.Width * INVENTORY_SQUARE_WIDTH,
                     item.Definition.Height * INVENTORY_SQUARE_HEIGHT);
 
+                bool isHovered = item == _hoveredItem;
+
+                // Item glow effect
+                Color glowColor = GetItemGlowColor(item);
+                if (glowColor.A > 0 || isHovered)
+                {
+                    Color finalGlow = isHovered ? Color.Lerp(glowColor, Theme.Accent, 0.5f) : glowColor;
+                    finalGlow.A = (byte)Math.Min(255, finalGlow.A + (isHovered ? 40 : 0));
+                    DrawItemGlow(spriteBatch, itemRect, finalGlow);
+                }
+
+                // Item cell background
+                var bgRect = new Rectangle(itemRect.X + 1, itemRect.Y + 1, itemRect.Width - 2, itemRect.Height - 2);
+                spriteBatch.Draw(pixel, bgRect, isHovered ? Theme.SlotHover : Theme.BgLight * 0.7f);
+
+                // Item texture
                 Texture2D itemTexture = ResolveItemTexture(item, itemRect.Width, itemRect.Height);
 
                 if (itemTexture != null)
@@ -1628,18 +1881,129 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 }
                 else
                 {
-                    spriteBatch.Draw(GraphicsManager.Instance.Pixel, itemRect, Color.DarkSlateGray);
+                    // Placeholder
+                    DrawItemPlaceholder(spriteBatch, itemRect, item);
                 }
 
+                // Stack count
                 if (item.Definition.BaseDurability == 0 && item.Durability > 1)
                 {
-                    DrawStackCount(spriteBatch, font, itemRect, item.Durability.ToString());
+                    DrawItemStackCount(spriteBatch, font, itemRect, item.Durability);
+                }
+
+                // Level indicator
+                if (item.Details.Level > 0)
+                {
+                    DrawItemLevelBadge(spriteBatch, font, itemRect, item.Details.Level);
                 }
             }
         }
 
+        private Color GetItemGlowColor(InventoryItem item)
+        {
+            if (item.Details.IsExcellent) return Theme.GlowExcellent;
+            if (item.Details.IsAncient) return Theme.GlowAncient;
+            if (item.Details.Level >= 9) return Theme.GlowLegendary;
+            if (item.Details.Level >= 5) return Theme.GlowMagic;
+            return Theme.GlowNormal;
+        }
+
+        private void DrawItemGlow(SpriteBatch spriteBatch, Rectangle rect, Color color)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            int glowSize = 4;
+            for (int i = glowSize; i > 0; i--)
+            {
+                float alpha = (float)(glowSize - i + 1) / glowSize * 0.6f;
+                Color layerColor = color * alpha;
+
+                var glowRect = new Rectangle(rect.X - i, rect.Y - i, rect.Width + i * 2, rect.Height + i * 2);
+
+                // Top
+                spriteBatch.Draw(pixel, new Rectangle(glowRect.X, glowRect.Y, glowRect.Width, 1), layerColor);
+                // Bottom
+                spriteBatch.Draw(pixel, new Rectangle(glowRect.X, glowRect.Bottom - 1, glowRect.Width, 1), layerColor);
+                // Left
+                spriteBatch.Draw(pixel, new Rectangle(glowRect.X, glowRect.Y, 1, glowRect.Height), layerColor);
+                // Right
+                spriteBatch.Draw(pixel, new Rectangle(glowRect.Right - 1, glowRect.Y, 1, glowRect.Height), layerColor);
+            }
+        }
+
+        private void DrawItemPlaceholder(SpriteBatch spriteBatch, Rectangle rect, InventoryItem item)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            spriteBatch.Draw(pixel, rect, Theme.BgLighter);
+
+            if (_font != null && item.Definition.Name != null)
+            {
+                string shortName = item.Definition.Name.Length > 5
+                    ? item.Definition.Name.Substring(0, 5) + ".."
+                    : item.Definition.Name;
+
+                float scale = 0.24f;
+                Vector2 size = _font.MeasureString(shortName) * scale;
+                Vector2 pos = new(rect.X + (rect.Width - size.X) / 2, rect.Y + (rect.Height - size.Y) / 2);
+
+                spriteBatch.DrawString(_font, shortName, pos, Theme.TextGray * 0.8f,
+                                       0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            }
+        }
+
+        private void DrawItemStackCount(SpriteBatch spriteBatch, SpriteFont font, Rectangle itemRect, int count)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            string text = count.ToString();
+            const float scale = 0.34f;
+
+            Vector2 textSize = font.MeasureString(text) * scale;
+            Vector2 pos = new(itemRect.Right - textSize.X - 3, itemRect.Y + 2);
+
+            // Background pill
+            var bgRect = new Rectangle((int)pos.X - 3, (int)pos.Y - 1, (int)textSize.X + 6, (int)textSize.Y + 2);
+            spriteBatch.Draw(pixel, bgRect, new Color(0, 0, 0, 200));
+
+            // Text
+            spriteBatch.DrawString(font, text, pos + Vector2.One, Color.Black, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            spriteBatch.DrawString(font, text, pos, Theme.TextGold, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+        }
+
+        private void DrawItemLevelBadge(SpriteBatch spriteBatch, SpriteFont font, Rectangle itemRect, int level)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            string text = $"+{level}";
+            const float scale = 0.30f;
+
+            Vector2 textSize = font.MeasureString(text) * scale;
+            Vector2 pos = new(itemRect.X + 2, itemRect.Bottom - textSize.Y - 2);
+
+            // Color based on level
+            Color levelColor = level >= 9 ? Theme.Danger :
+                               level >= 7 ? Theme.Warning :
+                               level >= 4 ? Theme.Secondary :
+                               Theme.TextGray;
+
+            // Background
+            var bgRect = new Rectangle((int)pos.X - 2, (int)pos.Y - 1, (int)textSize.X + 4, (int)textSize.Y + 2);
+            spriteBatch.Draw(pixel, bgRect, new Color(0, 0, 0, 180));
+
+            // Text
+            spriteBatch.DrawString(font, text, pos + Vector2.One, Color.Black * 0.8f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            spriteBatch.DrawString(font, text, pos, levelColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+        }
+
         private void DrawEquippedItems(SpriteBatch spriteBatch)
         {
+            using var scoped = new SpriteBatchScope(spriteBatch, SpriteSortMode.Deferred, BlendState.AlphaBlend, GraphicsManager.GetQualityLinearSamplerState(), transform: UiScaler.SpriteTransform);
+
             foreach (var kv in _equippedItems)
             {
                 if (!_equipSlots.TryGetValue(kv.Key, out var slot))
@@ -1746,7 +2110,8 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void DrawGridOverlays(SpriteBatch spriteBatch)
         {
-            if (GraphicsManager.Instance?.Pixel == null)
+            var pixel = GraphicsManager.Instance?.Pixel;
+            if (pixel == null)
             {
                 return;
             }
@@ -1765,28 +2130,28 @@ namespace Client.Main.Controls.UI.Game.Inventory
                         INVENTORY_SQUARE_WIDTH,
                         INVENTORY_SQUARE_HEIGHT);
 
-            if (dragged != null && isOverGrid)
-            {
-                var highlight = GetSlotHighlightColor(new Point(x, y), dragged);
-                if (highlight.HasValue)
-                {
-                    spriteBatch.Draw(GraphicsManager.Instance.Pixel, slotRect, highlight.Value);
-                }
-            }
-            else if (isOverGrid && dragged == null)
-            {
-                if (_hoveredSlot.X == x && _hoveredSlot.Y == y)
-                {
-                    spriteBatch.Draw(GraphicsManager.Instance.Pixel, slotRect, new Color(180, 170, 90, 120));
-                }
-                else if (_hoveredItem != null && IsSlotOccupiedByItem(new Point(x, y), _hoveredItem))
-                {
-                    spriteBatch.Draw(GraphicsManager.Instance.Pixel, slotRect, new Color(90, 140, 220, 90));
+                    if (dragged != null && isOverGrid)
+                    {
+                        var highlight = GetSlotHighlightColor(new Point(x, y), dragged);
+                        if (highlight.HasValue)
+                        {
+                            spriteBatch.Draw(pixel, slotRect, highlight.Value);
+                        }
+                    }
+                    else if (isOverGrid && dragged == null)
+                    {
+                        if (_hoveredSlot.X == x && _hoveredSlot.Y == y)
+                        {
+                            spriteBatch.Draw(pixel, slotRect, new Color(180, 170, 90, 120));
+                        }
+                        else if (_hoveredItem != null && IsSlotOccupiedByItem(new Point(x, y), _hoveredItem))
+                        {
+                            spriteBatch.Draw(pixel, slotRect, new Color(90, 140, 220, 90));
+                        }
+                    }
                 }
             }
         }
-    }
-}
 
         private void DrawEquipHighlights(SpriteBatch spriteBatch)
         {
@@ -1802,9 +2167,15 @@ namespace Client.Main.Controls.UI.Game.Inventory
             }
 
             Rectangle rect = Translate(layout.Rect);
-            Color overlay = layout.AccentRed ? new Color(200, 60, 60, 140) : new Color(120, 170, 240, 90);
+            Color overlay = layout.AccentRed ? Theme.Danger * 0.45f : Theme.Secondary * 0.45f;
             spriteBatch.Draw(pixel, rect, overlay);
-            DrawBevel(spriteBatch, rect, layout.AccentRed ? new Color(255, 140, 140, 140) : new Color(170, 200, 240, 120), new Color(10, 10, 10, 160));
+
+            // Border highlight
+            Color light = layout.AccentRed ? Theme.Danger : Theme.Accent;
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 1), light * 0.8f);
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 1, rect.Width, 1), Theme.BorderOuter);
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, 1, rect.Height), light * 0.6f);
+            spriteBatch.Draw(pixel, new Rectangle(rect.Right - 1, rect.Y, 1, rect.Height), Theme.BorderOuter);
         }
 
         private void DrawTexts(SpriteBatch spriteBatch)
@@ -1817,7 +2188,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             Vector2 basePosition = DisplayRectangle.Location.ToVector2();
             foreach (var entry in _texts)
             {
-                if (!entry.Visible || string.IsNullOrEmpty(entry.Text))
+                if (entry == null || !entry.Visible || string.IsNullOrEmpty(entry.Text))
                 {
                     continue;
                 }
@@ -1842,8 +2213,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void DrawChrome(SpriteBatch spriteBatch)
         {
-            var pixel = GraphicsManager.Instance?.Pixel;
-            if (pixel == null)
+            if (GraphicsManager.Instance?.Pixel == null)
             {
                 return;
             }
@@ -1851,92 +2221,126 @@ namespace Client.Main.Controls.UI.Game.Inventory
             DrawCloseButton(spriteBatch);
             DrawFooterButton(spriteBatch, _footerLeftButtonRect, "X", _leftFooterHovered);
             DrawFooterButton(spriteBatch, _footerRightButtonRect, "+", _rightFooterHovered);
-            DrawCoinAndField(spriteBatch, pixel);
         }
 
         private void DrawCloseButton(SpriteBatch spriteBatch)
         {
-            Rectangle rect = Translate(_closeButtonRect);
-            if (_circleTexture != null)
+            var rect = Translate(_closeButtonRect);
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            bool hovered = _closeHovered;
+
+            // Hover glow
+            if (hovered)
             {
-                var outer = rect;
-                var inner = new Rectangle(rect.X + 3, rect.Y + 3, rect.Width - 6, rect.Height - 6);
-                spriteBatch.Draw(_circleTexture, outer, new Color(120, 60, 20, 230));
-                spriteBatch.Draw(_circleTexture, inner, _closeHovered ? new Color(255, 170, 90) : new Color(236, 142, 60));
-            }
-            else
-            {
-                spriteBatch.Draw(GraphicsManager.Instance.Pixel, rect, new Color(236, 142, 60));
+                var glowRect = new Rectangle(rect.X - 3, rect.Y - 3, rect.Width + 6, rect.Height + 6);
+                spriteBatch.Draw(pixel, glowRect, Theme.Danger * 0.3f);
             }
 
+            // Button background - circular feel with rounded corners simulated
+            Color bgColor = hovered ? new Color(180, 60, 50) : new Color(140, 50, 45);
+            spriteBatch.Draw(pixel, rect, bgColor);
+
+            // Highlight
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 2),
+                            hovered ? new Color(255, 120, 100) : new Color(200, 90, 80));
+
+            // Border
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 1), new Color(100, 30, 25));
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 1, rect.Width, 1), new Color(60, 20, 15));
+
+            // X icon
             if (_font != null)
             {
-                float scale = 0.6f;
-                Vector2 size = _font.MeasureString("X") * scale;
-                Vector2 pos = new(rect.X + (rect.Width - size.X) / 2f, rect.Y + (rect.Height - size.Y) / 2f);
-                spriteBatch.DrawString(_font, "X", pos + new Vector2(1, 1), Color.Black * 0.8f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-                spriteBatch.DrawString(_font, "X", pos, new Color(12, 12, 12), 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                string text = "X";
+                float scale = 0.5f;
+                Vector2 size = _font.MeasureString(text) * scale;
+                Vector2 pos = new(rect.X + (rect.Width - size.X) / 2, rect.Y + (rect.Height - size.Y) / 2);
+
+                spriteBatch.DrawString(_font, text, pos + Vector2.One, Color.Black * 0.5f,
+                                       0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                spriteBatch.DrawString(_font, text, pos, Color.White,
+                                       0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }
         }
 
         private void DrawFooterButton(SpriteBatch spriteBatch, Rectangle rectLocal, string text, bool hovered)
         {
             var rect = Translate(rectLocal);
-            DrawInsetPanel(spriteBatch, rect, new Color(30, 28, 26, 230), new Color(110, 100, 80, 200), new Color(8, 8, 8, 220));
-            spriteBatch.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.X, rect.Y, rect.Width, rect.Height / 2), new Color(70, 60, 50, hovered ? 200 : 150));
-            spriteBatch.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.X, rect.Y + rect.Height / 2, rect.Width, rect.Height / 2), new Color(30, 24, 20, hovered ? 200 : 150));
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
 
+            // Hover glow
+            if (hovered)
+            {
+                var glowRect = new Rectangle(rect.X - 2, rect.Y - 2, rect.Width + 4, rect.Height + 4);
+                spriteBatch.Draw(pixel, glowRect, Theme.Accent * 0.3f);
+            }
+
+            // Button background
+            Color bgTop = hovered ? Theme.BgLighter : Theme.BgLight;
+            Color bgBottom = hovered ? Theme.BgMid : Theme.BgDark;
+            DrawVerticalGradient(spriteBatch, rect, bgTop, bgBottom);
+
+            // Border
+            Color borderTop = hovered ? Theme.Accent : Theme.BorderInner;
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 1), borderTop);
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 1, rect.Width, 1), Theme.BorderOuter);
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, 1, rect.Height), borderTop * 0.7f);
+            spriteBatch.Draw(pixel, new Rectangle(rect.Right - 1, rect.Y, 1, rect.Height), Theme.BorderOuter);
+
+            // Inner highlight
+            if (hovered)
+            {
+                spriteBatch.Draw(pixel, new Rectangle(rect.X + 1, rect.Y + 1, rect.Width - 2, 1), Theme.AccentBright * 0.3f);
+            }
+
+            // Text
             if (_font != null)
             {
-                float scale = 0.7f;
+                float scale = 0.55f;
                 Vector2 size = _font.MeasureString(text) * scale;
-                Vector2 pos = new(rect.X + (rect.Width - size.X) / 2f, rect.Y + (rect.Height - size.Y) / 2f);
-                spriteBatch.DrawString(_font, text, pos + new Vector2(1, 1), new Color(0, 0, 0, 180), 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-                spriteBatch.DrawString(_font, text, pos, new Color(255, 150, 70), 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-            }
-        }
+                Vector2 pos = new(rect.X + (rect.Width - size.X) / 2, rect.Y + (rect.Height - size.Y) / 2);
 
-        private void DrawCoinAndField(SpriteBatch spriteBatch, Texture2D pixel)
-        {
-            Rectangle iconRect = Translate(_zenIconRect);
-            if (_coinTexture != null)
-            {
-                spriteBatch.Draw(_coinTexture, iconRect, new Color(240, 188, 90));
-                var inner = new Rectangle(iconRect.X + 3, iconRect.Y + 3, Math.Max(0, iconRect.Width - 6), Math.Max(0, iconRect.Height - 6));
-                spriteBatch.Draw(_coinTexture, inner, new Color(255, 230, 140));
+                spriteBatch.DrawString(_font, text, pos + new Vector2(1, 1), Color.Black * 0.6f,
+                                       0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                spriteBatch.DrawString(_font, text, pos, hovered ? Theme.AccentBright : Theme.Accent,
+                                       0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }
-            else
-            {
-                spriteBatch.Draw(pixel, iconRect, new Color(240, 188, 90));
-            }
-
-            Rectangle fieldRect = Translate(_zenFieldRect);
-            DrawBevel(spriteBatch, fieldRect, new Color(70, 70, 70, 200), new Color(0, 0, 0, 220));
         }
 
         private void DrawTooltip(SpriteBatch spriteBatch)
         {
             if (_pickedItem_renderer_item() != null || _hoveredItem == null || _font == null)
-            {
                 return;
-            }
 
             var lines = BuildTooltipLines(_hoveredItem);
-            const float scale = 0.5f;
+            const float scale = 0.44f;
+            const int lineSpacing = 4;
+            const int paddingX = 14;
+            const int paddingY = 12;
 
-            int width = 0;
-            int height = 0;
+            // Calculate tooltip size
+            int maxWidth = 0;
+            int totalHeight = 0;
+
             foreach (var (text, _) in lines)
             {
                 Vector2 sz = _font.MeasureString(text) * scale;
-                width = Math.Max(width, (int)sz.X);
-                height += (int)sz.Y + 2;
+                maxWidth = Math.Max(maxWidth, (int)MathF.Ceiling(sz.X));
+                totalHeight += (int)MathF.Ceiling(sz.Y) + lineSpacing;
             }
-            width += 12;
-            height += 8;
+
+            // Add separator after the first line
+            totalHeight += 6;
+
+            int tooltipWidth = maxWidth + paddingX * 2;
+            int tooltipHeight = totalHeight + paddingY * 2;
 
             Point mousePosition = MuGame.Instance.UiMouseState.Position;
 
+            // Hovered item position
             Rectangle hoveredItemRect;
             if (_hoveredEquipSlot >= 0 && _equipSlots.TryGetValue((byte)_hoveredEquipSlot, out var layout))
             {
@@ -1952,50 +2356,97 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     _hoveredItem.Definition.Height * INVENTORY_SQUARE_HEIGHT);
             }
 
-            Rectangle tooltipRect = new(mousePosition.X + 15, mousePosition.Y + 15, width, height);
+            // Tooltip positioning
+            Rectangle tooltipRect = new(mousePosition.X + 16, mousePosition.Y + 16, tooltipWidth, tooltipHeight);
             Rectangle screenBounds = new(0, 0, UiScaler.VirtualSize.X, UiScaler.VirtualSize.Y);
 
+            // Avoid overlapping the item
             if (tooltipRect.Intersects(hoveredItemRect))
             {
-                tooltipRect.X = hoveredItemRect.X - width - 10;
+                // Try left side
+                tooltipRect.X = hoveredItemRect.X - tooltipWidth - 8;
                 tooltipRect.Y = hoveredItemRect.Y;
 
-                if (tooltipRect.Intersects(hoveredItemRect) || tooltipRect.X < screenBounds.X + 10)
+                if (tooltipRect.X < 10 || tooltipRect.Intersects(hoveredItemRect))
                 {
+                    // Try above
                     tooltipRect.X = hoveredItemRect.X;
-                    tooltipRect.Y = hoveredItemRect.Y - height - 10;
+                    tooltipRect.Y = hoveredItemRect.Y - tooltipHeight - 8;
 
-                    if (tooltipRect.Intersects(hoveredItemRect) || tooltipRect.Y < screenBounds.Y + 10)
+                    if (tooltipRect.Y < 10)
                     {
+                        // Under the item
                         tooltipRect.X = hoveredItemRect.X;
-                        tooltipRect.Y = hoveredItemRect.Bottom + 10;
+                        tooltipRect.Y = hoveredItemRect.Bottom + 8;
                     }
                 }
             }
 
-            if (tooltipRect.Right > screenBounds.Right - 10) tooltipRect.X = screenBounds.Right - 10 - tooltipRect.Width;
-            if (tooltipRect.Bottom > screenBounds.Bottom - 10) tooltipRect.Y = screenBounds.Bottom - 10 - tooltipRect.Height;
-            if (tooltipRect.X < screenBounds.X + 10) tooltipRect.X = screenBounds.X + 10;
-            if (tooltipRect.Y < screenBounds.Y + 10) tooltipRect.Y = screenBounds.Y + 10;
+            // Clamp to screen bounds
+            tooltipRect.X = Math.Clamp(tooltipRect.X, 10, screenBounds.Right - tooltipRect.Width - 10);
+            tooltipRect.Y = Math.Clamp(tooltipRect.Y, 10, screenBounds.Bottom - tooltipRect.Height - 10);
 
-            var pixel = GraphicsManager.Instance?.Pixel;
-            if (pixel == null)
-            {
-                return;
-            }
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
 
-            spriteBatch.Draw(pixel, tooltipRect, Color.Black * 0.85f);
-            spriteBatch.Draw(pixel, new Rectangle(tooltipRect.X, tooltipRect.Y, tooltipRect.Width, 1), Color.White);
-            spriteBatch.Draw(pixel, new Rectangle(tooltipRect.X, tooltipRect.Bottom - 1, tooltipRect.Width, 1), Color.White);
-            spriteBatch.Draw(pixel, new Rectangle(tooltipRect.X, tooltipRect.Y, 1, tooltipRect.Height), Color.White);
-            spriteBatch.Draw(pixel, new Rectangle(tooltipRect.Right - 1, tooltipRect.Y, 1, tooltipRect.Height), Color.White);
+            // ═══════════════════════════════════════════════════════════
+            // TOOLTIP BACKGROUND
+            // ═══════════════════════════════════════════════════════════
 
-            int y = tooltipRect.Y + 4;
+            // Drop shadow
+            var shadowRect = new Rectangle(tooltipRect.X + 4, tooltipRect.Y + 4, tooltipRect.Width, tooltipRect.Height);
+            spriteBatch.Draw(pixel, shadowRect, Color.Black * 0.5f);
+
+            // Main background
+            DrawVerticalGradient(spriteBatch, tooltipRect, new Color(20, 24, 32, 252), new Color(12, 14, 18, 254));
+
+            // Border color based on item rarity
+            bool isExcellent = _hoveredItem.Details.IsExcellent;
+            bool isAncient = _hoveredItem.Details.IsAncient;
+            bool isHighLevel = _hoveredItem.Details.Level >= 7;
+
+            Color borderColor = isExcellent ? Theme.GlowExcellent :
+                                isAncient ? Theme.GlowAncient :
+                                isHighLevel ? Theme.Accent :
+                                Theme.TextWhite;
+
+            // Uniform border all around
+            const int borderThickness = 2;
+            spriteBatch.Draw(pixel, new Rectangle(tooltipRect.X, tooltipRect.Y, tooltipRect.Width, borderThickness), borderColor);
+            spriteBatch.Draw(pixel, new Rectangle(tooltipRect.X, tooltipRect.Bottom - borderThickness, tooltipRect.Width, borderThickness), borderColor);
+            spriteBatch.Draw(pixel, new Rectangle(tooltipRect.X, tooltipRect.Y, borderThickness, tooltipRect.Height), borderColor);
+            spriteBatch.Draw(pixel, new Rectangle(tooltipRect.Right - borderThickness, tooltipRect.Y, borderThickness, tooltipRect.Height), borderColor);
+
+            // ═══════════════════════════════════════════════════════════
+            // TOOLTIP TEXT
+            // ═══════════════════════════════════════════════════════════
+
+            int textY = tooltipRect.Y + paddingY;
+            bool isFirstLine = true;
+
             foreach (var (text, color) in lines)
             {
-                Vector2 size = _font.MeasureString(text) * scale;
-                spriteBatch.DrawString(_font, text, new Vector2(tooltipRect.X + (tooltipRect.Width - size.X) / 2, y), color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-                y += (int)size.Y + 2;
+                Vector2 textSize = _font.MeasureString(text) * scale;
+                int textX = tooltipRect.X + (tooltipRect.Width - (int)textSize.X) / 2;
+
+                // Shadow
+                spriteBatch.DrawString(_font, text, new Vector2(textX + 1, textY + 1), Color.Black * 0.7f,
+                                       0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                // Text
+                Color lineColor = isFirstLine ? borderColor : color;
+                spriteBatch.DrawString(_font, text, new Vector2(textX, textY), lineColor,
+                                       0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+
+                textY += (int)textSize.Y + lineSpacing;
+
+                // Separator after item name
+                if (isFirstLine)
+                {
+                    textY += 2;
+                    spriteBatch.Draw(pixel, new Rectangle(tooltipRect.X + 8, textY, tooltipRect.Width - 16, 1), borderColor * 0.3f);
+                    textY += 4;
+                    isFirstLine = false;
+                }
             }
         }
 
