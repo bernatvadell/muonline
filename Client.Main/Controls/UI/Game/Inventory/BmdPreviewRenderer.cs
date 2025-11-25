@@ -370,12 +370,18 @@ namespace Client.Main.Controls.UI.Game.Inventory
         {
             RenderTarget2D rt = target;
             bool createdNewTarget = false;
+            var gd = GraphicsManager.Instance.GraphicsDevice;
+            if (gd == null)
+                return target;
+
+            RenderTargetBinding[] prevTargets = null;
+            BlendState originalBlendState = null;
+            DepthStencilState originalDepthStencilState = null;
+            RasterizerState originalRasterizerState = null;
+            SamplerState originalSamplerState = null;
+            bool capturedStates = false;
             try
             {
-                var gd = GraphicsManager.Instance.GraphicsDevice;
-                if (gd == null)
-                    return target;
-
                 var modelTask = BMDLoader.Instance.Prepare(def.TexturePath);
 
                 // DirectX requires more careful thread synchronization to avoid deadlocks
@@ -403,11 +409,12 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     createdNewTarget = true;
                 }
 
-                var prevTargets = gd.GetRenderTargets();
-                var originalBlendState = gd.BlendState;
-                var originalDepthStencilState = gd.DepthStencilState;
-                var originalRasterizerState = gd.RasterizerState;
-                var originalSamplerState = gd.SamplerStates[0];
+                prevTargets = gd.GetRenderTargets();
+                originalBlendState = gd.BlendState;
+                originalDepthStencilState = gd.DepthStencilState;
+                originalRasterizerState = gd.RasterizerState;
+                originalSamplerState = gd.SamplerStates[0];
+                capturedStates = true;
 
                 gd.SetRenderTarget(rt);
                 gd.Clear(Color.Transparent);
@@ -514,10 +521,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 {
                     gd.SetRenderTargets(prevTargets);
                 }
-                gd.BlendState = originalBlendState;
-                gd.DepthStencilState = originalDepthStencilState;
-                gd.RasterizerState = originalRasterizerState;
-                gd.SamplerStates[0] = originalSamplerState;
 
                 return rt;
             }
@@ -526,8 +529,28 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 if (createdNewTarget && rt != null && !rt.IsDisposed)
                 {
                     rt.Dispose();
+                    rt = null;
                 }
-                return null;
+                return target ?? rt;
+            }
+            finally
+            {
+                if (capturedStates)
+                {
+                    if (prevTargets != null && prevTargets.Length > 0)
+                    {
+                        gd.SetRenderTargets(prevTargets);
+                    }
+                    else
+                    {
+                        gd.SetRenderTarget(null);
+                    }
+
+                    gd.BlendState = originalBlendState;
+                    gd.DepthStencilState = originalDepthStencilState;
+                    gd.RasterizerState = originalRasterizerState;
+                    gd.SamplerStates[0] = originalSamplerState;
+                }
             }
         }
 

@@ -57,7 +57,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         public const int Columns = 8;
         public const int Rows = 8;
-        private const int InventorySlotOffsetConstant = 12;
+        internal const int InventorySlotOffsetConstant = 12;
 
         // ═══════════════════════════════════════════════════════════════
         // MODERN DARK THEME
@@ -248,6 +248,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         public InventoryControl(NetworkManager networkManager = null, ILoggerFactory loggerFactory = null)
         {
+            // Ensure the singleton points to the active UI instance (needed by VaultControl drops).
+            _instance = this;
+
             _networkManager = networkManager;
             var factory = loggerFactory ?? MuGame.AppLoggerFactory;
             _logger = factory?.CreateLogger<InventoryControl>();
@@ -1340,6 +1343,16 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
                 if (leftJustPressed)
                 {
+                    // Check if there's an item from VaultControl being dragged
+                    var vaultDraggedItem = Game.VaultControl.Instance?.GetDraggedItem();
+                    if (vaultDraggedItem != null && _pickedItemRenderer.Item == null)
+                    {
+                        // VaultControl will handle the drop via its own AttemptDrop logic
+                        // We just need to consume the mouse input to prevent picking up items underneath
+                        Scene?.SetMouseInputConsumed();
+                        return;
+                    }
+
                     if (_pickedItemRenderer.Item != null)
                     {
                         if (CanPlaceItem(_pickedItemRenderer.Item, gridSlot))
