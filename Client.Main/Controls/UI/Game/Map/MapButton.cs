@@ -5,7 +5,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Threading.Tasks;
 
-namespace Client.Main.Controls.UI.Game
+namespace Client.Main.Controls.UI.Game.Map
 {
     public class MapButton<TWorld> : UIControl where TWorld : WalkableWorldControl, new()
     {

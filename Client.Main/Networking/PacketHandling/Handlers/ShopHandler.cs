@@ -5,10 +5,10 @@ using MUnique.OpenMU.Network.Packets.ServerToClient;
 using Client.Main.Core.Client;
 using Client.Main.Core.Utilities;
 using Client.Main.Networking;
-using Client.Main.Controls.UI.Game;
 using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Controls.UI;
 using Client.Main.Scenes;
+using Client.Main.Controls.UI.Game;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {

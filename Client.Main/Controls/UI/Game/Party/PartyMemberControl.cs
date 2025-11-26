@@ -3,7 +3,7 @@ using Client.Main.Core.Client;
 using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 
-namespace Client.Main.Controls.UI.Game
+namespace Client.Main.Controls.UI.Game.Party
 {
     public class PartyMemberControl : UIControl
     {

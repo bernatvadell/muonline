@@ -19,6 +19,10 @@ using Client.Main.Networking.PacketHandling.Handlers; // For CharacterClassNumbe
 using Client.Main.Controllers;
 using Microsoft.Extensions.Logging;
 using Client.Main.Controls.UI.Game.Inventory;
+using Client.Main.Controls.UI.Game.Map;
+using Client.Main.Controls.UI.Game.Party;
+using Client.Main.Controls.UI.Game.PauseMenu;
+using Client.Main.Controls.UI.Game.Character;
 using Client.Main.Helpers;
 using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Networking;
@@ -191,7 +195,7 @@ namespace Client.Main.Scenes
             _skillQuickSlot.BringToFront();
 
             // Experience bar
-            var experienceBar = new Controls.UI.Game.ExperienceBarControl(MuGame.Network.GetCharacterState());
+            var experienceBar = new Controls.UI.Game.Hud.ExperienceBarControl(MuGame.Network.GetCharacterState());
             Controls.Add(experienceBar);
 
             // Active buffs panel (top-left corner, no border)

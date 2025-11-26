@@ -9,7 +9,7 @@ using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace Client.Main.Controls.UI.Game
+namespace Client.Main.Controls.UI.Game.Map
 {
     public class MapNameControl : TextureControl
     {

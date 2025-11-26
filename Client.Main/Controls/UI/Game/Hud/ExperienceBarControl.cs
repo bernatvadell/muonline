@@ -3,7 +3,7 @@ using Client.Main.Core.Client;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
 
-namespace Client.Main.Controls.UI.Game
+namespace Client.Main.Controls.UI.Game.Hud
 {
     /// <summary>
     /// Experience bar control - displays current level progress as percentage.

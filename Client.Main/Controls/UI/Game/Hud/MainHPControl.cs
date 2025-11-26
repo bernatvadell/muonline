@@ -2,7 +2,7 @@
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace Client.Main.Controls.UI.Game
+namespace Client.Main.Controls.UI.Game.Hud
 {
     public class MainHPControl : TextureControl
     {

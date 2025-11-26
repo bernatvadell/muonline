@@ -2,7 +2,7 @@
 using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
 
-namespace Client.Main.Controls.UI.Game
+namespace Client.Main.Controls.UI.Game.Map
 {
     public class MapListControl : UIControl
     {

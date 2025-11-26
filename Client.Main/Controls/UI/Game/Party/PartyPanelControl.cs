@@ -5,7 +5,7 @@ using Client.Main.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 
-namespace Client.Main.Controls.UI.Game
+namespace Client.Main.Controls.UI.Game.Party
 {
     public class PartyPanelControl : UIControl
     {

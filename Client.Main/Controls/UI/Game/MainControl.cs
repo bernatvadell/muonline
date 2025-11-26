@@ -2,6 +2,7 @@
 using Client.Main.Core.Client;
 using Client.Main.Controls.UI;
 using Client.Main.Controls.UI.Game.Inventory;
+using Client.Main.Controls.UI.Game.Hud;
 using Client.Main.Scenes;
 using Client.Main.Helpers;
 using Microsoft.Xna.Framework;

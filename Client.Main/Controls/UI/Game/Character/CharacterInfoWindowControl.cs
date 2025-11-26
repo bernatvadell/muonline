@@ -15,7 +15,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Client.Main.Helpers;
 
-namespace Client.Main.Controls.UI.Game
+namespace Client.Main.Controls.UI.Game.Character
 {
     public class CharacterInfoWindowControl : UIControl, IUiTexturePreloadable
     {

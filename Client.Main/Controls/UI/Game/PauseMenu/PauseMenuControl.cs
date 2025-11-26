@@ -10,10 +10,11 @@ using Microsoft.Extensions.Logging;
 using Client.Main.Core.Client; // ClientConnectionState
 using Client.Main;
 using Client.Main.Controllers;
+using Client.Main.Controls.UI.Game;
 using Client.Main.Graphics;
 using MUnique.OpenMU.Network.Packets; // LogOutType
 
-namespace Client.Main.Controls.UI.Game
+namespace Client.Main.Controls.UI.Game.PauseMenu
 {
     public class PauseMenuControl : UIControl
     {
@@ -565,7 +566,6 @@ namespace Client.Main.Controls.UI.Game
                 };
                 Controls.Add(title);
 
-                const int rowHeight = 22;
                 int categoryStartY = 60;
                 int categoryX = 20;
                 int categoryWidth = 130;

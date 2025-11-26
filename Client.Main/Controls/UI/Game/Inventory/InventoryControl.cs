@@ -9,9 +9,11 @@ using Client.Main;
 using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Core.Utilities;
-using Client.Main.Helpers;
+using Client.Main.Controls.UI.Common;
+using Client.Main.Controls.UI.Game.Common;
 using Client.Main.Models;
 using Client.Main.Networking;
+using Client.Main.Helpers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -112,6 +114,13 @@ namespace Client.Main.Controls.UI.Game.Inventory
             public static readonly Color Danger = new(220, 80, 80);
         }
 
+        private static readonly ItemGlowPalette GlowPalette = new(
+            Theme.GlowNormal,
+            Theme.GlowMagic,
+            Theme.GlowExcellent,
+            Theme.GlowAncient,
+            Theme.GlowLegendary);
+
         private readonly struct LayoutInfo
         {
             public string Name { get; init; }
@@ -191,8 +200,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
         private bool _staticSurfaceDirty = true;
 
         private readonly List<InventoryTextEntry> _texts = new();
-        private InventoryTextEntry _titleText;
-        private InventoryTextEntry _subtitleText;
         private InventoryTextEntry _zenText;
 
         private readonly Dictionary<string, Texture2D> _itemTextureCache = new(StringComparer.OrdinalIgnoreCase);
@@ -546,9 +553,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
         {
             _texts.Clear();
 
-            // Title is now drawn in DrawModernHeader, so we skip _titleText
-            _titleText = null;
-            _subtitleText = null;
+            // Title is now drawn in DrawModernHeader, so we skip the title text
 
             // Zen text - positioned inside zen field
             _zenText = CreateText(new Vector2(_zenFieldRect.X + 8, _zenFieldRect.Y + _zenFieldRect.Height * 0.5f - 6f),
@@ -781,117 +786,23 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             // Main background with vertical gradient
             var innerRect = new Rectangle(rect.X + 2, rect.Y + 2, rect.Width - 4, rect.Height - 4);
-            DrawVerticalGradient(spriteBatch, innerRect, Theme.BgDark, Theme.BgDarkest);
+            UiDrawHelper.DrawVerticalGradient(spriteBatch, innerRect, Theme.BgDark, Theme.BgDarkest);
 
             // Subtle inner border highlight
             spriteBatch.Draw(pixel, new Rectangle(innerRect.X, innerRect.Y, innerRect.Width, 1), Theme.BorderInner * 0.5f);
             spriteBatch.Draw(pixel, new Rectangle(innerRect.X, innerRect.Y, 1, innerRect.Height), Theme.BorderInner * 0.3f);
 
             // Corner accents
-            DrawCornerAccents(spriteBatch, rect, Theme.Accent * 0.4f);
-        }
-
-        private void DrawVerticalGradient(SpriteBatch spriteBatch, Rectangle rect, Color top, Color bottom)
-        {
-            var pixel = GraphicsManager.Instance.Pixel;
-            if (pixel == null) return;
-
-            int steps = Math.Min(rect.Height, 64);
-            int stepHeight = Math.Max(1, rect.Height / steps);
-
-            if (steps <= 1 || rect.Height <= 1)
-            {
-                spriteBatch.Draw(pixel, rect, bottom);
-                return;
-            }
-
-            for (int i = 0; i < steps; i++)
-            {
-                float t = (float)i / (steps - 1);
-                Color color = Color.Lerp(top, bottom, t);
-                int y = rect.Y + i * stepHeight;
-                int height = (i == steps - 1) ? rect.Bottom - y : stepHeight;
-                spriteBatch.Draw(pixel, new Rectangle(rect.X, y, rect.Width, height), color);
-            }
-        }
-
-        private void DrawHorizontalGradient(SpriteBatch spriteBatch, Rectangle rect, Color left, Color right)
-        {
-            var pixel = GraphicsManager.Instance.Pixel;
-            if (pixel == null) return;
-
-            int steps = Math.Min(rect.Width, 64);
-            int stepWidth = Math.Max(1, rect.Width / steps);
-
-            if (steps <= 1 || rect.Width <= 1)
-            {
-                spriteBatch.Draw(pixel, rect, right);
-                return;
-            }
-
-            for (int i = 0; i < steps; i++)
-            {
-                float t = (float)i / (steps - 1);
-                Color color = Color.Lerp(left, right, t);
-                int x = rect.X + i * stepWidth;
-                int width = (i == steps - 1) ? rect.Right - x : stepWidth;
-                spriteBatch.Draw(pixel, new Rectangle(x, rect.Y, width, rect.Height), color);
-            }
-        }
-
-        private void DrawCornerAccents(SpriteBatch spriteBatch, Rectangle rect, Color color)
-        {
-            var pixel = GraphicsManager.Instance.Pixel;
-            if (pixel == null) return;
-
-            int size = 12;
-            int thickness = 2;
-
-            // Top-left
-            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, size, thickness), color);
-            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, thickness, size), color);
-
-            // Top-right
-            spriteBatch.Draw(pixel, new Rectangle(rect.Right - size, rect.Y, size, thickness), color);
-            spriteBatch.Draw(pixel, new Rectangle(rect.Right - thickness, rect.Y, thickness, size), color);
-
-            // Bottom-left
-            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - thickness, size, thickness), color);
-            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - size, thickness, size), color);
-
-            // Bottom-right
-            spriteBatch.Draw(pixel, new Rectangle(rect.Right - size, rect.Bottom - thickness, size, thickness), color);
-            spriteBatch.Draw(pixel, new Rectangle(rect.Right - thickness, rect.Bottom - size, thickness, size), color);
+            UiDrawHelper.DrawCornerAccents(spriteBatch, rect, Theme.Accent * 0.4f);
         }
 
         private void DrawPanel(SpriteBatch spriteBatch, Rectangle rect, Color bgColor, bool withBorder = true, bool withGlow = false)
         {
-            var pixel = GraphicsManager.Instance.Pixel;
-            if (pixel == null) return;
-
-            if (withGlow)
-            {
-                // Outer glow
-                var glowRect = new Rectangle(rect.X - 1, rect.Y - 1, rect.Width + 2, rect.Height + 2);
-                spriteBatch.Draw(pixel, glowRect, Theme.Accent * 0.15f);
-            }
-
-            // Background
-            DrawVerticalGradient(spriteBatch, rect,
-                new Color(bgColor.R + 8, bgColor.G + 8, bgColor.B + 10, bgColor.A),
-                new Color(bgColor.R - 4, bgColor.G - 4, bgColor.B - 2, bgColor.A));
-
-            if (withBorder)
-            {
-                // Border
-                spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 1), Theme.BorderInner);
-                spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 1, rect.Width, 1), Theme.BorderOuter);
-                spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, 1, rect.Height), Theme.BorderInner * 0.7f);
-                spriteBatch.Draw(pixel, new Rectangle(rect.Right - 1, rect.Y, 1, rect.Height), Theme.BorderOuter);
-
-                // Inner highlight
-                spriteBatch.Draw(pixel, new Rectangle(rect.X + 1, rect.Y + 1, rect.Width - 2, 1), Theme.BorderHighlight * 0.3f);
-            }
+            UiDrawHelper.DrawPanel(spriteBatch, rect, bgColor,
+                withBorder ? Theme.BorderInner : (Color?)null,
+                withBorder ? Theme.BorderOuter : (Color?)null,
+                withBorder ? Theme.BorderHighlight * 0.3f : null,
+                withGlow, withGlow ? Theme.Accent * 0.15f : null);
         }
 
         private void DrawSectionHeader(SpriteBatch spriteBatch, string title, int x, int y, int width)
@@ -911,7 +822,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             int leftLineWidth = textX - x - textPadding;
             if (leftLineWidth > 20)
             {
-                DrawHorizontalGradient(spriteBatch,
+                UiDrawHelper.DrawHorizontalGradient(spriteBatch,
                     new Rectangle(x, lineY, leftLineWidth, 1),
                     Theme.Accent * 0.1f, Theme.Accent * 0.5f);
                 spriteBatch.Draw(pixel, new Rectangle(textX - textPadding - 3, lineY - 1, 3, 3), Theme.Accent * 0.6f);
@@ -922,7 +833,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             int rightLineWidth = x + width - rightLineStart;
             if (rightLineWidth > 20)
             {
-                DrawHorizontalGradient(spriteBatch,
+                UiDrawHelper.DrawHorizontalGradient(spriteBatch,
                     new Rectangle(rightLineStart, lineY, rightLineWidth, 1),
                     Theme.Accent * 0.5f, Theme.Accent * 0.1f);
                 spriteBatch.Draw(pixel, new Rectangle(rightLineStart, lineY - 1, 3, 3), Theme.Accent * 0.6f);
@@ -1004,9 +915,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             // Bottom separator
             int separatorY = HEADER_HEIGHT - 2;
-            DrawHorizontalGradient(spriteBatch, new Rectangle(20, separatorY, (WINDOW_WIDTH - 40) / 2, 1),
+            UiDrawHelper.DrawHorizontalGradient(spriteBatch, new Rectangle(20, separatorY, (WINDOW_WIDTH - 40) / 2, 1),
                                   Color.Transparent, Theme.BorderInner);
-            DrawHorizontalGradient(spriteBatch, new Rectangle(WINDOW_WIDTH / 2, separatorY, (WINDOW_WIDTH - 40) / 2, 1),
+            UiDrawHelper.DrawHorizontalGradient(spriteBatch, new Rectangle(WINDOW_WIDTH / 2, separatorY, (WINDOW_WIDTH - 40) / 2, 1),
                                   Theme.BorderInner, Color.Transparent);
         }
 
@@ -1031,10 +942,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
             // Draw vertical divider lines
             int dividerX1 = silhouetteX - 30;
             int dividerX2 = silhouetteX + silhouetteWidth + 30;
-            DrawVerticalGradient(spriteBatch,
+            UiDrawHelper.DrawVerticalGradient(spriteBatch,
                 new Rectangle(dividerX1, _paperdollPanelRect.Y + 20, 1, _paperdollPanelRect.Height - 40),
                 Theme.BorderInner * 0.3f, Theme.BorderInner * 0.1f);
-            DrawVerticalGradient(spriteBatch,
+            UiDrawHelper.DrawVerticalGradient(spriteBatch,
                 new Rectangle(dividerX2, _paperdollPanelRect.Y + 20, 1, _paperdollPanelRect.Height - 40),
                 Theme.BorderInner * 0.3f, Theme.BorderInner * 0.1f);
 
@@ -1055,7 +966,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             // Slot background
             Color bgColor = hasItem ? Theme.BgLight : Theme.SlotBg;
-            DrawVerticalGradient(spriteBatch, rect, bgColor, Theme.BgDarkest);
+            UiDrawHelper.DrawVerticalGradient(spriteBatch, rect, bgColor, Theme.BgDarkest);
 
             // Border
             Color borderColor = layout.AccentRed ? Theme.Danger : Theme.SlotBorder;
@@ -1148,9 +1059,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             // Top separator line
             int sepY = _footerRect.Y - 6;
-            DrawHorizontalGradient(spriteBatch, new Rectangle(30, sepY, (WINDOW_WIDTH - 60) / 2, 1),
+            UiDrawHelper.DrawHorizontalGradient(spriteBatch, new Rectangle(30, sepY, (WINDOW_WIDTH - 60) / 2, 1),
                                   Color.Transparent, Theme.Accent * 0.4f);
-            DrawHorizontalGradient(spriteBatch, new Rectangle(WINDOW_WIDTH / 2, sepY, (WINDOW_WIDTH - 60) / 2, 1),
+            UiDrawHelper.DrawHorizontalGradient(spriteBatch, new Rectangle(WINDOW_WIDTH / 2, sepY, (WINDOW_WIDTH - 60) / 2, 1),
                                   Theme.Accent * 0.4f, Color.Transparent);
 
             // Footer panel
@@ -1280,7 +1191,8 @@ namespace Client.Main.Controls.UI.Game.Inventory
             var preloadTasks = new List<Task>();
             foreach (var item in _items)
             {
-                if (!string.IsNullOrEmpty(item.Definition.TexturePath))
+                if (!string.IsNullOrEmpty(item.Definition.TexturePath) &&
+                    !item.Definition.TexturePath.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase))
                 {
                     preloadTasks.Add(TextureLoader.Instance.Prepare(item.Definition.TexturePath));
                 }
@@ -1344,7 +1256,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 if (leftJustPressed)
                 {
                     // Check if there's an item from VaultControl being dragged
-                    var vaultDraggedItem = Game.VaultControl.Instance?.GetDraggedItem();
+                    var vaultDraggedItem = VaultControl.Instance?.GetDraggedItem();
                     if (vaultDraggedItem != null && _pickedItemRenderer.Item == null)
                     {
                         // VaultControl will handle the drop via its own AttemptDrop logic
@@ -1520,7 +1432,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 ? (byte)_pickedFromEquipSlot
                 : (byte)(InventorySlotOffsetConstant + (item.GridPosition.Y * Columns) + item.GridPosition.X);
 
-            var shop = Game.NpcShopControl.Instance;
+            var shop = NpcShopControl.Instance;
             if (shop != null && shop.Visible && shop.DisplayRectangle.Contains(MuGame.Instance.UiMouseState.Position))
             {
                 var itemToSell = _pickedItem_renderer_item();
@@ -1531,7 +1443,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
                 ShowSellConfirmation(itemToSell, slotIndex, originalGrid, fromEquipSlot);
             }
-            else if (Game.VaultControl.Instance is { } vault &&
+            else if (VaultControl.Instance is { } vault &&
                      vault.Visible &&
                      vault.DisplayRectangle.Contains(MuGame.Instance.UiMouseState.Position) &&
                      _network_manager_exists())
@@ -1873,12 +1785,12 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 bool isHovered = item == _hoveredItem;
 
                 // Item glow effect
-                Color glowColor = GetItemGlowColor(item);
+                Color glowColor = ItemUiHelper.GetItemGlowColor(item, GlowPalette);
                 if (glowColor.A > 0 || isHovered)
                 {
                     Color finalGlow = isHovered ? Color.Lerp(glowColor, Theme.Accent, 0.5f) : glowColor;
                     finalGlow.A = (byte)Math.Min(255, finalGlow.A + (isHovered ? 40 : 0));
-                    DrawItemGlow(spriteBatch, itemRect, finalGlow);
+                    ItemUiHelper.DrawItemGlow(spriteBatch, pixel, itemRect, finalGlow);
                 }
 
                 // Item cell background
@@ -1895,122 +1807,26 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 else
                 {
                     // Placeholder
-                    DrawItemPlaceholder(spriteBatch, itemRect, item);
+                    ItemGridRenderHelper.DrawItemPlaceholder(spriteBatch, pixel, font, itemRect, item, Theme.BgLighter, Theme.TextGray * 0.8f);
                 }
 
                 // Stack count
                 if (item.Definition.BaseDurability == 0 && item.Durability > 1)
                 {
-                    DrawItemStackCount(spriteBatch, font, itemRect, item.Durability);
+                    ItemGridRenderHelper.DrawItemStackCount(spriteBatch, font, itemRect, item.Durability, Theme.TextGold, 1f);
                 }
 
                 // Level indicator
                 if (item.Details.Level > 0)
                 {
-                    DrawItemLevelBadge(spriteBatch, font, itemRect, item.Details.Level);
+                    ItemGridRenderHelper.DrawItemLevelBadge(spriteBatch, pixel, font, itemRect, item.Details.Level,
+                                       lvl => lvl >= 9 ? Theme.Danger :
+                                              lvl >= 7 ? Theme.Accent :
+                                              lvl >= 4 ? Theme.Secondary :
+                                              Theme.TextGray,
+                                       new Color(0, 0, 0, 180));
                 }
             }
-        }
-
-        private Color GetItemGlowColor(InventoryItem item)
-        {
-            if (item.Details.IsExcellent) return Theme.GlowExcellent;
-            if (item.Details.IsAncient) return Theme.GlowAncient;
-            if (item.Details.Level >= 9) return Theme.GlowLegendary;
-            if (item.Details.Level >= 5) return Theme.GlowMagic;
-            return Theme.GlowNormal;
-        }
-
-        private void DrawItemGlow(SpriteBatch spriteBatch, Rectangle rect, Color color)
-        {
-            var pixel = GraphicsManager.Instance.Pixel;
-            if (pixel == null) return;
-
-            int glowSize = 4;
-            for (int i = glowSize; i > 0; i--)
-            {
-                float alpha = (float)(glowSize - i + 1) / glowSize * 0.6f;
-                Color layerColor = color * alpha;
-
-                var glowRect = new Rectangle(rect.X - i, rect.Y - i, rect.Width + i * 2, rect.Height + i * 2);
-
-                // Top
-                spriteBatch.Draw(pixel, new Rectangle(glowRect.X, glowRect.Y, glowRect.Width, 1), layerColor);
-                // Bottom
-                spriteBatch.Draw(pixel, new Rectangle(glowRect.X, glowRect.Bottom - 1, glowRect.Width, 1), layerColor);
-                // Left
-                spriteBatch.Draw(pixel, new Rectangle(glowRect.X, glowRect.Y, 1, glowRect.Height), layerColor);
-                // Right
-                spriteBatch.Draw(pixel, new Rectangle(glowRect.Right - 1, glowRect.Y, 1, glowRect.Height), layerColor);
-            }
-        }
-
-        private void DrawItemPlaceholder(SpriteBatch spriteBatch, Rectangle rect, InventoryItem item)
-        {
-            var pixel = GraphicsManager.Instance.Pixel;
-            if (pixel == null) return;
-
-            spriteBatch.Draw(pixel, rect, Theme.BgLighter);
-
-            if (_font != null && item.Definition.Name != null)
-            {
-                string shortName = item.Definition.Name.Length > 5
-                    ? item.Definition.Name.Substring(0, 5) + ".."
-                    : item.Definition.Name;
-
-                float scale = 0.24f;
-                Vector2 size = _font.MeasureString(shortName) * scale;
-                Vector2 pos = new(rect.X + (rect.Width - size.X) / 2, rect.Y + (rect.Height - size.Y) / 2);
-
-                spriteBatch.DrawString(_font, shortName, pos, Theme.TextGray * 0.8f,
-                                       0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-            }
-        }
-
-        private void DrawItemStackCount(SpriteBatch spriteBatch, SpriteFont font, Rectangle itemRect, int count)
-        {
-            var pixel = GraphicsManager.Instance.Pixel;
-            if (pixel == null) return;
-
-            string text = count.ToString();
-            const float scale = 0.34f;
-
-            Vector2 textSize = font.MeasureString(text) * scale;
-            Vector2 pos = new(itemRect.Right - textSize.X - 3, itemRect.Y + 2);
-
-            // Background pill
-            var bgRect = new Rectangle((int)pos.X - 3, (int)pos.Y - 1, (int)textSize.X + 6, (int)textSize.Y + 2);
-            spriteBatch.Draw(pixel, bgRect, new Color(0, 0, 0, 200));
-
-            // Text
-            spriteBatch.DrawString(font, text, pos + Vector2.One, Color.Black, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-            spriteBatch.DrawString(font, text, pos, Theme.TextGold, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-        }
-
-        private void DrawItemLevelBadge(SpriteBatch spriteBatch, SpriteFont font, Rectangle itemRect, int level)
-        {
-            var pixel = GraphicsManager.Instance.Pixel;
-            if (pixel == null) return;
-
-            string text = $"+{level}";
-            const float scale = 0.30f;
-
-            Vector2 textSize = font.MeasureString(text) * scale;
-            Vector2 pos = new(itemRect.X + 2, itemRect.Bottom - textSize.Y - 2);
-
-            // Color based on level
-            Color levelColor = level >= 9 ? Theme.Danger :
-                               level >= 7 ? Theme.Warning :
-                               level >= 4 ? Theme.Secondary :
-                               Theme.TextGray;
-
-            // Background
-            var bgRect = new Rectangle((int)pos.X - 2, (int)pos.Y - 1, (int)textSize.X + 4, (int)textSize.Y + 2);
-            spriteBatch.Draw(pixel, bgRect, new Color(0, 0, 0, 180));
-
-            // Text
-            spriteBatch.DrawString(font, text, pos + Vector2.One, Color.Black * 0.8f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-            spriteBatch.DrawString(font, text, pos, levelColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
         }
 
         private void DrawEquippedItems(SpriteBatch spriteBatch)
@@ -2130,7 +1946,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             }
 
             Rectangle gridRect = Translate(_gridRect);
-            var dragged = _pickedItem_renderer_item() ?? Game.VaultControl.Instance?.GetDraggedItem();
+            var dragged = _pickedItem_renderer_item() ?? VaultControl.Instance?.GetDraggedItem();
             bool isOverGrid = IsMouseOverGrid();
 
             for (int y = 0; y < Rows; y++)
@@ -2294,7 +2110,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             // Button background
             Color bgTop = hovered ? Theme.BgLighter : Theme.BgLight;
             Color bgBottom = hovered ? Theme.BgMid : Theme.BgDark;
-            DrawVerticalGradient(spriteBatch, rect, bgTop, bgBottom);
+            UiDrawHelper.DrawVerticalGradient(spriteBatch, rect, bgTop, bgBottom);
 
             // Border
             Color borderTop = hovered ? Theme.Accent : Theme.BorderInner;
@@ -2328,7 +2144,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             if (_pickedItem_renderer_item() != null || _hoveredItem == null || _font == null)
                 return;
 
-            var lines = BuildTooltipLines(_hoveredItem);
+            var lines = ItemUiHelper.BuildTooltipLines(_hoveredItem);
             const float scale = 0.44f;
             const int lineSpacing = 4;
             const int paddingX = 14;
@@ -2411,7 +2227,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             spriteBatch.Draw(pixel, shadowRect, Color.Black * 0.5f);
 
             // Main background
-            DrawVerticalGradient(spriteBatch, tooltipRect, new Color(20, 24, 32, 252), new Color(12, 14, 18, 254));
+            UiDrawHelper.DrawVerticalGradient(spriteBatch, tooltipRect, new Color(20, 24, 32, 252), new Color(12, 14, 18, 254));
 
             // Border color based on item rarity
             bool isExcellent = _hoveredItem.Details.IsExcellent;
@@ -2461,86 +2277,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     isFirstLine = false;
                 }
             }
-        }
-
-        private static List<(string txt, Color col)> BuildTooltipLines(InventoryItem item)
-        {
-            var details = item.Details;
-            var result = new List<(string, Color)>();
-
-            string name = details.IsExcellent ? $"Excellent {item.Definition.Name}"
-                        : details.IsAncient ? $"Ancient {item.Definition.Name}"
-                        : item.Definition.Name;
-
-            if (details.Level > 0)
-            {
-                name += $" +{details.Level}";
-            }
-
-            result.Add((name, Color.White));
-
-            var def = item.Definition;
-            if (def.DamageMin > 0 || def.DamageMax > 0)
-            {
-                string dmgType = def.TwoHanded ? "Two-hand" : "One-hand";
-                result.Add(($"{dmgType} Damage : {def.DamageMin} ~ {def.DamageMax}", Color.Orange));
-            }
-            if (def.Defense > 0)
-            {
-                result.Add(("Defense     : " + def.Defense, Color.Orange));
-            }
-            if (def.DefenseRate > 0)
-            {
-                result.Add(("Defense Rate: " + def.DefenseRate, Color.Orange));
-            }
-            if (def.AttackSpeed > 0)
-            {
-                result.Add(("Attack Speed: " + def.AttackSpeed, Color.Orange));
-            }
-
-            result.Add(($"Durability : {item.Durability}/{def.BaseDurability}", Color.Silver));
-
-            if (def.RequiredLevel > 0) result.Add(($"Required Level   : {def.RequiredLevel}", Color.LightGray));
-            if (def.RequiredStrength > 0) result.Add(($"Required Strength: {def.RequiredStrength}", Color.LightGray));
-            if (def.RequiredDexterity > 0) result.Add(($"Required Agility : {def.RequiredDexterity}", Color.LightGray));
-            if (def.RequiredEnergy > 0) result.Add(($"Required Energy  : {def.RequiredEnergy}", Color.LightGray));
-
-            if (def.AllowedClasses != null)
-            {
-                foreach (var cls in def.AllowedClasses)
-                {
-                    result.Add(($"Can be equipped by {cls}", Color.LightGray));
-                }
-            }
-
-            if (details.OptionLevel > 0)
-            {
-                result.Add(($"Additional Option : +{details.OptionLevel * 4}", new Color(80, 255, 80)));
-            }
-
-            if (details.HasLuck) result.Add(("+Luck  (Crit +5 %, Jewel +25 %)", Color.CornflowerBlue));
-            if (details.HasSkill) result.Add(("+Skill (Right mouse click - skill)", Color.CornflowerBlue));
-
-            if (details.IsExcellent)
-            {
-                byte excByte = item.RawData.Length > 3 ? item.RawData[3] : (byte)0;
-                foreach (var option in ItemDatabase.ParseExcellentOptions(excByte))
-                {
-                    result.Add(($"+{option}", new Color(128, 255, 128)));
-                }
-            }
-
-            if (details.IsAncient)
-            {
-                result.Add(("Ancient Option", new Color(0, 255, 128)));
-            }
-
-            if (def.IsConsumable())
-            {
-                result.Add(("Right-click to use", new Color(255, 215, 0)));
-            }
-
-            return result;
         }
 
         private static void DrawStackCount(SpriteBatch spriteBatch, SpriteFont font, Rectangle itemRect, string quantityText)
@@ -2640,25 +2376,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private Point GetSlotAtScreenPosition(Point screenPos)
         {
-            if (DisplayRectangle.Width <= 0 || DisplayRectangle.Height <= 0)
-            {
-                return new Point(-1, -1);
-            }
-
-            Point localPos = new(
-                screenPos.X - DisplayRectangle.X - _gridRect.X,
-                screenPos.Y - DisplayRectangle.Y - _gridRect.Y);
-
-            if (localPos.X < 0 || localPos.Y < 0 ||
-                localPos.X >= _gridRect.Width ||
-                localPos.Y >= _gridRect.Height)
-            {
-                return new Point(-1, -1);
-            }
-
-            return new Point(
-                Math.Min(Columns - 1, localPos.X / INVENTORY_SQUARE_WIDTH),
-                Math.Min(Rows - 1, localPos.Y / INVENTORY_SQUARE_WIDTH));
+            return ItemGridRenderHelper.GetSlotAtScreenPosition(DisplayRectangle, _gridRect, Columns, Rows, INVENTORY_SQUARE_WIDTH, INVENTORY_SQUARE_HEIGHT, screenPos);
         }
 
         private int GetEquipSlotAtScreenPosition(Point screenPos)
