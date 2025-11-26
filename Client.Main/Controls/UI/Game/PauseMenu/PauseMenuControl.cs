@@ -635,126 +635,132 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
             {
                 BuildCategory("Audio", (ref int currentY) =>
                 {
-                AddOption("Background Music", () => Constants.BACKGROUND_MUSIC, value =>
-                {
-                    Constants.BACKGROUND_MUSIC = value;
-                    _owner.ApplyBackgroundMusicSetting(value);
-                }, ref currentY, OptionRowHeight);
+                    AddOption("Background Music", () => Constants.BACKGROUND_MUSIC, value =>
+                    {
+                        Constants.BACKGROUND_MUSIC = value;
+                        _owner.ApplyBackgroundMusicSetting(value);
+                    }, ref currentY, OptionRowHeight);
 
-                AddOption("Sound Effects", () => Constants.SOUND_EFFECTS, value =>
-                {
-                    Constants.SOUND_EFFECTS = value;
-                    _owner.ApplySoundEffectsVolume();
-                }, ref currentY, OptionRowHeight);
-                AddVolumeControl("Music Volume", () => Constants.BACKGROUND_MUSIC_VOLUME, value =>
-                {
-                    Constants.BACKGROUND_MUSIC_VOLUME = value;
-                    _owner.ApplyBackgroundMusicVolume();
-                }, ref currentY, OptionRowHeight);
-                AddVolumeControl("Effects Volume", () => Constants.SOUND_EFFECTS_VOLUME, value =>
-                {
-                    Constants.SOUND_EFFECTS_VOLUME = value;
-                    _owner.ApplySoundEffectsVolume();
-                }, ref currentY, OptionRowHeight);
-            });
-        }
+                    AddOption("Sound Effects", () => Constants.SOUND_EFFECTS, value =>
+                    {
+                        Constants.SOUND_EFFECTS = value;
+                        _owner.ApplySoundEffectsVolume();
+                    }, ref currentY, OptionRowHeight);
+                    AddVolumeControl("Music Volume", () => Constants.BACKGROUND_MUSIC_VOLUME, value =>
+                    {
+                        Constants.BACKGROUND_MUSIC_VOLUME = value;
+                        _owner.ApplyBackgroundMusicVolume();
+                    }, ref currentY, OptionRowHeight);
+                    AddVolumeControl("Effects Volume", () => Constants.SOUND_EFFECTS_VOLUME, value =>
+                    {
+                        Constants.SOUND_EFFECTS_VOLUME = value;
+                        _owner.ApplySoundEffectsVolume();
+                    }, ref currentY, OptionRowHeight);
+                });
+            }
 
-        private void BuildWorldCategory()
-        {
-            BuildCategory("World & Visibility", (ref int currentY) =>
+            private void BuildWorldCategory()
             {
-                AddOption("Draw Bounding Boxes", () => Constants.DRAW_BOUNDING_BOXES, value => Constants.DRAW_BOUNDING_BOXES = value, ref currentY, OptionRowHeight);
-                AddOption("Draw Bounding Boxes (Interactives)", () => Constants.DRAW_BOUNDING_BOXES_INTERACTIVES, value => Constants.DRAW_BOUNDING_BOXES_INTERACTIVES = value, ref currentY, OptionRowHeight);
-                AddOption("Draw Grass", () => Constants.DRAW_GRASS, value => Constants.DRAW_GRASS = value, ref currentY, OptionRowHeight);
-                AddOption("Low Quality Switch", () => Constants.ENABLE_LOW_QUALITY_SWITCH, value => Constants.ENABLE_LOW_QUALITY_SWITCH = value, ref currentY, OptionRowHeight);
-                AddOption("Low Quality in Login", () => Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE, value => Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE = value, ref currentY, OptionRowHeight);
-            });
-        }
+                BuildCategory("World & Visibility", (ref int currentY) =>
+                {
+                    AddOption("Draw Bounding Boxes", () => Constants.DRAW_BOUNDING_BOXES, value => Constants.DRAW_BOUNDING_BOXES = value, ref currentY, OptionRowHeight);
+                    AddOption("Draw Bounding Boxes (Interactives)", () => Constants.DRAW_BOUNDING_BOXES_INTERACTIVES, value => Constants.DRAW_BOUNDING_BOXES_INTERACTIVES = value, ref currentY, OptionRowHeight);
+                    AddOption("Draw Grass", () => Constants.DRAW_GRASS, value => Constants.DRAW_GRASS = value, ref currentY, OptionRowHeight);
+                    AddOption("Low Quality Switch", () => Constants.ENABLE_LOW_QUALITY_SWITCH, value => Constants.ENABLE_LOW_QUALITY_SWITCH = value, ref currentY, OptionRowHeight);
+                    AddOption("Low Quality in Login", () => Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE, value => Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE = value, ref currentY, OptionRowHeight);
+                });
+            }
 
-        private void BuildRenderScaleCategory()
-        {
-            BuildCategory("Render Scale", (ref int currentY) =>
+            private void BuildRenderScaleCategory()
             {
-                AddOption("Render Scale: 300%", () => Math.Abs(Constants.RENDER_SCALE - 3.0f) < 0.01f, value =>
+                BuildCategory("Render Scale", (ref int currentY) =>
                 {
-                    if (value) { SetRenderScale(3.0f); }
-                }, ref currentY, OptionRowHeight);
-                AddOption("Render Scale: 200%", () => Math.Abs(Constants.RENDER_SCALE - 2.0f) < 0.01f, value => {
-                    if (value) { SetRenderScale(2.0f); }
-                }, ref currentY, OptionRowHeight);
-                AddOption("Render Scale: 150%", () => Math.Abs(Constants.RENDER_SCALE - 1.5f) < 0.01f, value => {
-                    if (value) { SetRenderScale(1.5f); }
-                }, ref currentY, OptionRowHeight);
-                AddOption("Render Scale: 125%", () => Math.Abs(Constants.RENDER_SCALE - 1.25f) < 0.01f, value => {
-                    if (value) { SetRenderScale(1.25f); }
-                }, ref currentY, OptionRowHeight);
-                AddOption("Render Scale: 100%", () => Math.Abs(Constants.RENDER_SCALE - 1.0f) < 0.01f, value => {
-                    if (value) { SetRenderScale(1.0f); }
-                }, ref currentY, OptionRowHeight);
-                AddOption("Render Scale: 75%", () => Math.Abs(Constants.RENDER_SCALE - 0.75f) < 0.01f, value => {
-                    if (value) { SetRenderScale(0.75f); }
-                }, ref currentY, OptionRowHeight);
-            });
-        }
+                    AddOption("Render Scale: 300%", () => Math.Abs(Constants.RENDER_SCALE - 3.0f) < 0.01f, value =>
+                    {
+                        if (value) { SetRenderScale(3.0f); }
+                    }, ref currentY, OptionRowHeight);
+                    AddOption("Render Scale: 200%", () => Math.Abs(Constants.RENDER_SCALE - 2.0f) < 0.01f, value =>
+                    {
+                        if (value) { SetRenderScale(2.0f); }
+                    }, ref currentY, OptionRowHeight);
+                    AddOption("Render Scale: 150%", () => Math.Abs(Constants.RENDER_SCALE - 1.5f) < 0.01f, value =>
+                    {
+                        if (value) { SetRenderScale(1.5f); }
+                    }, ref currentY, OptionRowHeight);
+                    AddOption("Render Scale: 125%", () => Math.Abs(Constants.RENDER_SCALE - 1.25f) < 0.01f, value =>
+                    {
+                        if (value) { SetRenderScale(1.25f); }
+                    }, ref currentY, OptionRowHeight);
+                    AddOption("Render Scale: 100%", () => Math.Abs(Constants.RENDER_SCALE - 1.0f) < 0.01f, value =>
+                    {
+                        if (value) { SetRenderScale(1.0f); }
+                    }, ref currentY, OptionRowHeight);
+                    AddOption("Render Scale: 75%", () => Math.Abs(Constants.RENDER_SCALE - 0.75f) < 0.01f, value =>
+                    {
+                        if (value) { SetRenderScale(0.75f); }
+                    }, ref currentY, OptionRowHeight);
+                });
+            }
 
-        private void BuildGraphicsCategory()
-        {
-            BuildCategory("Graphics", (ref int currentY) =>
+            private void BuildGraphicsCategory()
             {
-                AddOption("High Quality Textures", () => Constants.HIGH_QUALITY_TEXTURES, value => Constants.HIGH_QUALITY_TEXTURES = value, ref currentY, OptionRowHeight);
-                AddOption("Disable V-Sync (Higher FPS)", () => Constants.DISABLE_VSYNC, value => {
-                    Constants.DISABLE_VSYNC = value;
-                    _owner.ApplyGraphicsSettings(); // Apply V-Sync changes
-                }, ref currentY, OptionRowHeight);
-            });
-        }
+                BuildCategory("Graphics", (ref int currentY) =>
+                {
+                    AddOption("High Quality Textures", () => Constants.HIGH_QUALITY_TEXTURES, value => Constants.HIGH_QUALITY_TEXTURES = value, ref currentY, OptionRowHeight);
+                    AddOption("Disable V-Sync (Higher FPS)", () => Constants.DISABLE_VSYNC, value =>
+                    {
+                        Constants.DISABLE_VSYNC = value;
+                        _owner.ApplyGraphicsSettings(); // Apply V-Sync changes
+                    }, ref currentY, OptionRowHeight);
+                });
+            }
 
-        private void BuildLightingCategory()
-        {
-            BuildCategory("Lighting & Materials", (ref int currentY) =>
+            private void BuildLightingCategory()
             {
-                AddOption("Sun Light", () => Constants.SUN_ENABLED, value => Constants.SUN_ENABLED = value, ref currentY, OptionRowHeight);
-                AddOption("Sun From +X", () => Constants.SUN_DIRECTION.X >= 0f, value =>
+                BuildCategory("Lighting & Materials", (ref int currentY) =>
                 {
-                    var dir = Constants.SUN_DIRECTION;
-                    if (dir.LengthSquared() < 0.0001f)
-                        dir = new Vector3(1f, 0f, -0.6f);
-                    dir.X = Math.Abs(dir.X) * (value ? 1f : -1f);
-                    Constants.SUN_DIRECTION = dir;
-                }, ref currentY, OptionRowHeight);
-                AddVolumeControl("Sun Strength (%)", () => Constants.SUN_STRENGTH * 100f, value =>
-                {
-                    Constants.SUN_STRENGTH = MathHelper.Clamp(value, 0f, 200f) / 100f;
-                }, ref currentY, OptionRowHeight, 0f, 200f, 5f);
-                AddVolumeControl("Sun Shadow (%)", () => Constants.SUN_SHADOW_STRENGTH * 100f, value =>
-                {
-                    Constants.SUN_SHADOW_STRENGTH = MathHelper.Clamp(value, 0f, 100f) / 100f;
-                }, ref currentY, OptionRowHeight, 0f, 100f, 5f);
-                AddOption("Terrain GPU Lighting", () => Constants.ENABLE_TERRAIN_GPU_LIGHTING, value => Constants.ENABLE_TERRAIN_GPU_LIGHTING = value, ref currentY, OptionRowHeight);
-                AddOption("Dynamic Lighting Shader", () => Constants.ENABLE_DYNAMIC_LIGHTING_SHADER, value => Constants.ENABLE_DYNAMIC_LIGHTING_SHADER = value, ref currentY, OptionRowHeight);
-                AddOption("Optimize for Integrated GPU", () => Constants.OPTIMIZE_FOR_INTEGRATED_GPU, value => Constants.OPTIMIZE_FOR_INTEGRATED_GPU = value, ref currentY, OptionRowHeight);
-                AddOption("Debug Lighting Areas", () => Constants.DEBUG_LIGHTING_AREAS, value => Constants.DEBUG_LIGHTING_AREAS = value, ref currentY, OptionRowHeight);
-                AddOption("Item Material Shader", () => Constants.ENABLE_ITEM_MATERIAL_SHADER, value => Constants.ENABLE_ITEM_MATERIAL_SHADER = value, ref currentY, OptionRowHeight);
-                AddOption("Monster Material Shader", () => Constants.ENABLE_MONSTER_MATERIAL_SHADER, value => Constants.ENABLE_MONSTER_MATERIAL_SHADER = value, ref currentY, OptionRowHeight);
-            });
-        }
+                    AddOption("Sun Light", () => Constants.SUN_ENABLED, value => Constants.SUN_ENABLED = value, ref currentY, OptionRowHeight);
+                    AddOption("Sun From +X", () => Constants.SUN_DIRECTION.X >= 0f, value =>
+                    {
+                        var dir = Constants.SUN_DIRECTION;
+                        if (dir.LengthSquared() < 0.0001f)
+                            dir = new Vector3(1f, 0f, -0.6f);
+                        dir.X = Math.Abs(dir.X) * (value ? 1f : -1f);
+                        Constants.SUN_DIRECTION = dir;
+                    }, ref currentY, OptionRowHeight);
+                    AddVolumeControl("Sun Strength (%)", () => Constants.SUN_STRENGTH * 100f, value =>
+                    {
+                        Constants.SUN_STRENGTH = MathHelper.Clamp(value, 0f, 200f) / 100f;
+                    }, ref currentY, OptionRowHeight, 0f, 200f, 5f);
+                    AddVolumeControl("Sun Shadow (%)", () => Constants.SUN_SHADOW_STRENGTH * 100f, value =>
+                    {
+                        Constants.SUN_SHADOW_STRENGTH = MathHelper.Clamp(value, 0f, 100f) / 100f;
+                    }, ref currentY, OptionRowHeight, 0f, 100f, 5f);
+                    AddOption("Terrain GPU Lighting", () => Constants.ENABLE_TERRAIN_GPU_LIGHTING, value => Constants.ENABLE_TERRAIN_GPU_LIGHTING = value, ref currentY, OptionRowHeight);
+                    AddOption("Dynamic Lighting Shader", () => Constants.ENABLE_DYNAMIC_LIGHTING_SHADER, value => Constants.ENABLE_DYNAMIC_LIGHTING_SHADER = value, ref currentY, OptionRowHeight);
+                    AddOption("Optimize for Integrated GPU", () => Constants.OPTIMIZE_FOR_INTEGRATED_GPU, value => Constants.OPTIMIZE_FOR_INTEGRATED_GPU = value, ref currentY, OptionRowHeight);
+                    AddOption("Debug Lighting Areas", () => Constants.DEBUG_LIGHTING_AREAS, value => Constants.DEBUG_LIGHTING_AREAS = value, ref currentY, OptionRowHeight);
+                    AddOption("Item Material Shader", () => Constants.ENABLE_ITEM_MATERIAL_SHADER, value => Constants.ENABLE_ITEM_MATERIAL_SHADER = value, ref currentY, OptionRowHeight);
+                    AddOption("Monster Material Shader", () => Constants.ENABLE_MONSTER_MATERIAL_SHADER, value => Constants.ENABLE_MONSTER_MATERIAL_SHADER = value, ref currentY, OptionRowHeight);
+                });
+            }
 
-        private void BuildPerformanceCategory()
-        {
-            BuildCategory("Performance & Debug", (ref int currentY) =>
+            private void BuildPerformanceCategory()
             {
-                AddOption("Unlimited FPS", () => Constants.UNLIMITED_FPS, value => Constants.UNLIMITED_FPS = value, ref currentY, OptionRowHeight, _owner.ApplyGraphicsSettings);
-                AddOption("Dynamic Buffer Pool", () => Constants.ENABLE_DYNAMIC_BUFFER_POOL, value =>
+                BuildCategory("Performance & Debug", (ref int currentY) =>
                 {
-                    DynamicBufferPool.SetEnabled(value);
-                }, ref currentY, OptionRowHeight);
-                AddOption("Debug Panel", () => Constants.SHOW_DEBUG_PANEL, value =>
-                {
-                    Constants.SHOW_DEBUG_PANEL = value;
-                    _owner.ApplyDebugPanelSetting();
-                }, ref currentY, OptionRowHeight);
-            });
-        }
+                    AddOption("Unlimited FPS", () => Constants.UNLIMITED_FPS, value => Constants.UNLIMITED_FPS = value, ref currentY, OptionRowHeight, _owner.ApplyGraphicsSettings);
+                    AddOption("Dynamic Buffer Pool", () => Constants.ENABLE_DYNAMIC_BUFFER_POOL, value =>
+                    {
+                        DynamicBufferPool.SetEnabled(value);
+                    }, ref currentY, OptionRowHeight);
+                    AddOption("Debug Panel", () => Constants.SHOW_DEBUG_PANEL, value =>
+                    {
+                        Constants.SHOW_DEBUG_PANEL = value;
+                        _owner.ApplyDebugPanelSetting();
+                    }, ref currentY, OptionRowHeight);
+                });
+            }
 
             private void AddCategoryButton(string label, Action onClick, int startY,
                 ref int currentX, int width, int height, int spacing, int perRow, ref int index)
