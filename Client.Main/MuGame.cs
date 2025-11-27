@@ -125,7 +125,15 @@ namespace Client.Main
             _graphics.GraphicsProfile = GraphicsProfile.HiDef;
             _graphics.PreferredBackBufferFormat = SurfaceFormat.Color;
             _graphics.ApplyChanges();
-            UiScaler.Configure(_graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight, Constants.BASE_UI_WIDTH, Constants.BASE_UI_HEIGHT);
+
+#if ANDROID || IOS
+            UiScaler.Configure(_graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight,
+                Constants.BASE_UI_WIDTH, Constants.BASE_UI_HEIGHT, ScaleMode.Stretch);
+#else
+            UiScaler.Configure(_graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight,
+                Constants.BASE_UI_WIDTH, Constants.BASE_UI_HEIGHT, ScaleMode.Uniform);
+#endif
+
             Content.RootDirectory = "Content";
 
             // Register handler for game exit (X button, Alt+F4, etc.)
@@ -678,11 +686,23 @@ namespace Client.Main
             _graphics.PreferredBackBufferHeight = Math.Max(1, graphics.Height);
             _graphics.ApplyChanges();
 
+#if ANDROID || IOS
+            // Stretch mode for mobile - fills entire screen
             UiScaler.Configure(
                 _graphics.PreferredBackBufferWidth,
                 _graphics.PreferredBackBufferHeight,
                 Math.Max(1, graphics.UiVirtualWidth),
-                Math.Max(1, graphics.UiVirtualHeight));
+                Math.Max(1, graphics.UiVirtualHeight),
+                ScaleMode.Stretch);
+#else
+            // Uniform mode for desktop - maintains aspect ratio
+            UiScaler.Configure(
+                _graphics.PreferredBackBufferWidth,
+                _graphics.PreferredBackBufferHeight,
+                Math.Max(1, graphics.UiVirtualWidth),
+                Math.Max(1, graphics.UiVirtualHeight),
+                ScaleMode.Uniform);
+#endif
 
             _scaleFactor = UiScaler.Scale;
         }
