@@ -848,7 +848,7 @@ namespace Client.Main.Scenes
                 // Speed: centered
                 if (progress.SpeedBytesPerSecond > 0)
                 {
-                    string speedText = $"⚡ {FormatSpeed(progress.SpeedBytesPerSecond)}";
+                    string speedText = $"Transfer: {FormatSpeed(progress.SpeedBytesPerSecond)}";
                     DrawTextCentered(sprite, font, speedText,
                         barX + barWidth / 2, statsY + 6,
                         new Color(100, 180, 255), 0.55f, true);
@@ -857,7 +857,7 @@ namespace Client.Main.Scenes
                 // ETA: right aligned
                 if (progress.EstimatedTimeRemaining.HasValue)
                 {
-                    string etaText = $"⏱ {FormatEta(progress.EstimatedTimeRemaining)}";
+                    string etaText = $"ETA: {FormatEta(progress.EstimatedTimeRemaining)}";
                     var etaSize = font.MeasureString(etaText) * 0.55f;
                     DrawTextWithShadow(sprite, font, etaText,
                         barX + barWidth - (int)etaSize.X, statsY,

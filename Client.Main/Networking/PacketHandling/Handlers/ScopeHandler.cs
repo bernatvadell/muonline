@@ -1520,7 +1520,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     walker.Direction = clientDirection;
 
-                    walker.PlayAction((ushort)clientActionToPlay, fromServer: true); // <-- Dodaj fromServer: true
+                    walker.PlayAction((ushort)clientActionToPlay, fromServer: true);
 
                     if (walker is MonsterObject monster && monsterAction.HasValue &&
                         (monsterAction == MonsterActionType.Attack1 || monsterAction == MonsterActionType.Attack2))
