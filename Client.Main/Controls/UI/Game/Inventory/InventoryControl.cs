@@ -1265,6 +1265,15 @@ namespace Client.Main.Controls.UI.Game.Inventory
                         return;
                     }
 
+                    // Check if there's an item from TradeControl being dragged
+                    var tradeDraggedItem = Client.Main.Controls.UI.Game.Trade.TradeControl.Instance?.GetDraggedItem();
+                    if (tradeDraggedItem != null && _pickedItemRenderer.Item == null)
+                    {
+                        // TradeControl will handle the drop via its own AttemptDrop logic
+                        Scene?.SetMouseInputConsumed();
+                        return;
+                    }
+
                     if (_pickedItemRenderer.Item != null)
                     {
                         if (CanPlaceItem(_pickedItemRenderer.Item, gridSlot))
@@ -1471,6 +1480,24 @@ namespace Client.Main.Controls.UI.Game.Inventory
                         }
                     });
 
+                    ReleasePickedItem();
+                }
+                else
+                {
+                    AddItem(item);
+                    _networkManager?.GetCharacterState()?.RaiseInventoryChanged();
+                    ReleasePickedItem();
+                }
+            }
+            else if (Client.Main.Controls.UI.Game.Trade.TradeControl.Instance is { } trade &&
+                     trade.Visible &&
+                     trade.DisplayRectangle.Contains(MuGame.Instance.UiMouseState.Position) &&
+                     _network_manager_exists())
+            {
+                var drop = trade.GetSlotAtScreenPosition(MuGame.Instance.UiMouseState.Position);
+                if (drop.X >= 0 && trade.CanPlaceAt(drop, item))
+                {
+                    trade.AcceptItemFromInventory(item, drop, slotIndex);
                     ReleasePickedItem();
                 }
                 else
@@ -1774,6 +1801,12 @@ namespace Client.Main.Controls.UI.Game.Inventory
             foreach (var item in _items.ToList())
             {
                 if (item == _pickedItem_renderer_item())
+                    continue;
+
+                // Skip items that are in pending move (being transferred to vault/trade)
+                var state = _networkManager?.GetCharacterState();
+                byte itemSlotIndex = (byte)(InventorySlotOffsetConstant + (item.GridPosition.Y * Columns) + item.GridPosition.X);
+                if (state?.PendingMoveFromSlot == itemSlotIndex)
                     continue;
 
                 Rectangle itemRect = new(

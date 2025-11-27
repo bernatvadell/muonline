@@ -219,6 +219,196 @@ namespace Client.Main.Networking.Services
         }
 
         /// <summary>
+        /// Sends a trade request to another player.
+        /// </summary>
+        public async Task SendTradeRequestAsync(ushort targetPlayerId)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send trade request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending trade request to player ID {PlayerId}", targetPlayerId);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var buffer = _connectionManager.Connection.Output.GetMemory(5);
+                    buffer.Span[0] = 0xC1; // Header type
+                    buffer.Span[1] = 5;    // Packet length
+                    buffer.Span[2] = 0x36; // Trade request code
+                    buffer.Span[3] = (byte)(targetPlayerId & 0xFF);
+                    buffer.Span[4] = (byte)((targetPlayerId >> 8) & 0xFF);
+                    return 5;
+                });
+                _logger.LogInformation("Trade request sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending trade request.");
+            }
+        }
+
+        /// <summary>
+        /// Adds an item from inventory to the trade window.
+        /// </summary>
+        public async Task SendTradeItemAddAsync(byte inventorySlot)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot add item to trade.");
+                return;
+            }
+
+            _logger.LogInformation("Adding inventory slot {Slot} to trade", inventorySlot);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var buffer = _connectionManager.Connection.Output.GetMemory(4);
+                    buffer.Span[0] = 0xC1; // Header type
+                    buffer.Span[1] = 4;    // Packet length
+                    buffer.Span[2] = 0x3A; // Trade item add code
+                    buffer.Span[3] = inventorySlot;
+                    return 4;
+                });
+                _logger.LogInformation("Trade item add sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending trade item add.");
+            }
+        }
+
+        /// <summary>
+        /// Removes an item from the trade window.
+        /// </summary>
+        public async Task SendTradeItemRemoveAsync(byte tradeSlot)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot remove item from trade.");
+                return;
+            }
+
+            _logger.LogInformation("Removing trade slot {Slot} from trade", tradeSlot);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var buffer = _connectionManager.Connection.Output.GetMemory(4);
+                    buffer.Span[0] = 0xC1; // Header type
+                    buffer.Span[1] = 4;    // Packet length
+                    buffer.Span[2] = 0x3C; // Trade item remove code (0x3F with subcode 0x02 in some versions)
+                    buffer.Span[3] = tradeSlot;
+                    return 4;
+                });
+                _logger.LogInformation("Trade item remove sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending trade item remove.");
+            }
+        }
+
+        /// <summary>
+        /// Sets the money amount in the trade.
+        /// </summary>
+        public async Task SendTradeMoneyAsync(uint amount)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot set trade money.");
+                return;
+            }
+
+            _logger.LogInformation("Setting trade money to {Amount}", amount);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var buffer = _connectionManager.Connection.Output.GetMemory(7);
+                    buffer.Span[0] = 0xC1; // Header type
+                    buffer.Span[1] = 7;    // Packet length
+                    buffer.Span[2] = 0x3B; // Trade money set code
+                    // Money as 4-byte little-endian
+                    buffer.Span[3] = (byte)(amount & 0xFF);
+                    buffer.Span[4] = (byte)((amount >> 8) & 0xFF);
+                    buffer.Span[5] = (byte)((amount >> 16) & 0xFF);
+                    buffer.Span[6] = (byte)((amount >> 24) & 0xFF);
+                    return 7;
+                });
+                _logger.LogInformation("Trade money set sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending trade money.");
+            }
+        }
+
+        /// <summary>
+        /// Toggles the trade confirmation button (check/uncheck).
+        /// </summary>
+        public async Task SendTradeButtonAsync(bool pressed)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot toggle trade button.");
+                return;
+            }
+
+            _logger.LogInformation("Setting trade button to {State}", pressed ? "Pressed" : "Unpressed");
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var buffer = _connectionManager.Connection.Output.GetMemory(4);
+                    buffer.Span[0] = 0xC1; // Header type
+                    buffer.Span[1] = 4;    // Packet length
+                    buffer.Span[2] = 0x3C; // Trade button toggle code (0x3C not 0x3D!)
+                    buffer.Span[3] = (byte)(pressed ? 1 : 0);
+                    return 4;
+                });
+                _logger.LogInformation("Trade button toggle sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending trade button toggle.");
+            }
+        }
+
+        /// <summary>
+        /// Cancels the active trade.
+        /// </summary>
+        public async Task SendTradeCancelAsync()
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot cancel trade.");
+                return;
+            }
+
+            _logger.LogInformation("Cancelling trade");
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var buffer = _connectionManager.Connection.Output.GetMemory(3);
+                    buffer.Span[0] = 0xC1; // Header type
+                    buffer.Span[1] = 3;    // Packet length
+                    buffer.Span[2] = 0x3D; // Trade cancel code (same as button, but with no data)
+                    return 3;
+                });
+                _logger.LogInformation("Trade cancel sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending trade cancel.");
+            }
+        }
+
+        /// <summary>
         /// Sends a response to a duel request.
         /// </summary>
         public async Task SendDuelResponseAsync(bool accepted, ushort requesterId, string requesterName)

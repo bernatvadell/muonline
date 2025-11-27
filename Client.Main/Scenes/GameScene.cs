@@ -23,6 +23,7 @@ using Client.Main.Controls.UI.Game.Map;
 using Client.Main.Controls.UI.Game.Party;
 using Client.Main.Controls.UI.Game.PauseMenu;
 using Client.Main.Controls.UI.Game.Character;
+using Client.Main.Controls.UI.Game.Trade;
 using Client.Main.Helpers;
 using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Networking;
@@ -79,6 +80,7 @@ namespace Client.Main.Scenes
         public PlayerObject Hero => _hero;
         public ChatLogWindow ChatLog => _chatLog;
         public InventoryControl InventoryControl => _inventoryControl;
+        public TradeControl TradeControl => TradeControl.Instance;
         public PauseMenuControl PauseMenu => _pauseMenu;
 
         public static readonly IReadOnlyDictionary<byte, Type> MapWorldRegistry = DiscoverWorlds();
@@ -123,6 +125,7 @@ namespace Client.Main.Scenes
             Controls.Add(_main);
             Controls.Add(NpcShopControl.Instance);
             Controls.Add(VaultControl.Instance);
+            Controls.Add(TradeControl.Instance);
 
             _mapListControl = new MapListControl { Visible = false };
 
@@ -484,6 +487,18 @@ namespace Client.Main.Scenes
                     });
                 }
             }
+
+            // Close trade window if hero moves
+            if (TradeControl.Instance.Visible)
+            {
+                _logger?.LogInformation("Hero moved, cancelling trade.");
+                TradeControl.Instance.Hide();
+                var svc = MuGame.Network?.GetCharacterService();
+                if (svc != null)
+                {
+                    _ = svc.SendTradeCancelAsync();
+                }
+            }
         }
 
         private void OnHeroTookDamage(object sender, EventArgs e)
@@ -512,6 +527,18 @@ namespace Client.Main.Scenes
                             _logger?.LogError(ex, "Failed to send close NPC request");
                         }
                     });
+                }
+            }
+
+            // Close trade window if hero takes damage
+            if (TradeControl.Instance.Visible)
+            {
+                _logger?.LogInformation("Hero took damage, cancelling trade.");
+                TradeControl.Instance.Hide();
+                var svc = MuGame.Network?.GetCharacterService();
+                if (svc != null)
+                {
+                    _ = svc.SendTradeCancelAsync();
                 }
             }
         }
@@ -1174,6 +1201,7 @@ namespace Client.Main.Scenes
                 var sprite = GraphicsManager.Instance.Sprite;
                 _inventoryControl?._pickedItemRenderer?.Draw(sprite, gameTime);
                 Client.Main.Controls.UI.Game.VaultControl.Instance?.DrawPickedPreview(sprite, gameTime);
+                Client.Main.Controls.UI.Game.Trade.TradeControl.Instance?.DrawPickedPreview(sprite, gameTime);
             }
             _characterInfoWindow?.BringToFront();
         }

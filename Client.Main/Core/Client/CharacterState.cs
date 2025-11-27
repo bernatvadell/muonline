@@ -129,6 +129,25 @@ namespace Client.Main.Core.Client
         private readonly ConcurrentDictionary<byte, byte[]> _vaultItems = new();
         public event Action VaultItemsChanged;
 
+        // Trade State
+        private bool _isTradeActive;
+        private ushort _tradePartnerId;
+        private string _tradePartnerName = string.Empty;
+        private ushort _tradePartnerLevel;
+        private string _tradePartnerGuild = string.Empty;
+        private readonly ConcurrentDictionary<byte, byte[]> _tradePartnerItems = new();
+        private uint _tradePartnerMoney;
+        private readonly ConcurrentDictionary<byte, byte[]> _myTradeItems = new();
+        private uint _myTradeMoney;
+        private MUnique.OpenMU.Network.Packets.ServerToClient.TradeButtonStateChanged.TradeButtonState _myButtonState;
+        private MUnique.OpenMU.Network.Packets.ServerToClient.TradeButtonStateChanged.TradeButtonState _partnerButtonState;
+
+        public event Action TradeWindowOpened;
+        public event Action<TradeFinished.TradeResult> TradeFinished;
+        public event Action TradeItemsChanged;
+        public event Action TradeMoneyChanged;
+        public event Action TradeButtonStateChanged;
+
         // Constants for Item Data Parsing (based on ItemSerializer.cs, Season 6 assumed)
         private const byte LuckFlagBit = 4;
         private const byte SkillFlagBit = 128;
@@ -190,6 +209,12 @@ namespace Client.Main.Core.Client
         /// Gets the raw ID of the item currently being picked up, if any.
         /// </summary>
         public ushort? PendingPickupRawId { get; private set; }
+
+        /// <summary>
+        /// Gets the inventory slot that has a pending move (item being transferred somewhere).
+        /// Used to hide items that are being moved to vault/trade.
+        /// </summary>
+        public byte? PendingMoveFromSlot => _pendingMoveFromSlot;
 
         /// <summary>
         /// Sets the raw ID of the item currently being picked up.
@@ -419,6 +444,111 @@ namespace Client.Main.Core.Client
         public IReadOnlyDictionary<byte, byte[]> GetVaultItems()
         {
             return new ReadOnlyDictionary<byte, byte[]>(_vaultItems.ToDictionary(k => k.Key, v => v.Value));
+        }
+
+        /// <summary>
+        /// Trade state API.
+        /// </summary>
+        public bool IsTradeActive => _isTradeActive;
+        public ushort TradePartnerId => _tradePartnerId;
+        public string TradePartnerName => _tradePartnerName;
+        public ushort TradePartnerLevel => _tradePartnerLevel;
+        public string TradePartnerGuild => _tradePartnerGuild;
+        public uint TradePartnerMoney => _tradePartnerMoney;
+        public uint MyTradeMoney => _myTradeMoney;
+        public MUnique.OpenMU.Network.Packets.ServerToClient.TradeButtonStateChanged.TradeButtonState MyTradeButtonState => _myButtonState;
+        public MUnique.OpenMU.Network.Packets.ServerToClient.TradeButtonStateChanged.TradeButtonState PartnerTradeButtonState => _partnerButtonState;
+
+        public void StartTrade(ushort partnerId, string partnerName, ushort partnerLevel, string partnerGuild = "")
+        {
+            _isTradeActive = true;
+            _tradePartnerId = partnerId;
+            _tradePartnerName = partnerName ?? string.Empty;
+            _tradePartnerLevel = partnerLevel;
+            _tradePartnerGuild = partnerGuild ?? string.Empty;
+            _tradePartnerItems.Clear();
+            _myTradeItems.Clear();
+            _tradePartnerMoney = 0;
+            _myTradeMoney = 0;
+            _myButtonState = MUnique.OpenMU.Network.Packets.ServerToClient.TradeButtonStateChanged.TradeButtonState.Unchecked;
+            _partnerButtonState = MUnique.OpenMU.Network.Packets.ServerToClient.TradeButtonStateChanged.TradeButtonState.Unchecked;
+            _logger.LogInformation("Trade started with {Partner} (Level {Level})", partnerName, partnerLevel);
+            TradeWindowOpened?.Invoke();
+        }
+
+        public void EndTrade(TradeFinished.TradeResult result)
+        {
+            _isTradeActive = false;
+            _tradePartnerId = 0;
+            _tradePartnerName = string.Empty;
+            _tradePartnerLevel = 0;
+            _tradePartnerGuild = string.Empty;
+            _tradePartnerItems.Clear();
+            _myTradeItems.Clear();
+            _tradePartnerMoney = 0;
+            _myTradeMoney = 0;
+            _myButtonState = MUnique.OpenMU.Network.Packets.ServerToClient.TradeButtonStateChanged.TradeButtonState.Unchecked;
+            _partnerButtonState = MUnique.OpenMU.Network.Packets.ServerToClient.TradeButtonStateChanged.TradeButtonState.Unchecked;
+            _logger.LogInformation("Trade ended with result: {Result}", result);
+            TradeFinished?.Invoke(result);
+        }
+
+        public void AddOrUpdatePartnerTradeItem(byte slot, byte[] itemData)
+        {
+            _tradePartnerItems[slot] = itemData;
+            TradeItemsChanged?.Invoke();
+        }
+
+        public void RemovePartnerTradeItem(byte slot)
+        {
+            _tradePartnerItems.TryRemove(slot, out _);
+            TradeItemsChanged?.Invoke();
+        }
+
+        public void AddOrUpdateMyTradeItem(byte slot, byte[] itemData)
+        {
+            _myTradeItems[slot] = itemData;
+            TradeItemsChanged?.Invoke();
+        }
+
+        public void RemoveMyTradeItem(byte slot)
+        {
+            _myTradeItems.TryRemove(slot, out _);
+            TradeItemsChanged?.Invoke();
+        }
+
+        public void SetPartnerTradeMoney(uint amount)
+        {
+            _tradePartnerMoney = amount;
+            TradeMoneyChanged?.Invoke();
+        }
+
+        public void SetMyTradeMoney(uint amount)
+        {
+            _myTradeMoney = amount;
+            TradeMoneyChanged?.Invoke();
+        }
+
+        public void SetMyTradeButtonState(MUnique.OpenMU.Network.Packets.ServerToClient.TradeButtonStateChanged.TradeButtonState state)
+        {
+            _myButtonState = state;
+            TradeButtonStateChanged?.Invoke();
+        }
+
+        public void SetPartnerTradeButtonState(MUnique.OpenMU.Network.Packets.ServerToClient.TradeButtonStateChanged.TradeButtonState state)
+        {
+            _partnerButtonState = state;
+            TradeButtonStateChanged?.Invoke();
+        }
+
+        public IReadOnlyDictionary<byte, byte[]> GetPartnerTradeItems()
+        {
+            return new ReadOnlyDictionary<byte, byte[]>(_tradePartnerItems.ToDictionary(k => k.Key, v => v.Value));
+        }
+
+        public IReadOnlyDictionary<byte, byte[]> GetMyTradeItems()
+        {
+            return new ReadOnlyDictionary<byte, byte[]>(_myTradeItems.ToDictionary(k => k.Key, v => v.Value));
         }
 
         /// <summary>
