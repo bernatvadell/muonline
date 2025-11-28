@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Client.Main.Controllers;
@@ -24,15 +25,17 @@ namespace Client.Main.Scenes
     {
         #region Constants & Configuration
 
-        // Download configuration - tuned for maximum speed
-        private const int ChunkSize = 4 * 1024 * 1024;           // 4 MB per chunk
-        private const int BufferSize = 256 * 1024;                // 256 KB read buffer
-        private const int MaxParallelChunks = 8;                  // Parallel download streams
+        // Download tuning - balanced for all platforms
+        private const int ChunkSize = 2 * 1024 * 1024;            // 2 MB per chunk (safer for mobile)
+        private const int BufferSize = 128 * 1024;                 // 128 KB read buffer
         private const int MaxRetryAttempts = 3;
         private const int RetryDelayMs = 1000;
 
         private static readonly TimeSpan HttpTimeout = TimeSpan.FromMinutes(30);
-        private static readonly TimeSpan SpeedUpdateInterval = TimeSpan.FromMilliseconds(250);
+        private static readonly TimeSpan SpeedUpdateInterval = TimeSpan.FromMilliseconds(300);
+
+        // Parallel chunks based on platform
+        private static int MaxParallelChunks => IsAndroid ? 4 : 6;
 
         // UI Layout
         private const int ProgressBarHeight = 24;
@@ -41,10 +44,27 @@ namespace Client.Main.Scenes
 
         #endregion
 
+        #region Platform Detection
+
+        private static bool IsAndroid =>
+#if ANDROID
+            true;
+#else
+            RuntimeInformation.IsOSPlatform(OSPlatform.Create("ANDROID"));
+#endif
+
+        private static bool IsDesktop =>
+            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ||
+            RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+            RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+
+        #endregion
+
         #region Fields
 
-        private static readonly Lazy<HttpClient> LazyHttpClient = new(CreateHttpClient, LazyThreadSafetyMode.ExecutionAndPublication);
-        private static HttpClient Http => LazyHttpClient.Value;
+        // Separate clients for metadata vs download (no decompression for downloads!)
+        private static readonly Lazy<HttpClient> MetadataClient = new(CreateMetadataClient, LazyThreadSafetyMode.ExecutionAndPublication);
+        private static readonly Lazy<HttpClient> DownloadClient = new(CreateDownloadClient, LazyThreadSafetyMode.ExecutionAndPublication);
 
         private Texture2D _backgroundTexture;
         private Texture2D _pixelTexture;
@@ -59,14 +79,14 @@ namespace Client.Main.Scenes
         private readonly string _dataPathUrl = Constants.DataPathUrl;
 
         // Speed calculation with sliding window
-        private readonly ConcurrentQueue<(DateTime Time, long Bytes)> _speedSamples = new();
-        private const int MaxSpeedSamples = 20;
+        private readonly ConcurrentQueue<(long Ticks, long Bytes)> _speedSamples = new();
+        private const int MaxSpeedSamples = 12;
 
         #endregion
 
-        #region Progress Data Structure
+        #region Progress Data
 
-        private class DownloadProgress
+        private sealed class DownloadProgress
         {
             public string StatusText { get; set; } = "Initializing...";
             public float Progress { get; set; }
@@ -81,41 +101,60 @@ namespace Client.Main.Scenes
 
         #region HttpClient Configuration
 
-        private static HttpClient CreateHttpClient()
+        /// <summary>
+        /// Client for HEAD requests and metadata - can use compression
+        /// </summary>
+        private static HttpClient CreateMetadataClient()
         {
-            var handler = new SocketsHttpHandler
+            var handler = new HttpClientHandler
             {
-                // Connection pooling for parallel requests
-                MaxConnectionsPerServer = MaxParallelChunks + 2,
-                EnableMultipleHttp2Connections = true,
-
-                // Keep connections alive
-                PooledConnectionLifetime = TimeSpan.FromMinutes(10),
-                PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
-
-                // Performance tuning - larger window for faster transfers
-                InitialHttp2StreamWindowSize = 4 * 1024 * 1024,
-
-                // Compression
-                AutomaticDecompression = DecompressionMethods.All,
-
-                // Connection settings
-                ConnectTimeout = TimeSpan.FromSeconds(30),
+                AutomaticDecompression = DecompressionMethods.None, // We want raw size
+                AllowAutoRedirect = true,
+                MaxAutomaticRedirections = 5
+            };
 
 #if DEBUG
-                SslOptions = { RemoteCertificateValidationCallback = (_, _, _, _) => true }
+            handler.ServerCertificateCustomValidationCallback = (_, _, _, _) => true;
 #endif
-            };
 
             var client = new HttpClient(handler)
             {
-                Timeout = HttpTimeout,
-                DefaultRequestVersion = HttpVersion.Version20,
-                DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+                Timeout = TimeSpan.FromSeconds(30)
+            };
+
+            client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("MuClient", "1.0"));
+            return client;
+        }
+
+        /// <summary>
+        /// Client for actual file downloads - NO decompression to get accurate byte counts
+        /// </summary>
+        private static HttpClient CreateDownloadClient()
+        {
+            var handler = new HttpClientHandler
+            {
+                // CRITICAL: No automatic decompression for downloads!
+                // This ensures Content-Length matches actual bytes we read
+                AutomaticDecompression = DecompressionMethods.None,
+                AllowAutoRedirect = true,
+                MaxAutomaticRedirections = 5,
+                MaxConnectionsPerServer = MaxParallelChunks + 2
+            };
+
+#if DEBUG
+            handler.ServerCertificateCustomValidationCallback = (_, _, _, _) => true;
+#endif
+
+            var client = new HttpClient(handler)
+            {
+                Timeout = HttpTimeout
             };
 
             client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("MuClient", "1.0"));
             client.DefaultRequestHeaders.Connection.Add("keep-alive");
+
+            // Don't ask for compressed content - we want raw bytes
+            // (If server sends compressed anyway, Content-Length will match)
 
             return client;
         }
@@ -142,7 +181,6 @@ namespace Client.Main.Scenes
                 Debug.WriteLine($"[LoadScene] Background load failed: {ex.Message}");
             }
 
-            // Create 1x1 white pixel for drawing shapes
             _pixelTexture = new Texture2D(GraphicsDevice, 1, 1);
             _pixelTexture.SetData(new[] { Color.White });
 
@@ -158,8 +196,7 @@ namespace Client.Main.Scenes
                 TextureEnabled = false,
                 Projection = Matrix.CreateOrthographicOffCenter(
                     0, UiScaler.VirtualSize.X,
-                    UiScaler.VirtualSize.Y, 0,
-                    0, 1),
+                    UiScaler.VirtualSize.Y, 0, 0, 1),
                 View = Matrix.Identity,
                 World = Matrix.Identity
             };
@@ -194,9 +231,7 @@ namespace Client.Main.Scenes
 
                 EnsureDirectoryExists(extractPath);
 
-                bool assetsExist = CheckAssetsExist(extractPath);
-
-                if (assetsExist)
+                if (CheckAssetsExist(extractPath))
                 {
                     UpdateProgress(p =>
                     {
@@ -227,8 +262,8 @@ namespace Client.Main.Scenes
 
         private async Task DownloadAndExtractAssetsAsync(string localZip, string extractPath, CancellationToken ct)
         {
-            bool success = false;
             string[] urls = { _dataPathUrl, Constants.DefaultDataPathUrl };
+            Exception lastError = null;
 
             foreach (var url in urls.Where(u => !string.IsNullOrEmpty(u)))
             {
@@ -238,24 +273,40 @@ namespace Client.Main.Scenes
                     {
                         p.StatusText = "Connecting...";
                         p.IsDownloading = true;
+                        p.Progress = 0;
                     });
 
-                    await DownloadFileParallelAsync(url, localZip, ct);
-                    success = true;
+                    // Clear speed samples for fresh calculation
+                    while (_speedSamples.TryDequeue(out _)) { }
+
+                    await DownloadFileAsync(url, localZip, ct);
+
+                    // Verify download completed correctly
+                    if (!File.Exists(localZip))
+                        throw new IOException("Download failed - file not created");
+
+                    var fileInfo = new FileInfo(localZip);
+                    if (fileInfo.Length == 0)
+                        throw new IOException("Download failed - file is empty");
+
+                    lastError = null;
                     break;
                 }
                 catch (OperationCanceledException) { throw; }
                 catch (Exception ex)
                 {
+                    lastError = ex;
                     Debug.WriteLine($"[LoadScene] Download failed from {url}: {ex.Message}");
+                    SafeDeleteFile(localZip);
                     UpdateProgress(p => p.StatusText = "Trying alternative source...");
                     await Task.Delay(RetryDelayMs, ct);
                 }
             }
 
-            if (!success)
-                throw new InvalidOperationException("Failed to download assets from all sources.");
+            if (lastError != null)
+                throw new InvalidOperationException("Failed to download from all sources.", lastError);
 
+            // Extract
             UpdateProgress(p =>
             {
                 p.StatusText = "Extracting...";
@@ -284,177 +335,71 @@ namespace Client.Main.Scenes
 
             var nextScene = (BaseScene)Activator.CreateInstance(nextSceneType)!;
             await nextScene.InitializeWithProgressReporting((text, prog) =>
-            {
-                UpdateProgress(p =>
-                {
-                    p.StatusText = text;
-                    p.Progress = prog;
-                });
-            });
+                UpdateProgress(p => { p.StatusText = text; p.Progress = prog; }));
 
-            UpdateProgress(p =>
-            {
-                p.StatusText = "Starting...";
-                p.Progress = 1f;
-            });
-
+            UpdateProgress(p => { p.StatusText = "Starting..."; p.Progress = 1f; });
             await Task.Delay(200, ct);
             MuGame.Instance.ChangeScene(nextScene);
         }
 
         #endregion
 
-        #region Parallel Chunked Download
+        #region Download Implementation
 
-        private async Task DownloadFileParallelAsync(string url, string destination, CancellationToken ct)
+        private async Task DownloadFileAsync(string url, string destination, CancellationToken ct)
         {
-            // Get file size and check range support
-            long totalSize;
-            bool supportsRanges;
+            // Step 1: Get file info
+            var (totalSize, supportsRanges) = await GetFileInfoAsync(url, ct);
 
-            using (var headRequest = new HttpRequestMessage(HttpMethod.Head, url))
+            Debug.WriteLine($"[LoadScene] File size: {totalSize}, Ranges: {supportsRanges}");
+
+            // Step 2: Choose download strategy
+            if (totalSize > 0 && supportsRanges && totalSize > ChunkSize * 2)
             {
-                using var headResponse = await Http.SendAsync(headRequest, ct);
-                headResponse.EnsureSuccessStatusCode();
-
-                totalSize = headResponse.Content.Headers.ContentLength ?? -1;
-                supportsRanges = headResponse.Headers.AcceptRanges.Contains("bytes");
+                await DownloadParallelAsync(url, destination, totalSize, ct);
             }
-
-            // Fall back to single stream if parallel download not possible
-            if (totalSize <= 0 || !supportsRanges || totalSize < ChunkSize * 2)
+            else
             {
-                await DownloadFileSingleStreamAsync(url, destination, ct);
-                return;
-            }
-
-            UpdateProgress(p =>
-            {
-                p.TotalBytes = totalSize;
-                p.DownloadedBytes = 0;
-                p.StatusText = "Downloading...";
-            });
-
-            // Calculate chunks
-            var chunks = CalculateChunks(totalSize);
-            var chunkProgress = new long[chunks.Count];
-
-            // Pre-allocate file
-            await using (var fs = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None))
-            {
-                fs.SetLength(totalSize);
-            }
-
-            var stopwatch = Stopwatch.StartNew();
-            var lastSpeedUpdate = Stopwatch.StartNew();
-
-            // Download chunks in parallel
-            await Parallel.ForEachAsync(
-                chunks.Select((chunk, index) => (Chunk: chunk, Index: index)),
-                new ParallelOptions
-                {
-                    MaxDegreeOfParallelism = MaxParallelChunks,
-                    CancellationToken = ct
-                },
-                async (item, token) =>
-                {
-                    await DownloadChunkWithRetryAsync(
-                        url, destination, item.Chunk.Start, item.Chunk.End, item.Index,
-                        bytes =>
-                        {
-                            chunkProgress[item.Index] = bytes;
-                            long total = chunkProgress.Sum();
-
-                            if (lastSpeedUpdate.Elapsed >= SpeedUpdateInterval)
-                            {
-                                lock (_progressLock)
-                                {
-                                    lastSpeedUpdate.Restart();
-                                }
-                                UpdateDownloadProgress(total, totalSize, stopwatch.Elapsed);
-                            }
-                        },
-                        token);
-                });
-
-            // Final progress update
-            UpdateDownloadProgress(totalSize, totalSize, stopwatch.Elapsed);
-            UpdateProgress(p => p.StatusText = "Download complete!");
-        }
-
-        private async Task DownloadChunkWithRetryAsync(
-            string url, string destination,
-            long start, long end, int chunkIndex,
-            Action<long> onProgress,
-            CancellationToken ct)
-        {
-            for (int attempt = 1; attempt <= MaxRetryAttempts; attempt++)
-            {
-                try
-                {
-                    await DownloadChunkAsync(url, destination, start, end, onProgress, ct);
-                    return;
-                }
-                catch (OperationCanceledException) { throw; }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[LoadScene] Chunk {chunkIndex} attempt {attempt} failed: {ex.Message}");
-                    if (attempt == MaxRetryAttempts) throw;
-                    await Task.Delay(RetryDelayMs * attempt, ct);
-                }
+                await DownloadSequentialAsync(url, destination, totalSize, ct);
             }
         }
 
-        private async Task DownloadChunkAsync(
-            string url, string destination,
-            long start, long end,
-            Action<long> onProgress,
-            CancellationToken ct)
+        private async Task<(long Size, bool SupportsRanges)> GetFileInfoAsync(string url, CancellationToken ct)
+        {
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Head, url);
+                using var response = await MetadataClient.Value.SendAsync(request, ct);
+                response.EnsureSuccessStatusCode();
+
+                long size = response.Content.Headers.ContentLength ?? -1;
+                bool ranges = response.Headers.AcceptRanges.Contains("bytes");
+
+                return (size, ranges);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[LoadScene] HEAD request failed: {ex.Message}");
+                return (-1, false);
+            }
+        }
+
+        #endregion
+
+        #region Sequential Download
+
+        private async Task DownloadSequentialAsync(string url, string destination, long expectedSize, CancellationToken ct)
         {
             byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
 
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Get, url);
-                request.Headers.Range = new RangeHeaderValue(start, end);
-
-                using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+                using var response = await DownloadClient.Value.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
                 response.EnsureSuccessStatusCode();
 
-                await using var sourceStream = await response.Content.ReadAsStreamAsync(ct);
-                await using var destStream = new FileStream(
-                    destination, FileMode.Open, FileAccess.Write, FileShare.Write,
-                    BufferSize, FileOptions.Asynchronous);
-
-                destStream.Seek(start, SeekOrigin.Begin);
-
-                long chunkDownloaded = 0;
-                int bytesRead;
-
-                while ((bytesRead = await sourceStream.ReadAsync(buffer.AsMemory(0, BufferSize), ct)) > 0)
-                {
-                    await destStream.WriteAsync(buffer.AsMemory(0, bytesRead), ct);
-                    chunkDownloaded += bytesRead;
-                    onProgress?.Invoke(chunkDownloaded);
-                }
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(buffer);
-            }
-        }
-
-        private async Task DownloadFileSingleStreamAsync(string url, string destination, CancellationToken ct)
-        {
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
-
-            try
-            {
-                using var response = await Http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
-                response.EnsureSuccessStatusCode();
-
-                long totalBytes = response.Content.Headers.ContentLength ?? -1;
-                long downloadedBytes = 0;
+                // Use actual Content-Length from response (more reliable)
+                long totalBytes = response.Content.Headers.ContentLength ?? expectedSize;
+                if (totalBytes <= 0) totalBytes = expectedSize;
 
                 UpdateProgress(p =>
                 {
@@ -465,6 +410,7 @@ namespace Client.Main.Scenes
 
                 var stopwatch = Stopwatch.StartNew();
                 var lastUpdate = Stopwatch.StartNew();
+                long downloadedBytes = 0;
 
                 await using var source = await response.Content.ReadAsStreamAsync(ct);
                 await using var dest = new FileStream(destination, FileMode.Create, FileAccess.Write,
@@ -479,11 +425,14 @@ namespace Client.Main.Scenes
                     if (lastUpdate.Elapsed >= SpeedUpdateInterval)
                     {
                         lastUpdate.Restart();
-                        UpdateDownloadProgress(downloadedBytes, totalBytes, stopwatch.Elapsed);
+                        ReportProgress(downloadedBytes, totalBytes);
                     }
                 }
 
-                UpdateDownloadProgress(downloadedBytes, totalBytes, stopwatch.Elapsed);
+                await dest.FlushAsync(ct);
+                ReportProgress(downloadedBytes, downloadedBytes); // Use actual size for 100%
+
+                UpdateProgress(p => p.StatusText = "Download complete!");
             }
             finally
             {
@@ -491,48 +440,219 @@ namespace Client.Main.Scenes
             }
         }
 
-        private List<(long Start, long End)> CalculateChunks(long totalSize)
+        #endregion
+
+        #region Parallel Chunked Download
+
+        private async Task DownloadParallelAsync(string url, string destination, long totalSize, CancellationToken ct)
         {
-            var chunks = new List<(long Start, long End)>();
+            UpdateProgress(p =>
+            {
+                p.TotalBytes = totalSize;
+                p.DownloadedBytes = 0;
+                p.StatusText = "Downloading...";
+            });
+
+            // Pre-allocate file
+            await using (var fs = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                fs.SetLength(totalSize);
+            }
+
+            // Calculate chunks
+            var chunks = new List<ChunkInfo>();
             long position = 0;
+            int index = 0;
 
             while (position < totalSize)
             {
                 long end = Math.Min(position + ChunkSize - 1, totalSize - 1);
-                chunks.Add((position, end));
+                chunks.Add(new ChunkInfo
+                {
+                    Index = index++,
+                    Start = position,
+                    End = end,
+                    Size = end - position + 1
+                });
                 position = end + 1;
             }
 
-            return chunks;
+            // Track progress per chunk
+            var chunkDownloaded = new long[chunks.Count];
+            var lastUpdateTime = Stopwatch.StartNew();
+            var downloadStart = Stopwatch.StartNew();
+
+            // Semaphore to limit parallelism
+            using var semaphore = new SemaphoreSlim(MaxParallelChunks);
+
+            var tasks = chunks.Select(async chunk =>
+            {
+                await semaphore.WaitAsync(ct);
+                try
+                {
+                    await DownloadChunkWithRetryAsync(url, destination, chunk, bytes =>
+                    {
+                        // Track this chunk's progress (not cumulative, just this chunk)
+                        Interlocked.Exchange(ref chunkDownloaded[chunk.Index], bytes);
+
+                        if (lastUpdateTime.Elapsed >= SpeedUpdateInterval)
+                        {
+                            lock (_progressLock)
+                            {
+                                if (lastUpdateTime.Elapsed >= SpeedUpdateInterval)
+                                {
+                                    lastUpdateTime.Restart();
+                                    long total = chunkDownloaded.Sum();
+                                    ReportProgress(total, totalSize);
+                                }
+                            }
+                        }
+                    }, ct);
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            }).ToArray();
+
+            await Task.WhenAll(tasks);
+
+            // Final progress
+            ReportProgress(totalSize, totalSize);
+            UpdateProgress(p => p.StatusText = "Download complete!");
+
+            // Verify file size
+            var actualSize = new FileInfo(destination).Length;
+            if (actualSize != totalSize)
+            {
+                throw new IOException($"Download size mismatch: expected {totalSize}, got {actualSize}");
+            }
         }
 
-        private void UpdateDownloadProgress(long downloaded, long total, TimeSpan elapsed)
+        private sealed class ChunkInfo
         {
+            public int Index { get; set; }
+            public long Start { get; set; }
+            public long End { get; set; }
+            public long Size { get; set; }
+        }
+
+        private async Task DownloadChunkWithRetryAsync(
+            string url, string destination, ChunkInfo chunk,
+            Action<long> onProgress, CancellationToken ct)
+        {
+            Exception lastError = null;
+
+            for (int attempt = 1; attempt <= MaxRetryAttempts; attempt++)
+            {
+                try
+                {
+                    await DownloadChunkAsync(url, destination, chunk, onProgress, ct);
+                    return;
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    lastError = ex;
+                    Debug.WriteLine($"[LoadScene] Chunk {chunk.Index} attempt {attempt} failed: {ex.Message}");
+
+                    // Reset progress for this chunk on retry
+                    onProgress?.Invoke(0);
+
+                    if (attempt < MaxRetryAttempts)
+                        await Task.Delay(RetryDelayMs * attempt, ct);
+                }
+            }
+
+            throw new IOException($"Chunk {chunk.Index} failed after {MaxRetryAttempts} attempts", lastError);
+        }
+
+        private async Task DownloadChunkAsync(
+            string url, string destination, ChunkInfo chunk,
+            Action<long> onProgress, CancellationToken ct)
+        {
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Range = new RangeHeaderValue(chunk.Start, chunk.End);
+
+                using var response = await DownloadClient.Value.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+
+                if (response.StatusCode != HttpStatusCode.PartialContent &&
+                    response.StatusCode != HttpStatusCode.OK)
+                {
+                    throw new HttpRequestException($"Unexpected status: {response.StatusCode}");
+                }
+
+                await using var source = await response.Content.ReadAsStreamAsync(ct);
+                await using var dest = new FileStream(destination, FileMode.Open, FileAccess.Write, FileShare.Write,
+                    BufferSize, FileOptions.Asynchronous);
+
+                dest.Seek(chunk.Start, SeekOrigin.Begin);
+
+                long bytesWritten = 0;
+                long maxBytes = chunk.Size; // Don't read more than chunk size!
+                int bytesRead;
+
+                while (bytesWritten < maxBytes &&
+                       (bytesRead = await source.ReadAsync(buffer.AsMemory(0, (int)Math.Min(BufferSize, maxBytes - bytesWritten)), ct)) > 0)
+                {
+                    await dest.WriteAsync(buffer.AsMemory(0, bytesRead), ct);
+                    bytesWritten += bytesRead;
+                    onProgress?.Invoke(bytesWritten);
+                }
+
+                // Verify we got the expected amount
+                if (bytesWritten != chunk.Size)
+                {
+                    throw new IOException($"Chunk size mismatch: expected {chunk.Size}, got {bytesWritten}");
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
+        }
+
+        #endregion
+
+        #region Progress Tracking
+
+        private void ReportProgress(long downloaded, long total)
+        {
+            // Clamp to prevent > 100%
+            downloaded = Math.Min(downloaded, total);
+
             // Add sample for speed calculation
-            _speedSamples.Enqueue((DateTime.UtcNow, downloaded));
+            long now = Stopwatch.GetTimestamp();
+            _speedSamples.Enqueue((now, downloaded));
+
             while (_speedSamples.Count > MaxSpeedSamples)
                 _speedSamples.TryDequeue(out _);
 
-            // Calculate speed from sliding window
+            // Calculate speed
             double speed = 0;
-            if (_speedSamples.Count >= 2)
-            {
-                var samples = _speedSamples.ToArray();
-                var oldest = samples.First();
-                var newest = samples.Last();
-                var timeDiff = (newest.Time - oldest.Time).TotalSeconds;
+            var samples = _speedSamples.ToArray();
 
-                if (timeDiff > 0)
-                    speed = (newest.Bytes - oldest.Bytes) / timeDiff;
+            if (samples.Length >= 2)
+            {
+                var oldest = samples[0];
+                var newest = samples[^1];
+                double seconds = (newest.Ticks - oldest.Ticks) / (double)Stopwatch.Frequency;
+
+                if (seconds > 0.1)
+                    speed = (newest.Bytes - oldest.Bytes) / seconds;
             }
 
             // Calculate ETA
             TimeSpan? eta = null;
-            if (speed > 0 && total > 0)
+            if (speed > 100 && total > 0 && downloaded < total)
             {
-                var remaining = total - downloaded;
-                var seconds = remaining / speed;
-                if (seconds < 86400) // Less than 24 hours
+                double remaining = total - downloaded;
+                double seconds = remaining / speed;
+                if (seconds is > 0 and < 86400)
                     eta = TimeSpan.FromSeconds(seconds);
             }
 
@@ -540,90 +660,12 @@ namespace Client.Main.Scenes
             {
                 p.DownloadedBytes = downloaded;
                 p.TotalBytes = total;
-                p.Progress = total > 0 ? (float)downloaded / total : 0;
+                p.Progress = total > 0 ? Math.Min(1f, (float)downloaded / total) : 0;
                 p.SpeedBytesPerSecond = speed;
                 p.EstimatedTimeRemaining = eta;
                 p.IsDownloading = true;
             });
         }
-
-        #endregion
-
-        #region Extraction
-
-        private async Task ExtractZipWithProgressAsync(string zipPath, string outputDirectory, CancellationToken ct)
-        {
-            await Task.Run(() =>
-            {
-                using var archive = ZipFile.OpenRead(zipPath);
-                var entries = archive.Entries.Where(e => !string.IsNullOrEmpty(e.Name)).ToArray();
-
-                if (entries.Length == 0)
-                    throw new InvalidDataException("ZIP archive is empty.");
-
-                int processed = 0;
-                var stopwatch = Stopwatch.StartNew();
-
-                foreach (var entry in entries)
-                {
-                    ct.ThrowIfCancellationRequested();
-
-                    string relativePath = NormalizeEntryPath(entry.FullName);
-                    string fullPath = Path.GetFullPath(Path.Combine(outputDirectory, relativePath));
-
-                    // Security check - prevent path traversal
-                    if (!fullPath.StartsWith(Path.GetFullPath(outputDirectory), StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    var dir = Path.GetDirectoryName(fullPath);
-                    if (!string.IsNullOrEmpty(dir))
-                        Directory.CreateDirectory(dir);
-
-                    try { entry.ExtractToFile(fullPath, true); }
-                    catch (IOException ex) { Debug.WriteLine($"[Extract] {entry.Name}: {ex.Message}"); }
-
-                    processed++;
-
-                    if (stopwatch.ElapsedMilliseconds >= 100)
-                    {
-                        stopwatch.Restart();
-                        float progress = (float)processed / entries.Length;
-                        UpdateProgress(p =>
-                        {
-                            p.Progress = progress;
-                            p.StatusText = $"Extracting: {entry.Name}";
-                        });
-                    }
-                }
-
-                UpdateProgress(p =>
-                {
-                    p.Progress = 1f;
-                    p.StatusText = "Extraction complete!";
-                });
-            }, ct);
-        }
-
-        private static string NormalizeEntryPath(string entryFullName)
-        {
-            string normalized = entryFullName.Replace('\\', '/');
-            string[] prefixes = { "Data/", "data/" };
-
-            foreach (var prefix in prefixes)
-            {
-                if (normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                {
-                    normalized = normalized[prefix.Length..];
-                    break;
-                }
-            }
-
-            return normalized.Replace('/', Path.DirectorySeparatorChar);
-        }
-
-        #endregion
-
-        #region Progress Management
 
         private void UpdateProgress(Action<DownloadProgress> update)
         {
@@ -652,6 +694,90 @@ namespace Client.Main.Scenes
 
         #endregion
 
+        #region Extraction
+
+        private async Task ExtractZipWithProgressAsync(string zipPath, string outputDirectory, CancellationToken ct)
+        {
+            await Task.Run(() =>
+            {
+                using var archive = ZipFile.OpenRead(zipPath);
+                var entries = archive.Entries.Where(e => !string.IsNullOrEmpty(e.Name)).ToArray();
+
+                if (entries.Length == 0)
+                    throw new InvalidDataException("ZIP archive is empty.");
+
+                int processed = 0;
+                var stopwatch = Stopwatch.StartNew();
+                string outputFullPath = Path.GetFullPath(outputDirectory);
+
+                foreach (var entry in entries)
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    string relativePath = NormalizeEntryPath(entry.FullName);
+                    string fullPath = Path.GetFullPath(Path.Combine(outputDirectory, relativePath));
+
+                    // Security: prevent path traversal
+                    if (!fullPath.StartsWith(outputFullPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Debug.WriteLine($"[Extract] Skipping unsafe path: {entry.FullName}");
+                        continue;
+                    }
+
+                    string dir = Path.GetDirectoryName(fullPath);
+                    if (!string.IsNullOrEmpty(dir))
+                        Directory.CreateDirectory(dir);
+
+                    try
+                    {
+                        entry.ExtractToFile(fullPath, overwrite: true);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[Extract] Failed: {entry.Name} - {ex.Message}");
+                    }
+
+                    processed++;
+
+                    if (stopwatch.ElapsedMilliseconds >= 100)
+                    {
+                        stopwatch.Restart();
+                        float progress = (float)processed / entries.Length;
+                        UpdateProgress(p =>
+                        {
+                            p.Progress = progress;
+                            p.StatusText = $"Extracting: {entry.Name}";
+                        });
+                    }
+                }
+
+                UpdateProgress(p =>
+                {
+                    p.Progress = 1f;
+                    p.StatusText = "Extraction complete!";
+                });
+            }, ct);
+        }
+
+        private static string NormalizeEntryPath(string entryFullName)
+        {
+            string normalized = entryFullName.Replace('\\', '/');
+
+            // Remove common root prefixes
+            foreach (var prefix in new[] { "Data/", "data/" })
+            {
+                if (normalized.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    normalized = normalized[prefix.Length..];
+                    break;
+                }
+            }
+
+            return normalized.Replace('/', Path.DirectorySeparatorChar);
+        }
+
+        #endregion
+
         #region Helpers
 
         private static void EnsureDirectoryExists(string path)
@@ -673,43 +799,35 @@ namespace Client.Main.Scenes
         private static void SafeDeleteFile(string path)
         {
             try { if (File.Exists(path)) File.Delete(path); }
-            catch (Exception ex) { Debug.WriteLine($"[Delete] {path}: {ex.Message}"); }
+            catch (Exception ex) { Debug.WriteLine($"[Delete] {ex.Message}"); }
         }
 
         private static string FormatBytes(long bytes)
         {
-            string[] suffixes = { "B", "KB", "MB", "GB" };
+            if (bytes < 0) return "?";
+            string[] units = { "B", "KB", "MB", "GB" };
             int i = 0;
             double size = bytes;
-
-            while (size >= 1024 && i < suffixes.Length - 1)
-            {
-                size /= 1024;
-                i++;
-            }
-
-            return $"{size:F1} {suffixes[i]}";
+            while (size >= 1024 && i < units.Length - 1) { size /= 1024; i++; }
+            return $"{size:F1} {units[i]}";
         }
 
         private static string FormatSpeed(double bytesPerSecond)
         {
+            if (bytesPerSecond <= 0) return "-- MB/s";
             if (bytesPerSecond >= 1024 * 1024)
                 return $"{bytesPerSecond / (1024 * 1024):F1} MB/s";
             if (bytesPerSecond >= 1024)
-                return $"{bytesPerSecond / 1024:F1} KB/s";
+                return $"{bytesPerSecond / 1024:F0} KB/s";
             return $"{bytesPerSecond:F0} B/s";
         }
 
         private static string FormatEta(TimeSpan? eta)
         {
-            if (!eta.HasValue) return "";
-
+            if (!eta.HasValue) return "--:--";
             var ts = eta.Value;
-            if (ts.TotalHours >= 1)
-                return $"{(int)ts.TotalHours}h {ts.Minutes}m";
-            if (ts.TotalMinutes >= 1)
-                return $"{ts.Minutes}m {ts.Seconds}s";
-            return $"{ts.Seconds}s";
+            if (ts.TotalHours >= 1) return $"{(int)ts.TotalHours}:{ts.Minutes:D2}:{ts.Seconds:D2}";
+            return $"{ts.Minutes}:{ts.Seconds:D2}";
         }
 
         #endregion
@@ -720,14 +838,12 @@ namespace Client.Main.Scenes
         {
             if (Status == GameControlStatus.NonInitialized)
                 _ = Initialize();
-
             base.Update(gameTime);
         }
 
         public override void Draw(GameTime gameTime)
         {
             GraphicsDevice.Clear(new Color(12, 12, 20));
-
             DrawBackground();
             DrawProgressUI();
         }
@@ -737,188 +853,117 @@ namespace Client.Main.Scenes
             if (_backgroundTexture == null) return;
 
             using var scope = new SpriteBatchScope(
-                GraphicsManager.Instance.Sprite,
-                SpriteSortMode.Deferred,
-                BlendState.AlphaBlend,
-                SamplerState.LinearClamp,
-                DepthStencilState.None,
-                RasterizerState.CullNone,
-                null,
-                UiScaler.SpriteTransform);
+                GraphicsManager.Instance.Sprite, SpriteSortMode.Deferred,
+                BlendState.AlphaBlend, SamplerState.LinearClamp,
+                DepthStencilState.None, RasterizerState.CullNone,
+                null, UiScaler.SpriteTransform);
 
-            GraphicsManager.Instance.Sprite.Draw(
-                _backgroundTexture,
-                new Rectangle(0, 0, UiScaler.VirtualSize.X, UiScaler.VirtualSize.Y),
-                Color.White);
+            GraphicsManager.Instance.Sprite.Draw(_backgroundTexture,
+                new Rectangle(0, 0, UiScaler.VirtualSize.X, UiScaler.VirtualSize.Y), Color.White);
         }
 
         private void DrawProgressUI()
         {
             var progress = GetProgress();
             var sprite = GraphicsManager.Instance.Sprite;
+            var font = GraphicsManager.Instance.Font;
 
-            int screenWidth = UiScaler.VirtualSize.X;
-            int screenHeight = UiScaler.VirtualSize.Y;
-
-            int barWidth = screenWidth - (ProgressBarMargin * 2);
+            int screenW = UiScaler.VirtualSize.X;
+            int screenH = UiScaler.VirtualSize.Y;
+            int barW = screenW - ProgressBarMargin * 2;
             int barX = ProgressBarMargin;
-            int barY = screenHeight - ProgressBarBottomOffset;
+            int barY = screenH - ProgressBarBottomOffset;
 
-            using var scope = new SpriteBatchScope(
-                sprite,
-                SpriteSortMode.Deferred,
-                BlendState.AlphaBlend,
-                SamplerState.PointClamp,
-                DepthStencilState.None,
-                null,
-                null,
-                UiScaler.SpriteTransform);
+            using var scope = new SpriteBatchScope(sprite, SpriteSortMode.Deferred,
+                BlendState.AlphaBlend, SamplerState.PointClamp,
+                DepthStencilState.None, null, null, UiScaler.SpriteTransform);
 
-            // === PROGRESS BAR BACKGROUND ===
-            // Outer glow/shadow
-            DrawRect(sprite, barX - 2, barY - 2, barWidth + 4, ProgressBarHeight + 4,
-                new Color(0, 0, 0, 150));
+            // Background shadow
+            DrawRect(sprite, barX - 3, barY - 3, barW + 6, ProgressBarHeight + 6, new Color(0, 0, 0, 120));
 
-            // Background gradient simulation (dark to slightly lighter)
-            DrawRect(sprite, barX, barY, barWidth, ProgressBarHeight,
-                new Color(25, 28, 35));
-            DrawRect(sprite, barX, barY, barWidth, ProgressBarHeight / 2,
-                new Color(35, 38, 45));
+            // Bar background
+            DrawRect(sprite, barX, barY, barW, ProgressBarHeight, new Color(30, 32, 40));
+            DrawRect(sprite, barX, barY, barW, ProgressBarHeight / 2, new Color(38, 40, 50));
 
-            // === PROGRESS BAR FILL ===
+            // Progress fill
             if (progress.Progress > 0.001f)
             {
-                int fillWidth = Math.Max(4, (int)(barWidth * progress.Progress));
+                int fillW = (int)(barW * Math.Min(progress.Progress, 1f));
+                if (fillW > 2)
+                {
+                    // Gradient effect
+                    DrawRect(sprite, barX + 1, barY + 1, fillW - 2, ProgressBarHeight - 2, new Color(40, 150, 90));
+                    DrawRect(sprite, barX + 1, barY + 1, fillW - 2, ProgressBarHeight / 2 - 1, new Color(60, 190, 115));
 
-                // Main gradient fill
-                var baseColor = new Color(45, 160, 95);
-                var lightColor = new Color(65, 200, 120);
-                var darkColor = new Color(35, 130, 75);
-
-                // Bottom part (darker)
-                DrawRect(sprite, barX + 1, barY + ProgressBarHeight / 2,
-                    fillWidth - 2, ProgressBarHeight / 2 - 1, darkColor);
-
-                // Top part (lighter)
-                DrawRect(sprite, barX + 1, barY + 1,
-                    fillWidth - 2, ProgressBarHeight / 2, lightColor);
-
-                // Shine effect on top
-                DrawRect(sprite, barX + 1, barY + 1,
-                    fillWidth - 2, 4, new Color(255, 255, 255, 40));
-
-                // Animated pulse glow (optional, based on time)
-                float pulse = (float)(0.5 + 0.5 * Math.Sin(DateTime.Now.Ticks / 2000000.0));
-                DrawRect(sprite, barX + fillWidth - 20, barY,
-                    20, ProgressBarHeight, new Color(100, 255, 150, (int)(30 * pulse)));
+                    // Top shine
+                    DrawRect(sprite, barX + 1, barY + 1, fillW - 2, 3, new Color(255, 255, 255, 35));
+                }
             }
 
-            // === BORDER ===
-            DrawBorder(sprite, barX, barY, barWidth, ProgressBarHeight,
-                new Color(70, 75, 85), 1);
+            // Border
+            DrawBorder(sprite, barX, barY, barW, ProgressBarHeight, new Color(60, 65, 80), 1);
 
-            // Inner highlight
-            DrawRect(sprite, barX + 1, barY + 1, barWidth - 2, 1,
-                new Color(255, 255, 255, 20));
-
-            // === TEXT ELEMENTS ===
-            var font = GraphicsManager.Instance.Font;
             if (font == null) return;
 
-            // Percentage centered on bar
-            string percentText = $"{progress.Progress * 100:F0}%";
-            DrawTextCentered(sprite, font, percentText,
-                barX + barWidth / 2, barY + ProgressBarHeight / 2,
-                Color.White, 0.7f, true);
+            // Percentage
+            string pctText = $"{progress.Progress * 100:F0}%";
+            DrawTextCentered(sprite, font, pctText, barX + barW / 2, barY + ProgressBarHeight / 2, Color.White, 0.65f);
 
-            // Status text above bar
-            DrawTextWithShadow(sprite, font, progress.StatusText,
-                barX, barY - 30, Color.White, 0.65f);
+            // Status above bar
+            DrawTextShadow(sprite, font, progress.StatusText, barX, barY - 28, Color.White, 0.6f);
 
-            // Download stats below bar
+            // Stats below bar (only when downloading)
             if (progress.IsDownloading && progress.TotalBytes > 0)
             {
-                int statsY = barY + ProgressBarHeight + 12;
+                int y = barY + ProgressBarHeight + 10;
+                var gray = new Color(160, 165, 180);
 
-                // Size: left aligned
+                // Size (left)
                 string sizeText = $"{FormatBytes(progress.DownloadedBytes)} / {FormatBytes(progress.TotalBytes)}";
-                DrawTextWithShadow(sprite, font, sizeText, barX, statsY,
-                    new Color(170, 175, 190), 0.55f);
+                DrawTextShadow(sprite, font, sizeText, barX, y, gray, 0.5f);
 
-                // Speed: centered
-                if (progress.SpeedBytesPerSecond > 0)
-                {
-                    string speedText = $"Transfer: {FormatSpeed(progress.SpeedBytesPerSecond)}";
-                    DrawTextCentered(sprite, font, speedText,
-                        barX + barWidth / 2, statsY + 6,
-                        new Color(100, 180, 255), 0.55f, true);
-                }
+                // Speed (center)
+                string speedText = FormatSpeed(progress.SpeedBytesPerSecond);
+                DrawTextCentered(sprite, font, speedText, barX + barW / 2, y + 5, new Color(90, 170, 240), 0.5f);
 
-                // ETA: right aligned
-                if (progress.EstimatedTimeRemaining.HasValue)
-                {
-                    string etaText = $"ETA: {FormatEta(progress.EstimatedTimeRemaining)}";
-                    var etaSize = font.MeasureString(etaText) * 0.55f;
-                    DrawTextWithShadow(sprite, font, etaText,
-                        barX + barWidth - (int)etaSize.X, statsY,
-                        new Color(170, 175, 190), 0.55f);
-                }
+                // ETA (right)
+                string etaText = FormatEta(progress.EstimatedTimeRemaining);
+                var etaSize = font.MeasureString(etaText) * 0.5f;
+                DrawTextShadow(sprite, font, etaText, barX + barW - (int)etaSize.X, y, gray, 0.5f);
             }
         }
 
-        #region Drawing Helpers
-
-        private void DrawRect(SpriteBatch sprite, int x, int y, int width, int height, Color color)
+        private void DrawRect(SpriteBatch sprite, int x, int y, int w, int h, Color color)
         {
-            if (_pixelTexture == null || width <= 0 || height <= 0) return;
-            sprite.Draw(_pixelTexture, new Rectangle(x, y, width, height), color);
+            if (_pixelTexture != null && w > 0 && h > 0)
+                sprite.Draw(_pixelTexture, new Rectangle(x, y, w, h), color);
         }
 
-        private void DrawBorder(SpriteBatch sprite, int x, int y, int width, int height, Color color, int thickness)
+        private void DrawBorder(SpriteBatch sprite, int x, int y, int w, int h, Color color, int t)
         {
             if (_pixelTexture == null) return;
-
-            // Top
-            sprite.Draw(_pixelTexture, new Rectangle(x, y, width, thickness), color);
-            // Bottom
-            sprite.Draw(_pixelTexture, new Rectangle(x, y + height - thickness, width, thickness), color);
-            // Left
-            sprite.Draw(_pixelTexture, new Rectangle(x, y, thickness, height), color);
-            // Right
-            sprite.Draw(_pixelTexture, new Rectangle(x + width - thickness, y, thickness, height), color);
+            sprite.Draw(_pixelTexture, new Rectangle(x, y, w, t), color);
+            sprite.Draw(_pixelTexture, new Rectangle(x, y + h - t, w, t), color);
+            sprite.Draw(_pixelTexture, new Rectangle(x, y, t, h), color);
+            sprite.Draw(_pixelTexture, new Rectangle(x + w - t, y, t, h), color);
         }
 
-        private void DrawTextWithShadow(SpriteBatch sprite, SpriteFont font, string text,
-            int x, int y, Color color, float scale)
+        private static void DrawTextShadow(SpriteBatch sprite, SpriteFont font, string text, int x, int y, Color color, float scale)
         {
-            if (string.IsNullOrEmpty(text) || font == null) return;
-
+            if (string.IsNullOrEmpty(text)) return;
             var pos = new Vector2(x, y);
-            sprite.DrawString(font, text, pos + new Vector2(1, 1), Color.Black * 0.8f,
-                0, Vector2.Zero, scale, SpriteEffects.None, 0);
-            sprite.DrawString(font, text, pos, color,
-                0, Vector2.Zero, scale, SpriteEffects.None, 0);
+            sprite.DrawString(font, text, pos + Vector2.One, Color.Black * 0.7f, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+            sprite.DrawString(font, text, pos, color, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
         }
 
-        private void DrawTextCentered(SpriteBatch sprite, SpriteFont font, string text,
-            int centerX, int centerY, Color color, float scale, bool withShadow)
+        private static void DrawTextCentered(SpriteBatch sprite, SpriteFont font, string text, int cx, int cy, Color color, float scale)
         {
-            if (string.IsNullOrEmpty(text) || font == null) return;
-
+            if (string.IsNullOrEmpty(text)) return;
             var size = font.MeasureString(text) * scale;
-            var pos = new Vector2(centerX - size.X / 2, centerY - size.Y / 2);
-
-            if (withShadow)
-            {
-                sprite.DrawString(font, text, pos + new Vector2(1, 1), Color.Black * 0.8f,
-                    0, Vector2.Zero, scale, SpriteEffects.None, 0);
-            }
-
-            sprite.DrawString(font, text, pos, color,
-                0, Vector2.Zero, scale, SpriteEffects.None, 0);
+            var pos = new Vector2(cx - size.X / 2, cy - size.Y / 2);
+            sprite.DrawString(font, text, pos + Vector2.One, Color.Black * 0.7f, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
+            sprite.DrawString(font, text, pos, color, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
         }
-
-        #endregion
 
         #endregion
 
@@ -927,14 +972,10 @@ namespace Client.Main.Scenes
         public override void Dispose()
         {
             if (_isDisposed) return;
-
             _loadingCts?.Cancel();
             _loadingCts?.Dispose();
-            _loadingCts = null;
-
             _basicEffect?.Dispose();
             _pixelTexture?.Dispose();
-
             _isDisposed = true;
             base.Dispose();
         }

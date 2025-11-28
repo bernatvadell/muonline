@@ -78,6 +78,7 @@ namespace Client.Main
         public BaseScene ActiveScene { get; private set; }
         public int Width => _graphics.PreferredBackBufferWidth;
         public int Height => _graphics.PreferredBackBufferHeight;
+        public GameWindow GameWindow => this.Window;
         public MouseState PrevMouseState { get; private set; }
         public MouseState Mouse { get; set; }
         public MouseState PrevUiMouseState { get; private set; }
@@ -87,6 +88,7 @@ namespace Client.Main
         public KeyboardState Keyboard { get; private set; }
         public TouchCollection PrevTouchState { get; private set; }
         public TouchCollection Touch { get; private set; }
+        public Point UiTouchPosition { get; private set; }
         public Ray MouseRay { get; private set; }
         public GameTime GameTime { get; private set; }
         public DepthStencilState DisableDepthMask { get; } = new DepthStencilState
@@ -107,11 +109,16 @@ namespace Client.Main
                 PreferMultiSampling = Constants.MSAA_ENABLED
             };
 
-#if ANDROID || IOS
+#if ANDROID
+            _graphics.IsFullScreen = true;
+            _graphics.SupportedOrientations = DisplayOrientation.LandscapeLeft | DisplayOrientation.LandscapeRight;
+            _graphics.SynchronizeWithVerticalRetrace = true;
+            // Screen size will be configured in Initialize() using GraphicsAdapter
+            IsFixedTimeStep = false;
+            TargetElapsedTime = TimeSpan.FromMilliseconds(16.67);
+#elif IOS
             _graphics.IsFullScreen = true;
             _graphics.SynchronizeWithVerticalRetrace = true;
-            _graphics.PreferredBackBufferWidth = Window.ClientBounds.Width;
-            _graphics.PreferredBackBufferHeight = Window.ClientBounds.Height;
             IsFixedTimeStep = false;
             TargetElapsedTime = TimeSpan.FromMilliseconds(16.67);
 #else
@@ -126,13 +133,7 @@ namespace Client.Main
             _graphics.PreferredBackBufferFormat = SurfaceFormat.Color;
             _graphics.ApplyChanges();
 
-#if ANDROID || IOS
-            UiScaler.Configure(_graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight,
-                Constants.BASE_UI_WIDTH, Constants.BASE_UI_HEIGHT, ScaleMode.Stretch);
-#else
-            UiScaler.Configure(_graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight,
-                Constants.BASE_UI_WIDTH, Constants.BASE_UI_HEIGHT, ScaleMode.Uniform);
-#endif
+            // UiScaler configuration moved to Initialize() - Window.ClientBounds may be invalid in constructor
 
             Content.RootDirectory = "Content";
 
@@ -256,15 +257,42 @@ namespace Client.Main
         }
 
         // Protected Instance Methods
+        /// <summary>
+        /// Gets the actual screen size using GraphicsAdapter for mobile platforms.
+        /// </summary>
+        private Point GetActualScreenSize()
+        {
+#if ANDROID || IOS
+            // Use GraphicsAdapter to get actual display size
+            var adapter = base.GraphicsDevice?.Adapter ?? GraphicsAdapter.DefaultAdapter;
+            if (adapter != null)
+            {
+                var displayMode = adapter.CurrentDisplayMode;
+                return new Point(displayMode.Width, displayMode.Height);
+            }
+
+            // Fallback to configured size
+            return new Point(_graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight);
+#else
+            return new Point(_graphics.PreferredBackBufferWidth, _graphics.PreferredBackBufferHeight);
+#endif
+        }
+
         protected override void Initialize()
         {
+#if ANDROID
+            Android.Util.Log.Info("MuGame", "=== Initialize() START ===");
+#endif
             // --- Configuration Setup ---
 #if ANDROID
+            Android.Util.Log.Info("MuGame", "About to call EnsureAndroidConfig()");
             string cfgPath = EnsureAndroidConfig();
+            Android.Util.Log.Info("MuGame", $"Config path: {cfgPath}");
             AppConfiguration = new ConfigurationBuilder()
                 .SetBasePath(Path.GetDirectoryName(cfgPath)!)
                 .AddJsonFile(Path.GetFileName(cfgPath), optional: false, reloadOnChange: false)
                 .Build();
+            Android.Util.Log.Info("MuGame", "AppConfiguration created");
 #else // Windows, Linux, etc.
             AppConfiguration = new ConfigurationBuilder()
                 .SetBasePath(AppContext.BaseDirectory)
@@ -285,6 +313,11 @@ namespace Client.Main
                     AppConfiguration.GetSection("Logging:SimpleConsole").Bind(options);
                     options.IncludeScopes = true; // Optional: Include scopes if you use them
                 });
+
+#if ANDROID
+                // Add file logger for Android - logs to Downloads folder
+                builder.AddProvider(new Client.Main.Platform.Android.AndroidFileLoggerProvider());
+#endif
             });
 
             _logger = AppLoggerFactory.CreateLogger<MuGame>();
@@ -317,6 +350,51 @@ namespace Client.Main
             IsMouseVisible = false; // Keep this if you want a custom cursor
 
             ApplyGraphicsConfiguration(AppSettings.Graphics);
+
+            // Configure screen size for mobile platforms AFTER graphics device is ready
+#if ANDROID
+            var screenSize = GetActualScreenSize();
+            _graphics.PreferredBackBufferWidth = screenSize.X;
+            _graphics.PreferredBackBufferHeight = screenSize.Y;
+            _graphics.ApplyChanges();
+
+            UiScaler.Configure(
+                screenSize.X,
+                screenSize.Y,
+                Constants.BASE_UI_WIDTH,
+                Constants.BASE_UI_HEIGHT,
+                ScaleMode.Stretch);
+
+            bootLogger.LogInformation("✅ Android UiScaler configured: Screen={Width}x{Height}, Virtual={VWidth}x{VHeight}, ScaleX={ScaleX:F4}, ScaleY={ScaleY:F4}",
+                screenSize.X, screenSize.Y,
+                Constants.BASE_UI_WIDTH, Constants.BASE_UI_HEIGHT,
+                UiScaler.ScaleX, UiScaler.ScaleY);
+#elif IOS
+            var screenSize = GetActualScreenSize();
+            _graphics.PreferredBackBufferWidth = screenSize.X;
+            _graphics.PreferredBackBufferHeight = screenSize.Y;
+            _graphics.ApplyChanges();
+
+            UiScaler.Configure(
+                screenSize.X,
+                screenSize.Y,
+                Constants.BASE_UI_WIDTH,
+                Constants.BASE_UI_HEIGHT,
+                ScaleMode.Stretch);
+
+            bootLogger.LogInformation("✅ iOS UiScaler configured: Screen={Width}x{Height}, Virtual={VWidth}x{VHeight}, ScaleX={ScaleX:F4}, ScaleY={ScaleY:F4}",
+                screenSize.X, screenSize.Y,
+                Constants.BASE_UI_WIDTH, Constants.BASE_UI_HEIGHT,
+                UiScaler.ScaleX, UiScaler.ScaleY);
+#else
+            UiScaler.Configure(
+                _graphics.PreferredBackBufferWidth,
+                _graphics.PreferredBackBufferHeight,
+                Constants.BASE_UI_WIDTH,
+                Constants.BASE_UI_HEIGHT,
+                ScaleMode.Uniform);
+#endif
+
             _logger?.LogDebug("UI scale factor set to {Scale:F3} (virtual {VirtualWidth}x{VirtualHeight} -> actual {ActualWidth}x{ActualHeight}).",
                 UiScaler.Scale,
                 UiScaler.VirtualSize.X,
@@ -543,30 +621,83 @@ namespace Client.Main
             PrevKeyboard = Keyboard;
             PrevTouchState = Touch;
 
-            var absoluteMousePosition = new Point(mouseState.X + windowBounds.X, mouseState.Y + windowBounds.Y);
+            // --- PHYSICAL DEVICES ---
+            // Always update keyboard and touch state
+            Keyboard = Microsoft.Xna.Framework.Input.Keyboard.GetState();
+            Touch = touchState;
+
+            // Update physical mouse only if we're in the window (important for PC)
+            var absoluteMousePosition = new Microsoft.Xna.Framework.Point(mouseState.X + windowBounds.X, mouseState.Y + windowBounds.Y);
             if (!IsActive || !windowBounds.Contains(absoluteMousePosition))
             {
                 Mouse = PrevMouseState;
-                Keyboard = new KeyboardState();
-                Touch = PrevTouchState;
+#if !ANDROID
+                Keyboard = new KeyboardState(); // Clear keyboard on PC when inactive
+#endif
             }
             else
             {
                 Mouse = mouseState;
-                Keyboard = Microsoft.Xna.Framework.Input.Keyboard.GetState();
-                Touch = touchState;
             }
 
-            UiMousePosition = UiScaler.ToVirtual(Mouse.Position);
-            UiMouseState = new MouseState(
-                UiMousePosition.X,
-                UiMousePosition.Y,
-                Mouse.ScrollWheelValue,
-                Mouse.LeftButton,
-                Mouse.MiddleButton,
-                Mouse.RightButton,
-                Mouse.XButton1,
-                Mouse.XButton2);
+            // --- VIRTUAL MOUSE (UI) ---
+
+            if (Touch.Count > 0)
+            {
+                // CASE 1: Touch detected (Android/Touchscreen)
+                var touch = Touch[0];
+                var touchPos = touch.Position;
+
+                // Convert touch position to virtual UI coordinates
+                var virtualTouchPos = UiScaler.ToVirtual(new Microsoft.Xna.Framework.Point((int)touchPos.X, (int)touchPos.Y));
+
+                UiTouchPosition = virtualTouchPos;
+                UiMousePosition = virtualTouchPos; // Mouse follows finger
+
+                // Touch as left mouse button
+                var leftButtonState = (touch.State == TouchLocationState.Pressed || touch.State == TouchLocationState.Moved)
+                    ? Microsoft.Xna.Framework.Input.ButtonState.Pressed
+                    : Microsoft.Xna.Framework.Input.ButtonState.Released;
+
+                UiMouseState = new Microsoft.Xna.Framework.Input.MouseState(
+                    virtualTouchPos.X,
+                    virtualTouchPos.Y,
+                    0,
+                    leftButtonState,
+                    Microsoft.Xna.Framework.Input.ButtonState.Released, Microsoft.Xna.Framework.Input.ButtonState.Released, Microsoft.Xna.Framework.Input.ButtonState.Released, Microsoft.Xna.Framework.Input.ButtonState.Released);
+            }
+            else
+            {
+                // CASE 2: No touch
+#if ANDROID
+                // Keep the cursor at the last touch position when finger is lifted.
+                // This prevents the UI system from thinking we clicked outside the control.
+                // The cursor will stay at this position until next touch - we DON'T move it to (-1, -1).
+
+                UiMousePosition = PrevUiMouseState.Position;
+                UiTouchPosition = PrevUiMouseState.Position;
+
+                UiMouseState = new Microsoft.Xna.Framework.Input.MouseState(
+                    UiMousePosition.X, UiMousePosition.Y,
+                    0,
+                    Microsoft.Xna.Framework.Input.ButtonState.Released,
+                    Microsoft.Xna.Framework.Input.ButtonState.Released, Microsoft.Xna.Framework.Input.ButtonState.Released, Microsoft.Xna.Framework.Input.ButtonState.Released, Microsoft.Xna.Framework.Input.ButtonState.Released);
+#else
+                // WINDOWS: Use standard mouse
+                UiMousePosition = UiScaler.ToVirtual(Mouse.Position);
+                UiTouchPosition = UiMousePosition;
+
+                UiMouseState = new Microsoft.Xna.Framework.Input.MouseState(
+                    UiMousePosition.X,
+                    UiMousePosition.Y,
+                    Mouse.ScrollWheelValue,
+                    Mouse.LeftButton,
+                    Mouse.MiddleButton,
+                    Mouse.RightButton,
+                    Mouse.XButton1,
+                    Mouse.XButton2);
+#endif
+            }
 
             if (PrevMouseState.Position != Mouse.Position)
                 UpdateMouseRay();
@@ -679,23 +810,46 @@ namespace Client.Main
                 return;
             }
 
-#if !(ANDROID || IOS)
+#if ANDROID
+            // On Android, use actual screen size from GraphicsAdapter
+            var screenSize = GetActualScreenSize();
+            _graphics.PreferredBackBufferWidth = screenSize.X;
+            _graphics.PreferredBackBufferHeight = screenSize.Y;
+            _graphics.ApplyChanges();
+
+            UiScaler.Configure(
+                screenSize.X,
+                screenSize.Y,
+                Math.Max(1, graphics.UiVirtualWidth),
+                Math.Max(1, graphics.UiVirtualHeight),
+                ScaleMode.Stretch);
+
+            _logger?.LogDebug("Android graphics configured: {Width}x{Height}, UiScaler: {ScaleX:F4}x{ScaleY:F4}",
+                screenSize.X, screenSize.Y,
+                UiScaler.ScaleX, UiScaler.ScaleY);
+#elif IOS
+            // On iOS, use actual screen size, not config values
+            var screenSize = GetActualScreenSize();
+            _graphics.PreferredBackBufferWidth = screenSize.X;
+            _graphics.PreferredBackBufferHeight = screenSize.Y;
+            _graphics.ApplyChanges();
+
+            UiScaler.Configure(
+                screenSize.X,
+                screenSize.Y,
+                Math.Max(1, graphics.UiVirtualWidth),
+                Math.Max(1, graphics.UiVirtualHeight),
+                ScaleMode.Stretch);
+
+            _logger?.LogDebug("iOS graphics configured: {Width}x{Height}, UiScaler: {ScaleX:F4}x{ScaleY:F4}",
+                screenSize.X, screenSize.Y,
+                UiScaler.ScaleX, UiScaler.ScaleY);
+#else
             _graphics.IsFullScreen = graphics.IsFullScreen;
-#endif
             _graphics.PreferredBackBufferWidth = Math.Max(1, graphics.Width);
             _graphics.PreferredBackBufferHeight = Math.Max(1, graphics.Height);
             _graphics.ApplyChanges();
 
-#if ANDROID || IOS
-            // Stretch mode for mobile - fills entire screen
-            UiScaler.Configure(
-                _graphics.PreferredBackBufferWidth,
-                _graphics.PreferredBackBufferHeight,
-                Math.Max(1, graphics.UiVirtualWidth),
-                Math.Max(1, graphics.UiVirtualHeight),
-                ScaleMode.Stretch);
-#else
-            // Uniform mode for desktop - maintains aspect ratio
             UiScaler.Configure(
                 _graphics.PreferredBackBufferWidth,
                 _graphics.PreferredBackBufferHeight,

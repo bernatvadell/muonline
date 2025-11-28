@@ -205,7 +205,7 @@ namespace Client.Main
                 /// Values below 1.0f improve performance at cost of quality.
                 /// Values above 1.0f increase quality at cost of performance (supersampling).
                 /// </summary>
-                public static float RENDER_SCALE = 2.0f;
+                public static float RENDER_SCALE = 1.0f;
 
                 /// <summary>
                 /// Enable high quality texture filtering (anisotropic filtering).
@@ -216,7 +216,7 @@ namespace Client.Main
                 /// <summary>
                 /// Disable V-Sync for higher framerate. May cause screen tearing.
                 /// </summary>
-                public static bool DISABLE_VSYNC = false;
+                public static bool DISABLE_VSYNC = true;
 
                 /// <summary>
                 /// Enables drawing of object names when hovered with the mouse.

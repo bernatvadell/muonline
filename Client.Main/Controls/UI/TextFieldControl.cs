@@ -6,11 +6,10 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
-using System.Linq;
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using Microsoft.Extensions.Logging;
 #if ANDROID
 using Client.Main.Platform.Android;
 #endif
@@ -38,6 +37,8 @@ namespace Client.Main.Controls.UI
         {
             "01", "02", "03", "04", "05", "06", "07", "08", "09"
         };
+
+        private static readonly ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<TextFieldControl>();
 
         public TextFieldSkin Skin { get; set; } = TextFieldSkin.Flat;
         public Color TextColor { get; set; } = Color.White;
@@ -95,23 +96,34 @@ namespace Client.Main.Controls.UI
 
         public override void OnFocus()
         {
+            if (IsFocused) return;
             base.OnFocus();
             IsFocused = true;
             _showCursor = true;
             _cursorBlinkTimer = 0;
             if (Scene != null) Scene.FocusControl = this;
+
+            _logger?.LogDebug("TextFieldControl: OnFocus called. Subscribing to TextInput.");
+
 #if ANDROID
+            // Subscribe to Android text input event (Critical for soft keyboard and scrcpy)
+            AndroidKeyboard.TextInput += OnTextInput;
             AndroidKeyboard.Show();
 #endif
         }
 
         public override void OnBlur()
         {
+            if (!IsFocused) return;
             base.OnBlur();
             IsFocused = false;
             _showCursor = false;
             _cursorBlinkTimer = 0;
+
+            _logger?.LogDebug("TextFieldControl: OnBlur called. Unsubscribing from TextInput.");
+
 #if ANDROID
+            AndroidKeyboard.TextInput -= OnTextInput;
             AndroidKeyboard.Hide();
 #endif
         }
@@ -141,6 +153,84 @@ namespace Client.Main.Controls.UI
             _scrollOffset = textWidth > maxVisibleWidth ? textWidth - maxVisibleWidth : 0;
         }
 
+        /// <summary>
+        /// Handles text input on Android (from soft keyboard or scrcpy).
+        /// </summary>
+#if ANDROID
+        private void OnTextInput(object sender, Platform.Android.TextInputEventArgs e)
+        {
+            bool textChanged = false;
+
+            // Handle control keys by character or key code
+            if (e.Character == '\r' || e.Key == Keys.Enter)
+            {
+                EnterKeyPressed?.Invoke(this, EventArgs.Empty);
+                ValueChanged?.Invoke(this, EventArgs.Empty);
+                return; // Enter usually consumes the event
+            }
+            else if (e.Character == '\b' || e.Key == Keys.Back)
+            {
+                // Backspace - delete last character
+                if (_inputText.Length > 0)
+                {
+                    _inputText.Remove(_inputText.Length - 1, 1);
+                    textChanged = true;
+                }
+            }
+            else if (e.Character != '\0' && !char.IsControl(e.Character))
+            {
+                // Standard printable character input
+                _inputText.Append(e.Character);
+                textChanged = true;
+            }
+
+            if (textChanged)
+            {
+                UpdateScrollOffset();
+                MoveCursorToEnd();
+                ValueChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+#endif
+
+        public override void Update(GameTime gameTime)
+        {
+            base.Update(gameTime);
+
+            if (!IsFocused || !Visible) return;
+
+#if !ANDROID
+            // On non-Android platforms (Windows, Linux, Mac), use keyboard polling
+            var keysPressed = MuGame.Instance.Keyboard.GetPressedKeys();
+            bool shift = MuGame.Instance.Keyboard.IsKeyDown(Keys.LeftShift) || MuGame.Instance.Keyboard.IsKeyDown(Keys.RightShift);
+            bool capsLock = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows) ? Console.CapsLock : false;
+
+            bool textModifiedByKey = false;
+            foreach (var key in keysPressed)
+            {
+                if (MuGame.Instance.PrevKeyboard.IsKeyUp(key))
+                {
+                    ProcessKey(key, shift, capsLock);
+                    textModifiedByKey = true;
+                }
+            }
+
+            if (textModifiedByKey || (IsFocused && !MuGame.Instance.PrevKeyboard.GetPressedKeys().Any()))
+            {
+                UpdateScrollOffset();
+            }
+#endif
+
+            _cursorBlinkTimer += gameTime.ElapsedGameTime.TotalMilliseconds;
+            if (_cursorBlinkTimer >= CursorBlinkInterval)
+            {
+                _showCursor = !_showCursor;
+                _cursorBlinkTimer = 0;
+            }
+        }
+
+#if !ANDROID
+        // Keyboard input processing for Windows/Desktop platforms
         private void ProcessKey(Keys key, bool shift, bool capsLock)
         {
             bool textChanged = false;
@@ -168,6 +258,7 @@ namespace Client.Main.Controls.UI
             {
                 UpdateScrollOffset();
                 MoveCursorToEnd();
+                ValueChanged?.Invoke(this, EventArgs.Empty);
             }
         }
 
@@ -222,39 +313,7 @@ namespace Client.Main.Controls.UI
                 _ => '\0'
             };
         }
-
-        public override void Update(GameTime gameTime)
-        {
-            base.Update(gameTime);
-
-            if (!IsFocused || !Visible) return;
-
-            var keysPressed = MuGame.Instance.Keyboard.GetPressedKeys();
-            bool shift = MuGame.Instance.Keyboard.IsKeyDown(Keys.LeftShift) || MuGame.Instance.Keyboard.IsKeyDown(Keys.RightShift);
-            bool capsLock = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? Console.CapsLock : false;
-
-            bool textModifiedByKey = false;
-            foreach (var key in keysPressed)
-            {
-                if (MuGame.Instance.PrevKeyboard.IsKeyUp(key))
-                {
-                    ProcessKey(key, shift, capsLock);
-                    textModifiedByKey = true;
-                }
-            }
-
-            if (textModifiedByKey || (IsFocused && !MuGame.Instance.PrevKeyboard.GetPressedKeys().Any()))
-            {
-                UpdateScrollOffset();
-            }
-
-            _cursorBlinkTimer += gameTime.ElapsedGameTime.TotalMilliseconds;
-            if (_cursorBlinkTimer >= CursorBlinkInterval)
-            {
-                _showCursor = !_showCursor;
-                _cursorBlinkTimer = 0;
-            }
-        }
+#endif
 
         public override void Draw(GameTime gameTime)
         {

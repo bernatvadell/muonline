@@ -16,6 +16,9 @@
 
     <RunAOTCompilation>false</RunAOTCompilation>
     <EnableLLVM>true</EnableLLVM>
+
+    <!-- Accept Android SDK licenses -->
+    <AcceptAndroidSDKLicenses>true</AcceptAndroidSDKLicenses>
   </PropertyGroup>
 
   <ItemGroup>

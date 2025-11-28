@@ -62,16 +62,22 @@ namespace Client.Main.Controllers
         public static Matrix SpriteTransform { get; private set; } = Matrix.Identity;
         public static ScaleMode Mode { get; private set; } = ScaleMode.Uniform;
 
+        /// <summary>
+        /// Indicates if UiScaler has been properly configured with valid screen dimensions.
+        /// </summary>
+        public static bool IsConfigured { get; private set; } = false;
+
         public static void Configure(int actualWidth, int actualHeight, int virtualWidth, int virtualHeight,
             ScaleMode mode = ScaleMode.Uniform)
         {
-            if (virtualWidth <= 0 || virtualHeight <= 0)
+            // Ignore invalid dimensions (can happen in constructor before window is ready)
+            if (actualWidth <= 0 || actualHeight <= 0 || virtualWidth <= 0 || virtualHeight <= 0)
             {
-                throw new ArgumentOutOfRangeException(nameof(virtualWidth), "Virtual resolution must be positive.");
+                return;
             }
 
-            ActualSize = new Point(Math.Max(1, actualWidth), Math.Max(1, actualHeight));
-            VirtualSize = new Point(Math.Max(1, virtualWidth), Math.Max(1, virtualHeight));
+            ActualSize = new Point(actualWidth, actualHeight);
+            VirtualSize = new Point(virtualWidth, virtualHeight);
             Mode = mode;
 
             switch (mode)
@@ -83,6 +89,8 @@ namespace Client.Main.Controllers
                     ConfigureStretch();
                     break;
             }
+
+            IsConfigured = true;
         }
 
         private static void ConfigureUniform()

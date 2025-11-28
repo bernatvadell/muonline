@@ -5,11 +5,17 @@
           android:versionName="1.0">
   <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="35" />
   <uses-feature android:glEsVersion="0x00020000" android:required="true" />
-  
+
+  <!-- Network permissions -->
   <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
+  <!-- Storage permissions for Android < 10 -->
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+
+  <!-- Manage external storage for Android 11+ (optional, for full file access) -->
+  <!-- <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" /> -->
 	<application android:label="MuAndroid"
                android:icon="@drawable/Icon"
                android:usesCleartextTraffic="true">

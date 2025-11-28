@@ -99,8 +99,11 @@ public class CursorControl : SpriteControl
         if (MuGame.Instance.Touch.Count > 0)
         {
             var touch = MuGame.Instance.Touch[0];
-            X = (int)touch.Position.X;
-            Y = (int)touch.Position.Y;
+
+            // Use converted UI touch position instead of raw coordinates
+            var uiTouchPos = MuGame.Instance.UiTouchPosition;
+            X = uiTouchPos.X;
+            Y = uiTouchPos.Y;
 
             // If the touch is pressed or moved, simulate a click
             if (touch.State == TouchLocationState.Pressed || touch.State == TouchLocationState.Moved)
