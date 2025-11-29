@@ -2,13 +2,13 @@
 
 <div align="center">
 
-[![.NET Version](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/download/dotnet/9.0)
+[![.NET Version](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/download/dotnet/10.0)
 [![MonoGame](https://img.shields.io/badge/MonoGame-3.8+-E73C00?logo=nuget)](https://www.monogame.net/)
 [![License](https://img.shields.io/badge/License-Educational-blue)](#license)
 [![Build Status](https://github.com/xulek/muonline/workflows/Build%20and%20Publish/badge.svg)](https://github.com/xulek/muonline/actions)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/xulek/muonline)
 
-**A cross-platform MuOnline client implementation built with .NET 9.0 and MonoGame framework.**
+**A cross-platform MuOnline client implementation built with .NET 10 and MonoGame framework.**
 
 [Features](#-features) • [Quick Start](#-quick-start) • [Building](#-building-the-project) • [Architecture](#-architecture-overview) • [Contributing](#-contributing)
 
@@ -47,7 +47,7 @@ https://youtu.be/_ekXCQI2byE
 
 | Component | Version | Download Link |
 |-----------|---------|---------------|
-| **.NET SDK** | 9.0+ | [Download](https://dotnet.microsoft.com/en-us/download/dotnet/9.0) |
+| **.NET SDK** | 10.0+ | [Download](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) |
 | **Git** | Latest | [Download](https://git-scm.com/downloads) |
 | **MuOnline Data** | Season 20 (1.20.61) | [Download](https://full-wkr.mu.webzen.co.kr/muweb/full/MU_Red_1_20_61_Full.zip) |
 
@@ -180,16 +180,16 @@ dotnet build
 
 ```bash
 # Windows (DirectX 11 - Recommended)
-dotnet run --project ./MuWinDX/MuWinDX.csproj -f net9.0-windows -c Debug -p:MonoGameFramework=MonoGame.Framework.WindowsDX
+dotnet run --project ./MuWinDX/MuWinDX.csproj -f net10.0-windows -c Debug -p:MonoGameFramework=MonoGame.Framework.WindowsDX
 
 # Windows (OpenGL - For compatibility)
-dotnet run --project ./MuWinGL/MuWinGL.csproj -f net9.0-windows -c Debug -p:MonoGameFramework=MonoGame.Framework.DesktopGL
+dotnet run --project ./MuWinGL/MuWinGL.csproj -f net10.0-windows -c Debug -p:MonoGameFramework=MonoGame.Framework.DesktopGL
 
 # Linux
-dotnet run --project ./MuLinux/MuLinux.csproj -f net9.0 -c Debug
+dotnet run --project ./MuLinux/MuLinux.csproj -f net10.0 -c Debug
 
 # macOS
-dotnet run --project ./MuMac/MuMac.csproj -f net9.0 -c Debug
+dotnet run --project ./MuMac/MuMac.csproj -f net10.0 -c Debug
 ```
 
 ## 🔨 Building the Project
@@ -232,11 +232,11 @@ dotnet clean MuLinux/MuLinux.csproj && dotnet build MuLinux/MuLinux.csproj -c De
 dotnet clean MuMac/MuMac.csproj && dotnet build MuMac/MuMac.csproj -c Debug
 
 # Android (requires Android workload)
-dotnet workload restore MuAndroid/MuAndroid.csproj
+dotnet workload restore
 dotnet clean MuAndroid/MuAndroid.csproj && dotnet build MuAndroid/MuAndroid.csproj -c Debug
 
 # iOS (requires macOS + Xcode + iOS workload)
-dotnet workload restore MuIos/MuIos.csproj
+dotnet workload restore
 dotnet clean MuIos/MuIos.csproj && dotnet build MuIos/MuIos.csproj -c Debug
 ```
 
@@ -259,19 +259,19 @@ The GitHub Actions workflow automatically builds **both** Windows versions (Open
 #### Linux
 
 ```bash
-dotnet publish ./MuLinux/MuLinux.csproj -f net9.0 -c Release -r linux-x64 --self-contained
+dotnet publish ./MuLinux/MuLinux.csproj -f net10.0 -c Release -r linux-x64 --self-contained
 ```
 
 #### macOS
 
 ```bash
-dotnet publish ./MuMac/MuMac.csproj -f net9.0 -c Release
+dotnet publish ./MuMac/MuMac.csproj -f net10.0 -c Release
 ```
 
 #### Android
 
 ```bash
-dotnet publish ./MuAndroid/MuAndroid.csproj -f net9.0-android -c Release \
+dotnet publish ./MuAndroid/MuAndroid.csproj -f net10.0-android -c Release \
   -p:AndroidSdkDirectory="<path-to-android-sdk>" \
   -p:JavaSdkDirectory="<path-to-jdk-11>" \
   -p:AcceptAndroidSdkLicenses=True
@@ -281,7 +281,7 @@ dotnet publish ./MuAndroid/MuAndroid.csproj -f net9.0-android -c Release \
 
 ```bash
 # Requires macOS with Xcode and valid signing certificates
-dotnet publish ./MuIos/MuIos.csproj -f net9.0-ios -c Release
+dotnet publish ./MuIos/MuIos.csproj -f net10.0-ios -c Release
 ```
 
 ## 🏗️ Architecture Overview
@@ -497,7 +497,7 @@ These issues have been fixed in the latest version. If you still experience them
    ```
 3. **Try OpenGL version** as fallback:
    ```bash
-   dotnet run --project ./MuWinGL/MuWinGL.csproj -f net9.0-windows -c Debug -p:MonoGameFramework=MonoGame.Framework.DesktopGL
+   dotnet run --project ./MuWinGL/MuWinGL.csproj -f net10.0-windows -c Debug -p:MonoGameFramework=MonoGame.Framework.DesktopGL
    ```
 
 **What was fixed:**
@@ -569,7 +569,7 @@ Found a bug or have a question? [Open an issue](https://github.com/xulek/muonlin
 - **CLAUDE.md** - Comprehensive developer documentation
 - **OpenMU Server** - https://github.com/MUnique/OpenMU
 - **MonoGame Documentation** - https://docs.monogame.net/
-- **.NET 9.0 Docs** - https://docs.microsoft.com/en-us/dotnet/
+- **.NET 10.0 Docs** - https://docs.microsoft.com/en-us/dotnet/
 
 ## 📄 License
 
