@@ -65,9 +65,12 @@ namespace Client.Main
                 /// </summary>
                 public static bool ENABLE_BATCH_OPTIMIZED_SORTING = true;
                 /// <summary>
-                /// Enables continuous item material shader animation (e.g., glow) in UI previews when running in debug builds.
+                /// Enables item material shader animation (e.g., glow rotation) for non-hovered items in UI previews.
+                /// When enabled, non-hovered items will show animated material effects.
+                /// Hovered items always show rotation animation regardless of this setting.
+                /// Disable to improve performance when many items are visible.
                 /// </summary>
-                public static bool ENABLE_ITEM_MATERIAL_ANIMATION = true;
+                public static bool ENABLE_ITEM_MATERIAL_ANIMATION = false;
                 /// <summary>
                 /// Enables pooling for dynamic vertex and index buffers (safe reuse windowed for DX).
                 /// Disable to force per-draw allocations when investigating GPU buffer hazards.
@@ -128,9 +131,12 @@ namespace Client.Main
                 /// </summary>
                 public static bool ENABLE_BATCH_OPTIMIZED_SORTING = true;
                 /// <summary>
-                /// Enables continuous item material shader animation (e.g., glow) in UI previews when running in release builds.
+                /// Enables item material shader animation (e.g., glow rotation) for non-hovered items in UI previews.
+                /// When enabled, non-hovered items will show animated material effects.
+                /// Hovered items always show rotation animation regardless of this setting.
+                /// Disable to improve performance when many items are visible.
                 /// </summary>
-                public static bool ENABLE_ITEM_MATERIAL_ANIMATION = true;
+                public static bool ENABLE_ITEM_MATERIAL_ANIMATION = false;
                 /// <summary>
                 /// Enables pooling for dynamic vertex and index buffers (safe reuse windowed for DX).
                 /// Disable to force per-draw allocations when investigating GPU buffer hazards.

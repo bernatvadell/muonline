@@ -345,6 +345,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         public void Show()
         {
+            // Force correct position BEFORE first draw to prevent flash on wrong side
+            ForceAlignNow();
+
             UpdateZenFromNetwork();
             RefreshInventoryContent();
 
@@ -358,6 +361,30 @@ namespace Client.Main.Controls.UI.Game.Inventory
             _pickedItemRenderer.Visible = false;
 
             InvalidateStaticSurface();
+        }
+
+        /// <summary>
+        /// Forces immediate position calculation based on Align property.
+        /// Call this before showing the control to prevent position flickering.
+        /// </summary>
+        private void ForceAlignNow()
+        {
+            if (Parent == null || Align == ControlAlign.None)
+                return;
+
+            if (Align.HasFlag(ControlAlign.Top))
+                Y = 0;
+            else if (Align.HasFlag(ControlAlign.Bottom))
+                Y = Parent.DisplaySize.Y - DisplaySize.Y;
+            else if (Align.HasFlag(ControlAlign.VerticalCenter))
+                Y = (Parent.DisplaySize.Y / 2) - (DisplaySize.Y / 2);
+
+            if (Align.HasFlag(ControlAlign.Left))
+                X = 0;
+            else if (Align.HasFlag(ControlAlign.Right))
+                X = Parent.DisplaySize.X - DisplaySize.X;
+            else if (Align.HasFlag(ControlAlign.HorizontalCenter))
+                X = (Parent.DisplaySize.X / 2) - (DisplaySize.X / 2);
         }
 
         public void Hide()
@@ -1798,8 +1825,11 @@ namespace Client.Main.Controls.UI.Game.Inventory
             var font = GraphicsManager.Instance.Font;
             var pixel = GraphicsManager.Instance.Pixel;
 
-            foreach (var item in _items.ToList())
+            // Cache items count and iterate without creating a copy
+            int itemCount = _items.Count;
+            for (int i = 0; i < itemCount; i++)
             {
+                var item = _items[i];
                 if (item == _pickedItem_renderer_item())
                     continue;
 
@@ -1921,6 +1951,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             bool isHovered = item == _hoveredItem;
 
+            // Material animation for non-hovered items (if enabled)
             if (!isHovered && Constants.ENABLE_ITEM_MATERIAL_ANIMATION)
             {
                 try
@@ -1949,6 +1980,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 }
             }
 
+            // Use cached static preview
             var cacheKey = (item, width, height, false);
             if (_bmdPreviewCache.TryGetValue(cacheKey, out var previewTexture) && previewTexture != null)
             {
@@ -1978,36 +2010,74 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 return;
             }
 
+            bool isOverGrid = IsMouseOverGrid();
+            
+            // Early exit if nothing to draw
+            if (!isOverGrid)
+            {
+                return;
+            }
+
             Rectangle gridRect = Translate(_gridRect);
             var dragged = _pickedItem_renderer_item() ?? VaultControl.Instance?.GetDraggedItem();
-            bool isOverGrid = IsMouseOverGrid();
 
-            for (int y = 0; y < Rows; y++)
+            if (dragged != null)
             {
-                for (int x = 0; x < Columns; x++)
+                // When dragging, we need to show placement highlights for all slots
+                for (int y = 0; y < Rows; y++)
                 {
-                    Rectangle slotRect = new(
-                        gridRect.X + x * INVENTORY_SQUARE_WIDTH,
-                        gridRect.Y + y * INVENTORY_SQUARE_HEIGHT,
-                        INVENTORY_SQUARE_WIDTH,
-                        INVENTORY_SQUARE_HEIGHT);
-
-                    if (dragged != null && isOverGrid)
+                    for (int x = 0; x < Columns; x++)
                     {
                         var highlight = GetSlotHighlightColor(new Point(x, y), dragged);
                         if (highlight.HasValue)
                         {
+                            Rectangle slotRect = new(
+                                gridRect.X + x * INVENTORY_SQUARE_WIDTH,
+                                gridRect.Y + y * INVENTORY_SQUARE_HEIGHT,
+                                INVENTORY_SQUARE_WIDTH,
+                                INVENTORY_SQUARE_HEIGHT);
                             spriteBatch.Draw(pixel, slotRect, highlight.Value);
                         }
                     }
-                    else if (isOverGrid && dragged == null)
+                }
+            }
+            else
+            {
+                // No drag - only highlight hovered slot and hovered item slots
+                // Draw hovered slot highlight
+                if (_hoveredSlot.X >= 0 && _hoveredSlot.Y >= 0)
+                {
+                    Rectangle slotRect = new(
+                        gridRect.X + _hoveredSlot.X * INVENTORY_SQUARE_WIDTH,
+                        gridRect.Y + _hoveredSlot.Y * INVENTORY_SQUARE_HEIGHT,
+                        INVENTORY_SQUARE_WIDTH,
+                        INVENTORY_SQUARE_HEIGHT);
+                    spriteBatch.Draw(pixel, slotRect, new Color(180, 170, 90, 120));
+                }
+
+                // Draw hovered item slots (only the slots occupied by the item)
+                if (_hoveredItem != null)
+                {
+                    var itemPos = _hoveredItem.GridPosition;
+                    int itemWidth = _hoveredItem.Definition?.Width ?? 1;
+                    int itemHeight = _hoveredItem.Definition?.Height ?? 1;
+
+                    for (int dy = 0; dy < itemHeight; dy++)
                     {
-                        if (_hoveredSlot.X == x && _hoveredSlot.Y == y)
+                        for (int dx = 0; dx < itemWidth; dx++)
                         {
-                            spriteBatch.Draw(pixel, slotRect, new Color(180, 170, 90, 120));
-                        }
-                        else if (_hoveredItem != null && IsSlotOccupiedByItem(new Point(x, y), _hoveredItem))
-                        {
+                            int x = itemPos.X + dx;
+                            int y = itemPos.Y + dy;
+                            
+                            // Skip the hovered slot itself (already drawn above)
+                            if (x == _hoveredSlot.X && y == _hoveredSlot.Y)
+                                continue;
+
+                            Rectangle slotRect = new(
+                                gridRect.X + x * INVENTORY_SQUARE_WIDTH,
+                                gridRect.Y + y * INVENTORY_SQUARE_HEIGHT,
+                                INVENTORY_SQUARE_WIDTH,
+                                INVENTORY_SQUARE_HEIGHT);
                             spriteBatch.Draw(pixel, slotRect, new Color(90, 140, 220, 90));
                         }
                     }

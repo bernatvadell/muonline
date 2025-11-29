@@ -754,6 +754,7 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                     {
                         DynamicBufferPool.SetEnabled(value);
                     }, ref currentY, OptionRowHeight);
+                    AddOption("Item Material Animation", () => Constants.ENABLE_ITEM_MATERIAL_ANIMATION, value => Constants.ENABLE_ITEM_MATERIAL_ANIMATION = value, ref currentY, OptionRowHeight);
                     AddOption("Debug Panel", () => Constants.SHOW_DEBUG_PANEL, value =>
                     {
                         Constants.SHOW_DEBUG_PANEL = value;

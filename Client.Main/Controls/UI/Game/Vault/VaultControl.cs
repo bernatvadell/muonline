@@ -1299,7 +1299,7 @@ namespace Client.Main.Controls.UI.Game
                 return null;
             }
 
-            // Match inventory behavior: material animation when idle, rotation when hovered
+            // Material animation for non-hovered items (if enabled)
             if (!isHovered && Constants.ENABLE_ITEM_MATERIAL_ANIMATION)
             {
                 try
@@ -1330,6 +1330,7 @@ namespace Client.Main.Controls.UI.Game
             if (_bmdPreviewCache.TryGetValue(cacheKey, out var cachedPreview) && cachedPreview != null)
                 return cachedPreview;
 
+            // Use cached static preview
             try
             {
                 var preview = BmdPreviewRenderer.GetPreview(item, width, height);

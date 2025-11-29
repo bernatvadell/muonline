@@ -890,6 +890,7 @@ namespace Client.Main.Controls.UI.Game
 
             bool isHovered = animated;
 
+            // Material animation for non-hovered items (if enabled)
             if (!isHovered && Constants.ENABLE_ITEM_MATERIAL_ANIMATION)
             {
                 try
