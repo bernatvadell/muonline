@@ -3,6 +3,8 @@
     <ClientMainTargetFramework>net10.0-windows</ClientMainTargetFramework>
     <AssemblyName>Client.Main</AssemblyName>
     <RootNamespace>Client.Main</RootNamespace>
+    <!-- MonoGameFramework is set by parent project via AdditionalProperties, or defaults from Directory.Build.props -->
+    <MonoGameFramework Condition="'$(MonoGameFramework)'==''">MonoGame.Framework.WindowsDX</MonoGameFramework>
     <RestoreAdditionalProjectProperties>
       $(RestoreAdditionalProjectProperties);MonoGameFramework
     </RestoreAdditionalProjectProperties>

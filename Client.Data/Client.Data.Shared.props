@@ -24,6 +24,7 @@
     <PackageReference Include="NVorbis" Version="0.10.5" />
   </ItemGroup>
 
+  <!-- Single backend reference; actual package is controlled by MonoGameFrameworkPackage -->
   <ItemGroup Condition="'$(TargetFramework)'!='net10.0-android' AND '$(TargetFramework)'!='net10.0-ios'">
     <PackageReference Include="$(MonoGameFrameworkPackage)" Version="$(MonoGameFrameworkVersion)" />
   </ItemGroup>
