@@ -244,6 +244,31 @@ namespace Client.Main.Networking
             }
         }
 
+        /// <summary>
+        /// Disconnects any existing Connect Server connection and reconnects using the current settings.
+        /// Useful when host/port are changed at runtime (e.g., from UI).
+        /// </summary>
+        public async Task ForceReconnectToConnectServerAsync()
+        {
+            _logger.LogInformation("Force reconnecting to Connect Server {Host}:{Port}", _settings.ConnectServerHost, _settings.ConnectServerPort);
+
+            try
+            {
+                await _connectionManager.DisconnectAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Error disconnecting before reconnect.");
+            }
+
+            _serverList.Clear();
+            _currentHost = string.Empty;
+            _currentPort = 0;
+            UpdateState(ClientConnectionState.Disconnected);
+
+            await ConnectToConnectServerAsync();
+        }
+
         public async Task RequestServerListAsync()
         {
             if (_currentState != ClientConnectionState.ConnectedToConnectServer && _currentState != ClientConnectionState.ReceivedServerList)

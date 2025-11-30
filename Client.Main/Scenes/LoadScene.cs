@@ -322,9 +322,13 @@ namespace Client.Main.Scenes
 
         private async Task TransitionToNextSceneAsync(CancellationToken ct)
         {
+#if ANDROID
+            Type nextSceneType = typeof(ServerConfigScene);
+#else
             Type nextSceneType = Constants.ENTRY_SCENE == typeof(LoadScene)
                 ? typeof(LoginScene)
                 : Constants.ENTRY_SCENE;
+#endif
 
             UpdateProgress(p =>
             {

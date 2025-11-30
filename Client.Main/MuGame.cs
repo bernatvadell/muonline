@@ -10,18 +10,21 @@ using Client.Main.Configuration;
 using Client.Main.Networking;
 using System;
 using System.Collections.Concurrent;
+using System.IO;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Client.Main.Core.Client;
 using Client.Main.Content;
 using Client.Main.Graphics;
 #if ANDROID
 using Android.App;
-using System.IO;
 #endif
 
 namespace Client.Main
 {
     public class MuGame : Game
     {
+        private const string LocalSettingsFileName = "appsettings.local.json";
         // Static Fields
         private static Controllers.TaskScheduler _taskScheduler;
         private static readonly ConcurrentQueue<IMainThreadAction> _mainThreadActions = new ConcurrentQueue<IMainThreadAction>();
@@ -61,6 +64,8 @@ namespace Client.Main
         public static ILoggerFactory AppLoggerFactory { get; private set; }
         public static MuOnlineSettings AppSettings { get; private set; }
         public static NetworkManager Network { get; private set; }
+        public static string ConfigDirectory { get; private set; }
+        public static string LocalSettingsPath => Path.Combine(ConfigDirectory ?? AppContext.BaseDirectory, LocalSettingsFileName);
         public static Controllers.TaskScheduler TaskScheduler => _taskScheduler;
         public static int FrameIndex { get; private set; }
 
@@ -288,16 +293,19 @@ namespace Client.Main
             Android.Util.Log.Info("MuGame", "About to call EnsureAndroidConfig()");
             string cfgPath = EnsureAndroidConfig();
             Android.Util.Log.Info("MuGame", $"Config path: {cfgPath}");
+            ConfigDirectory = Path.GetDirectoryName(cfgPath)!;
             AppConfiguration = new ConfigurationBuilder()
-                .SetBasePath(Path.GetDirectoryName(cfgPath)!)
-                .AddJsonFile(Path.GetFileName(cfgPath), optional: false, reloadOnChange: false)
+                .SetBasePath(ConfigDirectory)
+                .AddJsonFile(Path.GetFileName(cfgPath), optional: false, reloadOnChange: true)
+                .AddJsonFile(LocalSettingsFileName, optional: true, reloadOnChange: true)
                 .Build();
             Android.Util.Log.Info("MuGame", "AppConfiguration created");
 #else // Windows, Linux, etc.
+            ConfigDirectory = AppContext.BaseDirectory;
             AppConfiguration = new ConfigurationBuilder()
-                .SetBasePath(AppContext.BaseDirectory)
+                .SetBasePath(ConfigDirectory)
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                .AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true)
+                .AddJsonFile(LocalSettingsFileName, optional: true, reloadOnChange: true)
                 .Build();
 #endif
 
@@ -906,6 +914,57 @@ namespace Client.Main
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Unexpected error while disposing NetworkManager.");
+            }
+        }
+
+        public static void PersistConnectSettings(string host, int port)
+        {
+            if (string.IsNullOrWhiteSpace(host) || port <= 0 || port > 65535)
+            {
+                return;
+            }
+
+            var logger = AppLoggerFactory?.CreateLogger<MuGame>();
+            try
+            {
+                Directory.CreateDirectory(ConfigDirectory ?? AppContext.BaseDirectory);
+
+                JsonObject root = LoadLocalSettings(logger);
+                if (root["MuOnlineSettings"] is not JsonObject muSettings)
+                {
+                    muSettings = new JsonObject();
+                    root["MuOnlineSettings"] = muSettings;
+                }
+
+                muSettings["ConnectServerHost"] = host;
+                muSettings["ConnectServerPort"] = port;
+
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                File.WriteAllText(LocalSettingsPath, root.ToJsonString(options));
+                logger?.LogInformation("Saved ConnectServer settings to {Path}", LocalSettingsPath);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to persist connect server settings to disk.");
+            }
+        }
+
+        private static JsonObject LoadLocalSettings(ILogger logger)
+        {
+            if (!File.Exists(LocalSettingsPath))
+            {
+                return new JsonObject();
+            }
+
+            try
+            {
+                var text = File.ReadAllText(LocalSettingsPath);
+                return JsonNode.Parse(text) as JsonObject ?? new JsonObject();
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to read existing local settings; recreating file.");
+                return new JsonObject();
             }
         }
 
