@@ -1,0 +1,70 @@
+name: Build Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - android_ci
+  pull_request:
+    branches:
+      - android_ci
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          include-prerelease: true
+      
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'microsoft'
+          java-version: '17'
+      
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 36
+          build-tools-version: 35.0.0
+          cmdline-tools-version: 11076708
+      
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | $env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat --licenses
+        shell: pwsh
+        continue-on-error: true
+      
+      - name: Install Android SDK Platform 36
+        run: |
+          $env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat "platforms;android-36"
+        shell: pwsh
+      
+      - name: Restore dotnet tools
+        run: dotnet tool restore
+      
+      - name: Restore dependencies
+        run: dotnet restore MuAndroid/MuAndroid.csproj
+      
+      - name: Build Android APK
+        run: dotnet build MuAndroid/MuAndroid.csproj -c Release -f net10.0-android
+      
+      - name: Publish Android APK
+        run: dotnet publish MuAndroid/MuAndroid.csproj -c Release -f net10.0-android -o publish-android
+      
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: muonline-android-apk
+          path: publish-android/**/*.apk
+          if-no-files-found: error
