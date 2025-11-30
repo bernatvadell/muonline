@@ -35,6 +35,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
+          cmdline-tools-version: 11076708
           packages: 'platforms;android-36 build-tools;35.0.0'
           accept-android-sdk-licenses: true
       
