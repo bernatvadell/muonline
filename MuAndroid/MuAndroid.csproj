@@ -15,7 +15,7 @@
     <MonoGamePlatform>Android</MonoGamePlatform>
 
     <RunAOTCompilation>false</RunAOTCompilation>
-    <EnableLLVM>true</EnableLLVM>
+    <EnableLLVM>false</EnableLLVM>
 
     <!-- Disable Fast Deployment for Debug builds -->
     <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
@@ -44,6 +44,9 @@
     <AndroidUseSharedRuntime>false</AndroidUseSharedRuntime>
 
     <AndroidLinkMode>None</AndroidLinkMode>
+
+    <!-- Work around JNI registration issues on some devices -->
+    <AndroidEnableMarshalMethods>false</AndroidEnableMarshalMethods>
 
     <AndroidCreatePackagePerAbi>false</AndroidCreatePackagePerAbi>
     <AndroidApiLevel>35</AndroidApiLevel>

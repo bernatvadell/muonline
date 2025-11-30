@@ -19,6 +19,13 @@
 	<application android:label="MuMono"
                android:icon="@mipmap/ic_launcher"
                android:roundIcon="@mipmap/ic_launcher"
-               android:usesCleartextTraffic="true">
+               android:usesCleartextTraffic="true"
+               android:extractNativeLibs="true">
+    <!-- Ensure Mono runtime is initialized before any Activity -->
+    <provider
+        android:name="mono.MonoRuntimeProvider"
+        android:authorities="${applicationId}.mono.MonoRuntimeProvider.__mono_init__"
+        android:exported="false"
+        android:initOrder="1999999999" />
   </application>
 </manifest>
