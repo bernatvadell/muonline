@@ -7,7 +7,7 @@
     <NoWarn>$(NoWarn);XA0141</NoWarn>
 
     <OutputType>Exe</OutputType>
-    <ApplicationId>MuAndroid.MuAndroid</ApplicationId>
+    <ApplicationId>MuMono.MuMono</ApplicationId>
     <ApplicationVersion>1</ApplicationVersion>
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
 
@@ -16,6 +16,10 @@
 
     <RunAOTCompilation>false</RunAOTCompilation>
     <EnableLLVM>true</EnableLLVM>
+
+    <!-- Disable Fast Deployment for Debug builds -->
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+    <AndroidUseSharedRuntime>false</AndroidUseSharedRuntime>
 
     <!-- Accept Android SDK licenses -->
     <AcceptAndroidSDKLicenses>true</AcceptAndroidSDKLicenses>

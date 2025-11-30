@@ -324,3 +324,4 @@ appsettings.local.json
 
 .claude/settings.local.json
 ServerPackets/
+*.py
