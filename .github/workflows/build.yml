@@ -65,14 +65,18 @@ jobs:
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
-          distribution: 'microsoft'
-          java-version: '17'
+          distribution: 'temurin'
+          java-version: '21'
       
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: 11076708
-          packages: 'platforms;android-36 build-tools;35.0.0'
+          packages: |
+            platform-tools
+            platforms;android-35
+            build-tools;35.0.0
+            ndk;27.2.12479018
           accept-android-sdk-licenses: true
 
       - name: Install dotnet android workload
@@ -82,16 +86,16 @@ jobs:
         run: dotnet tool restore
       
       - name: Restore dependencies
-        run: dotnet restore MuAndroid/MuAndroid.csproj
+        run: dotnet restore MuAndroid/MuAndroid.csproj -p:AndroidSdkDirectory=$env:ANDROID_SDK_ROOT
 
       - name: Clean project
-        run: dotnet clean MuAndroid/MuAndroid.csproj -c Release
+        run: dotnet clean MuAndroid/MuAndroid.csproj -c Release -p:AndroidSdkDirectory=$env:ANDROID_SDK_ROOT
       
       - name: Build Android APK
-        run: dotnet build MuAndroid/MuAndroid.csproj -c Release -f net10.0-android
+        run: dotnet build MuAndroid/MuAndroid.csproj -c Release -f net10.0-android -p:AndroidSdkDirectory=$env:ANDROID_SDK_ROOT -p:AcceptAndroidSdkLicenses=true
       
       - name: Publish Android APK
-        run: dotnet publish MuAndroid/MuAndroid.csproj -c Release -f net10.0-android -o publish-android
+        run: dotnet publish MuAndroid/MuAndroid.csproj -c Release -f net10.0-android -o publish-android -p:AndroidSdkDirectory=$env:ANDROID_SDK_ROOT -p:AcceptAndroidSdkLicenses=true
       
       - name: Create Zip for Android
         run: powershell -Command "Compress-Archive -Path publish-android\*.apk -DestinationPath muonline-android.zip"
