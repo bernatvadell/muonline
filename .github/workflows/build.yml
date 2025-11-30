@@ -12,7 +12,7 @@ permissions:
   id-token: write
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
     strategy:
       matrix:
@@ -49,8 +49,61 @@ jobs:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}.zip
 
+  build-android:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          include-prerelease: true
+      
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'microsoft'
+          java-version: '17'
+      
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
+          packages: 'platforms;android-36 build-tools;35.0.0'
+          accept-android-sdk-licenses: true
+
+      - name: Install dotnet android workload
+        run: dotnet workload install android
+      
+      - name: Restore dotnet tools
+        run: dotnet tool restore
+      
+      - name: Restore dependencies
+        run: dotnet restore MuAndroid/MuAndroid.csproj
+
+      - name: Clean project
+        run: dotnet clean MuAndroid/MuAndroid.csproj -c Release
+      
+      - name: Build Android APK
+        run: dotnet build MuAndroid/MuAndroid.csproj -c Release -f net10.0-android
+      
+      - name: Publish Android APK
+        run: dotnet publish MuAndroid/MuAndroid.csproj -c Release -f net10.0-android -o publish-android
+      
+      - name: Create Zip for Android
+        run: powershell -Command "Compress-Archive -Path publish-android\*.apk -DestinationPath muonline-android.zip"
+      
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: muonline-android
+          path: muonline-android.zip
+
   pages:
-    needs: build
+    needs: [build-windows, build-android]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -72,6 +125,12 @@ jobs:
           name: muonline-windows-directx
           path: artifacts
 
+      - name: Download Android Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: muonline-android
+          path: artifacts
+
       - name: Prepare site
         run: |
           mkdir -p site
@@ -82,6 +141,10 @@ jobs:
           echo '<ul>' >> index.html
           echo '<li><a href="muonline-windows-opengl.zip">Windows (OpenGL) - Compatible with older hardware</a></li>' >> index.html
           echo '<li><a href="muonline-windows-directx.zip">Windows (DirectX 11) - Better performance on modern GPUs</a></li>' >> index.html
+          echo '</ul>' >> index.html
+          echo '<h2>Mobile Builds</h2>' >> index.html
+          echo '<ul>' >> index.html
+          echo '<li><a href="muonline-android.zip">Android APK</a></li>' >> index.html
           echo '</ul>' >> index.html
           echo '</body></html>' >> index.html
 
