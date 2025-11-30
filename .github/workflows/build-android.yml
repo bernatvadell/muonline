@@ -35,20 +35,8 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          api-level: 36
-          build-tools-version: 35.0.0
-          cmdline-tools-version: 11076708
-      
-      - name: Accept Android SDK Licenses
-        run: |
-          yes | $env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat --licenses
-        shell: pwsh
-        continue-on-error: true
-      
-      - name: Install Android SDK Platform 36
-        run: |
-          $env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat "platforms;android-36"
-        shell: pwsh
+          packages: 'platforms;android-36 build-tools;35.0.0'
+          accept-android-sdk-licenses: true
       
       - name: Restore dotnet tools
         run: dotnet tool restore
