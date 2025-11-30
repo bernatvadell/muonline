@@ -39,7 +39,6 @@ jobs:
           packages: 'platforms;android-36 build-tools;35.0.0'
           accept-android-sdk-licenses: true
 
-      # DODANO: Instalacja workloadu Android
       - name: Install dotnet android workload
         run: dotnet workload install android
       
@@ -48,6 +47,9 @@ jobs:
       
       - name: Restore dependencies
         run: dotnet restore MuAndroid/MuAndroid.csproj
+
+      - name: Clean project
+        run: dotnet clean MuAndroid/MuAndroid.csproj -c Release
       
       - name: Build Android APK
         run: dotnet build MuAndroid/MuAndroid.csproj -c Release -f net10.0-android
