@@ -38,6 +38,10 @@ jobs:
           cmdline-tools-version: 11076708
           packages: 'platforms;android-36 build-tools;35.0.0'
           accept-android-sdk-licenses: true
+
+      # DODANO: Instalacja workloadu Android
+      - name: Install dotnet android workload
+        run: dotnet workload install android
       
       - name: Restore dotnet tools
         run: dotnet tool restore
