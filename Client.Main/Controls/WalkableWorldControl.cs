@@ -22,6 +22,11 @@ namespace Client.Main.Controls
         private int _previousScrollValue;
         private float _targetCameraDistance;
 
+        // --- Mouse tile caching for performance ---
+        private Point _lastMousePosition = new Point(-1, -1);
+        private Vector3 _lastCameraPosition;
+        private bool _mouseTileDirty = true;
+
         // --- Properties ---
 
         /// <summary>
@@ -163,28 +168,32 @@ namespace Client.Main.Controls
 
         /// <summary>
         /// Calculates which terrain tile is under the mouse cursor by raycasting.
+        /// Uses caching to avoid recalculating when mouse hasn't moved.
         /// </summary>
         private void CalculateMouseTilePos()
         {
-            var mousePos = MuGame.Instance.Mouse.Position.ToVector2();
-            var viewport = GraphicsManager.Instance.GraphicsDevice.Viewport;
-            var cam = Camera.Instance;
-            var proj = cam.Projection;
-            var view = cam.View;
+            var currentMousePos = MuGame.Instance.Mouse.Position;
+            var currentCamPos = Camera.Instance.Position;
 
-            var near = viewport.Unproject(new Vector3(mousePos, 0f),
-                                          proj,
-                                          view,
-                                          Matrix.Identity);
-            var far = viewport.Unproject(new Vector3(mousePos, 1f),
-                                          proj,
-                                          view,
-                                          Matrix.Identity);
+            // Check if we need to recalculate
+            if (currentMousePos == _lastMousePosition && 
+                currentCamPos == _lastCameraPosition && 
+                !_mouseTileDirty)
+            {
+                return; // Use cached values
+            }
 
-            var ray = new Ray(near, Vector3.Normalize(far - near));
-            const float maxDistance = 10000f;
-            float baseStep = Constants.TERRAIN_SCALE / 10f;
-            float coarseStep = baseStep * 4f; // march fast until we cross the terrain
+            _lastMousePosition = currentMousePos;
+            _lastCameraPosition = currentCamPos;
+            _mouseTileDirty = false;
+
+            // Use pre-calculated MouseRay from MuGame (already updated only when mouse moves)
+            var ray = MuGame.Instance.MouseRay;
+            
+            // Optimized ray march with larger steps
+            const float maxDistance = 5000f; // Reduced from 10000f - camera rarely needs more
+            float coarseStep = Constants.TERRAIN_SCALE; // 100f instead of 40f
+            float fineStep = Constants.TERRAIN_SCALE / 10f; // 10f for refinement
             float traveled = 0f;
 
             var lastPos = ray.Position;
@@ -201,7 +210,7 @@ namespace Client.Main.Controls
 
                 if (lastDiff > 0f && diff <= 0f)
                 {
-                    // refine within the overshoot segment using smaller steps
+                    // Refine within the overshoot segment using smaller steps
                     float backtrackStart = traveled - coarseStep;
                     float refineTraveled = backtrackStart;
                     var refineLastPos = ray.Position + ray.Direction * backtrackStart;
@@ -209,7 +218,7 @@ namespace Client.Main.Controls
 
                     while (refineTraveled <= traveled)
                     {
-                        refineTraveled += baseStep;
+                        refineTraveled += fineStep;
                         var refinePos = ray.Position + ray.Direction * refineTraveled;
                         float refineTerrainZ = Terrain.RequestTerrainHeight(refinePos.X, refinePos.Y) + ExtraHeight;
                         float refineDiff = refinePos.Z - refineTerrainZ;

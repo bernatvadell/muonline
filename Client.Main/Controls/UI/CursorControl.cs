@@ -20,6 +20,10 @@ public class CursorControl : SpriteControl
     private Type[] restPlaceTypes;
     private string currentTexturePath = "";
     private Vector2[] currentAnimationState;
+    
+    // BringToFront throttling - no need to call every frame
+    private double _bringToFrontTimer = 0;
+    private const double BRING_TO_FRONT_INTERVAL = 0.5; // seconds
 
     public CursorControl()
     {
@@ -186,7 +190,13 @@ public class CursorControl : SpriteControl
             TileY = (int)CurrentAnimation[animationIndex].Y;
         }
 
-        BringToFront();
+        // Throttled BringToFront - only call periodically instead of every frame
+        _bringToFrontTimer += gameTime.ElapsedGameTime.TotalSeconds;
+        if (_bringToFrontTimer >= BRING_TO_FRONT_INTERVAL)
+        {
+            _bringToFrontTimer = 0;
+            BringToFront();
+        }
 
         base.Update(gameTime);
     }
