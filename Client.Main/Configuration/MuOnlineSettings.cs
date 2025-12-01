@@ -97,7 +97,7 @@ namespace Client.Main.Configuration
             FadeOutDuration = 2.2f;
             MinHorizontalSpeed = 90f;
             MaxHorizontalSpeed = 260f;
-            VerticalSpeedRange = 220f; 
+            VerticalSpeedRange = 220f;
             DriftStrength = 3.5f;
             MaxDistance = 3200f;
             BaseScale = 9f;

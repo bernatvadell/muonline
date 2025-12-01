@@ -169,12 +169,13 @@ namespace Client.Main.Controllers
         {
             PresentationParameters pp = _graphicsDevice.PresentationParameters;
 
-            int targetWidth = MuGame.Instance.Width;
-            int targetHeight = MuGame.Instance.Height;
+            int backBufferWidth = Math.Max(1, MuGame.Instance.Width);
+            int backBufferHeight = Math.Max(1, MuGame.Instance.Height);
 
-            // Apply render scale for internal resolution
-            targetWidth = (int)(targetWidth * Constants.RENDER_SCALE);
-            targetHeight = (int)(targetHeight * Constants.RENDER_SCALE);
+            int targetWidth = Math.Max(1, (int)MathF.Round(backBufferWidth * Constants.RENDER_SCALE));
+            int targetHeight = Math.Max(1, (int)MathF.Round(backBufferHeight * Constants.RENDER_SCALE));
+
+            // Apply render scale for internal resolution, guard against zero-sized targets on mobile
 
             // POPRAWKA: Używamy SurfaceFormat.Color zamiast pp.BackBufferFormat dla MSAA
             // to pomaga z problemem gamma

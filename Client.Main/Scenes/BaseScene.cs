@@ -143,17 +143,19 @@ namespace Client.Main.Scenes
                 var touch = touchState[0];
                 int x = (int)touch.Position.X;
                 int y = (int)touch.Position.Y;
+                bool isTouchDown = touch.State == TouchLocationState.Pressed || touch.State == TouchLocationState.Moved;
 
-                // Directly update mouse state based on touch
-                if (touch.State == TouchLocationState.Pressed)
-                {
-                    Mouse.SetPosition(x, y);
-                    MuGame.Instance.Mouse = new MouseState(x, y, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
-                }
-                else if (touch.State == TouchLocationState.Released)
-                {
-                    MuGame.Instance.Mouse = new MouseState(x, y, 0, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released);
-                }
+                // Directly update mouse state based on touch (keep pressed while finger stays on screen)
+                Mouse.SetPosition(x, y);
+                MuGame.Instance.Mouse = new MouseState(
+                    x,
+                    y,
+                    0,
+                    isTouchDown ? ButtonState.Pressed : ButtonState.Released,
+                    ButtonState.Released,
+                    ButtonState.Released,
+                    ButtonState.Released,
+                    ButtonState.Released);
             }
 #else
             // Simulate mouse click by touch input
@@ -163,25 +165,20 @@ namespace Client.Main.Scenes
                 var touch = touchState[0];
                 int x = (int)touch.Position.X;
                 int y = (int)touch.Position.Y;
+                bool isTouchDown = touch.State == TouchLocationState.Pressed || touch.State == TouchLocationState.Moved;
             
                 Mouse.SetPosition(x, y);
             
-                if (touch.State == TouchLocationState.Pressed)
-                {
-                    MuGame.Instance.Mouse = new MouseState(
-                        x, y, 0,
-                        ButtonState.Pressed, ButtonState.Released,
-                        ButtonState.Released, ButtonState.Released, ButtonState.Released
-                    );
-                }
-                else if (touch.State == TouchLocationState.Released)
-                {
-                    MuGame.Instance.Mouse = new MouseState(
-                        x, y, 0,
-                        ButtonState.Released, ButtonState.Released,
-                        ButtonState.Released, ButtonState.Released, ButtonState.Released
-                    );
-                }
+                MuGame.Instance.Mouse = new MouseState(
+                    x,
+                    y,
+                    0,
+                    isTouchDown ? ButtonState.Pressed : ButtonState.Released,
+                    ButtonState.Released,
+                    ButtonState.Released,
+                    ButtonState.Released,
+                    ButtonState.Released
+                );
             }
 #endif
             

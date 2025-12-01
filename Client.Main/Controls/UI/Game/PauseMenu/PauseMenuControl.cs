@@ -699,6 +699,18 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                     {
                         if (value) { SetRenderScale(0.75f); }
                     }, ref currentY, OptionRowHeight);
+                    AddOption("Render Scale: 60%", () => Math.Abs(Constants.RENDER_SCALE - 0.6f) < 0.01f, value =>
+                    {
+                        if (value) { SetRenderScale(0.6f); }
+                    }, ref currentY, OptionRowHeight);
+                    AddOption("Render Scale: 50%", () => Math.Abs(Constants.RENDER_SCALE - 0.5f) < 0.01f, value =>
+                    {
+                        if (value) { SetRenderScale(0.5f); }
+                    }, ref currentY, OptionRowHeight);
+                    AddOption("Render Scale: 37.5%", () => Math.Abs(Constants.RENDER_SCALE - 0.375f) < 0.01f, value =>
+                    {
+                        if (value) { SetRenderScale(0.375f); }
+                    }, ref currentY, OptionRowHeight);
                 });
             }
 
@@ -794,7 +806,15 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
 
             private void SetRenderScale(float scale)
             {
-                Constants.RENDER_SCALE = scale;
+                float clampedScale = MathHelper.Clamp(scale, 0.3f, 3.0f);
+
+                if (Math.Abs(Constants.RENDER_SCALE - clampedScale) < 0.0001f)
+                {
+                    RefreshOptions();
+                    return;
+                }
+
+                Constants.RENDER_SCALE = clampedScale;
                 GraphicsManager.Instance.UpdateRenderScale();
                 RefreshOptions();
             }

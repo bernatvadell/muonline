@@ -46,7 +46,7 @@ namespace Client.Main.Objects
         // Default camera angles
         private const float _defaultCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
         private static readonly float _defaultCameraPitch = Constants.DEFAULT_CAMERA_PITCH;
-        private const float _defaultCameraYaw = Constants.DEFAULT_CAMERA_YAW;
+        private static readonly float _defaultCameraYaw = Constants.DEFAULT_CAMERA_YAW;
 
         // Rotation limits
         private static readonly float _maxPitch = Constants.MAX_PITCH;
