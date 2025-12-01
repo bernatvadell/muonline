@@ -7,34 +7,29 @@ namespace Client.Main.Objects.Worlds.Login
 {
     public class WaterSplashObject : ModelObject
     {
-        // Texture for the water mist particles.
-        private Texture2D _particleTexture;
         // Reference to the water mist particle system.
         private WaterMistParticleSystem _particleSystem;
 
         public override async Task Load()
         {
-            _particleTexture = MuGame.Instance.Content.Load<Texture2D>("WaterSplashParticle");
-            _particleSystem = new WaterMistParticleSystem(_particleTexture)
+            _particleSystem = new WaterMistParticleSystem()
             {
-                EmissionRate = 40f,
-                ParticleScaleRange = new Vector2(0.2f, 0.4f),
-                ParticleLifetimeRange = new Vector2(3f, 4f),
-                ParticleHorizontalVelocityRange = new Vector2(-8f, 8f),
-                ParticleUpwardVelocityRange = new Vector2(12f, 18f),
-                ParticlePositionOffsetRange = new Vector2(3f, 3f),
-                RotateParticles = false,
-                DepthScaleMax = 3f,
-                DepthScaleMin = 0.7f,
-                DistanceScaleExponent = 3f,
-                MaxEffectiveDistance = 5000f,
-                ScaleGrowthFactor = 0.5f,
+                EmissionRate = 10f,
+                ScaleRange = new Vector2(1.5f, 5),
+                LifetimeRange = new Vector2(2f, 6f),
+                HorizontalVelocityRange = new Vector2(-8f, 8f),
+                UpwardVelocityRange = new Vector2(12f, 18f),
+                SpawnRadius = new Vector2(40f, 40f),
+                MaxDistance = 5000f,
+                ScaleGrowth = 0.5f,
                 Wind = new Vector2(300f, -350f),
-                UpwardAcceleration = -250f
+                UpwardAcceleration = -250f,
+                ParticleColor = new Color((byte)150, (byte)170, (byte)200, (byte)60)  // Zmniejszona jasność i alpha
             };
             _particleSystem.Position = Position;
-            _particleSystem.Emit(Position, 50);
+            _particleSystem.World = World;  // Set World BEFORE Load()
             World.Objects.Add(_particleSystem);
+            await _particleSystem.Load();
             await base.Load();
         }
     }
