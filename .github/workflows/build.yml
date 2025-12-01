@@ -161,7 +161,7 @@ jobs:
           path: muonline-macos.zip
 
   build-ios:
-    runs-on: macos-latest
+    runs-on: windows-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -182,13 +182,7 @@ jobs:
         run: dotnet build MuIos/MuIos.csproj -c Release -f net10.0-ios -r iossimulator-x64 -p:EnableCodeSigning=false
 
       - name: Create Zip
-        run: |
-          APP_PATH=$(find MuIos/bin/Release/net10.0-ios/iossimulator-x64 -name "*.app" -maxdepth 3 | head -n 1)
-          if [ -z "$APP_PATH" ]; then
-            echo "App bundle not found" >&2
-            exit 1
-          fi
-          zip -yr muonline-ios.zip "$APP_PATH"
+        run: powershell -Command "Compress-Archive -Path MuIos\bin\Release\net10.0-ios\iossimulator-x64\* -DestinationPath muonline-ios.zip"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
