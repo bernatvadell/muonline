@@ -160,8 +160,44 @@ jobs:
           name: muonline-macos
           path: muonline-macos.zip
 
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          include-prerelease: true
+
+      - name: Install iOS workload
+        run: dotnet workload install ios
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Build iOS Simulator (unsigned)
+        run: dotnet build MuIos/MuIos.csproj -c Release -f net10.0-ios -r iossimulator-x64 -p:EnableCodeSigning=false
+
+      - name: Create Zip
+        run: |
+          APP_PATH=$(find MuIos/bin/Release/net10.0-ios/iossimulator-x64 -name "*.app" -maxdepth 3 | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "App bundle not found" >&2
+            exit 1
+          fi
+          zip -yr muonline-ios.zip "$APP_PATH"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: muonline-ios
+          path: muonline-ios.zip
+
   pages:
-    needs: [build-windows, build-android, build-linux, build-macos]
+    needs: [build-windows, build-android, build-linux, build-macos, build-ios]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -201,6 +237,12 @@ jobs:
           name: muonline-macos
           path: artifacts
 
+      - name: Download iOS Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: muonline-ios
+          path: artifacts
+
       - name: Prepare site
         run: |
           mkdir -p site
@@ -219,6 +261,10 @@ jobs:
           echo '<h2>macOS Build</h2>' >> index.html
           echo '<ul>' >> index.html
           echo '<li><a href="muonline-macos.zip">macOS (DesktopGL) - Packaged on Windows for MGCB compatibility</a></li>' >> index.html
+          echo '</ul>' >> index.html
+          echo '<h2>iOS Build</h2>' >> index.html
+          echo '<ul>' >> index.html
+          echo '<li><a href="muonline-ios.zip">iOS (Simulator, unsigned) - Requires macOS to run</a></li>' >> index.html
           echo '</ul>' >> index.html
           echo '<h2>Mobile Builds</h2>' >> index.html
           echo '<ul>' >> index.html
