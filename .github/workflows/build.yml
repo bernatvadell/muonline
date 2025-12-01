@@ -106,8 +106,35 @@ jobs:
           name: muonline-android
           path: muonline-android.zip
 
+  build-linux:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+          include-prerelease: true
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Publish Linux Build
+        run: dotnet publish MuLinux/MuLinux.csproj -c Release -r linux-x64 -o publish-linux
+
+      - name: Create Zip
+        run: powershell -Command "Compress-Archive -Path publish-linux\* -DestinationPath muonline-linux.zip"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: muonline-linux
+          path: muonline-linux.zip
+
   pages:
-    needs: [build-windows, build-android]
+    needs: [build-windows, build-android, build-linux]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -135,6 +162,12 @@ jobs:
           name: muonline-android
           path: artifacts
 
+      - name: Download Linux Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: muonline-linux
+          path: artifacts
+
       - name: Prepare site
         run: |
           mkdir -p site
@@ -145,6 +178,10 @@ jobs:
           echo '<ul>' >> index.html
           echo '<li><a href="muonline-windows-opengl.zip">Windows (OpenGL) - Compatible with older hardware</a></li>' >> index.html
           echo '<li><a href="muonline-windows-directx.zip">Windows (DirectX 11) - Better performance on modern GPUs</a></li>' >> index.html
+          echo '</ul>' >> index.html
+          echo '<h2>Linux Build</h2>' >> index.html
+          echo '<ul>' >> index.html
+          echo '<li><a href="muonline-linux.zip">Linux (DesktopGL)</a></li>' >> index.html
           echo '</ul>' >> index.html
           echo '<h2>Mobile Builds</h2>' >> index.html
           echo '<ul>' >> index.html
