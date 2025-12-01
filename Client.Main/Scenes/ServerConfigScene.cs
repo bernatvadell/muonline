@@ -49,7 +49,6 @@ namespace Client.Main.Scenes
             string defaultHost = MuGame.AppSettings?.ConnectServerHost ?? "127.0.0.1";
             int defaultPort = MuGame.AppSettings?.ConnectServerPort ?? 44405;
             _dialog.SetValues(defaultHost, defaultPort.ToString());
-            _dialog.FocusHost();
 
             progressCallback?.Invoke("UI ready", 1f);
             await base.Load();
@@ -106,6 +105,7 @@ namespace Client.Main.Scenes
             var network = MuGame.Network;
             if (network != null)
             {
+                network.UpdateConnectServerSettings(host, port);
                 _ = network.ForceReconnectToConnectServerAsync().ContinueWith(t =>
                 {
                     if (t.Exception != null)

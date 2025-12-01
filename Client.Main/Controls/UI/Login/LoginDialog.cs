@@ -193,6 +193,14 @@ namespace Client.Main.Controls.UI.Login
         // Invokes the LoginAttempt event
         private void AttemptLogin()
         {
+            // Blur fields to hide soft keyboard (especially on mobile) after submitting.
+            _userInput.OnBlur();
+            _passwordInput.OnBlur();
+            if (Scene != null && (Scene.FocusControl == _userInput || Scene.FocusControl == _passwordInput))
+            {
+                Scene.FocusControl = null; // keep focus cleared so keyboard stays hidden
+            }
+
             Console.WriteLine("LoginDialog: Login attempt triggered."); // Debug log
             LoginAttempt?.Invoke(this, EventArgs.Empty);
         }

@@ -269,6 +269,22 @@ namespace Client.Main.Networking
             await ConnectToConnectServerAsync();
         }
 
+        /// <summary>
+        /// Updates the connect server host/port used for subsequent connections.
+        /// </summary>
+        public void UpdateConnectServerSettings(string host, int port)
+        {
+            if (string.IsNullOrWhiteSpace(host) || port <= 0 || port > 65535)
+            {
+                _logger.LogWarning("Ignoring invalid connect server settings: {Host}:{Port}", host, port);
+                return;
+            }
+
+            _logger.LogInformation("Applying connect server settings: {Host}:{Port}", host, port);
+            _settings.ConnectServerHost = host;
+            _settings.ConnectServerPort = port;
+        }
+
         public async Task RequestServerListAsync()
         {
             if (_currentState != ClientConnectionState.ConnectedToConnectServer && _currentState != ClientConnectionState.ReceivedServerList)

@@ -239,8 +239,7 @@ namespace Client.Main.Scenes
                         break;
                     case ClientConnectionState.ConnectedToGameServer:
                         showLoginDialog = true;
-                        _loginDialog?.FocusUsername();
-                        _logger.LogDebug("HandleConnectionStateChange: Setting showLoginDialog = true and focusing username.");
+                        _logger.LogDebug("HandleConnectionStateChange: Setting showLoginDialog = true (ConnectedToGameServer).");
                         break;
                     case ClientConnectionState.Authenticating:
                         showLoginDialog = true;
