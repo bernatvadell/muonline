@@ -109,6 +109,21 @@ namespace Client.Main.Objects
         public int BlendMesh { get; set; } = -1;
         public BlendState BlendMeshState { get; set; } = BlendState.Additive;
 
+        // Hint for world-level batching: returns first visible mesh texture (if any)
+        internal Texture2D GetSortTextureHint()
+        {
+            if (_boneTextures == null) return null;
+
+            for (int i = 0; i < _boneTextures.Length; i++)
+            {
+                var tex = _boneTextures[i];
+                if (tex != null && !IsHiddenMesh(i))
+                    return tex;
+            }
+
+            return null;
+        }
+
         public float BlendMeshLight
         {
             get => _blendMeshLight;
@@ -677,7 +692,8 @@ namespace Client.Main.Objects
                 var gd = GraphicsDevice;
                 var effect = GraphicsManager.Instance.AlphaTestEffect3D;
                 // Object-level alpha is constant; set once for the pass
-                if (effect != null) effect.Alpha = TotalAlpha;
+                if (effect != null && effect.Alpha != TotalAlpha)
+                    effect.Alpha = TotalAlpha;
 
                 foreach (var kvp in _meshGroups)
                 {
@@ -686,18 +702,23 @@ namespace Client.Main.Objects
                     if (meshIndices.Count == 0) continue;
 
                     // Apply render state once per group (with object depth bias)
-                    gd.BlendState = stateKey.BlendState;
+                    if (gd.BlendState != stateKey.BlendState)
+                        gd.BlendState = stateKey.BlendState;
                     float depthBias = GetDepthBias();
+                    RasterizerState targetRasterizer;
                     if (depthBias != 0f)
                     {
                         var cm = stateKey.TwoSided ? CullMode.None : CullMode.CullClockwiseFace;
-                        gd.RasterizerState = GraphicsManager.GetCachedRasterizerState(depthBias, cm);
+                        targetRasterizer = GraphicsManager.GetCachedRasterizerState(depthBias, cm);
                     }
                     else
                     {
-                        gd.RasterizerState = stateKey.TwoSided ? RasterizerState.CullNone : RasterizerState.CullClockwise;
+                        targetRasterizer = stateKey.TwoSided ? RasterizerState.CullNone : RasterizerState.CullClockwise;
                     }
-                    effect.Texture = stateKey.Texture;
+                    if (gd.RasterizerState != targetRasterizer)
+                        gd.RasterizerState = targetRasterizer;
+                    if (effect != null && effect.Texture != stateKey.Texture)
+                        effect.Texture = stateKey.Texture;
 
                     // Bind effect once per group
                     if (effect != null)

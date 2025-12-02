@@ -25,7 +25,6 @@ namespace Client.Main.Controls
         // --- Mouse tile caching for performance ---
         private Point _lastMousePosition = new Point(-1, -1);
         private Vector3 _lastCameraPosition;
-        private bool _mouseTileDirty = true;
 
         // --- Properties ---
 
@@ -168,32 +167,47 @@ namespace Client.Main.Controls
 
         /// <summary>
         /// Calculates which terrain tile is under the mouse cursor by raycasting.
-        /// Uses caching to avoid recalculating when mouse hasn't moved.
+        /// Uses caching when mouse is idle (not holding button) to save CPU.
         /// </summary>
         private void CalculateMouseTilePos()
         {
             var currentMousePos = MuGame.Instance.Mouse.Position;
             var currentCamPos = Camera.Instance.Position;
+            bool isButtonHeld = MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed;
 
-            // Check if we need to recalculate
-            if (currentMousePos == _lastMousePosition && 
-                currentCamPos == _lastCameraPosition && 
-                !_mouseTileDirty)
+            // Use cache only when mouse button is NOT held and position hasn't changed
+            // When button is held, always recalculate to support continuous movement
+            if (!isButtonHeld &&
+                currentMousePos == _lastMousePosition &&
+                currentCamPos == _lastCameraPosition)
             {
-                return; // Use cached values
+                return; // Use cached MouseTileX/MouseTileY values
             }
 
             _lastMousePosition = currentMousePos;
             _lastCameraPosition = currentCamPos;
-            _mouseTileDirty = false;
 
-            // Use pre-calculated MouseRay from MuGame (already updated only when mouse moves)
-            var ray = MuGame.Instance.MouseRay;
-            
-            // Optimized ray march with larger steps
-            const float maxDistance = 5000f; // Reduced from 10000f - camera rarely needs more
-            float coarseStep = Constants.TERRAIN_SCALE; // 100f instead of 40f
-            float fineStep = Constants.TERRAIN_SCALE / 10f; // 10f for refinement
+            var mousePos = currentMousePos.ToVector2();
+            var viewport = GraphicsManager.Instance.GraphicsDevice.Viewport;
+            var cam = Camera.Instance;
+            var proj = cam.Projection;
+            var view = cam.View;
+
+            var near = viewport.Unproject(new Vector3(mousePos, 0f),
+                                          proj,
+                                          view,
+                                          Matrix.Identity);
+            var far = viewport.Unproject(new Vector3(mousePos, 1f),
+                                          proj,
+                                          view,
+                                          Matrix.Identity);
+
+            var ray = new Ray(near, Vector3.Normalize(far - near));
+
+            // Optimized ray march: coarse step first, then refine on hit
+            const float maxDistance = 5000f;
+            float coarseStep = Constants.TERRAIN_SCALE; // 100f - faster scanning
+            float fineStep = Constants.TERRAIN_SCALE / 10f; // 10f - precise hit detection
             float traveled = 0f;
 
             var lastPos = ray.Position;
@@ -210,13 +224,13 @@ namespace Client.Main.Controls
 
                 if (lastDiff > 0f && diff <= 0f)
                 {
-                    // Refine within the overshoot segment using smaller steps
-                    float backtrackStart = traveled - coarseStep;
-                    float refineTraveled = backtrackStart;
-                    var refineLastPos = ray.Position + ray.Direction * backtrackStart;
+                    // Found crossing - refine within this segment
+                    float segmentStart = traveled - coarseStep;
+                    float refineTraveled = segmentStart;
+                    var refineLastPos = ray.Position + ray.Direction * segmentStart;
                     float refineLastDiff = refineLastPos.Z - Terrain.RequestTerrainHeight(refineLastPos.X, refineLastPos.Y) + ExtraHeight;
 
-                    while (refineTraveled <= traveled)
+                    while (refineTraveled < traveled)
                     {
                         refineTraveled += fineStep;
                         var refinePos = ray.Position + ray.Direction * refineTraveled;
