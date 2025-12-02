@@ -707,19 +707,42 @@ namespace Client.Main
 #endif
             }
 
+            // Update MouseRay when mouse position changes OR when touch position changes
+            bool shouldUpdateRay = false;
+
             if (PrevMouseState.Position != Mouse.Position)
-                UpdateMouseRay();
+                shouldUpdateRay = true;
 
             if (PrevTouchState.Count != Touch.Count)
+                shouldUpdateRay = true;
+
+            // Check if touch position changed (finger moved)
+            if (Touch.Count > 0 && PrevTouchState.Count > 0)
+            {
+                if (Touch[0].Position != PrevTouchState[0].Position)
+                    shouldUpdateRay = true;
+            }
+
+            if (shouldUpdateRay)
                 UpdateMouseRay();
         }
 
         private void UpdateMouseRay()
         {
-            // Use original mouse position - the camera projection should handle the scaling
-            Vector2 mousePosition = Mouse.Position.ToVector2();
+            // Use touch position if available, otherwise use mouse position
+            Vector2 inputPosition;
+            if (Touch.Count > 0)
+            {
+                // Use touch position for ray calculation
+                inputPosition = Touch[0].Position;
+            }
+            else
+            {
+                // Use mouse position
+                inputPosition = Mouse.Position.ToVector2();
+            }
 
-            Vector3 farSource = new Vector3(mousePosition, 1f);
+            Vector3 farSource = new Vector3(inputPosition, 1f);
             Vector3 farPoint = GraphicsDevice.Viewport.Unproject(
                 farSource,
                 Camera.Instance.Projection,
