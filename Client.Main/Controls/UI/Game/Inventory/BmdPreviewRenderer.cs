@@ -228,6 +228,27 @@ namespace Client.Main.Controls.UI.Game.Inventory
         }
 
         /// <summary>
+        /// Creates a smooth animated rotating preview for mouse hover effect (no angle rounding)
+        /// </summary>
+        public static Texture2D GetSmoothAnimatedPreview(ItemDefinition definition, int width, int height, GameTime gameTime)
+        {
+            if (gameTime == null)
+                return GetPreview(definition, width, height, 0f);
+
+            float rotationAngle = CalculateRawRotationAngle(gameTime.TotalGameTime.TotalSeconds, 120f);
+            return GetPreviewInternal(definition, width, height, rotationAngle, ItemRenderProperties.Default, gameTime, useCache: true);
+        }
+
+        public static Texture2D GetSmoothAnimatedPreview(InventoryItem item, int width, int height, GameTime gameTime)
+        {
+            if (gameTime == null)
+                return GetPreview(item, width, height, 0f);
+
+            float rotationAngle = CalculateRawRotationAngle(gameTime.TotalGameTime.TotalSeconds, 120f);
+            return GetPreviewInternal(item?.Definition, width, height, rotationAngle, CreateRenderProperties(item), gameTime, useCache: true);
+        }
+
+        /// <summary>
         /// Test function with more obvious rotation for debugging
         /// </summary>
         public static Texture2D GetTestRotatingPreview(ItemDefinition definition, int width, int height, GameTime gameTime)

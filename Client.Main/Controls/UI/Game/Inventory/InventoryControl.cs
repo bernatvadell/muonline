@@ -343,10 +343,13 @@ namespace Client.Main.Controls.UI.Game.Inventory
             RefreshInventoryContent();
         }
 
+        public InventoryItem GetDraggedItem() => _pickedItemRenderer.Item;
+
         public void Show()
         {
             // Force correct position BEFORE first draw to prevent flash on wrong side
             ForceAlignNow();
+            Align = ControlAlign.None; // Prevent auto-realignment
 
             UpdateZenFromNetwork();
             RefreshInventoryContent();
@@ -372,17 +375,19 @@ namespace Client.Main.Controls.UI.Game.Inventory
             if (Parent == null || Align == ControlAlign.None)
                 return;
 
+            const int padding = 20;
+
             if (Align.HasFlag(ControlAlign.Top))
-                Y = 0;
+                Y = padding;
             else if (Align.HasFlag(ControlAlign.Bottom))
-                Y = Parent.DisplaySize.Y - DisplaySize.Y;
+                Y = Parent.DisplaySize.Y - DisplaySize.Y - padding;
             else if (Align.HasFlag(ControlAlign.VerticalCenter))
                 Y = (Parent.DisplaySize.Y / 2) - (DisplaySize.Y / 2);
 
             if (Align.HasFlag(ControlAlign.Left))
-                X = 0;
+                X = padding;
             else if (Align.HasFlag(ControlAlign.Right))
-                X = Parent.DisplaySize.X - DisplaySize.X;
+                X = Parent.DisplaySize.X - DisplaySize.X - padding;
             else if (Align.HasFlag(ControlAlign.HorizontalCenter))
                 X = (Parent.DisplaySize.X / 2) - (DisplaySize.X / 2);
         }
@@ -549,10 +554,11 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     spriteBatch.Draw(_staticSurface, DisplayRectangle, Color.White * Alpha);
                 }
 
+                // Draw overlays beneath items (consistent with vault/NPC shop)
+                DrawGridOverlays(spriteBatch);
+                DrawEquipHighlights(spriteBatch);
                 DrawInventoryItems(spriteBatch);
                 DrawEquippedItems(spriteBatch);
-                DrawEquipHighlights(spriteBatch);
-                DrawGridOverlays(spriteBatch);
                 DrawChrome(spriteBatch);
                 DrawTexts(spriteBatch);
                 DrawTooltip(spriteBatch);
@@ -1417,6 +1423,14 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
                         byte toSlot = (byte)_hoveredEquipSlot;
 
+                        // If moving to the same slot, just put it back without sending request
+                        if (fromSlot == toSlot)
+                        {
+                            _equippedItems[toSlot] = itemToPlace;
+                            ReleasePickedItem();
+                            return;
+                        }
+
                         _equippedItems[toSlot] = itemToPlace;
 
                         if (_networkManager != null)
@@ -1845,20 +1859,16 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     item.Definition.Width * INVENTORY_SQUARE_WIDTH,
                     item.Definition.Height * INVENTORY_SQUARE_HEIGHT);
 
-                bool isHovered = item == _hoveredItem;
-
                 // Item glow effect
                 Color glowColor = ItemUiHelper.GetItemGlowColor(item, GlowPalette);
-                if (glowColor.A > 0 || isHovered)
+                if (glowColor.A > 0)
                 {
-                    Color finalGlow = isHovered ? Color.Lerp(glowColor, Theme.Accent, 0.5f) : glowColor;
-                    finalGlow.A = (byte)Math.Min(255, finalGlow.A + (isHovered ? 40 : 0));
-                    ItemUiHelper.DrawItemGlow(spriteBatch, pixel, itemRect, finalGlow);
+                    ItemUiHelper.DrawItemGlow(spriteBatch, pixel, itemRect, glowColor);
                 }
 
                 // Item cell background
                 var bgRect = new Rectangle(itemRect.X + 1, itemRect.Y + 1, itemRect.Width - 2, itemRect.Height - 2);
-                spriteBatch.Draw(pixel, bgRect, isHovered ? Theme.SlotHover : Theme.BgLight * 0.7f);
+                spriteBatch.Draw(pixel, bgRect, Theme.BgLight * 0.7f);
 
                 // Item texture
                 Texture2D itemTexture = ResolveItemTexture(item, itemRect.Width, itemRect.Height);
@@ -1972,7 +1982,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             {
                 try
                 {
-                    return BmdPreviewRenderer.GetAnimatedPreview(item, width, height, _currentGameTime);
+                    return BmdPreviewRenderer.GetSmoothAnimatedPreview(item, width, height, _currentGameTime);
                 }
                 catch
                 {
@@ -2011,7 +2021,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             }
 
             bool isOverGrid = IsMouseOverGrid();
-            
+
             // Early exit if nothing to draw
             if (!isOverGrid)
             {
@@ -2023,7 +2033,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             if (dragged != null)
             {
-                // When dragging, we need to show placement highlights for all slots
+                // When dragging, show placement highlights for all slots (green = valid, red = blocked)
                 for (int y = 0; y < Rows; y++)
                 {
                     for (int x = 0; x < Columns; x++)
@@ -2043,45 +2053,19 @@ namespace Client.Main.Controls.UI.Game.Inventory
             }
             else
             {
-                // No drag - only highlight hovered slot and hovered item slots
-                // Draw hovered slot highlight
-                if (_hoveredSlot.X >= 0 && _hoveredSlot.Y >= 0)
-                {
-                    Rectangle slotRect = new(
-                        gridRect.X + _hoveredSlot.X * INVENTORY_SQUARE_WIDTH,
-                        gridRect.Y + _hoveredSlot.Y * INVENTORY_SQUARE_HEIGHT,
-                        INVENTORY_SQUARE_WIDTH,
-                        INVENTORY_SQUARE_HEIGHT);
-                    spriteBatch.Draw(pixel, slotRect, new Color(180, 170, 90, 120));
-                }
-
-                // Draw hovered item slots (only the slots occupied by the item)
-                if (_hoveredItem != null)
-                {
-                    var itemPos = _hoveredItem.GridPosition;
-                    int itemWidth = _hoveredItem.Definition?.Width ?? 1;
-                    int itemHeight = _hoveredItem.Definition?.Height ?? 1;
-
-                    for (int dy = 0; dy < itemHeight; dy++)
-                    {
-                        for (int dx = 0; dx < itemWidth; dx++)
-                        {
-                            int x = itemPos.X + dx;
-                            int y = itemPos.Y + dy;
-                            
-                            // Skip the hovered slot itself (already drawn above)
-                            if (x == _hoveredSlot.X && y == _hoveredSlot.Y)
-                                continue;
-
-                            Rectangle slotRect = new(
-                                gridRect.X + x * INVENTORY_SQUARE_WIDTH,
-                                gridRect.Y + y * INVENTORY_SQUARE_HEIGHT,
-                                INVENTORY_SQUARE_WIDTH,
-                                INVENTORY_SQUARE_HEIGHT);
-                            spriteBatch.Draw(pixel, slotRect, new Color(90, 140, 220, 90));
-                        }
-                    }
-                }
+                // Match vault/NPC shop hover overlays: highlight hovered slot and occupied slots only
+                ItemGridRenderHelper.DrawGridOverlays(
+                    spriteBatch,
+                    pixel,
+                    DisplayRectangle,
+                    _gridRect,
+                    _hoveredItem,
+                    _hoveredSlot,
+                    INVENTORY_SQUARE_WIDTH,
+                    INVENTORY_SQUARE_HEIGHT,
+                    Theme.SlotHover,
+                    Theme.Secondary,
+                    Alpha);
             }
         }
 

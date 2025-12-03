@@ -97,11 +97,21 @@ namespace Client.Main.Core.Utilities
 
                     var itemName = item.szItemName?.Split('\t')[0].Trim() ?? string.Empty;
 
+                    int width = item.Width;
+                    int height = item.Height;
+
+                    // Fix for bows and crossbows - they should always be 2 slots wide
+                    // Exclude arrows and bolts (ammunition)
+                    if (item.ItemSubGroup == 4 && item.TwoHands != 0) // Group 4 and TwoHanded = Bows/Crossbows
+                    {
+                        width = 2;
+                    }
+
                     var definition = new ItemDefinition(
                         id: item.ItemSubIndex,
                         name: itemName,
-                        width: item.Width,
-                        height: item.Height,
+                        width: width,
+                        height: height,
                         texturePath: texturePath)
                     {
                         DamageMin = item.DamageMin,

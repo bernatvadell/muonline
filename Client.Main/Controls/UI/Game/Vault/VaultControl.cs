@@ -146,12 +146,38 @@ namespace Client.Main.Controls.UI.Game
             AutoViewSize = false;
             Interactive = true;
             Visible = false;
-            Align = ControlAlign.VerticalCenter | ControlAlign.HorizontalCenter;
+            Align = ControlAlign.VerticalCenter | ControlAlign.Left;
 
             EnsureCharacterState();
         }
 
         public static VaultControl Instance => _instance ??= new VaultControl();
+
+        /// <summary>
+        /// Forces immediate position calculation based on Align property.
+        /// Call this before showing the control to prevent position flickering.
+        /// </summary>
+        private void ForceAlignNow()
+        {
+            if (Parent == null || Align == ControlAlign.None)
+                return;
+
+            const int padding = 20;
+
+            if (Align.HasFlag(ControlAlign.Top))
+                Y = padding;
+            else if (Align.HasFlag(ControlAlign.Bottom))
+                Y = Parent.DisplaySize.Y - DisplaySize.Y - padding;
+            else if (Align.HasFlag(ControlAlign.VerticalCenter))
+                Y = (Parent.DisplaySize.Y / 2) - (DisplaySize.Y / 2);
+
+            if (Align.HasFlag(ControlAlign.Left))
+                X = padding;
+            else if (Align.HasFlag(ControlAlign.Right))
+                X = Parent.DisplaySize.X - DisplaySize.X - padding;
+            else if (Align.HasFlag(ControlAlign.HorizontalCenter))
+                X = (Parent.DisplaySize.X / 2) - (DisplaySize.X / 2);
+        }
 
         private void BuildLayoutMetrics()
         {
@@ -216,7 +242,7 @@ namespace Client.Main.Controls.UI.Game
                     DateTime now = DateTime.Now;
                     if ((now - _lastClickTime).TotalMilliseconds < 500)
                     {
-                        Align = ControlAlign.VerticalCenter | ControlAlign.HorizontalCenter;
+                        Align = ControlAlign.None;
                         _lastClickTime = DateTime.MinValue;
                     }
                     else
@@ -289,9 +315,7 @@ namespace Client.Main.Controls.UI.Game
                     spriteBatch.Draw(_staticSurface, DisplayRectangle, Color.White * Alpha);
                 }
 
-                var pixel = GraphicsManager.Instance.Pixel;
-                ItemGridRenderHelper.DrawGridOverlays(spriteBatch, pixel, DisplayRectangle, _gridRect, _hoveredItem, _hoveredSlot,
-                                 VAULT_SQUARE_WIDTH, VAULT_SQUARE_HEIGHT, Theme.SlotHover, Theme.Accent, Alpha);
+                DrawGridOverlays(spriteBatch);
                 DrawVaultItems(spriteBatch);
                 DrawCloseButton(spriteBatch);
                 DrawZenText(spriteBatch);
@@ -654,34 +678,31 @@ namespace Client.Main.Controls.UI.Game
             if (pixel == null) return;
 
             Point gridOrigin = new(DisplayRectangle.X + _gridRect.X, DisplayRectangle.Y + _gridRect.Y);
+            var activeDragged = _draggedItem ?? InventoryControl.Instance?.GetDraggedItem();
 
             // Drag preview highlight
-            if (_draggedItem != null && _pendingDropSlot.X >= 0)
+            if (activeDragged != null && _pendingDropSlot.X >= 0)
             {
-                bool canPlace = CanPlaceAt(_pendingDropSlot, _draggedItem);
-                Color highlightColor = canPlace ? Theme.Success * 0.4f : Theme.Danger * 0.4f;
-
-                for (int y = 0; y < _draggedItem.Definition.Height; y++)
+                // Match inventory: highlight the entire footprint (green=valid, red=invalid)
+                for (int y = 0; y < Rows; y++)
                 {
-                    for (int x = 0; x < _draggedItem.Definition.Width; x++)
+                    for (int x = 0; x < Columns; x++)
                     {
-                        int sx = _pendingDropSlot.X + x;
-                        int sy = _pendingDropSlot.Y + y;
+                        var highlight = GetSlotHighlightColor(new Point(x, y), activeDragged);
+                        if (!highlight.HasValue)
+                            continue;
 
-                        if (sx >= 0 && sx < Columns && sy >= 0 && sy < Rows)
-                        {
-                            var rect = new Rectangle(
-                                gridOrigin.X + sx * VAULT_SQUARE_WIDTH,
-                                gridOrigin.Y + sy * VAULT_SQUARE_HEIGHT,
-                                VAULT_SQUARE_WIDTH, VAULT_SQUARE_HEIGHT);
-                            spriteBatch.Draw(pixel, rect, highlightColor);
-                        }
+                        var rect = new Rectangle(
+                            gridOrigin.X + x * VAULT_SQUARE_WIDTH,
+                            gridOrigin.Y + y * VAULT_SQUARE_HEIGHT,
+                            VAULT_SQUARE_WIDTH, VAULT_SQUARE_HEIGHT);
+                        spriteBatch.Draw(pixel, rect, highlight.Value);
                     }
                 }
             }
 
             // Hovered slot highlight (when not dragging item)
-            if (_draggedItem == null)
+            if (activeDragged == null)
             {
                 ItemGridRenderHelper.DrawGridOverlays(spriteBatch, pixel, DisplayRectangle, _gridRect, _hoveredItem, _hoveredSlot,
                                  VAULT_SQUARE_WIDTH, VAULT_SQUARE_HEIGHT, Theme.SlotHover, Theme.Secondary, Alpha);
@@ -884,11 +905,20 @@ namespace Client.Main.Controls.UI.Game
         private void UpdateHoverState()
         {
             var mouse = MuGame.Instance.UiMouseState.Position;
+            var externalDragged = InventoryControl.Instance?.GetDraggedItem();
 
             if (_draggedItem != null)
             {
                 var dropSlot = GetSlotAtScreenPosition(mouse);
-                _pendingDropSlot = (dropSlot.X >= 0 && CanPlaceAt(dropSlot, _draggedItem)) ? dropSlot : new Point(-1, -1);
+                _pendingDropSlot = dropSlot.X >= 0 ? dropSlot : new Point(-1, -1);
+                _hoveredItem = null;
+                _hoveredSlot = dropSlot;
+                return;
+            }
+            else if (externalDragged != null)
+            {
+                var dropSlot = GetSlotAtScreenPosition(mouse);
+                _pendingDropSlot = dropSlot.X >= 0 ? dropSlot : new Point(-1, -1);
                 _hoveredItem = null;
                 _hoveredSlot = dropSlot;
                 return;
@@ -1201,6 +1231,9 @@ namespace Client.Main.Controls.UI.Game
 
             if (_items.Count > 0 || _vaultZen > 0)
             {
+                // Align left with padding before showing, then freeze position to avoid auto realignment
+                ForceAlignNow();
+                Align = ControlAlign.None;
                 Visible = true;
                 BringToFront();
                 // Play the open sound only when the window becomes visible, not on every refresh.
@@ -1270,6 +1303,31 @@ namespace Client.Main.Controls.UI.Game
         }
 
         private void ClearGrid() => Array.Clear(_itemGrid, 0, _itemGrid.Length);
+
+        private Color? GetSlotHighlightColor(Point slot, InventoryItem draggedItem)
+        {
+            if (draggedItem == null || _hoveredSlot.X == -1 || _hoveredSlot.Y == -1)
+            {
+                return null;
+            }
+
+            if (!IsSlotInDropArea(slot, _hoveredSlot, draggedItem))
+            {
+                return null;
+            }
+
+            return CanPlaceAt(_hoveredSlot, draggedItem)
+                ? Color.GreenYellow * 0.5f
+                : Color.Red * 0.6f;
+        }
+
+        private static bool IsSlotInDropArea(Point slot, Point dropPosition, InventoryItem item)
+        {
+            return slot.X >= dropPosition.X &&
+                   slot.X < dropPosition.X + item.Definition.Width &&
+                   slot.Y >= dropPosition.Y &&
+                   slot.Y < dropPosition.Y + item.Definition.Height;
+        }
 
         private Texture2D ResolveItemTexture(InventoryItem item, int width, int height, bool animated, bool allowGenerate = true)
         {

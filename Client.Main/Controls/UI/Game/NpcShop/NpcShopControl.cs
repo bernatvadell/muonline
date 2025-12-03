@@ -9,6 +9,7 @@ using Client.Main.Core.Utilities;
 using Client.Main.Controls.UI.Common;
 using Client.Main.Controls.UI.Game.Common;
 using Client.Main.Controls.UI.Game.Inventory;
+using Client.Main.Controls.UI;
 using Client.Main.Models;
 using Client.Main.Helpers;
 using Microsoft.Xna.Framework;
@@ -121,12 +122,38 @@ namespace Client.Main.Controls.UI.Game
             AutoViewSize = false;
             Interactive = true;
             Visible = false;
-            Align = ControlAlign.VerticalCenter | ControlAlign.HorizontalCenter;
+            Align = ControlAlign.VerticalCenter | ControlAlign.Left;
 
             EnsureCharacterState();
         }
 
         public static NpcShopControl Instance => _instance ??= new NpcShopControl();
+
+        /// <summary>
+        /// Forces immediate position calculation based on Align property.
+        /// Call this before showing the control to prevent position flickering.
+        /// </summary>
+        private void ForceAlignNow()
+        {
+            if (Parent == null || Align == ControlAlign.None)
+                return;
+
+            const int padding = 20;
+
+            if (Align.HasFlag(ControlAlign.Top))
+                Y = padding;
+            else if (Align.HasFlag(ControlAlign.Bottom))
+                Y = Parent.DisplaySize.Y - DisplaySize.Y - padding;
+            else if (Align.HasFlag(ControlAlign.VerticalCenter))
+                Y = (Parent.DisplaySize.Y / 2) - (DisplaySize.Y / 2);
+
+            if (Align.HasFlag(ControlAlign.Left))
+                X = padding;
+            else if (Align.HasFlag(ControlAlign.Right))
+                X = Parent.DisplaySize.X - DisplaySize.X - padding;
+            else if (Align.HasFlag(ControlAlign.HorizontalCenter))
+                X = (Parent.DisplaySize.X / 2) - (DisplaySize.X / 2);
+        }
 
         private void BuildLayoutMetrics()
         {
@@ -195,7 +222,7 @@ namespace Client.Main.Controls.UI.Game
                     if ((now - _lastClickTime).TotalMilliseconds < 500)
                     {
                         // Double-click to reset position
-                        Align = ControlAlign.VerticalCenter | ControlAlign.HorizontalCenter;
+                        Align = ControlAlign.None;
                         _lastClickTime = DateTime.MinValue;
                     }
                     else
@@ -701,6 +728,13 @@ namespace Client.Main.Controls.UI.Game
 
             if (!leftJustPressed) return;
 
+            // Prevent input when a modal dialog is open (e.g., sell confirmation)
+            if (IsModalDialogOpen()) return;
+            if (Scene?.FocusControl != this) return;
+
+            // Ignore shop clicks while dragging an item from inventory/vault (so a sell drop doesn't auto-buy a shop item)
+            if (InventoryControl.Instance?.GetDraggedItem() != null || VaultControl.Instance?.GetDraggedItem() != null) return;
+
             Point mousePos = mouse.Position;
 
             if (DisplayRectangle.Contains(mousePos))
@@ -762,6 +796,22 @@ namespace Client.Main.Controls.UI.Game
             _hoveredItem = null;
             _hoveredSlot = new Point(-1, -1);
             _isDragging = false;
+        }
+
+        private bool IsModalDialogOpen()
+        {
+            var scene = Scene;
+            if (scene == null) return false;
+
+            for (int i = scene.Controls.Count - 1; i >= 0; i--)
+            {
+                if (scene.Controls[i] is DialogControl dialog && dialog.Visible)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void SendCloseNpcRequest()
@@ -828,6 +878,9 @@ namespace Client.Main.Controls.UI.Game
 
             if (_items.Count > 0)
             {
+                // Align left with padding before showing, then freeze position to avoid auto realignment
+                ForceAlignNow();
+                Align = ControlAlign.None;
                 Visible = true;
                 BringToFront();
                 SoundController.Instance.PlayBuffer("Sound/iCreateWindow.wav");
@@ -880,14 +933,6 @@ namespace Client.Main.Controls.UI.Game
                 return tex;
             }
 
-            var cacheKey = (item, width, height, animated);
-            if (_bmdPreviewCache.TryGetValue(cacheKey, out var cachedPreview) && cachedPreview != null)
-                return cachedPreview;
-
-            var staticKey = (item, width, height, false);
-            if (_bmdPreviewCache.TryGetValue(staticKey, out var staticPreview) && staticPreview != null)
-                return staticPreview;
-
             bool isHovered = animated;
 
             // Material animation for non-hovered items (if enabled)
@@ -908,15 +953,14 @@ namespace Client.Main.Controls.UI.Game
             {
                 try
                 {
-                    var animatedTexture = BmdPreviewRenderer.GetAnimatedPreview(item, width, height, _currentGameTime);
-                    if (animatedTexture != null)
-                    {
-                        _bmdPreviewCache[cacheKey] = animatedTexture;
-                        return animatedTexture;
-                    }
+                    return BmdPreviewRenderer.GetSmoothAnimatedPreview(item, width, height, _currentGameTime);
                 }
                 catch { return null; }
             }
+
+            var cacheKey = (item, width, height, false);
+            if (_bmdPreviewCache.TryGetValue(cacheKey, out var cachedPreview) && cachedPreview != null)
+                return cachedPreview;
 
             try
             {
