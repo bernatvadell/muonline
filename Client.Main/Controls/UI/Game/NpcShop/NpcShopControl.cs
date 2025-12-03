@@ -561,6 +561,7 @@ namespace Client.Main.Controls.UI.Game
             var font = _font ?? GraphicsManager.Instance.Font;
             Point gridOrigin = new(DisplayRectangle.X + _gridRect.X, DisplayRectangle.Y + _gridRect.Y);
             var pixel = GraphicsManager.Instance.Pixel;
+            var jewelEntries = new List<(InventoryItem Item, Rectangle Rect)>();
 
             foreach (var item in _items)
             {
@@ -592,6 +593,11 @@ namespace Client.Main.Controls.UI.Game
                 if (texture != null)
                 {
                     spriteBatch.Draw(texture, rect, Color.White * Alpha);
+
+                    if (JewelShineOverlay.ShouldShine(item))
+                    {
+                        jewelEntries.Add((item, rect));
+                    }
                 }
                 else if (pixel != null)
                 {
@@ -604,12 +610,17 @@ namespace Client.Main.Controls.UI.Game
                 }
 
                 ItemGridRenderHelper.DrawItemLevelBadge(spriteBatch, GraphicsManager.Instance.Pixel, font, rect, item.Details.Level,
-                                   lvl => lvl >= 9 ? Theme.AccentBright :
-                                          lvl >= 7 ? Theme.Accent :
-                                          lvl >= 4 ? Theme.AccentDim :
-                                          Theme.TextGray,
-                                   new Color(0, 0, 0, 180));
+               lvl => lvl >= 9 ? Theme.AccentBright :
+                      lvl >= 7 ? Theme.Accent :
+                      lvl >= 4 ? Theme.AccentDim :
+                      Theme.TextGray,
+               new Color(0, 0, 0, 180));
+
+            if (jewelEntries.Count > 0)
+            {
+                JewelShineOverlay.DrawBatch(spriteBatch, jewelEntries, _currentGameTime, Alpha, UiScaler.SpriteTransform);
             }
+        }
         }
 
         private void DrawTooltip(SpriteBatch spriteBatch)

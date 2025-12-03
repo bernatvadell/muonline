@@ -102,7 +102,7 @@ namespace Client.Main.Core.Utilities
 
                     // Fix for bows and crossbows - they should always be 2 slots wide
                     // Exclude arrows and bolts (ammunition)
-                    if (item.ItemSubGroup == 4 && item.TwoHands != 0) // Group 4 and TwoHanded = Bows/Crossbows
+                    if (item.ItemSubGroup == 4 && itemName != "Arrow" && itemName != "Bolt") // Group 4
                     {
                         width = 2;
                     }

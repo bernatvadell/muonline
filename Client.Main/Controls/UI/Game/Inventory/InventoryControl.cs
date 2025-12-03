@@ -1833,6 +1833,8 @@ namespace Client.Main.Controls.UI.Game.Inventory
             if (GraphicsManager.Instance.Pixel == null || GraphicsManager.Instance.Font == null)
                 return;
 
+            var jewelEntries = new List<(InventoryItem Item, Rectangle Rect)>();
+
             using var scoped = new SpriteBatchScope(spriteBatch, SpriteSortMode.Deferred, BlendState.AlphaBlend, GraphicsManager.GetQualityLinearSamplerState(), transform: UiScaler.SpriteTransform);
 
             Point gridTopLeft = Translate(_gridRect).Location;
@@ -1876,6 +1878,11 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 if (itemTexture != null)
                 {
                     spriteBatch.Draw(itemTexture, itemRect, Color.White);
+
+                    if (JewelShineOverlay.ShouldShine(item))
+                    {
+                        jewelEntries.Add((item, itemRect));
+                    }
                 }
                 else
                 {
@@ -1898,8 +1905,13 @@ namespace Client.Main.Controls.UI.Game.Inventory
                                               lvl >= 4 ? Theme.Secondary :
                                               Theme.TextGray,
                                        new Color(0, 0, 0, 180));
-                }
             }
+
+            if (jewelEntries.Count > 0)
+            {
+                JewelShineOverlay.DrawBatch(spriteBatch, jewelEntries, _currentGameTime, Alpha, UiScaler.SpriteTransform);
+            }
+        }
         }
 
         private void DrawEquippedItems(SpriteBatch spriteBatch)

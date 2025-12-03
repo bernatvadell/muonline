@@ -16,6 +16,7 @@ using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Helpers;
 using Client.Main.Content;
 using Client.Main.Scenes;
+using Client.Main.Objects.Effects;
 
 namespace Client.Main.Objects
 {
@@ -45,6 +46,7 @@ namespace Client.Main.Objects
         private bool _isMoney;
         private float _yawRadians;   // Static orientation in world (does not follow camera)
         private readonly List<ModelObject> _coinModels = new List<ModelObject>(); // Multiple coins for money piles
+        private DroppedItemShineEffect _shineEffect;
 
         // ─────────────────── public helpers
         public ushort RawId => _scope?.RawId ?? 0;
@@ -109,6 +111,7 @@ namespace Client.Main.Objects
             _definition = null;
             _isMoney = false;
             _coinModels.Clear();
+            _shineEffect = null;
 
             // Initialize position at ground level (will be adjusted in Load() after terrain height is known)
             Position = new(
@@ -205,6 +208,7 @@ namespace Client.Main.Objects
 
                     RecenterCoinsAndFitBoundingBox();
                     _log.LogDebug("Gold coin pile loaded with {Count} coins at position {Pos}", coinCount, Position);
+                    AttachShineEffect();
                     return; // 3D model loaded
                 }
                 catch (Exception ex)
@@ -245,6 +249,7 @@ namespace Client.Main.Objects
                         // Position model so its bottom touches the ground
                         PositionModelOnGround(model);
 
+                        AttachShineEffect();
                         return; // 3D model loaded
                     }
                     catch (Exception ex)
@@ -253,6 +258,8 @@ namespace Client.Main.Objects
                     }
                 }
             }
+
+            AttachShineEffect();
         }
 
         // =====================================================================
@@ -596,6 +603,16 @@ namespace Client.Main.Objects
         public override void Dispose()
         {
             base.Dispose();
+        }
+
+        private void AttachShineEffect()
+        {
+            if (_shineEffect != null)
+                return;
+
+            _shineEffect = new DroppedItemShineEffect();
+            Children.Add(_shineEffect);
+            _ = _shineEffect.Load();
         }
     }
 
