@@ -16,6 +16,7 @@ using Client.Main.Controls;
 using Client.Main.Models;
 using Client.Main.Objects.Player;
 using System.Buffers;
+using Client.Main.Controls.UI.Game.Inventory;
 
 namespace Client.Main.Objects
 {
@@ -66,6 +67,7 @@ namespace Client.Main.Objects
         private bool _boundingComputed = false;
         public float ShadowOpacity { get; set; } = 1f;
         public Color Color { get; set; } = Color.White;
+        public ItemDefinition ItemDefinition { get; set; }
         protected Matrix[] BoneTransform { get; set; }
         public Matrix[] GetBoneTransforms() => BoneTransform;
         public int CurrentAction { get; set; }
@@ -1883,16 +1885,31 @@ namespace Client.Main.Objects
 
         protected void GenerateBoneMatrix(int actionIdx, int frame0, int frame1, float t)
         {
-            if (Model?.Bones == null || Model.Actions == null || Model.Actions.Length == 0)
+            var bones = Model?.Bones;
+
+            if (bones == null || bones.Length == 0)
             {
                 // Reset animation cache for invalid models
                 _animationStateValid = false;
                 return;
             }
 
+            // Armor items use the player's idle pose so they match equipped visuals
+            if (TryApplyPlayerIdlePose(bones))
+            {
+                _animationStateValid = true;
+                _lastAnimationState = default;
+                return;
+            }
+
+            if (Model.Actions == null || Model.Actions.Length == 0)
+            {
+                _animationStateValid = false;
+                return;
+            }
+
             actionIdx = Math.Clamp(actionIdx, 0, Model.Actions.Length - 1);
             var action = Model.Actions[actionIdx];
-            var bones = Model.Bones;
 
             // Create animation state for comparison - only for animated objects
             LocalAnimationState currentAnimState = default;
@@ -1945,85 +1962,85 @@ namespace Client.Main.Objects
 
                 // Process bones in order (parents before children)
                 for (int i = 0; i < bones.Length; i++)
-            {
-                var bone = bones[i];
-
-                // Skip invalid bones
-                if (bone == BMDTextureBone.Dummy || bone.Matrixes == null || actionIdx >= bone.Matrixes.Length)
                 {
-                    tempBoneTransforms[i] = Matrix.Identity;
-                    if (BoneTransform[i] != Matrix.Identity)
+                    var bone = bones[i];
+
+                    // Skip invalid bones
+                    if (bone == BMDTextureBone.Dummy || bone.Matrixes == null || actionIdx >= bone.Matrixes.Length)
+                    {
+                        tempBoneTransforms[i] = Matrix.Identity;
+                        if (BoneTransform[i] != Matrix.Identity)
+                            anyBoneChanged = true;
+                        continue;
+                    }
+
+                    var bm = bone.Matrixes[actionIdx];
+                    int numPosKeys = bm.Position?.Length ?? 0;
+                    int numQuatKeys = bm.Quaternion?.Length ?? 0;
+
+                    if (numPosKeys == 0 || numQuatKeys == 0)
+                    {
+                        tempBoneTransforms[i] = Matrix.Identity;
+                        if (BoneTransform[i] != Matrix.Identity)
+                            anyBoneChanged = true;
+                        continue;
+                    }
+
+                    // Ensure frame indices are valid for this specific bone
+                    int boneMaxFrame = Math.Min(numPosKeys, numQuatKeys) - 1;
+                    int boneFrame0 = Math.Min(frame0, boneMaxFrame);
+                    int boneFrame1 = Math.Min(frame1, boneMaxFrame);
+                    float boneT = (boneFrame0 == boneFrame1) ? 0f : t;
+
+                    Matrix localTransform;
+
+                    // Optimize for common case: no interpolation needed
+                    if (boneT == 0f)
+                    {
+                        // Direct keyframe - no interpolation
+                        localTransform = Matrix.CreateFromQuaternion(bm.Quaternion[boneFrame0]);
+                        localTransform.Translation = bm.Position[boneFrame0];
+                    }
+                    else
+                    {
+                        // Interpolated keyframe - use fast normalized lerp instead of costly Slerp
+                        Quaternion q = Nlerp(bm.Quaternion[boneFrame0], bm.Quaternion[boneFrame1], boneT);
+                        Vector3 p0 = bm.Position[boneFrame0];
+                        Vector3 p1 = bm.Position[boneFrame1];
+
+                        localTransform = Matrix.CreateFromQuaternion(q);
+                        localTransform.M41 = p0.X + (p1.X - p0.X) * boneT;
+                        localTransform.M42 = p0.Y + (p1.Y - p0.Y) * boneT;
+                        localTransform.M43 = p0.Z + (p1.Z - p0.Z) * boneT;
+                    }
+
+                    // Apply position locking for root bone
+                    if (i == 0 && lockPositions && bm.Position.Length > 0)
+                    {
+                        var rootPos = bm.Position[0];
+                        localTransform.Translation = new Vector3(rootPos.X, rootPos.Y, localTransform.M43 + bodyHeight);
+                    }
+
+                    // Apply parent transformation with safety checks
+                    Matrix worldTransform;
+                    if (bone.Parent >= 0 && bone.Parent < bones.Length)
+                    {
+                        worldTransform = localTransform * tempBoneTransforms[bone.Parent];
+                    }
+                    else
+                    {
+                        worldTransform = localTransform;
+                    }
+
+                    // Store in temp array
+                    tempBoneTransforms[i] = worldTransform;
+
+                    // Check if this bone actually changed (simple comparison for performance)
+                    if (BoneTransform[i] != worldTransform)
+                    {
                         anyBoneChanged = true;
-                    continue;
+                    }
                 }
-
-                var bm = bone.Matrixes[actionIdx];
-                int numPosKeys = bm.Position?.Length ?? 0;
-                int numQuatKeys = bm.Quaternion?.Length ?? 0;
-
-                if (numPosKeys == 0 || numQuatKeys == 0)
-                {
-                    tempBoneTransforms[i] = Matrix.Identity;
-                    if (BoneTransform[i] != Matrix.Identity)
-                        anyBoneChanged = true;
-                    continue;
-                }
-
-                // Ensure frame indices are valid for this specific bone
-                int boneMaxFrame = Math.Min(numPosKeys, numQuatKeys) - 1;
-                int boneFrame0 = Math.Min(frame0, boneMaxFrame);
-                int boneFrame1 = Math.Min(frame1, boneMaxFrame);
-                float boneT = (boneFrame0 == boneFrame1) ? 0f : t;
-
-                Matrix localTransform;
-
-                // Optimize for common case: no interpolation needed
-                if (boneT == 0f)
-                {
-                    // Direct keyframe - no interpolation
-                    localTransform = Matrix.CreateFromQuaternion(bm.Quaternion[boneFrame0]);
-                    localTransform.Translation = bm.Position[boneFrame0];
-                }
-                else
-                {
-                    // Interpolated keyframe - use fast normalized lerp instead of costly Slerp
-                    Quaternion q = Nlerp(bm.Quaternion[boneFrame0], bm.Quaternion[boneFrame1], boneT);
-                    Vector3 p0 = bm.Position[boneFrame0];
-                    Vector3 p1 = bm.Position[boneFrame1];
-
-                    localTransform = Matrix.CreateFromQuaternion(q);
-                    localTransform.M41 = p0.X + (p1.X - p0.X) * boneT;
-                    localTransform.M42 = p0.Y + (p1.Y - p0.Y) * boneT;
-                    localTransform.M43 = p0.Z + (p1.Z - p0.Z) * boneT;
-                }
-
-                // Apply position locking for root bone
-                if (i == 0 && lockPositions && bm.Position.Length > 0)
-                {
-                    var rootPos = bm.Position[0];
-                    localTransform.Translation = new Vector3(rootPos.X, rootPos.Y, localTransform.M43 + bodyHeight);
-                }
-
-                // Apply parent transformation with safety checks
-                Matrix worldTransform;
-                if (bone.Parent >= 0 && bone.Parent < bones.Length)
-                {
-                    worldTransform = localTransform * tempBoneTransforms[bone.Parent];
-                }
-                else
-                {
-                    worldTransform = localTransform;
-                }
-
-                // Store in temp array
-                tempBoneTransforms[i] = worldTransform;
-
-                // Check if this bone actually changed (simple comparison for performance)
-                if (BoneTransform[i] != worldTransform)
-                {
-                    anyBoneChanged = true;
-                }
-            }
 
                 // For static objects (single frame) or first-time setup, always update
                 bool forceUpdate = action.NumAnimationKeys <= 1 || !_animationStateValid;
@@ -2035,23 +2052,23 @@ namespace Client.Main.Objects
 
                     // Always invalidate animation for walkers (players/monsters/NPCs) to preserve smooth pacing
                     bool isImportantObject = RequiresPerFrameAnimation;
-                if (forceUpdate || isImportantObject)
-                {
-                    InvalidateBuffers(BUFFER_FLAG_ANIMATION);
-                }
-                else
-                {
-                    // Only throttle animation updates for non-critical objects (NPCs, monsters)
-                    const double ANIMATION_UPDATE_INTERVAL_MS = 20; // Max 20 Hz for non-critical objects
-
-                    if (_lastFrameTimeMs - _lastAnimationUpdateTime > ANIMATION_UPDATE_INTERVAL_MS)
+                    if (forceUpdate || isImportantObject)
                     {
                         InvalidateBuffers(BUFFER_FLAG_ANIMATION);
-                        _lastAnimationUpdateTime = _lastFrameTimeMs;
                     }
+                    else
+                    {
+                        // Only throttle animation updates for non-critical objects (NPCs, monsters)
+                        const double ANIMATION_UPDATE_INTERVAL_MS = 20; // Max 20 Hz for non-critical objects
+
+                        if (_lastFrameTimeMs - _lastAnimationUpdateTime > ANIMATION_UPDATE_INTERVAL_MS)
+                        {
+                            InvalidateBuffers(BUFFER_FLAG_ANIMATION);
+                            _lastAnimationUpdateTime = _lastFrameTimeMs;
+                        }
+                    }
+                    UpdateBoundings();
                 }
-                UpdateBoundings();
-            }
 
                 // Always update cache for objects that should use it
                 if (shouldCheckCache)
@@ -2365,6 +2382,54 @@ namespace Client.Main.Objects
             _boneMatrixCacheValid = true;
 
             return _cachedBoneMatrix;
+        }
+
+        private bool TryApplyPlayerIdlePose(BMDTextureBone[] bones)
+        {
+            var def = ItemDefinition;
+            int group = def?.Group ?? -1;
+            bool isArmor = group >= 7 && group <= 11;
+            if (!isArmor)
+                return false;
+
+            var playerBones = PlayerIdlePoseProvider.GetIdleBoneMatrices();
+            if (playerBones == null || playerBones.Length == 0)
+                return false;
+
+            if (BoneTransform == null || BoneTransform.Length != bones.Length)
+                BoneTransform = new Matrix[bones.Length];
+
+            for (int i = 0; i < bones.Length; i++)
+            {
+                BoneTransform[i] = (i < playerBones.Length)
+                    ? playerBones[i]
+                    : BuildBoneFromBmd(bones[i], BoneTransform);
+            }
+
+            InvalidateBuffers(BUFFER_FLAG_ANIMATION);
+            return true;
+        }
+
+        private static Matrix BuildBoneFromBmd(BMDTextureBone bone, Matrix[] parentResults)
+        {
+            Matrix local = Matrix.Identity;
+
+            if (bone?.Matrixes != null && bone.Matrixes.Length > 0)
+            {
+                var bm = bone.Matrixes[0];
+                if (bm.Position?.Length > 0 && bm.Quaternion?.Length > 0)
+                {
+                    var q = bm.Quaternion[0];
+                    local = Matrix.CreateFromQuaternion(new Quaternion(q.X, q.Y, q.Z, q.W));
+                    var p = bm.Position[0];
+                    local.Translation = new Vector3(p.X, p.Y, p.Z);
+                }
+            }
+
+            if (bone != null && bone.Parent >= 0 && bone.Parent < parentResults.Length)
+                return local * parentResults[bone.Parent];
+
+            return local;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

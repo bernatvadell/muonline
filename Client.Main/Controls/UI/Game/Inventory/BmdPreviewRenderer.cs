@@ -399,7 +399,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 if (bmd == null)
                     return target;
 
-                var bones = BuildBoneMatrices(bmd);
+                var bones = BuildBoneMatrices(bmd, def);
                 var originalBounds = ComputeBounds(bmd, bones);
 
                 if (rt == null || rt.IsDisposed || rt.Width != width || rt.Height != height)
@@ -758,31 +758,60 @@ namespace Client.Main.Controls.UI.Game.Inventory
             return null;
         }
 
-        private static Matrix[] BuildBoneMatrices(Client.Data.BMD.BMD bmd)
+        private static Matrix[] BuildBoneMatrices(Client.Data.BMD.BMD bmd, ItemDefinition definition = null)
         {
             var bones = bmd.Bones;
             var result = new Matrix[bones.Length];
-            for (int i = 0; i < bones.Length; i++)
+
+            int group = definition?.Group ?? -1;
+            bool isArmor = group >= 7 && group <= 11;
+            var playerBones = PlayerIdlePoseProvider.GetIdleBoneMatrices();
+
+            if (isArmor && playerBones != null && playerBones.Length > 0)
             {
-                var bone = bones[i];
-                Matrix local = Matrix.Identity;
-                if (bone.Matrixes != null && bone.Matrixes.Length > 0)
+                for (int i = 0; i < bones.Length; i++)
                 {
-                    var bm = bone.Matrixes[0];
-                    if (bm.Position?.Length > 0 && bm.Quaternion?.Length > 0)
+                    if (i < playerBones.Length)
                     {
-                        var q = bm.Quaternion[0];
-                        local = Matrix.CreateFromQuaternion(new Microsoft.Xna.Framework.Quaternion(q.X, q.Y, q.Z, q.W));
-                        var p = bm.Position[0];
-                        local.Translation = new Vector3(p.X, p.Y, p.Z);
+                        result[i] = playerBones[i];
+                    }
+                    else
+                    {
+                        result[i] = BuildSingleBoneMatrix(bones[i], result);
                     }
                 }
-                if (bone.Parent >= 0 && bone.Parent < result.Length)
-                    result[i] = local * result[bone.Parent];
-                else
-                    result[i] = local;
             }
+            else
+            {
+                for (int i = 0; i < bones.Length; i++)
+                {
+                    result[i] = BuildSingleBoneMatrix(bones[i], result);
+                }
+            }
+
             return result;
+        }
+
+        private static Matrix BuildSingleBoneMatrix(Client.Data.BMD.BMDTextureBone bone, Matrix[] parentResults)
+        {
+            Matrix local = Matrix.Identity;
+
+            if (bone?.Matrixes != null && bone.Matrixes.Length > 0)
+            {
+                var bm = bone.Matrixes[0];
+                if (bm.Position?.Length > 0 && bm.Quaternion?.Length > 0)
+                {
+                    var q = bm.Quaternion[0];
+                    local = Matrix.CreateFromQuaternion(new Microsoft.Xna.Framework.Quaternion(q.X, q.Y, q.Z, q.W));
+                    var p = bm.Position[0];
+                    local.Translation = new Vector3(p.X, p.Y, p.Z);
+                }
+            }
+
+            if (bone != null && bone.Parent >= 0 && bone.Parent < parentResults.Length)
+                return local * parentResults[bone.Parent];
+
+            return local;
         }
 
         private static BoundingBox ComputeBounds(Client.Data.BMD.BMD bmd, Matrix[] bones)

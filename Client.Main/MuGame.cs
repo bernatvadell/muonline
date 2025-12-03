@@ -472,6 +472,18 @@ namespace Client.Main
         {
             GraphicsManager.Instance.Init(GraphicsDevice, Content);
 
+            // --- LOAD PLAYER IDLE POSE DATA ---
+            // Load bone transformations from Player.bmd for inventory item rendering
+            // Equipment items (armor, boots, etc.) use LinkParentAnimation and need player bone poses
+            _ = PlayerIdlePoseProvider.EnsureLoadedAsync().ContinueWith(t =>
+            {
+                if (t.Exception != null)
+                    _logger?.LogWarning(t.Exception, "Failed to load player idle pose data for inventory rendering");
+                else
+                    _logger?.LogDebug("Player idle pose data loaded successfully for inventory");
+            });
+            // --- END PLAYER IDLE POSE DATA ---
+
             // --- START NETWORK CONNECTION ---
             // Start connecting to the Connect Server when the game loads
             // We do this *after* GraphicsManager is init because some UI might depend on it

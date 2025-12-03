@@ -26,14 +26,11 @@ namespace Client.Main.Objects
     public class DroppedItemObject : WorldObject
     {
         // ─────────────────── constants
-        private const float HeightOffset = 60f;
+        private const float HeightOffset = 55f; // Item exactly at terrain level - model will be positioned above
         private const float PickupRange = 300f;
         private const float LabelOffsetZ = 10f;
         private const int LabelPixelGap = 20;
-        private const float BoundingSnapEpsilon = 1f; // Minimum movement threshold when recentring children
-        private const float BoundingPadding = 4f; // Extra space so models never clip the box walls
-        private const float MinimumHalfExtent = 18f; // Prevent degenerate narrow bounding boxes
-        private const float MinimumBoundingHeight = 24f; // Ensure some vertical interaction room
+        private const float BoundingPadding = 2f; // Small padding for interaction
 
         // ─────────────────── deps / state
         private ScopeObject _scope;
@@ -48,7 +45,6 @@ namespace Client.Main.Objects
         private bool _isMoney;
         private float _yawRadians;   // Static orientation in world (does not follow camera)
         private readonly List<ModelObject> _coinModels = new List<ModelObject>(); // Multiple coins for money piles
-        private readonly List<Vector3> _childBoundsScratch = new(32); // Reuse buffer while fitting bounding boxes
 
         // ─────────────────── public helpers
         public ushort RawId => _scope?.RawId ?? 0;
@@ -113,7 +109,6 @@ namespace Client.Main.Objects
             _definition = null;
             _isMoney = false;
             _coinModels.Clear();
-            _childBoundsScratch.Clear();
 
             // Initialize position at ground level (will be adjusted in Load() after terrain height is known)
             Position = new(
@@ -183,12 +178,11 @@ namespace Client.Main.Objects
                         model.Model = bmd;
 
                         // Position coins in a circular pile pattern with vertical stacking
-                        // All relative to parent position (which is at bottom center of bbox = ground level)
                         float radius = (float)Math.Sqrt(i) * 8f; // Spiral outward
                         float angle = i * 2.4f; // Golden angle for even distribution
                         float offsetX = (float)Math.Cos(angle) * radius;
                         float offsetY = (float)Math.Sin(angle) * radius;
-                        float offsetZ = (i / 3) * 3f; // Stack coins vertically from ground level
+                        float offsetZ = (i / 3) * 2f + 1f; // Stack coins, start slightly above ground
 
                         // Add small random variation to prevent perfect alignment
                         offsetX += (float)(random.NextDouble() - 0.5) * 4f;
@@ -197,7 +191,7 @@ namespace Client.Main.Objects
 
                         model.Position = new Vector3(offsetX, offsetY, offsetZ);
 
-                        // Coins lie flat (like original code) but with slight Z rotation for variety
+                        // Coins lie flat with slight Z rotation for variety
                         float rotZ = (float)(random.NextDouble() * Math.PI * 2);
                         model.Angle = new Vector3(0, 0, rotZ);
 
@@ -209,8 +203,8 @@ namespace Client.Main.Objects
                         _coinModels.Add(model);
                     }
 
-                    RecenterChildrenAndFitBoundingBox();
-                    _log.LogInformation("Gold coin pile loaded with {Count} coins at position {Pos}", coinCount, Position);
+                    RecenterCoinsAndFitBoundingBox();
+                    _log.LogDebug("Gold coin pile loaded with {Count} coins at position {Pos}", coinCount, Position);
                     return; // 3D model loaded
                 }
                 catch (Exception ex)
@@ -229,124 +223,175 @@ namespace Client.Main.Objects
                         var bmd = await BMDLoader.Instance.Prepare(_definition.TexturePath);
                         var model = new DroppedItemModel();
                         model.Model = bmd;
+                        model.ItemDefinition = _definition;
 
                         model.Position = Vector3.Zero;
-                        // Use consistent group-specific orientation from ItemOrientationHelper
+
+                        // Use original rotation from ItemOrientationHelper
                         var baseAngle = ItemOrientationHelper.GetWorldDropEuler(_definition);
-                        model.Angle = new Vector3(baseAngle.X + MathHelper.PiOver2, baseAngle.Y - MathHelper.PiOver2, baseAngle.Z + MathHelper.PiOver2 / 2); // +90 degrees on X axis
-                        model.Scale = 0.6f; // Tuned size; detailed fit happens in RecenterChildrenAndFitBoundingBox
+                        model.Angle = new Vector3(
+                            baseAngle.X + MathHelper.PiOver2,
+                            baseAngle.Y - MathHelper.PiOver2,
+                            baseAngle.Z + MathHelper.PiOver2 / 2f
+                        );
+
+                        model.Scale = 0.6f;
+                        model.LightEnabled = true;
 
                         Children.Add(model);
                         await model.Load();
                         _modelObj = model;
-                        RecenterChildrenAndFitBoundingBox();
-                        return; // 3D model loaded, skip texture sprite path
+
+                        // Position model so its bottom touches the ground
+                        PositionModelOnGround(model);
+
+                        return; // 3D model loaded
                     }
                     catch (Exception ex)
                     {
                         _log.LogDebug(ex, "Failed to load BMD model for dropped item: {Path}", _definition.TexturePath);
                     }
                 }
-
-                // Skip if we already know this texture failed to load\n
             }
         }
 
         // =====================================================================
-        private void RecenterChildrenAndFitBoundingBox()
+        /// <summary>
+        /// Positions the model so its lowest vertex touches the ground (parent's Z=0 in local space).
+        /// Calculates bounding box directly from model geometry.
+        /// </summary>
+        private void PositionModelOnGround(ModelObject model)
         {
-            if (!TryGetChildBounds(out var localBounds))
+            if (model?.Model?.Meshes == null)
             {
-                return; // No geometry yet (sprite fallback or model load failure)
+                // Fallback bounding box
+                BoundingBoxLocal = new BoundingBox(
+                    new Vector3(-20, -20, 0),
+                    new Vector3(20, 20, 40));
+                return;
             }
 
-            Vector3 correction = new(
-                (localBounds.Min.X + localBounds.Max.X) * 0.5f,
-                (localBounds.Min.Y + localBounds.Max.Y) * 0.5f,
-                localBounds.Min.Z);
+            var bmd = model.Model;
+            var bones = model.GetBoneTransforms();
 
-            if (MathF.Abs(correction.X) > BoundingSnapEpsilon ||
-                MathF.Abs(correction.Y) > BoundingSnapEpsilon ||
-                MathF.Abs(correction.Z) > BoundingSnapEpsilon)
+            // Find model bounds directly from vertices
+            Vector3 min = new Vector3(float.MaxValue);
+            Vector3 max = new Vector3(float.MinValue);
+            bool hasVertices = false;
+
+            // Build rotation matrix from model angle
+            Matrix rotationMatrix = Matrix.CreateRotationX(model.Angle.X) *
+                                   Matrix.CreateRotationY(model.Angle.Y) *
+                                   Matrix.CreateRotationZ(model.Angle.Z);
+
+            foreach (var mesh in bmd.Meshes)
             {
-                foreach (var child in Children)
+                if (mesh.Vertices == null) continue;
+
+                foreach (var vert in mesh.Vertices)
                 {
-                    if (child is ModelObject model && model.Model != null)
+                    // Transform vertex by bone
+                    Matrix boneMatrix = Matrix.Identity;
+                    if (bones != null && vert.Node >= 0 && vert.Node < bones.Length)
                     {
-                        model.Position -= correction;
+                        boneMatrix = bones[vert.Node];
                     }
-                }
 
-                if (!TryGetChildBounds(out localBounds))
-                {
-                    return;
+                    // Vertex position in model's local space
+                    Vector3 localPos = new Vector3(vert.Position.X, vert.Position.Y, vert.Position.Z);
+                    Vector3 transformedPos = Vector3.Transform(localPos, boneMatrix);
+
+                    // Apply model rotation
+                    Vector3 rotatedPos = Vector3.Transform(transformedPos, rotationMatrix);
+
+                    // Apply scale
+                    rotatedPos *= model.Scale;
+
+                    min = Vector3.Min(min, rotatedPos);
+                    max = Vector3.Max(max, rotatedPos);
+                    hasVertices = true;
                 }
             }
 
-            float halfWidth = MathF.Max(MathF.Abs(localBounds.Min.X), MathF.Abs(localBounds.Max.X));
-            float halfDepth = MathF.Max(MathF.Abs(localBounds.Min.Y), MathF.Abs(localBounds.Max.Y));
-            float minZ = MathF.Min(localBounds.Min.Z, 0f);
-            float height = localBounds.Max.Z - minZ;
+            if (!hasVertices)
+            {
+                // Fallback bounding box
+                BoundingBoxLocal = new BoundingBox(
+                    new Vector3(-20, -20, 0),
+                    new Vector3(20, 20, 40));
+                return;
+            }
 
-            halfWidth = MathF.Max(halfWidth, MinimumHalfExtent);
-            halfDepth = MathF.Max(halfDepth, MinimumHalfExtent);
-            height = MathF.Max(height, MinimumBoundingHeight);
+            // Move model up so its lowest point is at Z=0 (ground level)
+            float groundOffset = -min.Z;
+            model.Position = new Vector3(
+                -(min.X + max.X) * 0.5f,  // Center X
+                -(min.Y + max.Y) * 0.5f,  // Center Y
+                groundOffset               // Lift to ground level
+            );
+
+            // Calculate bounds after repositioning
+            float halfWidth = MathF.Max((max.X - min.X) * 0.5f, 10f);
+            float halfDepth = MathF.Max((max.Y - min.Y) * 0.5f, 10f);
+            float height = MathF.Max(max.Z - min.Z, 15f);
+
+            // Set bounding box with minimal padding
+            BoundingBoxLocal = new BoundingBox(
+                new Vector3(-halfWidth - BoundingPadding, -halfDepth - BoundingPadding, 0f),
+                new Vector3(halfWidth + BoundingPadding, halfDepth + BoundingPadding, height + BoundingPadding));
+        }
+
+        // =====================================================================
+        /// <summary>
+        /// Centers coin pile and fits bounding box for money drops.
+        /// </summary>
+        private void RecenterCoinsAndFitBoundingBox()
+        {
+            if (_coinModels.Count == 0)
+                return;
+
+            // Calculate bounds from coin positions
+            Vector3 min = new Vector3(float.MaxValue);
+            Vector3 max = new Vector3(float.MinValue);
+
+            foreach (var coin in _coinModels)
+            {
+                Vector3 coinPos = coin.Position;
+                float coinRadius = 12f * coin.Scale;
+                float coinHeight = 4f * coin.Scale;
+
+                min = Vector3.Min(min, coinPos - new Vector3(coinRadius, coinRadius, 0));
+                max = Vector3.Max(max, coinPos + new Vector3(coinRadius, coinRadius, coinHeight));
+            }
+
+            // Center in X/Y, keep Z at ground level
+            float centerX = (min.X + max.X) * 0.5f;
+            float centerY = (min.Y + max.Y) * 0.5f;
+            float minZ = MathF.Min(min.Z, 0f);
+
+            foreach (var coin in _coinModels)
+            {
+                coin.Position = new Vector3(
+                    coin.Position.X - centerX,
+                    coin.Position.Y - centerY,
+                    coin.Position.Z - minZ
+                );
+            }
+
+            // Recalculate bounds after centering
+            float halfWidth = MathF.Max((max.X - min.X) * 0.5f, 15f);
+            float halfDepth = MathF.Max((max.Y - min.Y) * 0.5f, 15f);
+            float height = MathF.Max(max.Z - min.Z, 10f);
 
             BoundingBoxLocal = new BoundingBox(
                 new Vector3(-halfWidth - BoundingPadding, -halfDepth - BoundingPadding, 0f),
                 new Vector3(halfWidth + BoundingPadding, halfDepth + BoundingPadding, height + BoundingPadding));
         }
 
-        private bool TryGetChildBounds(out BoundingBox localBounds)
-        {
-            localBounds = default;
-
-            if (Children.Count == 0)
-            {
-                return false;
-            }
-
-            Matrix parentWorld = WorldPosition;
-            float determinant = parentWorld.Determinant();
-            if (MathF.Abs(determinant) < float.Epsilon)
-            {
-                return false; // Matrix not invertible -> no reliable local conversion
-            }
-
-            Matrix.Invert(ref parentWorld, out Matrix inverseParent);
-
-            _childBoundsScratch.Clear();
-
-            foreach (var child in Children)
-            {
-                if (child is not ModelObject model || model.Model == null || model.Status != GameControlStatus.Ready)
-                {
-                    continue;
-                }
-
-                var corners = model.BoundingBoxWorld.GetCorners();
-                for (int i = 0; i < corners.Length; i++)
-                {
-                    _childBoundsScratch.Add(Vector3.Transform(corners[i], inverseParent));
-                }
-            }
-
-            if (_childBoundsScratch.Count == 0)
-            {
-                return false;
-            }
-
-            localBounds = BoundingBox.CreateFromPoints(_childBoundsScratch);
-            _childBoundsScratch.Clear();
-            return true;
-        }
-
         // =====================================================================
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
-
-            // Label visibility and position are computed in DrawHoverName (depth-aware UI pass).
         }
 
         // =====================================================================
@@ -390,26 +435,15 @@ namespace Client.Main.Objects
             }
             else if (_scope is MoneyScopeObject moneyScope)
             {
-                // For money, the server typically handles amount updates directly.
-                // Stashing a representation of money might be complex if the server doesn't expect item data for it.
-                // Let's assume for now that if a 0x22 packet comes for money, it might be an error or unhandled by this specific logic.
-                // If the server *does* use this packet type for money pickup success with a slot,
-                // then a placeholder byte[] representing money would need to be stashed.
-                // For simplicity, and based on typical MU, money pickups are handled by C1 22 FE (InventoryMoneyUpdate).
-                // So, if this OnClick is for money, we might not need to stash, and the success indication
-                // from 0xC3 0x22 <slot> would be for an actual item.
                 _log.LogInformation("OnClick: Pick up initiated for Money. Server will update Zen directly.");
-                // No stashing needed for money if server sends InventoryMoneyUpdate on success.
-                // If server *does* send C3 22 <slot> for money, then stashing a representative byte[] is needed.
-                // Example: charState.StashPickedItem(new byte[] { 15, 0, 0, 0, (byte)(moneyScope.Amount & 0xFF), 14 << 4 }); // Dummy data
             }
             else
             {
                 _log.LogWarning("OnClick: Attempting to pick up unknown scope object type: {ScopeType}", _scope.ObjectType);
-                return; // Don't send request for unknown types
+                return;
             }
 
-            _pickedUp = true; // Prevent further clicks while pickup is in progress
+            _pickedUp = true;
 
             Task.Run(() => _charSvc.SendPickupItemRequestAsync(RawId, MuGame.Network.TargetVersion));
             _log.LogDebug("Pickup request sent for {RawId:X4} ({DisplayName})", RawId, DisplayName);
@@ -432,50 +466,34 @@ namespace Client.Main.Objects
 
         private int CalculateCoinCount(uint zenAmount)
         {
-            // Scale coin count based on amount of zen with randomization
-            // Use RawId as seed for consistent randomization per drop
             var random = new Random(RawId);
 
             if (zenAmount < 100)
-                return random.Next(2, 5);      // 2-4 coins
+                return random.Next(2, 5);
             if (zenAmount < 1000)
-                return random.Next(4, 7);      // 4-6 coins
+                return random.Next(4, 7);
             if (zenAmount < 10000)
-                return random.Next(6, 10);     // 6-9 coins
+                return random.Next(6, 10);
             if (zenAmount < 100000)
-                return random.Next(9, 14);     // 9-13 coins
+                return random.Next(9, 14);
             if (zenAmount < 1000000)
-                return random.Next(12, 17);    // 12-16 coins
+                return random.Next(12, 17);
 
-            return random.Next(15, 21);        // 15-20 coins for huge amounts
+            return random.Next(15, 21);
         }
 
         private Color GetLabelColor(ScopeObject s, ItemDatabase.ItemDetails details)
         {
-            // Ancient/Excellent
             if (details.IsAncient) return new Color(0, 255, 128);
             if (details.IsExcellent) return new Color(128, 255, 128);
-
-            // +7 up
             if (details.Level >= 7) return Color.Gold;
-
-            // (Luck, Skill, Add)
             if (details.HasBlueOptions) return new Color(130, 180, 255);
-
-            // +3 +4 +5 +6
             if (details.Level >= 3) return new Color(255, 165, 0);
-
-            //  +1, +2
             if (details.Level >= 1) return Color.White;
-
-            // ZEN
             if (s is MoneyScopeObject) return Color.Gold;
-
-            return Color.Gray; // +0
+            return Color.Gray;
         }
 
-        // We override DrawHoverName to render the dropped item label in the world UI pass (depth-aware),
-        // so it never draws above HUD windows.
         public override void DrawHoverName()
         {
             if (_pickedUp || Hidden || OutOfView)
@@ -486,16 +504,14 @@ namespace Client.Main.Objects
             if (_font == null || GraphicsDevice == null || Camera.Instance == null)
                 return;
 
-            // Only show when player is reasonably near and scene is ready
             bool near = false;
             if (World is Controls.WalkableWorldControl w && w.Walker != null)
                 near = Vector3.Distance(w.Walker.Position, Position) <= 2000f;
             if (!near || World?.Scene?.Status != GameControlStatus.Ready)
                 return;
 
-            var scope = _scope; // local ref
+            var scope = _scope;
             string text = DisplayName;
-            // Scale font based on resolution and render scale
             float baseScale = 10f / Client.Main.Constants.BASE_FONT_SIZE;
             float scale = baseScale * UiScaler.Scale * Constants.RENDER_SCALE;
             ReadOnlySpan<byte> itemSpan = ReadOnlySpan<byte>.Empty;
@@ -505,7 +521,6 @@ namespace Client.Main.Objects
             }
             var color = GetLabelColor(scope, ItemDatabase.ParseItemDetails(itemSpan));
 
-            // Label position: slightly above the top of the bounding box
             Vector3 anchor = new(Position.X, Position.Y, BoundingBoxWorld.Max.Z + LabelOffsetZ);
             Vector3 screen = GraphicsDevice.Viewport.Project(
                 anchor,
@@ -529,14 +544,11 @@ namespace Client.Main.Objects
 
             void draw()
             {
-                // Background (with same layer depth as text)
                 sb.Draw(GraphicsManager.Instance.Pixel, rect, null, new Color(0, 0, 0, 160), 0f, Vector2.Zero, SpriteEffects.None, layer);
-                // Border (same depth)
                 sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.X, rect.Y, rect.Width, 1), null, Color.White * 0.3f, 0f, Vector2.Zero, SpriteEffects.None, layer);
                 sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.X, rect.Bottom - 1, rect.Width, 1), null, Color.White * 0.3f, 0f, Vector2.Zero, SpriteEffects.None, layer);
                 sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.X, rect.Y, 1, rect.Height), null, Color.White * 0.3f, 0f, Vector2.Zero, SpriteEffects.None, layer);
                 sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.Right - 1, rect.Y, 1, rect.Height), null, Color.White * 0.3f, 0f, Vector2.Zero, SpriteEffects.None, layer);
-                // Text (original color via GetLabelColor, same layer)
                 sb.DrawString(
                     _font,
                     text,
@@ -558,12 +570,10 @@ namespace Client.Main.Objects
             }
             else
             {
-                // Temporarily switch to no-depth state to avoid partial occlusion by world geometry
                 sb.End();
                 sb.Begin(SpriteSortMode.BackToFront, BlendState.NonPremultiplied, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
                 draw();
                 sb.End();
-                // Restore the original DepthRead state for the rest of the world overlays
                 sb.Begin(SpriteSortMode.BackToFront, BlendState.NonPremultiplied, SamplerState.PointClamp, DepthStencilState.DepthRead, RasterizerState.CullNone);
             }
         }
@@ -576,18 +586,13 @@ namespace Client.Main.Objects
                 _ => Color.White
             };
 
-        /// <summary>
-        /// Resets the pickup state so the item can be clicked again.
-        /// </summary>
         public void ResetPickupState()
         {
             _pickedUp = false;
         }
 
-        // =====================================================================
         private void OnLabelClicked(object sender, EventArgs e) => OnClick();
 
-        // =====================================================================
         public override void Dispose()
         {
             base.Dispose();
