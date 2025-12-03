@@ -6,8 +6,12 @@ using System;
 using System.Threading.Tasks;
 using Client.Main.Core.Client;
 using Client.Main.Controllers;
+using Client.Main.Controls;
+using Client.Main.Models;
+using Client.Main.Objects;
 using Client.Main.Objects.Effects;
 using Client.Main.Scenes;
+using Microsoft.Xna.Framework;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
@@ -689,23 +693,26 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             try
             {
                 uint addedExperience = 0;
+                ushort killedObjectId = 0;
 
                 if (_targetVersion >= TargetProtocolVersion.Season6
                     && packet.Length >= ExperienceGainedExtended.Length)
                 {
                     var exp = new ExperienceGainedExtended(packet);
                     addedExperience = exp.AddedExperience;
+                    killedObjectId = (ushort)(exp.KilledObjectId & 0x7FFF);
                     _logger.LogInformation(
                         "✨ ExperienceGained (Extended): {Exp} for killing {KilledId:X4}",
-                        addedExperience, exp.KilledObjectId);
+                        addedExperience, killedObjectId);
                 }
                 else if (packet.Length >= ExperienceGained.Length)
                 {
                     var exp = new ExperienceGained(packet);
                     addedExperience = exp.AddedExperience;
+                    killedObjectId = (ushort)(exp.KilledObjectId & 0x7FFF);
                     _logger.LogInformation(
                         "✨ ExperienceGained (Standard): {Exp} for killing {KilledId:X4}",
-                        addedExperience, exp.KilledObjectId);
+                        addedExperience, killedObjectId);
                 }
                 else
                 {
@@ -723,6 +730,31 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     if (gameScene != null)
                     {
                         gameScene.ChatLog?.AddMessage("System", $"Gained {addedExperience} experience.", Client.Main.Models.MessageType.System);
+
+                        if (addedExperience > 0 &&
+                            killedObjectId != 0 &&
+                            gameScene.World is WorldControl world &&
+                            world.Status == GameControlStatus.Ready &&
+                            world.TryGetWalkerById(killedObjectId, out var walker) &&
+                            walker is MonsterObject monster &&
+                            gameScene.Hero != null)
+                        {
+                            var hero = gameScene.Hero;
+                            Vector3 origin = monster.WorldPosition.Translation + new Vector3(0f, 0f, 25f);
+
+                            Func<Vector3> targetProvider = () =>
+                            {
+                                if (hero == null || hero.Status == GameControlStatus.Disposed)
+                                    return origin;
+
+                                var anchor = hero.WorldPosition.Translation;
+                                anchor.Z += 110f;
+                                return anchor;
+                            };
+
+                            int orbCount = Math.Clamp((int)Math.Round(Math.Log10(addedExperience + 1) + 3), 4, 8);
+                            ExperienceOrbEffect.SpawnBurst(world, origin, targetProvider, orbCount);
+                        }
                     }
                 });
             }

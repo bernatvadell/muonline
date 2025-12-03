@@ -56,6 +56,31 @@ namespace Client.Main.Objects.Effects
             _endColor = new Vector4(vec.X, vec.Y, vec.Z, 0f);
         }
 
+        /// <summary>
+        /// Optional tuning for trail visuals without affecting defaults used by weapons.
+        /// </summary>
+        public void ConfigureStyle(
+            float? duration = null,
+            float? minDistance = null,
+            float? maxSampleInterval = null,
+            float? baseWidth = null,
+            float? maxWidth = null,
+            float? widthFromSpeed = null,
+            float? alphaFromSpeed = null,
+            float? startAlpha = null,
+            float? endAlpha = null)
+        {
+            if (duration.HasValue) _trailDuration = MathF.Max(0.02f, duration.Value);
+            if (minDistance.HasValue) _minDistance = MathF.Max(0.5f, minDistance.Value);
+            if (maxSampleInterval.HasValue) _maxSampleInterval = MathF.Max(0.001f, maxSampleInterval.Value);
+            if (baseWidth.HasValue) _baseWidth = MathF.Max(0.25f, baseWidth.Value);
+            if (maxWidth.HasValue) _maxWidth = MathF.Max(_baseWidth + 0.5f, maxWidth.Value);
+            if (widthFromSpeed.HasValue) _widthFromSpeed = MathF.Max(0f, widthFromSpeed.Value);
+            if (alphaFromSpeed.HasValue) _alphaFromSpeed = MathF.Max(0f, alphaFromSpeed.Value);
+            if (startAlpha.HasValue) _startColor.W = MathHelper.Clamp(startAlpha.Value, 0f, 1f);
+            if (endAlpha.HasValue) _endColor.W = MathHelper.Clamp(endAlpha.Value, 0f, 1f);
+        }
+
         public void SetTipFromModel(BMD model)
         {
             if (model?.Meshes == null)
