@@ -537,12 +537,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     }
                 }
 
-                gd.SetRenderTarget(null);
-                if (prevTargets != null && prevTargets.Length > 0)
-                {
-                    gd.SetRenderTargets(prevTargets);
-                }
-
                 return rt;
             }
             catch

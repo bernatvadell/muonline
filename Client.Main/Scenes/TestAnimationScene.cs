@@ -363,7 +363,6 @@ public class TestAnimationScene : BaseScene
         _loadingScreen.BringToFront();
     }
 
-
     private void RefreshUI()
     {
         switch (UiState)
@@ -429,9 +428,6 @@ public class TestAnimationScene : BaseScene
         });
     }
 
-
-
-
     protected override async Task LoadSceneContentWithProgress(Action<string, float> progressCallback)
     {
         UpdateLoadProgress("Initializing Character Selection...", 0.0f);
@@ -446,7 +442,7 @@ public class TestAnimationScene : BaseScene
             UpdateLoadProgress("Initializing Select World (Graphics)...", 0.1f);
             await _selectWorld.Initialize();
             World = _selectWorld;
-            UpdateLoadProgress("Select World Initialized.", 0.35f); // Zwiększony postęp po inicjalizacji świata
+            UpdateLoadProgress("Select World Initialized.", 0.35f);
             _logger.LogInformation("--- TestAnimationScene: SelectWorld initialized and set.");
 
             if (_selectWorld.Terrain != null)

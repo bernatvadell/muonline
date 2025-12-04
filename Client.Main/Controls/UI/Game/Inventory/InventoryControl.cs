@@ -544,7 +544,12 @@ namespace Client.Main.Controls.UI.Game.Inventory
             SpriteBatchScope scope = null;
             if (!SpriteBatchScope.BatchIsBegun)
             {
-                scope = new SpriteBatchScope(spriteBatch, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform);
+                scope = new SpriteBatchScope(
+                    spriteBatch,
+                    SpriteSortMode.Deferred,
+                    BlendState.AlphaBlend,
+                    GraphicsManager.GetQualityLinearSamplerState(),
+                    transform: UiScaler.SpriteTransform);
             }
 
             try
@@ -1974,8 +1979,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             var jewelEntries = new List<(InventoryItem Item, Rectangle Rect)>();
 
-            using var scoped = new SpriteBatchScope(spriteBatch, SpriteSortMode.Deferred, BlendState.AlphaBlend, GraphicsManager.GetQualityLinearSamplerState(), transform: UiScaler.SpriteTransform);
-
             Point gridTopLeft = Translate(_gridRect).Location;
             var font = GraphicsManager.Instance.Font;
             var pixel = GraphicsManager.Instance.Pixel;
@@ -2006,10 +2009,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 {
                     ItemUiHelper.DrawItemGlow(spriteBatch, pixel, itemRect, glowColor);
                 }
-
-                // Item cell background
-                var bgRect = new Rectangle(itemRect.X + 1, itemRect.Y + 1, itemRect.Width - 2, itemRect.Height - 2);
-                spriteBatch.Draw(pixel, bgRect, Theme.BgLight * 0.7f);
 
                 // Item texture
                 Texture2D itemTexture = ResolveItemTexture(item, itemRect.Width, itemRect.Height);
@@ -2055,8 +2054,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
         private void DrawEquippedItems(SpriteBatch spriteBatch)
         {
-            using var scoped = new SpriteBatchScope(spriteBatch, SpriteSortMode.Deferred, BlendState.AlphaBlend, GraphicsManager.GetQualityLinearSamplerState(), transform: UiScaler.SpriteTransform);
-
             foreach (var kv in _equippedItems)
             {
                 if (!_equipSlots.TryGetValue(kv.Key, out var slot))
@@ -2184,22 +2181,18 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             if (dragged != null)
             {
-                // When dragging, show placement highlights for all slots (green = valid, red = blocked)
-                for (int y = 0; y < Rows; y++)
+                if (_hoveredSlot.X >= 0 && _hoveredSlot.Y >= 0)
                 {
-                    for (int x = 0; x < Columns; x++)
-                    {
-                        var highlight = GetSlotHighlightColor(new Point(x, y), dragged);
-                        if (highlight.HasValue)
-                        {
-                            Rectangle slotRect = new(
-                                gridRect.X + x * INVENTORY_SQUARE_WIDTH,
-                                gridRect.Y + y * INVENTORY_SQUARE_HEIGHT,
-                                INVENTORY_SQUARE_WIDTH,
-                                INVENTORY_SQUARE_HEIGHT);
-                            spriteBatch.Draw(pixel, slotRect, highlight.Value);
-                        }
-                    }
+                    bool canPlace = CanPlaceItem(dragged, _hoveredSlot);
+                    Color overlay = canPlace ? Color.GreenYellow * 0.5f : Color.Red * 0.6f;
+
+                    Rectangle dropRect = new(
+                        gridRect.X + _hoveredSlot.X * INVENTORY_SQUARE_WIDTH,
+                        gridRect.Y + _hoveredSlot.Y * INVENTORY_SQUARE_HEIGHT,
+                        dragged.Definition.Width * INVENTORY_SQUARE_WIDTH,
+                        dragged.Definition.Height * INVENTORY_SQUARE_HEIGHT);
+
+                    spriteBatch.Draw(pixel, dropRect, overlay);
                 }
             }
             else
@@ -2540,31 +2533,6 @@ namespace Client.Main.Controls.UI.Game.Inventory
             }
 
             spriteBatch.DrawString(font, quantityText, textPosition, new Color(255, 255, 180), 0f, Vector2.Zero, textScale, SpriteEffects.None, 0f);
-        }
-
-        private Color? GetSlotHighlightColor(Point slot, InventoryItem draggedItem)
-        {
-            if (draggedItem == null || _hoveredSlot.X == -1 || _hoveredSlot.Y == -1)
-            {
-                return null;
-            }
-
-            if (!IsSlotInDropArea(slot, _hoveredSlot, draggedItem))
-            {
-                return null;
-            }
-
-            return CanPlaceItem(draggedItem, _hoveredSlot)
-                ? Color.GreenYellow * 0.5f
-                : Color.Red * 0.6f;
-        }
-
-        private static bool IsSlotInDropArea(Point slot, Point dropPosition, InventoryItem item)
-        {
-            return slot.X >= dropPosition.X &&
-                   slot.X < dropPosition.X + item.Definition.Width &&
-                   slot.Y >= dropPosition.Y &&
-                   slot.Y < dropPosition.Y + item.Definition.Height;
         }
 
         private bool IsSlotOccupiedByItem(Point slot, InventoryItem item)

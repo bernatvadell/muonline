@@ -105,8 +105,9 @@ namespace Client.Main.Controls.UI.Game
 
         private bool _wasVisible;
         private bool _closeRequestSent;
-        private bool _warmupPending;
         private bool _closeHovered;
+        private bool _pendingShow;
+        private bool _warmupComplete;
 
         // Drag support
         private bool _isDragging;
@@ -186,6 +187,28 @@ namespace Client.Main.Controls.UI.Game
         {
             base.Update(gameTime);
             EnsureCharacterState();
+
+            // Handle deferred show - wait one frame after warmup to avoid black screen
+            if (_pendingShow && !Visible)
+            {
+                if (_warmupComplete)
+                {
+                    // Warmup done in previous frame, now safe to show
+                    Visible = true;
+                    BringToFront();
+                    SoundController.Instance.PlayBuffer("Sound/iCreateWindow.wav");
+                    _pendingShow = false;
+                    _warmupComplete = false;
+                }
+                else
+                {
+                    // Do warmup this frame, show next frame
+                    WarmupTexturesSync();
+                    InvalidateStaticSurface();
+                    EnsureStaticSurface();
+                    _warmupComplete = true;
+                }
+            }
 
             if (Visible)
             {
@@ -807,6 +830,8 @@ namespace Client.Main.Controls.UI.Game
             _hoveredItem = null;
             _hoveredSlot = new Point(-1, -1);
             _isDragging = false;
+            _pendingShow = false;
+            _warmupComplete = false;
         }
 
         private bool IsModalDialogOpen()
@@ -885,37 +910,24 @@ namespace Client.Main.Controls.UI.Game
                 }
             }
 
-            QueueWarmup();
-
             if (_items.Count > 0)
             {
                 // Align left with padding before showing, then freeze position to avoid auto realignment
                 ForceAlignNow();
                 Align = ControlAlign.None;
-                Visible = true;
-                BringToFront();
-                SoundController.Instance.PlayBuffer("Sound/iCreateWindow.wav");
+                // Use deferred show - warmup happens in Update(), window shows one frame later
+                // to avoid black screen flicker from render target switches during Draw().
+                _pendingShow = true;
+                _warmupComplete = false;
                 _closeRequestSent = false;
                 _isDragging = false;
             }
         }
 
-        private void QueueWarmup()
+        private void WarmupTexturesSync()
         {
-            if (_warmupPending) return;
-            _warmupPending = true;
-            MuGame.ScheduleOnMainThread(WarmupTextures);
-        }
-
-        private void WarmupTextures()
-        {
-            _warmupPending = false;
-
             if (GraphicsManager.Instance?.Sprite == null)
-            {
-                QueueWarmup();
                 return;
-            }
 
             foreach (var item in _items)
             {
