@@ -4,6 +4,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 {
     public class ItemDefinition
     {
+        private static readonly HashSet<int> s_upgradeJewelIds = new() { 13, 14, 16 };
         public int Id { get; set; } // Unique ID of the item type (e.g., from Item.bmd)
         public string Name { get; set; }
         public int Width { get; set; }  // Width in slots
@@ -46,6 +47,14 @@ namespace Client.Main.Controls.UI.Game.Inventory
             // Group 14 = Potions (HP, MP, SD potions)
             // Group 15 = Scrolls
             return Group == 14 || Group == 15;
+        }
+
+        /// <summary>
+        /// Determines if the item is an upgrade jewel (Bless, Soul, Life).
+        /// </summary>
+        public bool IsUpgradeJewel()
+        {
+            return Group == 14 && s_upgradeJewelIds.Contains(Id);
         }
     }
 }

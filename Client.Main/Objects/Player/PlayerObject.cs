@@ -49,6 +49,25 @@ namespace Client.Main.Objects.Player
 
         public VehicleObject Vehicle { get; private set; }
 
+        private const int LeftHandBoneIndex = 33;
+        private const int RightHandBoneIndex = 42;
+        private const int BackWeaponBoneIndex = 47; // Same anchor used by wings
+
+        // Safe-zone weapon placement (editable XYZ values for clarity)
+        private static readonly Vector3[] WeaponHolsterOffsets =
+        {
+            new(-20f, 8f, 50f), // Weapon 1 (left hand) XYZ offset
+            new(20f, 8f, 50f)  // Weapon 2 (right hand) XYZ offset
+        };
+
+        private static readonly Vector3[] WeaponHolsterRotationDegrees =
+        {
+            new(60f, 0f, 90f), // Weapon 1 (left hand) rotation in degrees (X,Y,Z)
+            new(60f, 0f, -90f)  // Weapon 2 (right hand) rotation in degrees (X,Y,Z)
+        };
+
+        private bool _weaponsHolstered;
+
         private int _lastEquipmentAnimationStride = -1;
 
         // Timer for footstep sound playback
@@ -336,9 +355,9 @@ namespace Client.Main.Objects.Player
             if (leftHandDef != null)
             {
                 Weapon1.Model = await BMDLoader.Instance.Prepare(leftHandDef.TexturePath);
-                Weapon1.ParentBoneLink = 33;
                 Weapon1.LinkParentAnimation = false;
                 SetItemProperties(Weapon1, inventory[InventoryConstants.LeftHandSlot]);
+                RefreshWeaponAttachment(Weapon1, isLeftHand: true);
             }
             else
             {
@@ -350,9 +369,9 @@ namespace Client.Main.Objects.Player
             if (rightHandDef != null)
             {
                 Weapon2.Model = await BMDLoader.Instance.Prepare(rightHandDef.TexturePath);
-                Weapon2.ParentBoneLink = 42;
                 Weapon2.LinkParentAnimation = false;
                 SetItemProperties(Weapon2, inventory[InventoryConstants.RightHandSlot]);
+                RefreshWeaponAttachment(Weapon2, isLeftHand: false);
             }
             else
             {
@@ -474,13 +493,13 @@ namespace Client.Main.Objects.Player
                 if (leftHandDef != null)
                 {
                     Weapon1.Model = await BMDLoader.Instance.Prepare(leftHandDef.TexturePath);
-                    Weapon1.ParentBoneLink = 33;
                     Weapon1.LinkParentAnimation = false;
 
                     // Apply item properties for shader effects
                     Weapon1.ItemLevel = Appearance.LeftHandItemLevel;
                     Weapon1.IsExcellentItem = Appearance.LeftHandExcellent;
                     Weapon1.IsAncientItem = Appearance.LeftHandAncient;
+                    RefreshWeaponAttachment(Weapon1, isLeftHand: true);
                 }
                 else
                 {
@@ -498,13 +517,13 @@ namespace Client.Main.Objects.Player
                 if (rightHandDef != null)
                 {
                     Weapon2.Model = await BMDLoader.Instance.Prepare(rightHandDef.TexturePath);
-                    Weapon2.ParentBoneLink = 42;
                     Weapon2.LinkParentAnimation = false;
 
                     // Apply item properties for shader effects
                     Weapon2.ItemLevel = Appearance.RightHandItemLevel;
                     Weapon2.IsExcellentItem = Appearance.RightHandExcellent;
                     Weapon2.IsAncientItem = Appearance.RightHandAncient;
+                    RefreshWeaponAttachment(Weapon2, isLeftHand: false);
                 }
                 else
                 {
@@ -671,13 +690,13 @@ namespace Client.Main.Objects.Player
                 if (leftHandDef != null)
                 {
                     Weapon1.Model = await BMDLoader.Instance.Prepare(leftHandDef.TexturePath);
-                    Weapon1.ParentBoneLink = 33;
                     Weapon1.LinkParentAnimation = false;
 
                     // Apply item properties for shader effects
                     Weapon1.ItemLevel = appearanceConfig.LeftHandItemLevel;
                     Weapon1.IsExcellentItem = appearanceConfig.LeftHandExcellent;
                     Weapon1.IsAncientItem = appearanceConfig.LeftHandAncient;
+                    RefreshWeaponAttachment(Weapon1, isLeftHand: true);
                 }
                 else
                 {
@@ -695,13 +714,13 @@ namespace Client.Main.Objects.Player
                 if (rightHandDef != null)
                 {
                     Weapon2.Model = await BMDLoader.Instance.Prepare(rightHandDef.TexturePath);
-                    Weapon2.ParentBoneLink = 42;
                     Weapon2.LinkParentAnimation = false;
 
                     // Apply item properties for shader effects
                     Weapon2.ItemLevel = appearanceConfig.RightHandItemLevel;
                     Weapon2.IsExcellentItem = appearanceConfig.RightHandExcellent;
                     Weapon2.IsAncientItem = appearanceConfig.RightHandAncient;
+                    RefreshWeaponAttachment(Weapon2, isLeftHand: false);
                 }
                 else
                 {
@@ -764,9 +783,9 @@ namespace Client.Main.Objects.Player
         }
 
         // --------------- Helpers for correct animation selection ----------------
-        private MovementMode GetCurrentMovementMode(WalkableWorldControl world)
+        private MovementMode GetCurrentMovementMode(WalkableWorldControl world, TWFlags? flagsOverride = null)
         {
-            var flags = world.Terrain.RequestTerrainFlag((int)Location.X, (int)Location.Y);
+            var flags = flagsOverride ?? world.Terrain.RequestTerrainFlag((int)Location.X, (int)Location.Y);
             // Atlans (index 8) is the only place where flying is forbidden.
             if (world.WorldIndex == 8)
             {
@@ -842,6 +861,57 @@ namespace Client.Main.Objects.Player
             };
         }
 
+        private PlayerAction GetRelaxedIdleAction() => _isFemale ? PlayerAction.PlayerStopFemale : PlayerAction.PlayerStopMale;
+        private PlayerAction GetRelaxedWalkAction() => _isFemale ? PlayerAction.PlayerWalkFemale : PlayerAction.PlayerWalkMale;
+
+        private void UpdateWeaponHolsterState(bool shouldHolster)
+        {
+            if (_weaponsHolstered == shouldHolster)
+                return;
+
+            _weaponsHolstered = shouldHolster;
+            RefreshWeaponAttachment(Weapon1, isLeftHand: true);
+            RefreshWeaponAttachment(Weapon2, isLeftHand: false);
+        }
+
+        private void RefreshWeaponAttachment(WeaponObject weapon, bool isLeftHand)
+        {
+            if (weapon == null)
+                return;
+
+            ApplyWeaponAttachment(weapon, isLeftHand, _weaponsHolstered);
+        }
+
+        private static Vector3 GetHolsterOffset(bool isLeftHand) => WeaponHolsterOffsets[isLeftHand ? 0 : 1];
+
+        private static Vector3 GetHolsterRotationRadians(bool isLeftHand)
+        {
+            var degrees = WeaponHolsterRotationDegrees[isLeftHand ? 0 : 1];
+            return new Vector3(
+                MathHelper.ToRadians(degrees.X),
+                MathHelper.ToRadians(degrees.Y),
+                MathHelper.ToRadians(degrees.Z));
+        }
+
+        private void ApplyWeaponAttachment(WeaponObject weapon, bool isLeftHand, bool holster)
+        {
+            if (weapon == null)
+                return;
+
+            if (holster)
+            {
+                weapon.ParentBoneLink = BackWeaponBoneIndex;
+                weapon.Position = GetHolsterOffset(isLeftHand);
+                weapon.Angle = GetHolsterRotationRadians(isLeftHand);
+            }
+            else
+            {
+                weapon.ParentBoneLink = isLeftHand ? LeftHandBoneIndex : RightHandBoneIndex;
+                weapon.Position = Vector3.Zero;
+                weapon.Angle = Vector3.Zero;
+            }
+        }
+
         private MovementMode GetModeFromCurrentAction() =>
             CurrentAction switch
             {
@@ -852,8 +922,19 @@ namespace Client.Main.Objects.Player
                 _ => MovementMode.Walk
             };
 
-        private PlayerAction GetIdleAction(WalkableWorldControl world) =>
-            GetIdleAction(GetCurrentMovementMode(world));
+        private PlayerAction GetIdleAction(WalkableWorldControl world)
+        {
+            var flags = world.Terrain.RequestTerrainFlag((int)Location.X, (int)Location.Y);
+            return GetIdleAction(world, flags);
+        }
+
+        private PlayerAction GetIdleAction(WalkableWorldControl world, TWFlags flags)
+        {
+            if (flags.HasFlag(TWFlags.SafeZone))
+                return GetRelaxedIdleAction();
+
+            return GetIdleAction(GetCurrentMovementMode(world, flags));
+        }
 
         // --------------- LOCAL PLAYER (the one we control) ----------------
         private void UpdateLocalPlayer(WalkableWorldControl world, GameTime gameTime)
@@ -862,28 +943,42 @@ namespace Client.Main.Objects.Player
             if (HandleRestTarget(world) || HandleSitTarget())
                 return;
 
+            var flags = world.Terrain.RequestTerrainFlag((int)Location.X, (int)Location.Y);
+            bool isInSafeZone = flags.HasFlag(TWFlags.SafeZone);
+            UpdateWeaponHolsterState(isInSafeZone);
+
             bool pathQueued = _currentPath?.Count > 0;
             bool isAboutToMove = IsMoving || pathQueued || MovementIntent;
 
             var mode = (!IsMoving && (pathQueued || MovementIntent))
                 ? GetModeFromCurrentAction()
-                : GetCurrentMovementMode(world);
+                : GetCurrentMovementMode(world, flags);
 
             if (isAboutToMove)
             {
                 ResetRestSitStates();
 
-                var desired = (HasEquippedWings && mode == MovementMode.Fly)
-                    ? PlayerAction.PlayerFly
-                    : GetMovementAction(mode);
+                PlayerAction desired;
+                if (isInSafeZone)
+                {
+                    desired = GetRelaxedWalkAction();
+                }
+                else
+                {
+                    desired = (HasEquippedWings && mode == MovementMode.Fly)
+                        ? PlayerAction.PlayerFly
+                        : GetMovementAction(mode);
+                }
 
                 if (!IsOneShotPlaying && CurrentAction != desired)
                     PlayAction((ushort)desired);
                 PlayFootstepSound(world, gameTime);
             }
-            else if (!IsOneShotPlaying && CurrentAction != GetIdleAction(mode))
+            else if (!IsOneShotPlaying)
             {
-                PlayAction((ushort)GetIdleAction(mode));
+                var idleAction = isInSafeZone ? GetRelaxedIdleAction() : GetIdleAction(mode);
+                if (CurrentAction != idleAction)
+                    PlayAction((ushort)idleAction);
             }
         }
 
@@ -893,24 +988,38 @@ namespace Client.Main.Objects.Player
             bool pathQueued = _currentPath?.Count > 0;
             bool isAboutToMove = IsMoving || pathQueued || MovementIntent;
 
+            var flags = world.Terrain.RequestTerrainFlag((int)Location.X, (int)Location.Y);
+            bool isInSafeZone = flags.HasFlag(TWFlags.SafeZone);
+            UpdateWeaponHolsterState(isInSafeZone);
+
             var mode = (!IsMoving && (pathQueued || MovementIntent))
                 ? GetModeFromCurrentAction()
-                : GetCurrentMovementMode(world);
+                : GetCurrentMovementMode(world, flags);
 
             if (isAboutToMove)
             {
                 ResetRestSitStates();
-                var desired = (HasEquippedWings && mode == MovementMode.Fly)
-                    ? PlayerAction.PlayerFly
-                    : GetMovementAction(mode);
+                PlayerAction desired;
+                if (isInSafeZone)
+                {
+                    desired = GetRelaxedWalkAction();
+                }
+                else
+                {
+                    desired = (HasEquippedWings && mode == MovementMode.Fly)
+                        ? PlayerAction.PlayerFly
+                        : GetMovementAction(mode);
+                }
 
                 if (!IsOneShotPlaying && CurrentAction != desired)
                     PlayAction((ushort)desired);
                 PlayFootstepSound(world, gameTime);
             }
-            else if (!IsOneShotPlaying && CurrentAction != GetIdleAction(mode))
+            else if (!IsOneShotPlaying)
             {
-                PlayAction((ushort)GetIdleAction(mode));
+                var idleAction = isInSafeZone ? GetRelaxedIdleAction() : GetIdleAction(mode);
+                if (CurrentAction != idleAction)
+                    PlayAction((ushort)idleAction);
             }
         }
 
@@ -1731,13 +1840,14 @@ namespace Client.Main.Objects.Player
 
         private async Task UpdateWeaponSlotAsync(WeaponObject weapon, EquipmentSlotData equipmentData, int boneLink)
         {
+            bool isLeftHand = boneLink == LeftHandBoneIndex;
             var itemDef = ItemDatabase.GetItemDefinition(equipmentData.ItemGroup, (short)equipmentData.ItemNumber);
             if (itemDef != null && !string.IsNullOrEmpty(itemDef.TexturePath))
             {
                 weapon.Model = await BMDLoader.Instance.Prepare(itemDef.TexturePath);
-                weapon.ParentBoneLink = boneLink;
                 weapon.LinkParentAnimation = false;
                 SetItemPropertiesFromEquipmentData(weapon, equipmentData);
+                RefreshWeaponAttachment(weapon, isLeftHand);
             }
             else
             {

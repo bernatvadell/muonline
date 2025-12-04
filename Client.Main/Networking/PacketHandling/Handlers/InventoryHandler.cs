@@ -476,6 +476,31 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
+        [PacketHandler(0xF3, 0x14)]  // InventoryItemUpgraded
+        public Task HandleInventoryItemUpgradedAsync(Memory<byte> packet)
+        {
+            try
+            {
+                if (packet.Length < 6)
+                {
+                    _logger.LogWarning("InventoryItemUpgraded packet too short: {Length}", packet.Length);
+                    return Task.CompletedTask;
+                }
+
+                var upgraded = new InventoryItemUpgraded(packet);
+                var data = upgraded.ItemData.ToArray();
+                _characterState.AddOrUpdateInventoryItem(upgraded.InventorySlot, data);
+                string itemName = ItemDatabase.GetItemName(data) ?? "Unknown Item";
+                _logger.LogInformation("Item upgraded in slot {Slot}: {ItemName}", upgraded.InventorySlot, itemName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing InventoryItemUpgraded packet.");
+            }
+
+            return Task.CompletedTask;
+        }
+
         // ────────────────────────── Helpers ────────────────────────────
 
         /// <summary>

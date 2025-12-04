@@ -1355,6 +1355,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
                             ReleasePickedItem();
                         }
+                        else if (TryUsePickedJewelOnInventory(gridSlot))
+                        {
+                            return;
+                        }
                     }
                     else if (_hoveredItem != null)
                     {
@@ -1376,6 +1380,11 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 {
                     if (_hoveredItem.Definition?.IsConsumable() == true)
                     {
+                        if (_hoveredItem.Definition.IsUpgradeJewel())
+                        {
+                            return;
+                        }
+
                         string itemName = _hoveredItem.Definition?.Name?.ToLowerInvariant() ?? string.Empty;
                         if (itemName.Contains("apple"))
                         {
@@ -1410,6 +1419,11 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     if (_pickedItemRenderer.Item != null)
                     {
                         var itemToPlace = _pickedItemRenderer.Item;
+
+                        if (TryUsePickedJewelOnEquipment((byte)_hoveredEquipSlot))
+                        {
+                            return;
+                        }
 
                         byte fromSlot = 0;
                         if (_pickedItemOriginalGrid.X >= 0)
@@ -1577,6 +1591,131 @@ namespace Client.Main.Controls.UI.Game.Inventory
         private InventoryItem _pickedItem_renderer_item() => _pickedItemRenderer.Item;
 
         private bool _network_manager_exists() => _networkManager != null;
+
+        private bool TryUsePickedJewelOnInventory(Point gridSlot)
+        {
+            if (!IsUpgradeJewel(_pickedItemRenderer.Item) || !IsWithinGrid(gridSlot))
+            {
+                return false;
+            }
+
+            var targetItem = _itemGrid[gridSlot.X, gridSlot.Y];
+            if (targetItem == null)
+            {
+                return false;
+            }
+
+            byte targetSlot = (byte)(InventorySlotOffsetConstant + (targetItem.GridPosition.Y * Columns) + targetItem.GridPosition.X);
+            return TryConsumePickedUpgradeJewel(targetSlot);
+        }
+
+        private bool TryUsePickedJewelOnEquipment(byte equipSlot)
+        {
+            if (!IsUpgradeJewel(_pickedItemRenderer.Item))
+            {
+                return false;
+            }
+
+            if (!_equippedItems.ContainsKey(equipSlot))
+            {
+                return false;
+            }
+
+            return TryConsumePickedUpgradeJewel(equipSlot);
+        }
+
+        private bool TryConsumePickedUpgradeJewel(byte targetSlot)
+        {
+            if (!IsUpgradeJewel(_pickedItemRenderer.Item))
+            {
+                return false;
+            }
+
+            byte? jewelSlot = GetPickedItemSlotIndex();
+            if (jewelSlot == null)
+            {
+                _logger?.LogWarning("Cannot apply jewel: source slot is unknown.");
+                return false;
+            }
+
+            if (_networkManager == null)
+            {
+                _logger?.LogWarning("Cannot apply jewel: not connected to the server.");
+                RestorePickedItemToOriginalLocation();
+                return true;
+            }
+
+            QueueConsumeItemRequest(jewelSlot.Value, targetSlot);
+            ReleasePickedItem();
+            return true;
+        }
+
+        private void QueueConsumeItemRequest(byte itemSlot, byte targetSlot)
+        {
+            if (_networkManager == null)
+            {
+                return;
+            }
+
+            var svc = _networkManager.GetCharacterService();
+            _ = Task.Run(async () =>
+            {
+                await svc.SendConsumeItemRequestAsync(itemSlot, targetSlot);
+                await Task.Delay(300);
+
+                var state = _networkManager?.GetCharacterState();
+                if (state != null)
+                {
+                    MuGame.ScheduleOnMainThread(() => state.RaiseInventoryChanged());
+                }
+            });
+        }
+
+        private byte? GetPickedItemSlotIndex()
+        {
+            if (_pickedItemOriginalGrid.X >= 0)
+            {
+                return (byte)(InventorySlotOffsetConstant + (_pickedItemOriginalGrid.Y * Columns) + _pickedItemOriginalGrid.X);
+            }
+
+            if (_pickedFromEquipSlot >= 0)
+            {
+                return (byte)_pickedFromEquipSlot;
+            }
+
+            return null;
+        }
+
+        private void RestorePickedItemToOriginalLocation()
+        {
+            var item = _pickedItemRenderer.Item;
+            if (item == null)
+            {
+                return;
+            }
+
+            if (_pickedItemOriginalGrid.X >= 0)
+            {
+                item.GridPosition = _pickedItemOriginalGrid;
+                AddItem(item);
+            }
+            else if (_pickedFromEquipSlot >= 0)
+            {
+                _equippedItems[(byte)_pickedFromEquipSlot] = item;
+            }
+
+            ReleasePickedItem();
+        }
+
+        private static bool IsUpgradeJewel(InventoryItem item)
+        {
+            return item?.Definition?.IsUpgradeJewel() == true;
+        }
+
+        private static bool IsWithinGrid(Point slot)
+        {
+            return slot.X >= 0 && slot.X < Columns && slot.Y >= 0 && slot.Y < Rows;
+        }
 
         private void PlaceItemOnGrid(InventoryItem item)
         {
