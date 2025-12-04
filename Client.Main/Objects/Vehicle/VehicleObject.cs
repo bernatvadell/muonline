@@ -7,6 +7,23 @@ namespace Client.Main.Objects.Vehicle;
 
 public class VehicleObject : ModelObject
 {
+    // Vehicle animation indices
+    public const int AnimationIdle = 1;
+    public const int AnimationRun = 3;
+    public const int AnimationSkill = 5; // Plasma Storm etc.
+
+    // Vehicle IDs that have root motion in their run animation and need position locking
+    private static readonly HashSet<int> VehiclesWithRootMotion = new()
+    {
+        7,  // Rider 01 (Uniria/Dinorant)
+        8,  // Rider 02
+        27, // Pon Up Ride
+        28, // Pon Ride
+        22, // Griffs Up Ride
+        23, // Griffs Ride
+        30, // Rippen Up Ride
+        31, // Rippen Ride
+    };
 
     private short itemIndex = -1;
     public short ItemIndex
@@ -51,9 +68,36 @@ public class VehicleObject : ModelObject
         {
             Status = GameControlStatus.Error;
         }
-        else if (Status == GameControlStatus.Error)
+        else
         {
-            Status = GameControlStatus.Ready;
+            if (Status == GameControlStatus.Error)
+            {
+                Status = GameControlStatus.Ready;
+            }
+
+            // For vehicles with root motion in their animations, lock positions to prevent drifting
+            if (VehiclesWithRootMotion.Contains(itemIndex))
+            {
+                ApplyPositionLockToAnimations();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Forces LockPositions on all animations for vehicles that have root motion baked in.
+    /// This prevents the vehicle from drifting ahead during run animations.
+    /// </summary>
+    private void ApplyPositionLockToAnimations()
+    {
+        if (Model?.Actions == null)
+            return;
+
+        foreach (var action in Model.Actions)
+        {
+            if (action != null && !action.LockPositions)
+            {
+                action.LockPositions = true;
+            }
         }
     }
 
@@ -65,7 +109,28 @@ public class VehicleObject : ModelObject
     public override void Update(GameTime gameTime)
     {
         base.Update(gameTime);
+    }
 
+    /// <summary>
+    /// Sets the vehicle animation based on rider state.
+    /// </summary>
+    public void SetRiderAnimation(bool isMoving, bool isUsingSkill = false)
+    {
+        if (Model == null || Hidden)
+            return;
+
+        int targetAnim;
+        if (isUsingSkill)
+            targetAnim = AnimationSkill;
+        else if (isMoving)
+            targetAnim = AnimationRun;
+        else
+            targetAnim = AnimationIdle;
+
+        if (CurrentAction != targetAnim)
+        {
+            CurrentAction = targetAnim;
+        }
     }
 
     public override void Draw(GameTime gameTime)

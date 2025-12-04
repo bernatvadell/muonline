@@ -68,6 +68,10 @@ namespace Client.Main.Objects.Player
 
         private bool _weaponsHolstered;
 
+        // Vehicle/mount state
+        private bool _isRiding;
+        private short _currentVehicleIndex = -1;
+
         private int _lastEquipmentAnimationStride = -1;
 
         // Timer for footstep sound playback
@@ -132,7 +136,7 @@ namespace Client.Main.Objects.Player
             Weapon1 = new WeaponObject { };
             Weapon2 = new WeaponObject { };
             EquippedWings = new WingObject { LinkParentAnimation = true, Hidden = true };
-            Vehicle = new VehicleObject { };
+            Vehicle = new VehicleObject { Hidden = true };
 
             Children.Add(HelmMask);
             Children.Add(Helm);
@@ -554,7 +558,7 @@ namespace Client.Main.Objects.Player
                     bool helmTextureExists = await BMDLoader.Instance.AssestExist(helmTexturePath);
                     if (!helmTextureExists)
                     {
-                        helmTexturePath = helmDef.TexturePath;   
+                        helmTexturePath = helmDef.TexturePath;
                     }
                     await LoadPartAsync(Helm, helmTexturePath);
                 }
@@ -574,7 +578,7 @@ namespace Client.Main.Objects.Player
                     bool armorTextureExists = await BMDLoader.Instance.AssestExist(armorTexturePath);
                     if (!armorTextureExists)
                     {
-                        armorTexturePath = armorDef.TexturePath;   
+                        armorTexturePath = armorDef.TexturePath;
                     }
                     await LoadPartAsync(Armor, armorTexturePath);
                 }
@@ -595,7 +599,7 @@ namespace Client.Main.Objects.Player
                     bool pantsTextureExists = await BMDLoader.Instance.AssestExist(pantsTexturePath);
                     if (!pantsTextureExists)
                     {
-                        pantsTexturePath = pantsDef.TexturePath;   
+                        pantsTexturePath = pantsDef.TexturePath;
                     }
                     await LoadPartAsync(Pants, pantsTexturePath);
                 }
@@ -616,7 +620,7 @@ namespace Client.Main.Objects.Player
                     bool glovesTextureExists = await BMDLoader.Instance.AssestExist(glovesTexturePath);
                     if (!glovesTextureExists)
                     {
-                        glovesTexturePath = glovesDef.TexturePath;   
+                        glovesTexturePath = glovesDef.TexturePath;
                     }
                     _logger?.LogInformation($"[PlayerObject] Loading gloves: Group=10, ID={appearanceConfig.GlovesItemIndex}, ItemTexturePath={glovesDef.TexturePath}, PlayerTexturePath={glovesTexturePath}");
                     await LoadPartAsync(Gloves, glovesTexturePath);
@@ -642,7 +646,7 @@ namespace Client.Main.Objects.Player
                     bool bootsTextureExists = await BMDLoader.Instance.AssestExist(bootsTexturePath);
                     if (!bootsTextureExists)
                     {
-                        bootsTexturePath = bootsDef.TexturePath;   
+                        bootsTexturePath = bootsDef.TexturePath;
                     }
                     _logger?.LogInformation($"[PlayerObject] Loading boots: Group=11, ID={appearanceConfig.BootsItemIndex}, ItemTexturePath={bootsDef.TexturePath}, PlayerTexturePath={bootsTexturePath}");
                     await LoadPartAsync(Boots, bootsTexturePath);
@@ -864,6 +868,157 @@ namespace Client.Main.Objects.Player
         private PlayerAction GetRelaxedIdleAction() => _isFemale ? PlayerAction.PlayerStopFemale : PlayerAction.PlayerStopMale;
         private PlayerAction GetRelaxedWalkAction() => _isFemale ? PlayerAction.PlayerWalkFemale : PlayerAction.PlayerWalkMale;
 
+        // ───────────────────────────────── VEHICLE/MOUNT SUPPORT ─────────────────────────────────
+
+        /// <summary>
+        /// Checks if the player has a rideable pet equipped (Horn of Fenrir, Dark Horse, etc.)
+        /// </summary>
+        private bool HasRideablePetEquipped(out short vehicleIndex)
+        {
+            vehicleIndex = -1;
+
+            if (_networkManager == null)
+                return false;
+
+            var charState = _networkManager.GetCharacterState();
+            var inventory = charState.GetInventoryItems();
+
+            // Check pet slot (slot 8)
+            if (!inventory.TryGetValue(InventoryConstants.PetSlot, out var petData))
+                return false;
+
+            var itemDef = ItemDatabase.GetItemDefinition(petData);
+            if (itemDef == null)
+                return false;
+
+            string itemName = itemDef.Name?.ToLowerInvariant() ?? string.Empty;
+
+            // Map pet items to vehicle indices
+            vehicleIndex = MapPetToVehicleIndex(itemName, itemDef.Id);
+            return vehicleIndex >= 0;
+        }
+
+        /// <summary>
+        /// Maps pet item name/id to the corresponding VehicleDatabase index.
+        /// </summary>
+        private static short MapPetToVehicleIndex(string itemNameLower, int itemId)
+        {
+            // Dark Horse variations
+            if (itemNameLower.Contains("dark horse"))
+                return 0; // Dark Horse
+
+            // Dinorant
+            if (itemNameLower.Contains("uniria"))
+                return 7; // Rider 01
+
+            if (itemNameLower.Contains("dinorant"))
+                return 8; // Rider 02
+                
+            // Horn of Fenrir variations - check for different colors
+            if (itemNameLower.Contains("horn of"))
+            {
+                if (itemNameLower.Contains("black") || itemNameLower.Contains("fenrir"))
+                    return 15; // Fenrir Black
+                if (itemNameLower.Contains("blue"))
+                    return 16; // Fenrir Blue
+                if (itemNameLower.Contains("gold"))
+                    return 17; // Fenrir Gold
+                if (itemNameLower.Contains("red"))
+                    return 18; // Fenrir Red
+
+                // Default Fenrir
+                return 18; // Fenrir Red as default
+            }
+
+            return -1; // Not a rideable pet
+        }
+
+        /// <summary>
+        /// Updates the vehicle visibility and animations based on current zone (for local player).
+        /// </summary>
+        private void UpdateVehicleState(bool isInSafeZone)
+        {
+            bool hasRideablePet = HasRideablePetEquipped(out short vehicleIndex);
+            bool shouldRide = hasRideablePet && !isInSafeZone;
+
+            if (shouldRide != _isRiding || (shouldRide && vehicleIndex != _currentVehicleIndex))
+            {
+                _isRiding = shouldRide;
+                _currentVehicleIndex = shouldRide ? vehicleIndex : (short)-1;
+
+                if (Vehicle != null)
+                {
+                    Vehicle.Hidden = !shouldRide;
+                    if (shouldRide)
+                    {
+                        Vehicle.ItemIndex = vehicleIndex;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Updates the vehicle visibility for remote players based on AppearanceData.
+        /// </summary>
+        private void UpdateVehicleStateFromAppearance(bool isInSafeZone)
+        {
+            if (Appearance.RawData.IsEmpty)
+                return;
+
+            // Check appearance flags for rideable pets
+            short vehicleIndex = -1;
+
+            if (Appearance.HasDarkHorse)
+            {
+                vehicleIndex = 0; // Dark Horse
+            }
+            else if (Appearance.HasFenrir)
+            {
+                vehicleIndex = 18; // Default Fenrir (red)
+            }
+
+            bool hasRideablePet = vehicleIndex >= 0;
+            bool shouldRide = hasRideablePet && !isInSafeZone;
+
+            if (shouldRide != _isRiding || (shouldRide && vehicleIndex != _currentVehicleIndex))
+            {
+                _isRiding = shouldRide;
+                _currentVehicleIndex = shouldRide ? vehicleIndex : (short)-1;
+
+                if (Vehicle != null)
+                {
+                    Vehicle.Hidden = !shouldRide;
+                    if (shouldRide)
+                    {
+                        Vehicle.ItemIndex = vehicleIndex;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets the appropriate movement action when riding a mount.
+        /// </summary>
+        private PlayerAction GetRidingMovementAction()
+        {
+            // Dark Horse has a specific animation
+            if (_currentVehicleIndex == 0) // Dark Horse
+                return PlayerAction.PlayerRunRideHorse;
+
+            // Default riding animation for Fenrir, Dinorant, etc.
+            return PlayerAction.PlayerRunRide;
+        }
+
+        /// <summary>
+        /// Gets the appropriate idle action when riding a mount.
+        /// Player should always use PlayerStopRide for proper sitting position on mount.
+        /// </summary>
+        private PlayerAction GetRidingIdleAction()
+        {
+            // All mounts use the same riding idle animation for proper sitting position
+            return PlayerAction.PlayerStopRide;
+        }
+
         private void UpdateWeaponHolsterState(bool shouldHolster)
         {
             if (_weaponsHolstered == shouldHolster)
@@ -946,6 +1101,7 @@ namespace Client.Main.Objects.Player
             var flags = world.Terrain.RequestTerrainFlag((int)Location.X, (int)Location.Y);
             bool isInSafeZone = flags.HasFlag(TWFlags.SafeZone);
             UpdateWeaponHolsterState(isInSafeZone);
+            UpdateVehicleState(isInSafeZone);
 
             bool pathQueued = _currentPath?.Count > 0;
             bool isAboutToMove = IsMoving || pathQueued || MovementIntent;
@@ -963,6 +1119,13 @@ namespace Client.Main.Objects.Player
                 {
                     desired = GetRelaxedWalkAction();
                 }
+                else if (_isRiding)
+                {
+                    // Use riding animation when mounted
+                    desired = GetRidingMovementAction();
+                    // Sync vehicle animation
+                    Vehicle?.SetRiderAnimation(isMoving: true);
+                }
                 else
                 {
                     desired = (HasEquippedWings && mode == MovementMode.Fly)
@@ -976,7 +1139,23 @@ namespace Client.Main.Objects.Player
             }
             else if (!IsOneShotPlaying)
             {
-                var idleAction = isInSafeZone ? GetRelaxedIdleAction() : GetIdleAction(mode);
+                PlayerAction idleAction;
+                if (isInSafeZone)
+                {
+                    idleAction = GetRelaxedIdleAction();
+                }
+                else if (_isRiding)
+                {
+                    // Use riding idle animation when mounted
+                    idleAction = GetRidingIdleAction();
+                    // Sync vehicle animation
+                    Vehicle?.SetRiderAnimation(isMoving: false);
+                }
+                else
+                {
+                    idleAction = GetIdleAction(mode);
+                }
+
                 if (CurrentAction != idleAction)
                     PlayAction((ushort)idleAction);
             }
@@ -991,6 +1170,7 @@ namespace Client.Main.Objects.Player
             var flags = world.Terrain.RequestTerrainFlag((int)Location.X, (int)Location.Y);
             bool isInSafeZone = flags.HasFlag(TWFlags.SafeZone);
             UpdateWeaponHolsterState(isInSafeZone);
+            UpdateVehicleStateFromAppearance(isInSafeZone);
 
             var mode = (!IsMoving && (pathQueued || MovementIntent))
                 ? GetModeFromCurrentAction()
@@ -1003,6 +1183,13 @@ namespace Client.Main.Objects.Player
                 if (isInSafeZone)
                 {
                     desired = GetRelaxedWalkAction();
+                }
+                else if (_isRiding)
+                {
+                    // Use riding animation when mounted
+                    desired = GetRidingMovementAction();
+                    // Sync vehicle animation
+                    Vehicle?.SetRiderAnimation(isMoving: true);
                 }
                 else
                 {
@@ -1017,7 +1204,23 @@ namespace Client.Main.Objects.Player
             }
             else if (!IsOneShotPlaying)
             {
-                var idleAction = isInSafeZone ? GetRelaxedIdleAction() : GetIdleAction(mode);
+                PlayerAction idleAction;
+                if (isInSafeZone)
+                {
+                    idleAction = GetRelaxedIdleAction();
+                }
+                else if (_isRiding)
+                {
+                    // Use riding idle animation when mounted
+                    idleAction = GetRidingIdleAction();
+                    // Sync vehicle animation
+                    Vehicle?.SetRiderAnimation(isMoving: false);
+                }
+                else
+                {
+                    idleAction = GetIdleAction(mode);
+                }
+
                 if (CurrentAction != idleAction)
                     PlayAction((ushort)idleAction);
             }
