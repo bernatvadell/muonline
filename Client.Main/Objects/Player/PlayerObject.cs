@@ -71,6 +71,7 @@ namespace Client.Main.Objects.Player
         // Vehicle/mount state
         private bool _isRiding;
         private short _currentVehicleIndex = -1;
+        private float _currentRiderHeightOffset = 0f;
 
         private int _lastEquipmentAnimationStride = -1;
 
@@ -196,6 +197,10 @@ namespace Client.Main.Objects.Player
             SetActionSpeed(PlayerAction.PlayerStopFemale, 0.5f);
             SetActionSpeed(PlayerAction.PlayerStopFly, 0.5f);
 
+            // Fenrir riding animations need to be faster (2x speed)
+            SetActionSpeed(PlayerAction.PlayerFenrirRun, 2.0f);
+            SetActionSpeed(PlayerAction.PlayerFenrirStand, 1.0f);
+
             UpdateWorldBoundingBox();
         }
 
@@ -226,6 +231,10 @@ namespace Client.Main.Objects.Player
             SetActionSpeed(PlayerAction.PlayerStopMale, 0.5f);
             SetActionSpeed(PlayerAction.PlayerStopFemale, 0.5f);
             SetActionSpeed(PlayerAction.PlayerStopFly, 0.5f);
+
+            // Fenrir riding animations need to be faster (2x speed)
+            SetActionSpeed(PlayerAction.PlayerFenrirRun, 2.0f);
+            SetActionSpeed(PlayerAction.PlayerFenrirStand, 2.0f);
 
             UpdateWorldBoundingBox();
         }
@@ -918,16 +927,16 @@ namespace Client.Main.Objects.Player
             if (itemNameLower.Contains("horn of"))
             {
                 if (itemNameLower.Contains("black") || itemNameLower.Contains("fenrir"))
-                    return 15; // Fenrir Black
+                    return 11; // Fenrir Black
                 if (itemNameLower.Contains("blue"))
-                    return 16; // Fenrir Blue
+                    return 12; // Fenrir Blue
                 if (itemNameLower.Contains("gold"))
-                    return 17; // Fenrir Gold
+                    return 13; // Fenrir Gold
                 if (itemNameLower.Contains("red"))
-                    return 18; // Fenrir Red
+                    return 14; // Fenrir Red
 
                 // Default Fenrir
-                return 18; // Fenrir Red as default
+                return 14; // Fenrir Red as default
             }
 
             return -1; // Not a rideable pet
@@ -955,6 +964,9 @@ namespace Client.Main.Objects.Player
                     }
                 }
             }
+
+            // Apply rider height offset when riding
+            ApplyRiderHeightOffset();
         }
 
         /// <summary>
@@ -974,7 +986,7 @@ namespace Client.Main.Objects.Player
             }
             else if (Appearance.HasFenrir)
             {
-                vehicleIndex = 18; // Default Fenrir (red)
+                vehicleIndex = 14; // Default Fenrir (red)
             }
 
             bool hasRideablePet = vehicleIndex >= 0;
@@ -994,6 +1006,41 @@ namespace Client.Main.Objects.Player
                     }
                 }
             }
+
+            // Apply rider height offset when riding
+            ApplyRiderHeightOffset();
+        }
+
+        /// <summary>
+        /// Applies the rider height offset from the current vehicle to the player's position.
+        /// This raises or lowers the player model to sit correctly on the mount.
+        /// The offset is applied additively, preserving any existing Position offset.
+        /// The vehicle gets a compensating negative offset to stay at ground level.
+        /// </summary>
+        private void ApplyRiderHeightOffset()
+        {
+            float targetOffset = 0f;
+
+            if (_isRiding && Vehicle != null && !Vehicle.Hidden)
+            {
+                targetOffset = Vehicle.RiderHeightOffset;
+            }
+
+            // Only update if the offset changed
+            if (Math.Abs(_currentRiderHeightOffset - targetOffset) > 0.01f)
+            {
+                // Remove old offset and apply new one
+                float deltaOffset = targetOffset - _currentRiderHeightOffset;
+                Position = new Vector3(Position.X, Position.Y, Position.Z + deltaOffset);
+                _currentRiderHeightOffset = targetOffset;
+
+                // Apply compensating negative offset to the vehicle so it stays at ground level
+                // (since vehicle inherits parent transform, we need to counter the player's Z offset)
+                if (Vehicle != null)
+                {
+                    Vehicle.Position = new Vector3(Vehicle.Position.X, Vehicle.Position.Y, -targetOffset);
+                }
+            }
         }
 
         /// <summary>
@@ -1001,22 +1048,53 @@ namespace Client.Main.Objects.Player
         /// </summary>
         private PlayerAction GetRidingMovementAction()
         {
+            // Fenrir variants have special running animation
+            if (_currentVehicleIndex >= 11 && _currentVehicleIndex <= 18) // All Fenrir variants
+                return PlayerAction.PlayerFenrirRun;
+
             // Dark Horse has a specific animation
             if (_currentVehicleIndex == 0) // Dark Horse
                 return PlayerAction.PlayerRunRideHorse;
 
-            // Default riding animation for Fenrir, Dinorant, etc.
+            // Default riding animation for Dinorant, Uniria, etc.
             return PlayerAction.PlayerRunRide;
         }
 
         /// <summary>
         /// Gets the appropriate idle action when riding a mount.
-        /// Player should always use PlayerStopRide for proper sitting position on mount.
         /// </summary>
         private PlayerAction GetRidingIdleAction()
         {
-            // All mounts use the same riding idle animation for proper sitting position
+            // Fenrir variants have special standing animation
+            if (_currentVehicleIndex >= 11 && _currentVehicleIndex <= 18) // All Fenrir variants
+                return PlayerAction.PlayerFenrirStand;
+
+            // All other mounts use the same riding idle animation
             return PlayerAction.PlayerStopRide;
+        }
+
+        /// <summary>
+        /// Triggers the vehicle skill animation when the player uses a skill while riding.
+        /// Should be called when a skill animation is played.
+        /// </summary>
+        public void TriggerVehicleSkillAnimation()
+        {
+            if (_isRiding && Vehicle != null && !Vehicle.Hidden)
+            {
+                Vehicle.SetRiderAnimation(isMoving: false, isUsingSkill: true);
+            }
+        }
+
+        /// <summary>
+        /// Resets the vehicle animation after skill animation completes.
+        /// </summary>
+        public void ResetVehicleAnimation()
+        {
+            if (_isRiding && Vehicle != null && !Vehicle.Hidden)
+            {
+                bool isMoving = IsMoving || _currentPath?.Count > 0 || MovementIntent;
+                Vehicle.SetRiderAnimation(isMoving: isMoving, isUsingSkill: false);
+            }
         }
 
         private void UpdateWeaponHolsterState(bool shouldHolster)

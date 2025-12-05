@@ -11,6 +11,8 @@ public static class VehicleDatabase
                 Id = 0,
                 Name = "Dark Horse",
                 TexturePath = "DarkHorse.bmd",
+                RiderHeightOffset = 20f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -19,6 +21,8 @@ public static class VehicleDatabase
                 Id = 1,
                 Name = "Divine Horse",
                 TexturePath = "Divine_Horse.bmd",
+                RiderHeightOffset = 20f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -27,6 +31,8 @@ public static class VehicleDatabase
                 Id = 2,
                 Name = "Giant Dark Wizard 01",
                 TexturePath = "Giant_DarkWizard_01.bmd",
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -35,6 +41,8 @@ public static class VehicleDatabase
                 Id = 3,
                 Name = "Giant Elf 01",
                 TexturePath = "Giant_Elf_01.bmd",
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -43,6 +51,8 @@ public static class VehicleDatabase
                 Id = 4,
                 Name = "Giant Grow Lancer 01",
                 TexturePath = "Giant_GrowLancer_01.bmd",
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -51,6 +61,8 @@ public static class VehicleDatabase
                 Id = 5,
                 Name = "Leviathan",
                 TexturePath = "Leviathan.bmd",
+                RiderHeightOffset = 15f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -59,6 +71,8 @@ public static class VehicleDatabase
                 Id = 6,
                 Name = "Leviathan rare",
                 TexturePath = "Leviathan_rare.bmd",
+                RiderHeightOffset = 15f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -67,6 +81,8 @@ public static class VehicleDatabase
                 Id = 7,
                 Name = "Rider 01",
                 TexturePath = "Rider01.bmd",
+                RiderHeightOffset = 0f, // Uniria - sits correctly
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -75,6 +91,8 @@ public static class VehicleDatabase
                 Id = 8,
                 Name = "Rider 02",
                 TexturePath = "Rider02.bmd",
+                RiderHeightOffset = 30f, // Dinorant - rider too low
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -83,6 +101,8 @@ public static class VehicleDatabase
                 Id = 9,
                 Name = "Ur",
                 TexturePath = "Ur.bmd",
+                RiderHeightOffset = 15f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -91,6 +111,8 @@ public static class VehicleDatabase
                 Id = 10,
                 Name = "Ur Up",
                 TexturePath = "UrUp.bmd",
+                RiderHeightOffset = 15f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -99,6 +121,8 @@ public static class VehicleDatabase
                 Id = 11,
                 Name = "Fenril Black",
                 TexturePath = "fenril_black.bmd",
+                RiderHeightOffset = 0f, // Fenrir variants - rider too low
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -107,6 +131,8 @@ public static class VehicleDatabase
                 Id = 12,
                 Name = "Fenril Blue",
                 TexturePath = "fenril_blue.bmd",
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -115,6 +141,8 @@ public static class VehicleDatabase
                 Id = 13,
                 Name = "Fenril Gold",
                 TexturePath = "fenril_gold.bmd",
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -123,6 +151,8 @@ public static class VehicleDatabase
                 Id = 14,
                 Name = "Fenril Red",
                 TexturePath = "fenril_red.bmd",
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -131,6 +161,8 @@ public static class VehicleDatabase
                 Id = 15,
                 Name = "Fenrir Black",
                 TexturePath = "fenrir_black.bmd",
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -139,6 +171,8 @@ public static class VehicleDatabase
                 Id = 16,
                 Name = "Fenrir Blue",
                 TexturePath = "fenrir_blue.bmd",
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -147,6 +181,8 @@ public static class VehicleDatabase
                 Id = 17,
                 Name = "Fenrir Gold",
                 TexturePath = "fenrir_gold.bmd",
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -155,6 +191,8 @@ public static class VehicleDatabase
                 Id = 18,
                 Name = "Fenrir Red",
                 TexturePath = "fenrir_red.bmd",
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -163,6 +201,8 @@ public static class VehicleDatabase
                 Id = 19,
                 Name = "Fiercelion",
                 TexturePath = "fiercelion.bmd",
+                RiderHeightOffset = 20f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -171,6 +211,8 @@ public static class VehicleDatabase
                 Id = 20,
                 Name = "Fiercelion Rare",
                 TexturePath = "fiercelionR.bmd",
+                RiderHeightOffset = 20f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -179,6 +221,8 @@ public static class VehicleDatabase
                 Id = 21,
                 Name = "Ghost Horse",
                 TexturePath = "ghost_horse.bmd",
+                RiderHeightOffset = 20f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -187,6 +231,8 @@ public static class VehicleDatabase
                 Id = 22,
                 Name = "Griffs Up Ride",
                 TexturePath = "griffsUp_ride.bmd",
+                RiderHeightOffset = 15f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -195,6 +241,8 @@ public static class VehicleDatabase
                 Id = 23,
                 Name = "Griffs Ride",
                 TexturePath = "griffs_ride.bmd",
+                RiderHeightOffset = 15f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -203,6 +251,8 @@ public static class VehicleDatabase
                 Id = 24,
                 Name = "Ice Dragon",
                 TexturePath = "icedragon.bmd",
+                RiderHeightOffset = 15f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -211,6 +261,8 @@ public static class VehicleDatabase
                 Id = 25,
                 Name = "Ice Dragon Rare",
                 TexturePath = "icedragon_rare.bmd",
+                RiderHeightOffset = 15f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -219,6 +271,8 @@ public static class VehicleDatabase
                 Id = 26,
                 Name = "Magma Horse",
                 TexturePath = "magma_horse.bmd",
+                RiderHeightOffset = 20f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -227,6 +281,8 @@ public static class VehicleDatabase
                 Id = 27,
                 Name = "Pon Up Ride",
                 TexturePath = "ponUp_ride.bmd",
+                RiderHeightOffset = 15f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -235,6 +291,8 @@ public static class VehicleDatabase
                 Id = 28,
                 Name = "Pon Ride",
                 TexturePath = "pon_ride.bmd",
+                RiderHeightOffset = 15f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -243,6 +301,8 @@ public static class VehicleDatabase
                 Id = 29,
                 Name = "Rare Shining Tails",
                 TexturePath = "rare_shiningtails.bmd",
+                RiderHeightOffset = 15f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -251,6 +311,8 @@ public static class VehicleDatabase
                 Id = 30,
                 Name = "Rippen Up Ride",
                 TexturePath = "rippenUp_ride.bmd",
+                RiderHeightOffset = 15f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -259,6 +321,8 @@ public static class VehicleDatabase
                 Id = 31,
                 Name = "Rippen Ride",
                 TexturePath = "rippen_ride.bmd",
+                RiderHeightOffset = 15f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -267,6 +331,8 @@ public static class VehicleDatabase
                 Id = 32,
                 Name = "Shining Tails",
                 TexturePath = "shiningtails.bmd",
+                RiderHeightOffset = 15f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -275,6 +341,8 @@ public static class VehicleDatabase
                 Id = 33,
                 Name = "Wolfpet Vehicle",
                 TexturePath = "wolfpetVehicle.bmd",
+                RiderHeightOffset = 20f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
         {
@@ -283,6 +351,8 @@ public static class VehicleDatabase
                 Id = 34,
                 Name = "Wolfpet Vehicle Evol",
                 TexturePath = "wolfpetVehicle_evol.bmd",
+                RiderHeightOffset = 20f,
+                AnimationSpeedMultiplier = 4.0f,
             }
         },
     };

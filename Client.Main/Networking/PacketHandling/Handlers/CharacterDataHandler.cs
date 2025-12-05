@@ -1135,6 +1135,9 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             SoundController.Instance.PlayBuffer(soundPath);
                         }
 
+                        // Trigger vehicle skill animation if riding
+                        activeScene.Hero.TriggerVehicleSkillAnimation();
+
                         if (animationId > 0)
                         {
                             activeScene.Hero.PlayAction((ushort)animationId);
@@ -1201,6 +1204,9 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         {
                             SoundController.Instance.PlayBuffer(soundPath);
                         }
+
+                        // Trigger vehicle skill animation if riding
+                        activeScene.Hero.TriggerVehicleSkillAnimation();
 
                         if (animationId > 0)
                         {

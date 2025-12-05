@@ -139,6 +139,11 @@ namespace Client.Main.Objects
         public float AnimationSpeed { get; set; } = 4f;
         public bool ContinuousAnimation { get; set; }
         public bool PreventLastFrameInterpolation { get; set; }
+        /// <summary>
+        /// When true, the animation will stop at the last frame instead of looping.
+        /// Used for one-shot animations like skills or deaths.
+        /// </summary>
+        protected bool HoldOnLastFrame { get; set; }
         public static ILoggerFactory AppLoggerFactory { get; private set; }
 
         public static void SetLoggerFactory(ILoggerFactory loggerFactory)
@@ -1820,7 +1825,7 @@ namespace Client.Main.Objects
 
             _animTime += delta * (action.PlaySpeed == 0 ? 1.0f : action.PlaySpeed) * AnimationSpeed;
             double framePos;
-            if (isDeathAction)
+            if (isDeathAction || HoldOnLastFrame)
             {
                 int endIdx = Math.Max(0, totalFrames - 2);
                 _animTime = Math.Min(_animTime, endIdx + 0.0001f);

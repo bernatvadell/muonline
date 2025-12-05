@@ -8,9 +8,9 @@ namespace Client.Main.Objects.Vehicle;
 public class VehicleObject : ModelObject
 {
     // Vehicle animation indices
-    public const int AnimationIdle = 1;
-    public const int AnimationRun = 3;
-    public const int AnimationSkill = 5; // Plasma Storm etc.
+    public const int AnimationIdle = 0;
+    public const int AnimationRun = 2;
+    public const int AnimationSkill = 4; // Plasma Storm etc.
 
     // Vehicle IDs that have root motion in their run animation and need position locking
     private static readonly HashSet<int> VehiclesWithRootMotion = new()
@@ -35,8 +35,19 @@ public class VehicleObject : ModelObject
             itemIndex = value;
             _ = OnChangeIndex();
         }
-
     }
+
+    /// <summary>
+    /// The vertical offset to apply to the rider when mounted on this vehicle.
+    /// Retrieved from VehicleDefinition when the vehicle is loaded.
+    /// </summary>
+    public float RiderHeightOffset { get; private set; } = 0f;
+
+    /// <summary>
+    /// The animation speed multiplier for this vehicle.
+    /// Retrieved from VehicleDefinition when the vehicle is loaded.
+    /// </summary>
+    public float AnimationSpeedMultiplier { get; private set; } = 1.0f;
 
     public VehicleObject()
     {
@@ -55,10 +66,16 @@ public class VehicleObject : ModelObject
         if (ItemIndex < 0)
         {
             Model = null;
+            RiderHeightOffset = 0f;
+            AnimationSpeedMultiplier = 1.0f;
             return;
         }
         VehicleDefinition riderDefinition = VehicleDatabase.GetVehicleDefinition(itemIndex);
         if (riderDefinition == null) return;
+
+        // Store configuration from definition
+        RiderHeightOffset = riderDefinition.RiderHeightOffset;
+        AnimationSpeedMultiplier = riderDefinition.AnimationSpeedMultiplier;
 
         string modelPath = riderDefinition.TexturePath;
 
@@ -75,10 +92,30 @@ public class VehicleObject : ModelObject
                 Status = GameControlStatus.Ready;
             }
 
+            // Apply animation speed multiplier to all actions
+            ApplyAnimationSpeedMultiplier();
+
             // For vehicles with root motion in their animations, lock positions to prevent drifting
             if (VehiclesWithRootMotion.Contains(itemIndex))
             {
                 ApplyPositionLockToAnimations();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Applies the AnimationSpeedMultiplier to all animations for this vehicle.
+    /// </summary>
+    private void ApplyAnimationSpeedMultiplier()
+    {
+        if (Model?.Actions == null || AnimationSpeedMultiplier == 1.0f)
+            return;
+
+        foreach (var action in Model.Actions)
+        {
+            if (action != null)
+            {
+                action.PlaySpeed *= AnimationSpeedMultiplier;
             }
         }
     }
@@ -121,15 +158,27 @@ public class VehicleObject : ModelObject
 
         int targetAnim;
         if (isUsingSkill)
+        {
             targetAnim = AnimationSkill;
-        else if (isMoving)
-            targetAnim = AnimationRun;
+            // Skill animation should play once and hold on last frame
+            HoldOnLastFrame = true;
+        }
         else
-            targetAnim = AnimationIdle;
+        {
+            if (isMoving)
+                targetAnim = AnimationRun;
+            else
+                targetAnim = AnimationIdle;
+
+            // Normal animations should loop
+            HoldOnLastFrame = false;
+        }
 
         if (CurrentAction != targetAnim)
         {
             CurrentAction = targetAnim;
+            // Reset animation time when changing actions
+            _animTime = 0.0;
         }
     }
 
