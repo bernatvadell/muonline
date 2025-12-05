@@ -218,6 +218,19 @@ namespace Client.Main.Objects.Worlds.Lorencia
             UpdateFireEffects(time, baseLuminosity);
             UpdateSparks(deltaTime, time);
             UpdateSmoke(deltaTime, time);
+
+            // Play fire sound with 3D attenuation
+            if (Visible && World is Controls.WalkableWorldControl walkableWorld && walkableWorld.Walker != null)
+            {
+                Vector3 listenerPosition = walkableWorld.Walker.Position;
+                Controllers.SoundController.Instance.PlayBufferWithAttenuation(
+                    "Sound/SwampOfDarkness/swampDark_fire.wav",
+                    Position,
+                    listenerPosition,
+                    maxDistance: 800f,
+                    loop: true
+                );
+            }
         }
 
         private void UpdateDynamicLight(float intensity)
