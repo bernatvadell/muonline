@@ -1,499 +1,165 @@
 # CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
-
-This is a MuOnline clone built with .NET 9.0 and MonoGame framework. It supports multiple platforms: Windows, Android, iOS, Linux, and macOS.
-
-**Protocol Compatibility:** Uses **Season 6 (S6) network protocol** but requires **Season 20 (1.20.61) client data files** for assets.
-
-**Recommended Server:** Designed to work with [OpenMU](https://github.com/MUnique/OpenMU) server.
-
-## Project Structure
-
-- **Client.Data**: Data readers for game files (BMD, ATT, MAP, OZB, etc.)
-- **Client.Main**: Core game logic, rendering, UI, networking, and game objects
-- **Client.Editor**: Editor tool for game assets
-- **MuWinGL**: Windows platform executable (OpenGL via MonoGame.Framework.DesktopGL)
-- **MuWinDX**: Windows platform executable (DirectX 11 via MonoGame.Framework.WindowsDX)
-- **MuAndroid**: Android platform executable
-- **MuIos**: iOS platform executable
-- **MuLinux**: Linux platform executable
-- **MuMac**: macOS platform executable
-
-## Build Commands
-
-### Development Builds
-```bash
-# Build entire solution
-dotnet build
-
-# Run on specific platforms
-# Windows (OpenGL) - IMPORTANT: Must specify MonoGameFramework property
-dotnet run --project ./MuWinGL/MuWinGL.csproj -f net9.0-windows -c Debug -p:MonoGameFramework=MonoGame.Framework.DesktopGL
-
-# Windows (DirectX 11) - IMPORTANT: Must specify MonoGameFramework property
-dotnet run --project ./MuWinDX/MuWinDX.csproj -f net9.0-windows -c Debug -p:MonoGameFramework=MonoGame.Framework.WindowsDX
-
-# Other platforms
-dotnet run --project ./MuLinux/MuLinux.csproj -f net9.0 -c Debug         # Linux
-dotnet run --project ./MuMac/MuMac.csproj -f net9.0 -c Debug             # macOS
-dotnet run --project ./MuIos/MuIos.csproj -f net9.0-ios -c Debug         # iOS (macOS only)
-```
-
-### Production Builds
-```bash
-# Windows (OpenGL) - IMPORTANT: Must specify MonoGameFramework property
-dotnet publish ./MuWinGL/MuWinGL.csproj -f net9.0-windows -c Release -p:MonoGameFramework=MonoGame.Framework.DesktopGL
-
-# Windows (DirectX 11) - IMPORTANT: Must specify MonoGameFramework property
-dotnet publish ./MuWinDX/MuWinDX.csproj -f net9.0-windows -c Release -p:MonoGameFramework=MonoGame.Framework.WindowsDX
-
-# Android
-dotnet publish ./MuAndroid/MuAndroid.csproj -f net9.0-android -c Release
-
-# Linux
-dotnet publish ./MuLinux/MuLinux.csproj -f net9.0 -c Release -r linux-x64
-
-# macOS
-dotnet publish ./MuMac/MuMac.csproj -f net9.0 -c Release
-
-# iOS (macOS only)
-dotnet publish ./MuIos/MuIos.csproj -f net9.0-ios -c Release
-```
-
-### Tool Management
-```bash
-# Restore .NET tools (required after clone)
-dotnet tool restore
-```
-
-## Windows Graphics Backends
-
-The project includes two Windows executables using different graphics backends:
-
-### MuWinGL (OpenGL)
-- Uses `MonoGame.Framework.DesktopGL`
-- Cross-platform shader model: **Shader Model 3.0** (vs_3_0, ps_3_0)
-- Better compatibility with older hardware
-- Same rendering backend as Linux and macOS versions
-
-### MuWinDX (DirectX 11)
-- Uses `MonoGame.Framework.WindowsDX`
-- Windows-only shader model: **Shader Model 5.0** (vs_5_0, ps_5_0)
-- Better performance on modern Windows systems with dedicated GPUs
-- Full DirectX 11 feature set
-
-**Visual Parity:** Both versions produce identical or near-identical visual results. Shaders use conditional compilation (`#if OPENGL`) to adapt to each platform while maintaining the same visual effects.
-
-**Shader Files:**
-- All shaders in `Content/*.fx` support both backends via conditional compilation
-- OpenGL: Uses `vs_3_0/ps_3_0` profiles
-- DirectX: Uses `vs_5_0/ps_5_0` profiles
-- Platform is automatically detected during build
-
-### Build Configuration for Graphics Backends
-
-**IMPORTANT:** When building MuWinDX or MuWinGL, you **must** pass the `MonoGameFramework` property to ensure the correct MonoGame package is used for all dependent libraries (Client.Data, Client.Main).
-
-**How it works:**
-1. Each executable project (MuWinDX.csproj, MuWinGL.csproj) defines `MonoGameFramework` property
-2. This property is passed to referenced projects via `AdditionalProperties` in `ProjectReference`
-3. Dependent projects (Client.Data, Client.Main) use this property to select the correct MonoGame NuGet package
-4. The `RestoreAdditionalProjectProperties` ensures the property affects NuGet restore, creating separate package caches for each backend
-
-**Why explicit property is required:**
-- MSBuild's `AdditionalProperties` in ProjectReference works during build phase
-- However, the property needs to be explicitly passed during restore to ensure correct package resolution
-- Without the explicit property, libraries default to `MonoGame.Framework.DesktopGL`
-
-**Example:**
-```bash
-# Correct - Libraries will use WindowsDX package
-dotnet build ./MuWinDX/MuWinDX.csproj -p:MonoGameFramework=MonoGame.Framework.WindowsDX
-
-# Incorrect - Libraries will use DesktopGL package (wrong!)
-dotnet build ./MuWinDX/MuWinDX.csproj
-```
-
-## Configuration
-
-### Data Path
-Configure in `Client.Main/Constants.cs:25`:
-```csharp
-public static string DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
-```
-
-### Server Settings
-Configure in `Client.Main/appsettings.json`:
-```json
-{
-  "MuOnlineSettings": {
-    "ConnectServerHost": "localhost",
-    "ConnectServerPort": 44405,
-    "ProtocolVersion": "Season6",
-    "ClientVersion": "1.04d",
-    "ClientSerial": "0123456789ABCDEF"
-  }
-}
-```
-
-## Architecture
-
-### Networking Architecture
-**Dual-Mode Packet Routing:** The `PacketRouter` switches between Connect Server and Game Server modes using `SetRoutingMode(bool)`.
-
-**Attribute-Based Handler Registration:** Packet handlers use `[PacketHandler(mainCode, subCode)]` attributes for automatic registration. Handlers are organized by responsibility:
-- `ConnectServerHandler`: Server list, server selection
-- `MiscGamePacketHandler`: Login, character list, logout, game server handshake
-- `CharacterDataHandler`: Stats, level-ups, health/mana updates
-- `InventoryHandler`: Item management
-- `ScopeHandler`: Object spawn/despawn (players, monsters, NPCs, items)
-- `ChatMessageHandler`: Chat messages
-- `PartyHandler`: Party management
-- `ShopHandler`: NPC shops and trades
-
-**Service Layer:** Networking services encapsulate outgoing packet building:
-- `LoginService`: Authentication packets
-- `CharacterService`: Character actions (walk, attack, item use, etc.)
-- `ConnectServerService`: Server selection packets
-
-**State Management:** `NetworkManager` maintains `ClientConnectionState` (Initial → ConnectingToConnectServer → ConnectedToConnectServer → ConnectingToGameServer → ConnectedToGameServer → Authenticating → InGame).
-
-### Scene Management
-**BaseScene Pattern:** All scenes inherit from `BaseScene` which extends `GameControl`. Scenes manage UI controls, world rendering, and input handling.
-
-Key scenes: `LoginScene`, `LoadScene`, `GameScene`
-
-**World System:** Each game map is a `WorldControl` subclass (e.g., `LorenciaWorld`, `DeviasWorld`). Scenes can switch worlds using `ChangeWorldAsync<T>()`.
-
-### Game Object System
-**Hierarchical Object Model:**
-- `WorldObject` (base): Position, direction, animation, 3D model
-  - `PlayerObject`: Player characters
-  - `MonsterObject`: NPCs and monsters
-  - `NPCObject`: Quest/shop NPCs
-  - `DroppedItemObject`: Ground items
-  - `EffectObject`: Visual effects
-
-Objects are managed by `ScopeManager` which tracks object IDs and handles spawn/despawn events.
-
-### Threading Model
-**Main Thread Scheduling:** MonoGame requires UI and rendering operations on the main thread. Use `MuGame.ScheduleOnMainThread(Action)` to marshal operations from network threads.
-
-**Async Networking:** All network operations are async using `Task`-based patterns. Packet handlers return `Task` and use `async/await`.
-
-### File Format Support
-- **BMD**: 3D models and animations (skeletal)
-- **ATT**: Terrain walkability and attributes
-- **MAP**: Terrain heightmap data
-- **OZB/OZG**: Compressed texture formats
-- **CWS**: Camera walk/pan scripts
-- **OBJS**: Object placement data for maps
-
-## Important Patterns
-
-### Always Prefer Editing Existing Files
-NEVER create new files unless explicitly required. Always edit existing files in the codebase.
-
-### Packet Handler Pattern
-When adding new packet handlers:
-1. Add handler method to appropriate handler class in `Client.Main/Networking/PacketHandling/Handlers/`
-2. Use `[PacketHandler(mainCode, subCode)]` attribute
-3. Return `Task` (use `Task.CompletedTask` for sync handlers)
-4. Packet structure classes are in `MUnique.OpenMU.Network.Packets.ServerToClient`
-
-Example:
-```csharp
-[PacketHandler(0xF3, 0x01)]
-public Task HandleMyPacketAsync(Memory<byte> packet)
-{
-    var myPacket = new MyPacket(packet);
-    // Process packet
-    return Task.CompletedTask;
-}
-```
-
-### Main Thread Operations
-Always wrap UI/scene operations from network handlers:
-```csharp
-MuGame.ScheduleOnMainThread(() => {
-    // UI updates here
-});
-```
-
-### State Management
-When modifying `NetworkManager` state:
-1. Call `UpdateState(ClientConnectionState.NewState)`
-2. State changes trigger `ConnectionStateChanged` event
-3. Scenes react to state changes to update UI
-
-## Core Systems Deep Dive
-
-### MuGame Singleton
-**Central Game Instance:** `MuGame.Instance` provides global access to:
-- `Network`: NetworkManager instance
-- `TaskScheduler`: Priority-based task queue for main thread operations
-- `AppConfiguration`: IConfiguration from appsettings.json
-- `AppSettings`: Parsed MuOnlineSettings
-- `ActiveScene`: Currently active BaseScene
-
-**Main Thread Scheduling:** Network threads cannot directly modify UI. Use:
-```csharp
-MuGame.ScheduleOnMainThread(() => {
-    // UI updates, scene changes, control modifications
-});
-```
-
-**Static Properties:**
-- `Random`: Shared Random instance for game logic
-- `FrameIndex`: Current frame number (incremented each Update)
-
-### TaskScheduler System
-**Priority Queue:** Prevents UI freezing during heavy network activity.
-
-**Priority Levels:**
-- `Critical`: Immediate processing (damage, death)
-- `High`: Player movements, NPC spawns in view
-- `Normal`: UI updates, equipment changes
-- `Low`: Background tasks (model loading, texture caching)
-
-**Configuration:**
-- Max 10 tasks per frame (configurable)
-- Max 16ms processing time per frame (~60 FPS)
-- Backpressure control: Drops low-priority tasks when queue exceeds 100
-
-**Usage:**
-```csharp
-MuGame.TaskScheduler.QueueTask(() => {
-    // Task code
-}, TaskScheduler.Priority.High);
-```
-
-### UI Scaling System (UiScaler)
-**Virtual Resolution:** All UI uses 1280x720 virtual coordinates (configurable in appsettings.json).
-
-**Automatic Scaling:** `UiScaler.Configure()` called at startup:
-- Calculates scale factor: `Scale = min(ActualWidth/VirtualWidth, ActualHeight/VirtualHeight)`
-- Maintains aspect ratio with letterboxing/pillarboxing
-- Provides `SpriteTransform` matrix for SpriteBatch rendering
-
-**Coordinate Conversion:**
-```csharp
-Point virtualPos = UiScaler.ToVirtual(actualMousePos);
-Point actualPos = UiScaler.ToActual(virtualPos);
-```
-
-**Render Scale:** `Constants.RENDER_SCALE` (default 2.0) enables supersampling for higher quality.
-
-### GameControl Hierarchy
-**Base Class for All UI:** Every UI element inherits from `GameControl`.
-
-**Key Properties:**
-- `Controls`: ChildrenCollection for hierarchical UI
-- `Status`: NonInitialized → Initializing → Ready
-- `DisplayPosition`/`DisplayRectangle`: Calculated from parent hierarchy
-- `Interactive`: If true, receives mouse/touch events
-- `Align`: Auto-positioning (HorizontalCenter, VerticalCenter, etc.)
-- `Alpha`: Transparency (0.0-1.0)
-
-**Lifecycle:**
-1. Construction
-2. `Initialize()` - async initialization, loads resources
-3. `Update(GameTime)` - called every frame
-4. `Draw(GameTime)` - render phase
-5. `Dispose()` - cleanup
-
-**Event System:**
-- `Click`: Fired when control is clicked
-- `Focus`/`Blur`: Focus management
-- `SizeChanged`: When ViewSize changes
-
-### CharacterState
-**Single Source of Truth:** Holds all character data received from server.
-
-**Categories:**
-- **Basic Info**: Name, ID, Class, Level, Position (X, Y), MapId
-- **Stats**: HP, MP, SD, AG, Strength, Agility, Vitality, Energy, Leadership
-- **Inventory**: Thread-safe `ConcurrentDictionary<byte, byte[]>` of item data
-- **Skills**: Learned skills with levels
-- **Shop/Vault**: Separate dictionaries for NPC shop and vault items
-
-**Events:**
-- `HealthChanged`: (currentHP, maxHP) - fired on HP update
-- `ManaChanged`: (currentMP, maxMP) - fired on MP update
-- `InventoryChanged`: Fired when inventory updates
-- `MoneyChanged`: Fired when Zen changes
-
-**Thread Safety:** All collections use `ConcurrentDictionary` for safe access from network threads.
-
-### ScopeManager
-**Object Visibility Management:** Tracks all objects in player's view range.
-
-**Object Types:**
-- `PlayerScopeObject`: Other players
-- `NpcScopeObject`: Monsters and NPCs (TypeNumber identifies model)
-- `ItemScopeObject`: Dropped items on ground
-- `MoneyScopeObject`: Zen drops
-
-**Operations:**
-- `AddOrUpdatePlayerInScope(maskedId, ...)`: Adds/updates player
-- `RemoveFromScope(maskedId)`: Removes object when out of range
-- `TryGetScopeObject(maskedId, out object)`: Retrieves object by ID
-- `GetAllPlayers()`: Returns all players in scope
-
-**ID Masking:** Server sends masked IDs (top bit stripped). ScopeManager stores by masked ID, exposes raw ID where needed.
-
-## Configuration Details
-
-### Constants.cs Patterns
-**Debug vs Release:** Extensive conditional compilation (`#if DEBUG`).
-
-**Key Debug Settings:**
-- `ENTRY_SCENE`: typeof(LoadScene) - starting scene
-- `SHOW_DEBUG_PANEL`: true - shows FPS, position, etc.
-- `DRAW_BOUNDING_BOXES`: false - visualize collision boxes
-- `UNLIMITED_FPS`: true - disables VSync
-- `DataPath`: Hardcoded absolute path
-
-**Key Release Settings:**
-- `SHOW_DEBUG_PANEL`: false
-- `DataPath`: Relative to executable
-
-**Rendering Flags:**
-- `ENABLE_DYNAMIC_LIGHTING_SHADER`: GPU-based lighting (vs CPU fallback)
-- `OPTIMIZE_FOR_INTEGRATED_GPU`: Reduces max lights for weak GPUs
-- `ENABLE_ITEM_MATERIAL_SHADER`: Special effects for high-tier items
-- `ENABLE_MONSTER_MATERIAL_SHADER`: Custom monster visual effects
-- `RENDER_SCALE`: 2.0 = 2x supersampling
-- `MSAA_ENABLED`: false by default (performance)
-
-**Camera Constants:**
-- `MIN_CAMERA_DISTANCE`: 800f
-- `MAX_CAMERA_DISTANCE`: 1800f
-- `DEFAULT_CAMERA_DISTANCE`: 1700f
-- `CAMERA_YAW`: -0.7329271f (default view angle)
-- `CAMERA_PITCH`: 2.3711946f
-- `LOW_QUALITY_DISTANCE`: 3500f (objects beyond render with lower quality)
-
-### appsettings.json Structure
-**Logging Configuration:** Per-class log levels with `Trace` for network debugging.
-
-**MuOnlineSettings:**
-```json
-{
-  "ConnectServerHost": "localhost",
-  "ConnectServerPort": 44405,
-  "ProtocolVersion": "Season6",
-  "ClientVersion": "1.04d",
-  "ClientSerial": "0123456789ABCDEF",
-  "Graphics": {
-    "Width": 1280,
-    "Height": 720,
-    "IsFullScreen": false,
-    "UiVirtualWidth": 1280,
-    "UiVirtualHeight": 720
-  },
-  "DirectionMap": {
-    "0": 7, "1": 6, "2": 5, "3": 4,
-    "4": 3, "5": 2, "6": 1, "7": 0
-  },
-  "PacketLogging": {
-    "ShowWeather": true,
-    "ShowDamage": true
-  }
-}
-```
-
-**DirectionMap:** Maps client directions to server directions (may differ by protocol version).
-
-## Advanced Topics
-
-### Performance Considerations
-**Main Thread Bottlenecks:**
-- Packet processing happens on network threads
-- UI updates must be marshalled to main thread via `ScheduleOnMainThread()`
-- TaskScheduler prevents frame drops by limiting work per frame
-
-**Render Pipeline:**
-1. **3D Pass**: Terrain, objects, effects (depth-enabled)
-2. **Transparent Pass**: Blend meshes, particles (depth-read only)
-3. **UI Pass**: 2D sprites with `UiScaler.SpriteTransform`
-
-**Asset Loading:**
-- Models: Lazy-loaded via `ModelManager`
-- Textures: Cached in `TextureLoader`
-- All loading async to prevent frame drops
-
-**Memory Management:**
-- `ConcurrentDictionary` for thread-safe collections
-- Object pooling for frequently created objects (particles, effects)
-- Dispose pattern strictly followed
-
-## Common Pitfalls
-
-### Threading Issues
-❌ **Wrong:**
-```csharp
-// In packet handler (network thread)
-scene.SomeControl.Text = "Updated";
-```
-
-✅ **Correct:**
-```csharp
-MuGame.ScheduleOnMainThread(() => {
-    scene.SomeControl.Text = "Updated";
-});
-```
-
-### Packet Handler Registration
-❌ **Wrong:** Forgetting `[PacketHandler]` attribute
-```csharp
-public Task HandleMyPacket(Memory<byte> packet) // Won't be called!
-```
-
-✅ **Correct:**
-```csharp
-[PacketHandler(0xF3, 0x01)]
-public Task HandleMyPacket(Memory<byte> packet)
-```
-
-### State Updates
-❌ **Wrong:** Direct state modification
-```csharp
-_currentState = ClientConnectionState.InGame;
-```
-
-✅ **Correct:** Use UpdateState
-```csharp
-UpdateState(ClientConnectionState.InGame); // Fires events
-```
-
-### Coordinate Systems
-❌ **Wrong:** Using actual screen coordinates for UI
-```csharp
-control.X = mouseState.X; // Wrong coordinate space!
-```
-
-✅ **Correct:** Convert to virtual coordinates
-```csharp
-Point virtualPos = UiScaler.ToVirtual(new Point(mouseState.X, mouseState.Y));
-control.X = virtualPos.X;
-```
-
-### Resource Cleanup
-❌ **Wrong:** Not disposing resources
-```csharp
-var texture = new Texture2D(...);
-// Never disposed - memory leak!
-```
-
-✅ **Correct:** Implement IDisposable
-```csharp
-public override void Dispose()
-{
-    texture?.Dispose();
-    base.Dispose();
-}
-```
+Guide for Claude Code with the most important, current details about this repo.
+
+## Purpose and scope
+- MuOnline client clone built on .NET 10 + MonoGame 3.8+.
+- Uses Season 6 protocol; consumes Season 20 (1.20.61) client data for assets.
+- Intended to connect to OpenMU (or any Season 6 compatible server).
+- Educational/research focus; do not commit proprietary game data.
+
+## High-level architecture
+- Platform heads per runtime (Windows DX/GL, Linux, macOS, Android, iOS) call into shared core libraries.
+- Core loop lives in `Client.Main` with rendering, scenes, networking, task scheduling, and UI.
+- Data readers in `Client.Data` parse MU asset formats and feed rendering/logic.
+- Each head passes a `MonoGameFramework` property to pull the correct MonoGame package at restore/build.
+
+## Repository layout (where to look)
+- `Client.Main/`: Core engine.
+- `Client.Main/Scenes/`: `BaseScene`, `LoginScene`, `LoadScene`, `SelectCharacterScene`, `ServerConfigScene`, `GameScene`, test scenes.
+- `Client.Main/Controls/`: UI and world controls (terrain, UI layer, world base classes).
+- `Client.Main/Objects/`: Runtime objects (players, monsters, NPCs, effects, items, map tiles, worlds).
+- `Client.Main/Objects/Worlds/`: World-specific setups (Lorencia, Noria, Devias, Arena, Icarus, etc.).
+- `Client.Main/Networking/`: Packet router, builder, handlers, services.
+- `Client.Main/Core/Client/`: `CharacterState`, `PartyManager`, `ScopeManager`, enums.
+- `Client.Main/Core/Utilities/`: Databases and attributes (`ItemDatabase`, `MapDatabase`, `NpcDatabase`, `CharacterClassDatabase`, `WorldInfoAttribute`, `NpcInfoAttribute`, `PacketHandlerAttribute`).
+- `Client.Main/Core/Models/`: `ScopeObject`, `ServerInfo`.
+- `Client.Main/Graphics/` and `Client.Main/Effects/`: Rendering helpers/effects.
+- `Client.Main/Content/`: Shaders/content pipeline assets.
+- `Client.Data/`: File readers (`BMD`, `ATT`, `MAP`, `OZB/OZG`, `CWS`, `OBJS`, `Texture`, `LANG`, `CAP`, `ModulusCryptor`).
+- `Client.Editor/`: Asset tooling (not required for runtime).
+- Heads: `MuWinDX/`, `MuWinGL/`, `MuLinux/`, `MuMac/`, `MuAndroid/`, `MuIos/`.
+- Shared props: `Client.Main.Shared.props`, `Client.Data.Shared.props` (propagate `MonoGameFramework`).
+- Solution: `MuOnline.sln`.
+
+## Key classes (by role)
+- Entry/config: `Client.Main/MuGame` singleton (boot, configuration, DI-like accessors, main-thread scheduling).
+- Scenes: `Scenes/BaseScene` (lifecycle), `LoginScene`, `LoadScene`, `SelectCharacterScene`, `GameScene`, `ServerConfigScene`.
+- Scheduling: `TaskScheduler` (priority queue, frame budget), use `MuGame.ScheduleOnMainThread` for UI/main-thread work.
+- Rendering: `Controls/WorldControl`, `Controls/TerrainControl`, `Controls/UI/GameControl` hierarchy; `Objects/ModelObject`, `DynamicLight`, `WalkableWorldControl`.
+- World content: `Objects/Worlds/<WorldName>` classes to configure terrain/assets.
+- Objects: `PlayerObject`, `MonsterObject`, `NPCObject`, `DroppedItemObject`, `CursorObject`, `MapTileObject`, `Effects/*`, `Particles`.
+- Networking: `Networking/PacketRouter`, `PacketBuilder`, handlers under `Networking/PacketHandling/Handlers/*`, services under `Networking/Services/*` (`LoginService`, `CharacterService`, `ConnectServerService`).
+- State: `CharacterState` (single source of truth for stats, inventory, etc.), `ScopeManager` (objects in view), `PartyManager`.
+- Data lookups: `ItemDatabase`, `SkillDatabase`, `MapDatabase`, `NpcDatabase`, `AppearanceConfig`, `PlayerActionMapper`.
+- Attributes: `PacketHandlerAttribute`, `WorldInfoAttribute`, `NpcInfoAttribute`, `SubCodeHolder` helper.
+- Configuration: `Constants` (defaults per build flag), `appsettings.json` (host/port, graphics).
+
+## Networking specifics
+- Protocol: Season 6, C1/C3 packet structures; attribute-based handler registration (`[PacketHandler(main, sub)]`).
+- Router switches modes between ConnectServer and GameServer; services build outgoing packets.
+- Threading: packet handling often on background threads; marshal UI/scene updates with `MuGame.ScheduleOnMainThread`.
+- Connect flow: `ConnectServerService` (list/select servers) → `LoginService` → `CharacterService` → game packets via `PacketRouter`.
+- Scope updates: `ScopeHandler` manages spawn/despawn; `CharacterDataHandler` updates stats/inventory.
+
+## Rendering and UI
+- MonoGame-based; uses virtual UI resolution (see `appsettings.json` and `Constants` base UI width/height).
+- Terrain/render controls under `Controls/Terrain` and `Controls/UI`; `UiScaler` inside controls manages virtual-to-actual mapping.
+- Shader content in `Client.Main/Content`; backends differ by DX/GL but share shader sources with conditional compilation.
+- Lighting flags and quality switches configured in `Constants` (dynamic lighting, buffer pooling, render scale, vsync).
+
+## Data formats handled
+- BMD (models/animations), ATT (walkability), MAP (heightmap), OZB/OZG (textures), CWS (camera), OBJS (object placements), LANG (localization), CAP (capsule data), Texture atlases.
+- Data readers live in `Client.Data/<FORMAT>` folders; consumed by `Client.Main` loaders/managers.
+
+## Configuration and environment
+- Set `Client.Main/Constants.cs` `DataPath` to your local MU data folder; defaults differ in Debug (Windows path) vs Release (relative).
+- `Client.Main/appsettings.json`: host/port, protocol version, client version/serial, graphics size/fullscreen, logging levels.
+- Do not commit proprietary data or credentials; keep environment-specific paths local.
+
+## Build and run commands
+- Restore tools: `dotnet tool restore`.
+- Build heads (pass MonoGame framework on Windows):
+- `dotnet build ./MuWinDX/MuWinDX.csproj -c Debug -p:MonoGameFramework=MonoGame.Framework.WindowsDX`
+- `dotnet build ./MuWinGL/MuWinGL.csproj -c Debug -p:MonoGameFramework=MonoGame.Framework.DesktopGL`
+- `dotnet build ./MuLinux/MuLinux.csproj -c Debug`
+- `dotnet build ./MuMac/MuMac.csproj -c Debug`
+- Run examples:
+- DX11: `dotnet run --project ./MuWinDX/MuWinDX.csproj -f net10.0-windows -c Debug -p:MonoGameFramework=MonoGame.Framework.WindowsDX`
+- GL: `dotnet run --project ./MuWinGL/MuWinGL.csproj -f net10.0-windows -c Debug -p:MonoGameFramework=MonoGame.Framework.DesktopGL`
+- Linux: `dotnet run --project ./MuLinux/MuLinux.csproj -f net10.0 -c Debug`
+- Publish: `dotnet publish <head>.csproj -c Release -r <rid> [-p:MonoGameFramework=...]`.
+
+## Coding conventions
+- C# 10, 4-space indentation, Allman braces.
+- `PascalCase` for types/methods, `camelCase` for locals/fields, `Async` suffix for async methods.
+- Follow scene/handler patterns; return `Task` from handlers; prefer async/await.
+- Marshal UI changes to the main thread via `MuGame.ScheduleOnMainThread`.
+- Keep platform-specific references isolated in head projects; do not mix DX/GL packages.
+- Avoid large inline data; prefer configuration and databases under `Core/Utilities`.
+
+## Threading model
+- MonoGame render/update on main thread; networking async on background threads.
+- Use `MuGame.ScheduleOnMainThread` for any UI/scene/state mutation affecting rendering.
+- `TaskScheduler` limits per-frame workload; enqueue work with priorities to avoid frame drops.
+
+## State management
+- `CharacterState` stores stats, position, inventory, skills; events propagate changes.
+- `ScopeManager` tracks in-view objects by masked IDs; use provided methods for add/update/remove.
+- `PartyManager` handles party data; `ServerInfo` describes server endpoints.
+
+## Scene flow
+- `LoadScene` handles boot/loading.
+- `LoginScene` manages credentials/server select; `ServerConfigScene` for config.
+- `SelectCharacterScene` for character selection.
+- `GameScene` orchestrates in-game world, UI, networking hooks.
+- Test scenes (`TestScene`, `TestAnimationScene`) exist for experimentation.
+
+## Controls and UI components
+- Base: `Controls/GameControl` (lifecycle, events, children), used across UI/world.
+- Terrain: `Controls/TerrainControl`, `WalkableWorldControl`.
+- UI layer under `Controls/UI` (HUD, panels) and `Objects/Logo` for branding.
+- World controls manage camera, selection, and rendering passes.
+
+## Objects and worlds
+- `Objects/PlayerObject`, `MonsterObject`, `NPCObject`, `DroppedItemObject`, `ModelObject`, `CursorObject`, `MapTileObject`.
+- Effects/Particles under `Objects/Effects` and `Objects/Particles`.
+- `Objects/Worlds/<WorldName>` configure terrain assets and placements for specific maps (Lorencia, Noria, Devias, Arena, Icarus, Atlans, Login, SelectWorld).
+- Vehicle/wings under `Objects/Vehicle`, `Objects/Wings`.
+
+## Shaders and content pipeline
+- Shader sources reside in `Client.Main/Content` and use conditional compilation for DX/GL parity (e.g., `#if OPENGL` blocks). Keep changes backend-agnostic when possible.
+- The `MonoGameFramework` property selected at build drives shader profile selection (DesktopGL vs WindowsDX). Always pass it on Windows heads so dependent projects restore matching content pipeline targets.
+- When adding/modifying shaders, test both MuWinDX and MuWinGL builds; ensure effect parameters remain aligned with C# bindings in rendering controls/objects.
+- New content must be referenced in the relevant head project so it is copied into the output/publish directories.
+
+## Data utilities and lookup tables
+- `ItemDatabase`, `SkillDatabase`, `MapDatabase`, `NpcDatabase`, `CharacterClassDatabase` provide structured info for rendering and logic.
+- `AppearanceConfig` maps models/skins; `PlayerActionMapper` links inputs to actions.
+- `WorldInfoAttribute` and `NpcInfoAttribute` annotate classes with IDs for discovery.
+
+## Graphics and performance knobs
+- `Constants`: render scale, MSAA flag, dynamic lighting, GPU lighting, buffer pooling, vsync, quality toggles.
+- Lighting defaults: sun direction/strength, shadow strength, high-quality textures toggle.
+- Debug flags: show debug panel, bounding boxes, low-quality switch; set differently for Debug vs Release.
+- Android defaults reduce quality (render scale, lighting) for performance.
+
+## Logging and diagnostics
+- Logging levels configured in `appsettings.json` (can set specific namespaces to Trace for networking).
+- Debug builds enable debug panel and disable background music by default.
+- Use task scheduler priorities to prevent stalls when adding expensive work.
+
+## Testing and verification
+- No automated test suite yet; run the head you touched and capture commands.
+- Smoke checks: build head, connect to server, login, switch scenes, basic movement/rendering, packet send/receive sanity.
+- Prefer deterministic data fixtures over live servers when adding tests.
+
+## Contribution guidance
+- Keep commits small, present-tense summaries (see git history like “bonfire improvements - sparks and smoke”).
+- PRs: include intent, affected platforms, commands executed, screenshots/clips for visual changes, mention DataPath/appsettings expectations.
+- Respect existing patterns (packet handlers, scene lifecycle, task scheduling).
+
+## Common pitfalls
+- Forgetting `-p:MonoGameFramework=...` on Windows → wrong MonoGame package restored.
+- Incorrect `DataPath` → missing assets/black screens.
+- Updating UI from network threads → crashes; always marshal to main thread.
+- Mixing DX and GL references across projects → package restore conflicts.
+- Large proprietary assets or secrets must not be committed.
+- Ignoring frame budget when queuing tasks → hitches; use scheduler priorities.
+
+## Quick checklist for new changes
+- Set local `DataPath` and `appsettings.json` before running.
+- Build the specific head you modify with correct MonoGame property.
+- Marshal UI changes through `MuGame.ScheduleOnMainThread`.
+- Add/update packet handlers with `[PacketHandler]` and return `Task`.
+- Touch databases/configs instead of hardcoding IDs inline.
+- Document run/build commands in your PR description.
