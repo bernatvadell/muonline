@@ -509,9 +509,23 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 _hoveredItem = hoveredEquip;
             }
 
-            if (leftJustReleased && _pickedItemRenderer.Item != null && !_isDragging && !IsMouseOverGrid() && _itemDragMoved)
+            if (leftJustReleased && _pickedItemRenderer.Item != null && !_isDragging)
             {
-                HandleDropOutsideInventory();
+                // Simple click without moving should keep the item picked up; only place after a drag.
+                if (!_itemDragMoved)
+                {
+                    return;
+                }
+
+                if (_hoveredEquipSlot >= 0 && TryPlacePickedItemIntoEquipSlot((byte)_hoveredEquipSlot))
+                {
+                    return;
+                }
+
+                if (!IsMouseOverGrid() && _itemDragMoved)
+                {
+                    HandleDropOutsideInventory();
+                }
             }
 
             if (_pickedItemRenderer.Item != null && !_itemDragMoved)
@@ -1424,54 +1438,10 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 {
                     if (_pickedItemRenderer.Item != null)
                     {
-                        var itemToPlace = _pickedItemRenderer.Item;
-
-                        if (TryUsePickedJewelOnEquipment((byte)_hoveredEquipSlot))
+                        if (TryPlacePickedItemIntoEquipSlot((byte)_hoveredEquipSlot))
                         {
                             return;
                         }
-
-                        byte fromSlot = 0;
-                        if (_pickedItemOriginalGrid.X >= 0)
-                        {
-                            fromSlot = (byte)(InventorySlotOffsetConstant + (_pickedItemOriginalGrid.Y * Columns) + _pickedItemOriginalGrid.X);
-                        }
-                        else if (_pickedFromEquipSlot >= 0)
-                        {
-                            fromSlot = (byte)_pickedFromEquipSlot;
-                        }
-
-                        byte toSlot = (byte)_hoveredEquipSlot;
-
-                        // If moving to the same slot, just put it back without sending request
-                        if (fromSlot == toSlot)
-                        {
-                            _equippedItems[toSlot] = itemToPlace;
-                            ReleasePickedItem();
-                            return;
-                        }
-
-                        _equippedItems[toSlot] = itemToPlace;
-
-                        if (_networkManager != null)
-                        {
-                            var svc = _networkManager.GetCharacterService();
-                            var version = _networkManager.TargetVersion;
-                            var raw = itemToPlace.RawData ?? Array.Empty<byte>();
-                            var state = _networkManager.GetCharacterState();
-                            state.StashPendingInventoryMove(fromSlot, toSlot);
-                            _ = Task.Run(async () =>
-                            {
-                                await svc.SendItemMoveRequestAsync(fromSlot, toSlot, version, raw);
-                                await Task.Delay(1200);
-                                if (_networkManager != null && state.IsInventoryMovePending(fromSlot, toSlot))
-                                {
-                                    MuGame.ScheduleOnMainThread(() => state.RaiseInventoryChanged());
-                                }
-                            });
-                        }
-
-                        ReleasePickedItem();
                     }
                     else
                     {
@@ -1652,6 +1622,63 @@ namespace Client.Main.Controls.UI.Game.Inventory
             }
 
             QueueConsumeItemRequest(jewelSlot.Value, targetSlot);
+            ReleasePickedItem();
+            return true;
+        }
+
+        private bool TryPlacePickedItemIntoEquipSlot(byte equipSlot)
+        {
+            var itemToPlace = _pickedItemRenderer.Item;
+            if (itemToPlace == null)
+            {
+                return false;
+            }
+
+            if (TryUsePickedJewelOnEquipment(equipSlot))
+            {
+                return true;
+            }
+
+            byte fromSlot = 0;
+            if (_pickedItemOriginalGrid.X >= 0)
+            {
+                fromSlot = (byte)(InventorySlotOffsetConstant + (_pickedItemOriginalGrid.Y * Columns) + _pickedItemOriginalGrid.X);
+            }
+            else if (_pickedFromEquipSlot >= 0)
+            {
+                fromSlot = (byte)_pickedFromEquipSlot;
+            }
+
+            byte toSlot = equipSlot;
+
+            // If moving to the same slot, just put it back without sending request
+            if (fromSlot == toSlot)
+            {
+                _equippedItems[toSlot] = itemToPlace;
+                ReleasePickedItem();
+                return true;
+            }
+
+            _equippedItems[toSlot] = itemToPlace;
+
+            if (_networkManager != null)
+            {
+                var svc = _networkManager.GetCharacterService();
+                var version = _networkManager.TargetVersion;
+                var raw = itemToPlace.RawData ?? Array.Empty<byte>();
+                var state = _networkManager.GetCharacterState();
+                state.StashPendingInventoryMove(fromSlot, toSlot);
+                _ = Task.Run(async () =>
+                {
+                    await svc.SendItemMoveRequestAsync(fromSlot, toSlot, version, raw);
+                    await Task.Delay(1200);
+                    if (_networkManager != null && state.IsInventoryMovePending(fromSlot, toSlot))
+                    {
+                        MuGame.ScheduleOnMainThread(() => state.RaiseInventoryChanged());
+                    }
+                });
+            }
+
             ReleasePickedItem();
             return true;
         }
