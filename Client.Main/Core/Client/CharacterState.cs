@@ -304,6 +304,19 @@ namespace Client.Main.Core.Client
                _pendingMoveFromSlot.Value == fromSlot && _pendingMoveToSlot.Value == toSlot;
 
         /// <summary>
+        /// Clears any pending inventory move state. Useful when reopening UI to remove stale hides.
+        /// </summary>
+        public void ClearPendingInventoryMove()
+        {
+            if (_pendingMoveFromSlot.HasValue || _pendingMoveToSlot.HasValue)
+            {
+                _pendingMoveFromSlot = null;
+                _pendingMoveToSlot = null;
+                _logger.LogTrace("Cleared pending inventory move state.");
+            }
+        }
+
+        /// <summary>
         /// Triggers the InventoryChanged event without modifying items.
         /// Useful to force UI refresh on client-side optimistic UI fallback.
         /// </summary>

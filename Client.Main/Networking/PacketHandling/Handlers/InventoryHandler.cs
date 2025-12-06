@@ -276,15 +276,10 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     var failed = new ItemMoveRequestFailed(packet);
                     var itemData = failed.ItemData.ToArray();
                     // First, try restore inventory<->inventory failed move
-                    if (_characterState.TryConsumePendingInventoryMove(out var fromSlot, out var toSlot))
+                    if (_characterState.TryConsumePendingInventoryMove(out var fromSlot, out _))
                     {
                         // Restore the item at original location
                         _characterState.AddOrUpdateInventoryItem(fromSlot, itemData);
-                        // Ensure the temporary target slot is clean
-                        if (fromSlot != toSlot)
-                        {
-                            _characterState.RemoveInventoryItem(toSlot);
-                        }
                         _logger.LogWarning("Item move failed. Restored item at slot {From}", fromSlot);
                         // Inform user
                         MuGame.ScheduleOnMainThread(() =>

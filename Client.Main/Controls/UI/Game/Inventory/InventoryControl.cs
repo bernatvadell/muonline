@@ -351,7 +351,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             // Force correct position BEFORE first draw to prevent flash on wrong side
             ForceAlignNow();
             Align = ControlAlign.None; // Prevent auto-realignment
-
+            _networkManager?.GetCharacterState()?.ClearPendingInventoryMove(); // ensure no stale hides
             UpdateZenFromNetwork();
             RefreshInventoryContent();
 
