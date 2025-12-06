@@ -21,6 +21,13 @@ public class TestAnimationScene : BaseScene
         EditCharacter,
         TestAction,
     }
+
+    enum ItemType
+    {
+        Normal,
+        Excellent,
+        Ancient
+    }
     // Fields
     TestAnimationUiState _uiState = TestAnimationUiState.Loading;
     private TestAnimationUiState UiState
@@ -72,6 +79,9 @@ public class TestAnimationScene : BaseScene
         set => armorSet = value;
     }
 
+    private int itemLevel = 13;
+    private ItemType itemType = ItemType.Excellent;
+
     // CONTROLS
     private SelectWorld _selectWorld;
 
@@ -88,10 +98,24 @@ public class TestAnimationScene : BaseScene
     private readonly SelectOptionControl _selectCharacterClassOptionControl;
     private readonly SelectOptionControl _selectPetOptionControl;
     private readonly SelectOptionControl _selectVehicleOptionControl;
+    private readonly SelectOptionControl _selectItemLevelOptionControl;
+    private readonly SelectOptionControl _selectItemTypeOptionControl;
     private readonly OptionPickerControl _selectAnimationOptionControl;
     private readonly LabelButton _testAnimationButton;
     private readonly LabelButton _appearanceConfigButton;
 
+    private IEnumerable<SelectOptionControl> OptionPickers => new[]
+    {
+        _selectCharacterClassOptionControl,
+        _selectArmorOptionControl,
+        _selectLeftHandOptionControl,
+        _selectRightHandOptionControl,
+        _selectWingOptionControl,
+        _selectPetOptionControl,
+        _selectVehicleOptionControl,
+        _selectItemLevelOptionControl,
+        _selectItemTypeOptionControl,
+    };
 
     private bool _initialLoadComplete = false;
 
@@ -100,7 +124,7 @@ public class TestAnimationScene : BaseScene
     private IEnumerable<ItemDefinition> Armors;
     private IEnumerable<ItemDefinition> Weapons;
     private IEnumerable<VehicleDefinition> Vehicles;
-    private List<KeyValuePair<string, int>> Actions; 
+    private List<KeyValuePair<string, int>> Actions;
 
     private (string Name, PlayerClass Class, ushort Level, AppearanceConfig Appearance)? character
     {
@@ -137,36 +161,36 @@ public class TestAnimationScene : BaseScene
                 {
                     PlayerClass = (PlayerClass)_selectCharacterClassOptionControl.Value.Value.Value,
                     HelmItemIndex = armorSetIndex,
-                    HelmItemLevel = 13,
-                    HelmExcellent = true,
-                    HelmAncient = true,
+                    HelmItemLevel = itemLevel,
+                    HelmExcellent = itemType == ItemType.Excellent,
+                    HelmAncient = itemType == ItemType.Ancient,
                     ArmorItemIndex = armorSetIndex,
-                    ArmorItemLevel = 13,
-                    ArmorExcellent = true,
-                    ArmorAncient = true,
+                    ArmorItemLevel = itemLevel,
+                    ArmorExcellent = itemType == ItemType.Excellent,
+                    ArmorAncient = itemType == ItemType.Ancient,
                     PantsItemIndex = armorSetIndex,
-                    PantsItemLevel = 13,
-                    PantsExcellent = true,
-                    PantsAncient = true,
+                    PantsItemLevel = itemLevel,
+                    PantsExcellent = itemType == ItemType.Excellent,
+                    PantsAncient = itemType == ItemType.Ancient,
                     GlovesItemIndex = armorSetIndex,
-                    GlovesItemLevel = 13,
-                    GlovesExcellent = true,
-                    GlovesAncient = true,
+                    GlovesItemLevel = itemLevel,
+                    GlovesExcellent = itemType == ItemType.Excellent,
+                    GlovesAncient = itemType == ItemType.Ancient,
                     BootsItemIndex = armorSetIndex,
-                    BootsItemLevel = 13,
-                    BootsExcellent = true,
-                    BootsAncient = true,
+                    BootsItemLevel = itemLevel,
+                    BootsExcellent = itemType == ItemType.Excellent,
+                    BootsAncient = itemType == ItemType.Ancient,
                     LeftHandItemIndex = (byte)leftHandItemIndex,
                     LeftHandItemGroup = (byte)leftHandItemGroupIndex,
-                    LeftHandItemLevel = 13,
-                    LeftHandExcellent = true,
-                    LeftHandAncient = true,
+                    LeftHandItemLevel = (byte)itemLevel,
+                    LeftHandExcellent = itemType == ItemType.Excellent,
+                    LeftHandAncient = itemType == ItemType.Ancient,
                     RightHandItemIndex = (byte)rightHandItemIndex,
                     RightHandItemGroup = (byte)rightHandItemGroupIndex,
-                    RightHandItemLevel = 13,
-                    RightHandExcellent = true,
-                    RightHandAncient = true,
-                    WingInfo = new WingAppearance(13, 0, wingIndex),
+                    RightHandItemLevel = (byte)itemLevel,
+                    RightHandExcellent = itemType == ItemType.Excellent,
+                    RightHandAncient = itemType == ItemType.Ancient,
+                    WingInfo = new WingAppearance((byte)itemLevel, 0, wingIndex),
                     RidingVehicle = vehicleIndex,
                 }
             );
@@ -260,6 +284,7 @@ public class TestAnimationScene : BaseScene
         });
         _selectCharacterClassOptionControl.ValueChanged += HandleChangeCharacterClass;
         _selectCharacterClassOptionControl.OptionPickerVisibleChanged += HandleChangeCharacterClassOptionPickerVisible;
+        _selectCharacterClassOptionControl.OptionPickerVisibleChanged += HandleOptionPickerVisibleChanged;
 
         Controls.Add(_selectArmorOptionControl = new SelectOptionControl()
         {
@@ -269,6 +294,7 @@ public class TestAnimationScene : BaseScene
             Y = 10,
         });
         _selectArmorOptionControl.ValueChanged += HandleChangeArmorSet;
+        _selectArmorOptionControl.OptionPickerVisibleChanged += HandleOptionPickerVisibleChanged;
 
         Controls.Add(_selectLeftHandOptionControl = new SelectOptionControl()
         {
@@ -278,6 +304,7 @@ public class TestAnimationScene : BaseScene
             Y = 10,
         });
         _selectLeftHandOptionControl.ValueChanged += HandleChangeLeftHand;
+        _selectLeftHandOptionControl.OptionPickerVisibleChanged += HandleOptionPickerVisibleChanged;
 
         Controls.Add(_selectRightHandOptionControl = new SelectOptionControl()
         {
@@ -287,6 +314,7 @@ public class TestAnimationScene : BaseScene
             Y = 10,
         });
         _selectRightHandOptionControl.ValueChanged += HandleChangeRightHand;
+        _selectRightHandOptionControl.OptionPickerVisibleChanged += HandleOptionPickerVisibleChanged;
 
         Controls.Add(_selectWingOptionControl = new SelectOptionControl()
         {
@@ -296,6 +324,7 @@ public class TestAnimationScene : BaseScene
             Y = 10,
         });
         _selectWingOptionControl.ValueChanged += HandleChangeWing;
+        _selectWingOptionControl.OptionPickerVisibleChanged += HandleOptionPickerVisibleChanged;
 
         Controls.Add(_selectPetOptionControl = new SelectOptionControl()
         {
@@ -305,6 +334,7 @@ public class TestAnimationScene : BaseScene
             Y = 10,
         });
         _selectPetOptionControl.ValueChanged += HandleChangePet;
+        _selectPetOptionControl.OptionPickerVisibleChanged += HandleOptionPickerVisibleChanged;
 
         Controls.Add(_selectVehicleOptionControl = new SelectOptionControl()
         {
@@ -315,6 +345,27 @@ public class TestAnimationScene : BaseScene
             X = 15,
         });
         _selectVehicleOptionControl.ValueChanged += HandleChangeVehicle;
+        _selectVehicleOptionControl.OptionPickerVisibleChanged += HandleOptionPickerVisibleChanged;
+
+        Controls.Add(_selectItemLevelOptionControl = new SelectOptionControl()
+        {
+            Text = "Item Level",
+            Placeholder = "Select Level",
+            X = (180 + 30) * 1 + 10 + 5,
+            Y = 10 + 29 + 10,
+        });
+        _selectItemLevelOptionControl.ValueChanged += HandleChangeItemLevel;
+        _selectItemLevelOptionControl.OptionPickerVisibleChanged += HandleOptionPickerVisibleChanged;
+
+        Controls.Add(_selectItemTypeOptionControl = new SelectOptionControl()
+        {
+            Text = "Item Type",
+            Placeholder = "Select Type",
+            X = (180 + 30) * 2 + 10 + 5,
+            Y = 10 + 29 + 10,
+        });
+        _selectItemTypeOptionControl.ValueChanged += HandleChangeItemType;
+        _selectItemTypeOptionControl.OptionPickerVisibleChanged += HandleOptionPickerVisibleChanged;
 
 
         Controls.Add(_appearanceConfigButton = new LabelButton
@@ -352,13 +403,16 @@ public class TestAnimationScene : BaseScene
         });
         _selectAnimationOptionControl.ListItemWidth = 320;
         _selectAnimationOptionControl.ValueChanged += HandleChangeAnimation;
-        
+
         Actions = new List<KeyValuePair<string, int>>(TOTAL_PLAYER_ACTION_COUNT);
         Actions.AddRange(
             Enumerable.Range(0, TOTAL_PLAYER_ACTION_COUNT)
                 .Select(i => new KeyValuePair<string, int>($"{i}_{(PlayerAction)i}", i)
             )
         );
+
+        _selectItemLevelOptionControl.Value = new KeyValuePair<string, int>($"+{itemLevel}", itemLevel);
+        _selectItemTypeOptionControl.Value = new KeyValuePair<string, int>(itemType.ToString(), (int)itemType);
 
         _loadingScreen.BringToFront();
     }
@@ -374,7 +428,7 @@ public class TestAnimationScene : BaseScene
             case TestAnimationUiState.EditCharacter:
                 {
                     if (_loadingScreen != null)
-                    _loadingScreen.Visible = false;
+                        _loadingScreen.Visible = false;
                     _selectCharacterClassOptionControl.Options = CharacterClasses.ToList();
                     _selectCharacterClassOptionControl.Visible = true;
                     _selectArmorOptionControl.Options = Armors.Select((p, i) => new KeyValuePair<string, int>(p.Name, i)).ToList();
@@ -388,13 +442,21 @@ public class TestAnimationScene : BaseScene
                     _selectPetOptionControl.Visible = true;
                     _selectVehicleOptionControl.Options = Vehicles.Select((p, i) => new KeyValuePair<string, int>(p.Name, i)).ToList();
                     _selectVehicleOptionControl.Visible = true;
+                    _selectItemLevelOptionControl.Options = Enumerable.Range(1, 13).Select(i => new KeyValuePair<string, int>($"+{i}", i)).ToList();
+                    _selectItemLevelOptionControl.Visible = true;
+                    _selectItemTypeOptionControl.Options = new List<KeyValuePair<string, int>> {
+                        new("Normal", (int)ItemType.Normal),
+                        new("Excellent", (int)ItemType.Excellent),
+                        new("Ancient", (int)ItemType.Ancient)
+                    };
+                    _selectItemTypeOptionControl.Visible = true;
                     _selectAnimationOptionControl.Visible = false;
                     break;
                 }
             case TestAnimationUiState.TestAction:
                 {
                     if (_loadingScreen != null)
-                    _loadingScreen.Visible = false;
+                        _loadingScreen.Visible = false;
                     _selectCharacterClassOptionControl.Visible = false;
                     _selectCharacterClassOptionControl.HideOptionPicker();
                     _selectArmorOptionControl.Visible = false;
@@ -409,6 +471,10 @@ public class TestAnimationScene : BaseScene
                     _selectPetOptionControl.HideOptionPicker();
                     _selectVehicleOptionControl.Visible = false;
                     _selectVehicleOptionControl.HideOptionPicker();
+                    _selectItemLevelOptionControl.Visible = false;
+                    _selectItemLevelOptionControl.HideOptionPicker();
+                    _selectItemTypeOptionControl.Visible = false;
+                    _selectItemTypeOptionControl.HideOptionPicker();
                     _selectAnimationOptionControl.Options = Actions.Select((p, i) => new KeyValuePair<string, int>(p.Key, p.Value)).ToList();
                     _selectAnimationOptionControl.Visible = true;
                     break;
@@ -565,6 +631,15 @@ public class TestAnimationScene : BaseScene
         _selectVehicleOptionControl.Visible = !isShowPicker;
         _selectVehicleOptionControl.HideOptionPicker();
     }
+    private void HandleOptionPickerVisibleChanged(object sender, bool isVisible)
+    {
+        if (!isVisible) return;
+        foreach (var picker in OptionPickers)
+        {
+            if (picker == sender) continue;
+            picker.HideOptionPicker();
+        }
+    }
     public void HandleChangeArmorSet(object sender, KeyValuePair<string, int> armor)
     {
         RefreshCharacter();
@@ -607,8 +682,20 @@ public class TestAnimationScene : BaseScene
 
     private void HandleChangeAnimation(object sender, KeyValuePair<string, int>? newAnimation)
     {
-        if (!newAnimation.HasValue) return; 
+        if (!newAnimation.HasValue) return;
         _selectWorld.PlayEmoteAnimation((PlayerAction)newAnimation.Value.Value);
     }
-    
+
+    private void HandleChangeItemLevel(object sender, KeyValuePair<string, int> level)
+    {
+        itemLevel = level.Value;
+        RefreshCharacter();
+    }
+
+    private void HandleChangeItemType(object sender, KeyValuePair<string, int> type)
+    {
+        itemType = (ItemType)type.Value;
+        RefreshCharacter();
+    }
+
 }
