@@ -11,6 +11,7 @@ using Client.Main.Controllers;
 using Client.Main.Core.Utilities;
 using Client.Main.Controls.UI.Common;
 using Client.Main.Controls.UI.Game.Common;
+using Client.Main.Controls.UI.Game;
 using Client.Main.Models;
 using Client.Main.Networking;
 using Client.Main.Helpers;
@@ -2043,13 +2044,13 @@ namespace Client.Main.Controls.UI.Game.Inventory
                                               lvl >= 4 ? Theme.Secondary :
                                               Theme.TextGray,
                                        new Color(0, 0, 0, 180));
-            }
+                }
 
-            if (jewelEntries.Count > 0)
-            {
-                JewelShineOverlay.DrawBatch(spriteBatch, jewelEntries, _currentGameTime, Alpha, UiScaler.SpriteTransform);
+                if (jewelEntries.Count > 0)
+                {
+                    JewelShineOverlay.DrawBatch(spriteBatch, jewelEntries, _currentGameTime, Alpha, UiScaler.SpriteTransform);
+                }
             }
-        }
         }
 
         private void DrawEquippedItems(SpriteBatch spriteBatch)
@@ -2376,6 +2377,14 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 return;
 
             var lines = ItemUiHelper.BuildTooltipLines(_hoveredItem);
+            if (NpcShopControl.IsOpen)
+            {
+                int sellPrice = ItemPriceCalculator.CalculateSellPrice(_hoveredItem);
+                if (sellPrice > 0)
+                {
+                    lines.Add(($"Sell Price: {sellPrice} Zen", Theme.TextGold));
+                }
+            }
             const float scale = 0.44f;
             const int lineSpacing = 4;
             const int paddingX = 14;

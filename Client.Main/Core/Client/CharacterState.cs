@@ -917,7 +917,7 @@ namespace Client.Main.Core.Client
         {
             var sb = new StringBuilder();
             sb.AppendLine("\n--- Inventory ---");
-            sb.AppendLine($"  Zen: {InventoryZen:N0}");
+            sb.AppendLine($"  Zen: {InventoryZen}");
             if (_inventoryItems.IsEmpty)
             {
                 sb.AppendLine(" (Inventory is empty)");
@@ -963,12 +963,12 @@ namespace Client.Main.Core.Client
             if (MasterLevel > 0)
             {
                 stats.Add(new KeyValuePair<string, string>("Master Level", $"{MasterLevel} ({MasterLevelUpPoints} Points)"));
-                stats.Add(new KeyValuePair<string, string>("Exp", $"{Experience:N0} / {ExperienceForNextLevel:N0}"));
-                stats.Add(new KeyValuePair<string, string>("M.Exp", $"{MasterExperience:N0} / {MasterExperienceForNextLevel:N0}"));
+                stats.Add(new KeyValuePair<string, string>("Exp", $"{Experience} / {ExperienceForNextLevel}"));
+                stats.Add(new KeyValuePair<string, string>("M.Exp", $"{MasterExperience} / {MasterExperienceForNextLevel}"));
             }
             else
             {
-                stats.Add(new KeyValuePair<string, string>("Exp", $"{Experience:N0} / {ExperienceForNextLevel:N0}"));
+                stats.Add(new KeyValuePair<string, string>("Exp", $"{Experience} / {ExperienceForNextLevel}"));
             }
 
             stats.Add(new KeyValuePair<string, string>("Map", $"{MapDatabase.GetMapName(MapId)} ({MapId})"));
@@ -1003,10 +1003,10 @@ namespace Client.Main.Core.Client
             {
                 sb.AppendLine($"  Master Level: {MasterLevel} ({MasterLevelUpPoints} Points)");
             }
-            sb.AppendLine($"  Exp: {Experience:N0} / {ExperienceForNextLevel:N0}");
+            sb.AppendLine($"  Exp: {Experience} / {ExperienceForNextLevel}");
             if (MasterLevel > 0)
             {
-                sb.AppendLine($"  M.Exp: {MasterExperience:N0} / {MasterExperienceForNextLevel:N0}");
+                sb.AppendLine($"  M.Exp: {MasterExperience} / {MasterExperienceForNextLevel}");
             }
             sb.AppendLine($"  Map: {MapDatabase.GetMapName(MapId)} ({MapId}) at ({PositionX},{PositionY})");
             sb.AppendLine($"  Status: {Status}, Hero State: {HeroState}");

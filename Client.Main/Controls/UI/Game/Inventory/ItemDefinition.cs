@@ -26,6 +26,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
         public int Group { get; set; }
         public bool IsExpensive { get; set; }
         public bool CanSellToNpc { get; set; }
+        public int Money { get; set; } // Base buy price (iZen) from Item.bmd, can be 0
+        public int ItemValue { get; set; } // Legacy value fallback if Money is missing
+        public int DropLevel { get; set; } // Drop level from BMD, used as a proxy for price curve
 
         // Classes which can equip this item
         public List<string> AllowedClasses { get; set; } = new();

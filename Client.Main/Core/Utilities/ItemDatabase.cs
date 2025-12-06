@@ -120,6 +120,7 @@ namespace Client.Main.Core.Utilities
                         Defense = item.Defense,
                         DefenseRate = item.DefenseRate,
                         BaseDurability = item.Durability,
+                        DropLevel = item.DropLevel,
                         RequiredStrength = item.ReqStr,
                         RequiredDexterity = item.ReqDex,
                         RequiredEnergy = item.ReqEne,
@@ -128,7 +129,9 @@ namespace Client.Main.Core.Utilities
                         Group = item.ItemSubGroup,
                         AllowedClasses = BuildAllowedClasses(item),
                         IsExpensive = item.Expensive != 0,
-                        CanSellToNpc = item.SellNpc != 0
+                        CanSellToNpc = item.SellNpc != 0,
+                        Money = item.Money,
+                        ItemValue = item.ItemValue
                     };
 
                     data.Add(key, definition);

@@ -129,6 +129,7 @@ namespace Client.Main.Controls.UI.Game
         }
 
         public static NpcShopControl Instance => _instance ??= new NpcShopControl();
+        public static bool IsOpen => _instance?.Visible == true;
 
         /// <summary>
         /// Forces immediate position calculation based on Align property.
@@ -639,11 +640,11 @@ namespace Client.Main.Controls.UI.Game
                       Theme.TextGray,
                new Color(0, 0, 0, 180));
 
-            if (jewelEntries.Count > 0)
-            {
-                JewelShineOverlay.DrawBatch(spriteBatch, jewelEntries, _currentGameTime, Alpha, UiScaler.SpriteTransform);
+                if (jewelEntries.Count > 0)
+                {
+                    JewelShineOverlay.DrawBatch(spriteBatch, jewelEntries, _currentGameTime, Alpha, UiScaler.SpriteTransform);
+                }
             }
-        }
         }
 
         private void DrawTooltip(SpriteBatch spriteBatch)
@@ -651,6 +652,11 @@ namespace Client.Main.Controls.UI.Game
             if (_hoveredItem == null || _font == null) return;
 
             var lines = ItemUiHelper.BuildTooltipLines(_hoveredItem);
+            int buyPrice = ItemPriceCalculator.CalculateBuyPrice(_hoveredItem);
+            if (buyPrice > 0)
+            {
+                lines.Add(($"Buy Price: {buyPrice} Zen", Theme.TextGold));
+            }
             const float scale = 0.44f;
             const int lineSpacing = 4;
             const int paddingX = 14;
