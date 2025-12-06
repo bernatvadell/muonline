@@ -227,6 +227,7 @@ namespace Client.Main.Controls.UI.Game.Trade
             if (svc != null && state != null)
             {
                 var raw = item.RawData ?? Array.Empty<byte>();
+                state.AddOrUpdateMyTradeItem(tradeSlot, raw);
 
                 // Mark inventory item as pending to prevent visual duplication
                 state.StashPendingInventoryMove(inventorySlot, inventorySlot);
@@ -1354,17 +1355,26 @@ namespace Client.Main.Controls.UI.Game.Trade
                 Point invSlot = inventory.GetSlotAtScreenPositionPublic(mousePos);
                 if (invSlot.X >= 0 && inventory.CanPlaceAt(invSlot, _draggedItem))
                 {
-                    // Calculate trade slot and send remove packet
+                    // Calculate trade slot and target inventory slot
                     byte tradeSlot = (byte)(_draggedOriginalSlot.Y * TRADE_COLUMNS + _draggedOriginalSlot.X);
+                    byte targetInventorySlot = (byte)(InventoryControl.InventorySlotOffsetConstant + (invSlot.Y * InventoryControl.Columns) + invSlot.X);
                     var svc = _networkManager?.GetCharacterService();
-                    if (svc != null)
+                    var state = _networkManager?.GetCharacterState();
+                    if (svc != null && state != null)
                     {
-                        _ = svc.SendTradeItemRemoveAsync(tradeSlot);
-                    }
+                        byte[] raw = _draggedItem.RawData ?? Array.Empty<byte>();
 
-                    // Remove from local state
-                    _myItems.Remove(_draggedItem);
-                    RemoveItemFromGrid(_myGrid, _draggedItem);
+                        state.RemoveMyTradeItem(tradeSlot);
+                        _ = svc.SendStorageItemMoveAsync(
+                            ItemStorageKind.Trade,
+                            tradeSlot,
+                            ItemStorageKind.Inventory,
+                            targetInventorySlot,
+                            _networkManager.TargetVersion,
+                            raw);
+
+                        MuGame.ScheduleOnMainThread(() => state.RaiseInventoryChanged());
+                    }
 
                     dropped = true;
                 }
@@ -1664,16 +1674,6 @@ namespace Client.Main.Controls.UI.Game.Trade
                 accept ? TradeButtonStateChanged.TradeButtonState.Red : TradeButtonStateChanged.TradeButtonState.Unchecked,
                 true);
             _ = svc.SendTradeButtonAsync(accept);
-        }
-
-        private void RemoveMyTradeItem(Point slot)
-        {
-            byte tradeSlot = (byte)(slot.Y * TRADE_COLUMNS + slot.X);
-            var svc = _networkManager?.GetCharacterService();
-            if (svc != null)
-            {
-                _ = svc.SendTradeItemRemoveAsync(tradeSlot);
-            }
         }
 
         // ═══════════════════════════════════════════════════════════════

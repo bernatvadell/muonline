@@ -48,6 +48,17 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 ushort partnerLevel = answer.TradePartnerLevel;
                 uint guildId = answer.GuildId;
                 string partnerGuild = ""; // TODO: Resolve guild name from GuildId if needed
+                bool accepted = answer.Accepted;
+
+                if (!accepted)
+                {
+                    _logger.LogInformation("Trade request was declined by {Partner}.", partnerName);
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        MessageWindow.Show($"{partnerName} declined your trade request.");
+                    });
+                    return Task.CompletedTask;
+                }
 
                 _logger.LogInformation("Trade request accepted. Opening trade window with {Partner} (Level: {Level})",
                     partnerName, partnerLevel);

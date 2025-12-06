@@ -234,81 +234,15 @@ namespace Client.Main.Networking.Services
             {
                 await _connectionManager.Connection.SendAsync(() =>
                 {
-                    var buffer = _connectionManager.Connection.Output.GetMemory(5);
-                    buffer.Span[0] = 0xC1; // Header type
-                    buffer.Span[1] = 5;    // Packet length
-                    buffer.Span[2] = 0x36; // Trade request code
-                    buffer.Span[3] = (byte)(targetPlayerId & 0xFF);
-                    buffer.Span[4] = (byte)((targetPlayerId >> 8) & 0xFF);
-                    return 5;
+                    var packet = new TradeRequest(_connectionManager.Connection.Output.GetMemory(TradeRequest.Length).Slice(0, TradeRequest.Length));
+                    packet.PlayerId = targetPlayerId;
+                    return TradeRequest.Length;
                 });
                 _logger.LogInformation("Trade request sent.");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending trade request.");
-            }
-        }
-
-        /// <summary>
-        /// Adds an item from inventory to the trade window.
-        /// </summary>
-        public async Task SendTradeItemAddAsync(byte inventorySlot)
-        {
-            if (!_connectionManager.IsConnected)
-            {
-                _logger.LogError("Not connected — cannot add item to trade.");
-                return;
-            }
-
-            _logger.LogInformation("Adding inventory slot {Slot} to trade", inventorySlot);
-            try
-            {
-                await _connectionManager.Connection.SendAsync(() =>
-                {
-                    var buffer = _connectionManager.Connection.Output.GetMemory(4);
-                    buffer.Span[0] = 0xC1; // Header type
-                    buffer.Span[1] = 4;    // Packet length
-                    buffer.Span[2] = 0x3A; // Trade item add code
-                    buffer.Span[3] = inventorySlot;
-                    return 4;
-                });
-                _logger.LogInformation("Trade item add sent.");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error sending trade item add.");
-            }
-        }
-
-        /// <summary>
-        /// Removes an item from the trade window.
-        /// </summary>
-        public async Task SendTradeItemRemoveAsync(byte tradeSlot)
-        {
-            if (!_connectionManager.IsConnected)
-            {
-                _logger.LogError("Not connected — cannot remove item from trade.");
-                return;
-            }
-
-            _logger.LogInformation("Removing trade slot {Slot} from trade", tradeSlot);
-            try
-            {
-                await _connectionManager.Connection.SendAsync(() =>
-                {
-                    var buffer = _connectionManager.Connection.Output.GetMemory(4);
-                    buffer.Span[0] = 0xC1; // Header type
-                    buffer.Span[1] = 4;    // Packet length
-                    buffer.Span[2] = 0x3C; // Trade item remove code (0x3F with subcode 0x02 in some versions)
-                    buffer.Span[3] = tradeSlot;
-                    return 4;
-                });
-                _logger.LogInformation("Trade item remove sent.");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error sending trade item remove.");
             }
         }
 
@@ -328,16 +262,9 @@ namespace Client.Main.Networking.Services
             {
                 await _connectionManager.Connection.SendAsync(() =>
                 {
-                    var buffer = _connectionManager.Connection.Output.GetMemory(7);
-                    buffer.Span[0] = 0xC1; // Header type
-                    buffer.Span[1] = 7;    // Packet length
-                    buffer.Span[2] = 0x3B; // Trade money set code
-                    // Money as 4-byte little-endian
-                    buffer.Span[3] = (byte)(amount & 0xFF);
-                    buffer.Span[4] = (byte)((amount >> 8) & 0xFF);
-                    buffer.Span[5] = (byte)((amount >> 16) & 0xFF);
-                    buffer.Span[6] = (byte)((amount >> 24) & 0xFF);
-                    return 7;
+                    var packet = new SetTradeMoney(_connectionManager.Connection.Output.GetMemory(SetTradeMoney.Length).Slice(0, SetTradeMoney.Length));
+                    packet.Amount = amount;
+                    return SetTradeMoney.Length;
                 });
                 _logger.LogInformation("Trade money set sent.");
             }
@@ -363,12 +290,11 @@ namespace Client.Main.Networking.Services
             {
                 await _connectionManager.Connection.SendAsync(() =>
                 {
-                    var buffer = _connectionManager.Connection.Output.GetMemory(4);
-                    buffer.Span[0] = 0xC1; // Header type
-                    buffer.Span[1] = 4;    // Packet length
-                    buffer.Span[2] = 0x3C; // Trade button toggle code (0x3C not 0x3D!)
-                    buffer.Span[3] = (byte)(pressed ? 1 : 0);
-                    return 4;
+                    var packet = new TradeButtonStateChange(_connectionManager.Connection.Output.GetMemory(TradeButtonStateChange.Length).Slice(0, TradeButtonStateChange.Length));
+                    packet.NewState = pressed
+                        ? TradeButtonState.Checked
+                        : TradeButtonState.Unchecked;
+                    return TradeButtonStateChange.Length;
                 });
                 _logger.LogInformation("Trade button toggle sent.");
             }
@@ -394,11 +320,8 @@ namespace Client.Main.Networking.Services
             {
                 await _connectionManager.Connection.SendAsync(() =>
                 {
-                    var buffer = _connectionManager.Connection.Output.GetMemory(3);
-                    buffer.Span[0] = 0xC1; // Header type
-                    buffer.Span[1] = 3;    // Packet length
-                    buffer.Span[2] = 0x3D; // Trade cancel code (same as button, but with no data)
-                    return 3;
+                    var packet = new TradeCancel(_connectionManager.Connection.Output.GetMemory(TradeCancel.Length).Slice(0, TradeCancel.Length));
+                    return TradeCancel.Length;
                 });
                 _logger.LogInformation("Trade cancel sent.");
             }
