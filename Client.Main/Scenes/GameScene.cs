@@ -63,6 +63,8 @@ namespace Client.Main.Scenes
         private Controls.UI.Game.Skills.SkillQuickSlot _skillQuickSlot; // Skill quick slot
         private Controls.UI.Game.Skills.SkillSelectionPanel _skillSelectionPanel; // Skill selection panel (independent)
         private ActiveBuffsPanel _activeBuffsPanel; // Active buffs display (top-left corner)
+        private Texture2D _backgroundTexture;
+        private ProgressBarControl _progressBar;
 
         // Cache expensive enum values to avoid allocations
         private static readonly Keys[] _allKeys = (Keys[])System.Enum.GetValues(typeof(Keys));
@@ -205,6 +207,18 @@ namespace Client.Main.Scenes
             _activeBuffsPanel = new ActiveBuffsPanel(MuGame.Network.GetCharacterState());
             Controls.Add(_activeBuffsPanel);
             _activeBuffsPanel.BringToFront();
+
+            try
+            {
+                _backgroundTexture = MuGame.Instance.Content.Load<Texture2D>("Background");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug($"[GameScene] Background load failed: {ex.Message}");
+            }
+
+            _progressBar = new ProgressBarControl();
+            Controls.Add(_progressBar);
 
             // Start pre-loading common UI assets in background to prevent freezes
             // This runs async and won't block scene initialization
@@ -393,6 +407,10 @@ namespace Client.Main.Scenes
                 Controls.Remove(_loadingScreen);
                 _loadingScreen.Dispose();
                 _loadingScreen = null;
+            }
+            if (_progressBar != null)
+            {
+                _progressBar.Visible = false;
             }
             _main.Visible = true;
             UpdateLoadProgress("Game ready!", 1.0f);
@@ -617,6 +635,10 @@ namespace Client.Main.Scenes
             Controls.Remove(_loadingScreen);
             _loadingScreen.Dispose();
             _loadingScreen = null;
+            if (_progressBar != null)
+            {
+                _progressBar.Visible = false;
+            }
             _main.Visible = true;
             _isChangingWorld = false;
 
@@ -1162,7 +1184,12 @@ namespace Client.Main.Scenes
         {
             if (_isChangingWorld || World == null || World.Status != GameControlStatus.Ready)
             {
-                _loadingScreen?.Draw(gameTime);
+                GraphicsDevice.Clear(new Color(12, 12, 20));
+                DrawBackground();
+                _progressBar.Progress = _loadingScreen?.Progress ?? 0f;
+                _progressBar.StatusText = _loadingScreen?.Message ?? "Loading...";
+                _progressBar.Visible = true;
+                _progressBar.Draw(gameTime);
                 return;
             }
 
@@ -1205,6 +1232,21 @@ namespace Client.Main.Scenes
             }
             _characterInfoWindow?.BringToFront();
         }
+
+        private new void DrawBackground()
+        {
+            if (_backgroundTexture == null) return;
+
+            using var scope = new SpriteBatchScope(
+                GraphicsManager.Instance.Sprite, SpriteSortMode.Deferred,
+                BlendState.AlphaBlend, SamplerState.LinearClamp,
+                DepthStencilState.None, RasterizerState.CullNone,
+                null, UiScaler.SpriteTransform);
+
+            GraphicsManager.Instance.Sprite.Draw(_backgroundTexture,
+                new Rectangle(0, 0, UiScaler.VirtualSize.X, UiScaler.VirtualSize.Y), Color.White);
+        }
+
 
         private void PreloadSounds()
         {

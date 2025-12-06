@@ -44,7 +44,7 @@ namespace Client.Main.Controls.UI.Game.Trade
         private const int TRADE_ROWS = 4;
         private const int TRADE_SQUARE_WIDTH = 34;
         private const int TRADE_SQUARE_HEIGHT = 34;
-        private const int TRADE_LOCK_SECONDS = 10;
+        private const int TRADE_LOCK_SECONDS = 0;
 
         private static readonly int GRID_WIDTH = TRADE_COLUMNS * TRADE_SQUARE_WIDTH;
         private static readonly int GRID_HEIGHT = TRADE_ROWS * TRADE_SQUARE_HEIGHT;

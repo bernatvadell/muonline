@@ -1,13 +1,16 @@
 ﻿using Client.Main.Controls.UI;
 using Client.Main.Controls.UI.Common;
 using Client.Main.Controls.UI.Game;
+using Client.Main.Controllers;
 using Client.Main.Core.Client;
+using Client.Main.Helpers;
 using Client.Main.Models;
 using Client.Main.Networking;
 using Client.Main.Objects.Player;
 using Client.Main.Worlds;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using MUnique.OpenMU.Network.Packets;
 using System;
 using System.Collections.Generic;
@@ -31,6 +34,8 @@ namespace Client.Main.Scenes
         private ButtonControl _nextCharacterButton;
         private int _currentCharacterIndex = -1;
         private bool _isSelectionInProgress = false;
+        private Texture2D _backgroundTexture;
+        private ProgressBarControl _progressBar;
 
         private const int NavigationButtonSize = 64;
         private const int NavigationHorizontalOffset = 200;
@@ -58,6 +63,18 @@ namespace Client.Main.Scenes
             _loadingScreen.BringToFront();
 
             InitializeNavigationControls();
+
+            try
+            {
+                _backgroundTexture = MuGame.Instance.Content.Load<Texture2D>("Background");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug($"[SelectCharacterScene] Background load failed: {ex.Message}");
+            }
+
+            _progressBar = new ProgressBarControl();
+            Controls.Add(_progressBar);
 
             SubscribeToNetworkEvents();
         }
@@ -321,6 +338,10 @@ namespace Client.Main.Scenes
                         Controls.Remove(_loadingScreen);
                         _loadingScreen.Dispose();
                         _loadingScreen = null;
+                        if (_progressBar != null)
+                        {
+                            _progressBar.Visible = false;
+                        }
                         _infoLabel.Visible = true;
                         UpdateSelectionLabel();
                         PositionNavigationButtons();
@@ -610,7 +631,31 @@ namespace Client.Main.Scenes
 
         public override void Draw(GameTime gameTime)
         {
+            if (_loadingScreen != null && _loadingScreen.Visible)
+            {
+                GraphicsDevice.Clear(new Color(12, 12, 20));
+                DrawBackground();
+                _progressBar.Progress = _loadingScreen.Progress;
+                _progressBar.StatusText = _loadingScreen.Message;
+                _progressBar.Visible = true;
+                _progressBar.Draw(gameTime);
+                return;
+            }
             base.Draw(gameTime);
+        }
+
+        private new void DrawBackground()
+        {
+            if (_backgroundTexture == null) return;
+
+            using var scope = new SpriteBatchScope(
+                GraphicsManager.Instance.Sprite, SpriteSortMode.Deferred,
+                BlendState.AlphaBlend, SamplerState.LinearClamp,
+                DepthStencilState.None, RasterizerState.CullNone,
+                null, UiScaler.SpriteTransform);
+
+            GraphicsManager.Instance.Sprite.Draw(_backgroundTexture,
+                new Rectangle(0, 0, UiScaler.VirtualSize.X, UiScaler.VirtualSize.Y), Color.White);
         }
     }
 }

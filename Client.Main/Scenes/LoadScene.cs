@@ -69,6 +69,7 @@ namespace Client.Main.Scenes
         private Texture2D _backgroundTexture;
         private Texture2D _pixelTexture;
         private BasicEffect _basicEffect;
+        private ProgressBarControl _progressBar;
 
         private readonly object _progressLock = new();
         private DownloadProgress _currentProgress = new();
@@ -185,6 +186,8 @@ namespace Client.Main.Scenes
             _pixelTexture.SetData(new[] { Color.White });
 
             InitializeGraphics();
+            _progressBar = new ProgressBarControl { ShowStats = true };
+            Controls.Add(_progressBar);
             await InitializeWorld();
         }
 
@@ -849,7 +852,14 @@ namespace Client.Main.Scenes
         {
             GraphicsDevice.Clear(new Color(12, 12, 20));
             DrawBackground();
-            DrawProgressUI();
+            var progress = GetProgress();
+            _progressBar.Progress = progress.Progress;
+            _progressBar.StatusText = progress.StatusText;
+            _progressBar.SizeText = $"{FormatBytes(progress.DownloadedBytes)} / {FormatBytes(progress.TotalBytes)}";
+            _progressBar.SpeedText = FormatSpeed(progress.SpeedBytesPerSecond);
+            _progressBar.EtaText = FormatEta(progress.EstimatedTimeRemaining);
+            _progressBar.Visible = true;
+            _progressBar.Draw(gameTime);
         }
 
         private new void DrawBackground()
@@ -866,108 +876,6 @@ namespace Client.Main.Scenes
                 new Rectangle(0, 0, UiScaler.VirtualSize.X, UiScaler.VirtualSize.Y), Color.White);
         }
 
-        private void DrawProgressUI()
-        {
-            var progress = GetProgress();
-            var sprite = GraphicsManager.Instance.Sprite;
-            var font = GraphicsManager.Instance.Font;
-
-            int screenW = UiScaler.VirtualSize.X;
-            int screenH = UiScaler.VirtualSize.Y;
-            int barW = screenW - ProgressBarMargin * 2;
-            int barX = ProgressBarMargin;
-            int barY = screenH - ProgressBarBottomOffset;
-
-            using var scope = new SpriteBatchScope(sprite, SpriteSortMode.Deferred,
-                BlendState.AlphaBlend, SamplerState.PointClamp,
-                DepthStencilState.None, null, null, UiScaler.SpriteTransform);
-
-            // Background shadow
-            DrawRect(sprite, barX - 3, barY - 3, barW + 6, ProgressBarHeight + 6, new Color(0, 0, 0, 120));
-
-            // Bar background
-            DrawRect(sprite, barX, barY, barW, ProgressBarHeight, new Color(30, 32, 40));
-            DrawRect(sprite, barX, barY, barW, ProgressBarHeight / 2, new Color(38, 40, 50));
-
-            // Progress fill
-            if (progress.Progress > 0.001f)
-            {
-                int fillW = (int)(barW * Math.Min(progress.Progress, 1f));
-                if (fillW > 2)
-                {
-                    // Gradient effect
-                    DrawRect(sprite, barX + 1, barY + 1, fillW - 2, ProgressBarHeight - 2, new Color(40, 150, 90));
-                    DrawRect(sprite, barX + 1, barY + 1, fillW - 2, ProgressBarHeight / 2 - 1, new Color(60, 190, 115));
-
-                    // Top shine
-                    DrawRect(sprite, barX + 1, barY + 1, fillW - 2, 3, new Color(255, 255, 255, 35));
-                }
-            }
-
-            // Border
-            DrawBorder(sprite, barX, barY, barW, ProgressBarHeight, new Color(60, 65, 80), 1);
-
-            if (font == null) return;
-
-            // Percentage
-            string pctText = $"{progress.Progress * 100:F0}%";
-            DrawTextCentered(sprite, font, pctText, barX + barW / 2, barY + ProgressBarHeight / 2, Color.White, 0.65f);
-
-            // Status above bar
-            DrawTextShadow(sprite, font, progress.StatusText, barX, barY - 28, Color.White, 0.6f);
-
-            // Stats below bar (only when downloading)
-            if (progress.IsDownloading && progress.TotalBytes > 0)
-            {
-                int y = barY + ProgressBarHeight + 10;
-                var gray = new Color(160, 165, 180);
-
-                // Size (left)
-                string sizeText = $"{FormatBytes(progress.DownloadedBytes)} / {FormatBytes(progress.TotalBytes)}";
-                DrawTextShadow(sprite, font, sizeText, barX, y, gray, 0.5f);
-
-                // Speed (center)
-                string speedText = FormatSpeed(progress.SpeedBytesPerSecond);
-                DrawTextCentered(sprite, font, speedText, barX + barW / 2, y + 5, new Color(90, 170, 240), 0.5f);
-
-                // ETA (right)
-                string etaText = FormatEta(progress.EstimatedTimeRemaining);
-                var etaSize = font.MeasureString(etaText) * 0.5f;
-                DrawTextShadow(sprite, font, etaText, barX + barW - (int)etaSize.X, y, gray, 0.5f);
-            }
-        }
-
-        private void DrawRect(SpriteBatch sprite, int x, int y, int w, int h, Color color)
-        {
-            if (_pixelTexture != null && w > 0 && h > 0)
-                sprite.Draw(_pixelTexture, new Rectangle(x, y, w, h), color);
-        }
-
-        private void DrawBorder(SpriteBatch sprite, int x, int y, int w, int h, Color color, int t)
-        {
-            if (_pixelTexture == null) return;
-            sprite.Draw(_pixelTexture, new Rectangle(x, y, w, t), color);
-            sprite.Draw(_pixelTexture, new Rectangle(x, y + h - t, w, t), color);
-            sprite.Draw(_pixelTexture, new Rectangle(x, y, t, h), color);
-            sprite.Draw(_pixelTexture, new Rectangle(x + w - t, y, t, h), color);
-        }
-
-        private static void DrawTextShadow(SpriteBatch sprite, SpriteFont font, string text, int x, int y, Color color, float scale)
-        {
-            if (string.IsNullOrEmpty(text)) return;
-            var pos = new Vector2(x, y);
-            sprite.DrawString(font, text, pos + Vector2.One, Color.Black * 0.7f, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
-            sprite.DrawString(font, text, pos, color, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
-        }
-
-        private static void DrawTextCentered(SpriteBatch sprite, SpriteFont font, string text, int cx, int cy, Color color, float scale)
-        {
-            if (string.IsNullOrEmpty(text)) return;
-            var size = font.MeasureString(text) * scale;
-            var pos = new Vector2(cx - size.X / 2, cy - size.Y / 2);
-            sprite.DrawString(font, text, pos + Vector2.One, Color.Black * 0.7f, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
-            sprite.DrawString(font, text, pos, color, 0, Vector2.Zero, scale, SpriteEffects.None, 0);
-        }
 
         #endregion
 
