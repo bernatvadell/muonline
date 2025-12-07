@@ -1088,6 +1088,7 @@ namespace Client.Main.Scenes
                 MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released) // Fresh press
             {
                 if (Hero != null &&
+                    !Hero.IsDead && // Don't attack if player is dead
                     !targetMonster.IsDead &&
                     targetMonster.World == World && // Ensure same world
                     Vector2.Distance(Hero.Location, targetMonster.Location) <= Hero.GetAttackRangeTiles()) // Check range
@@ -1104,7 +1105,7 @@ namespace Client.Main.Scenes
                 MuGame.Instance.PrevMouseState.RightButton == ButtonState.Released && // Fresh press
                 _skillQuickSlot?.SelectedSkill != null) // Must have skill selected
             {
-                if (Hero != null && World is WalkableWorldControl walkableForSkills)
+                if (Hero != null && !Hero.IsDead && World is WalkableWorldControl walkableForSkills) // Don't use skills if player is dead
                 {
                     // Check if player is in SafeZone
                     var terrainFlags = walkableForSkills.Terrain.RequestTerrainFlag((int)Hero.Location.X, (int)Hero.Location.Y);
@@ -1461,6 +1462,10 @@ namespace Client.Main.Scenes
             if (skill == null || target == null || Hero == null)
                 return;
 
+            // Don't use skills if player is dead
+            if (Hero.IsDead)
+                return;
+
             _logger?.LogInformation("Using targeted skill {SkillId} (Level {Level}) on target {TargetId}",
                 skill.SkillId, skill.SkillLevel, target.NetworkId);
 
@@ -1477,6 +1482,10 @@ namespace Client.Main.Scenes
         private void UseAreaSkill(Core.Client.SkillEntryState skill, ushort extraTargetId = 0)
         {
             if (skill == null || Hero == null)
+                return;
+
+            // Don't use skills if player is dead
+            if (Hero.IsDead)
                 return;
 
             if (extraTargetId != 0)

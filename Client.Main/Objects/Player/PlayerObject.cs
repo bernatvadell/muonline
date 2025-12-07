@@ -121,6 +121,11 @@ namespace Client.Main.Objects.Player
         public PlayerAction SelectedAttackAction { get; set; } = PlayerAction.PlayerAttackDeathstab;
         private bool _helmItemEquipped;
 
+        /// <summary>
+        /// Gets a value indicating whether the player is currently in a death animation.
+        /// </summary>
+        public bool IsDead => CurrentAction == PlayerAction.PlayerDie1 || CurrentAction == PlayerAction.PlayerDie2;
+
         // Events
         public event EventHandler PlayerMoved;
         public event EventHandler PlayerTookDamage;
@@ -943,7 +948,7 @@ namespace Client.Main.Objects.Player
 
             if (itemNameLower.Contains("dinorant"))
                 return 8; // Rider 02
-                
+
             // Horn of Fenrir variations - check for different colors
             if (itemNameLower.Contains("horn of"))
             {
@@ -1444,6 +1449,9 @@ namespace Client.Main.Objects.Player
         public void Attack(MonsterObject target)
         {
             if (target == null || World == null) return;
+
+            // Don't attack if player is dead
+            if (IsDead) return;
 
             // Don't attack dead monsters
             if (target.IsDead) return;
