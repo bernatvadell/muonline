@@ -1432,10 +1432,10 @@ namespace Client.Main.Objects.Player
                 WeaponType.Spear => PlayerAction.PlayerAttackSpear1,
                 WeaponType.Bow => PlayerAction.PlayerAttackBow,
                 WeaponType.Crossbow => PlayerAction.PlayerAttackCrossbow,
-                WeaponType.Staff => PlayerAction.PlayerSkillHand1,
-                WeaponType.Scepter => PlayerAction.PlayerAttackFist, // TODO: Add proper scepter animation
+                WeaponType.Staff => PlayerAction.PlayerAttackSwordRight1,
+                WeaponType.Scepter => PlayerAction.PlayerAttackSwordRight1,
                 WeaponType.Scythe => PlayerAction.PlayerAttackScythe1,
-                WeaponType.Book => PlayerAction.PlayerSkillHand1, // TODO: Add proper book animation
+                WeaponType.Book => PlayerAction.PlayerAttackFist,
                 WeaponType.Fist or WeaponType.None => PlayerAction.PlayerAttackFist,
                 _ => PlayerAction.PlayerAttackFist
             };
@@ -2040,6 +2040,7 @@ namespace Client.Main.Objects.Player
             var itemDetails = ItemDatabase.ParseItemDetails(itemData);
             part.ItemLevel = itemDetails.Level;
             part.IsExcellentItem = itemDetails.IsExcellent;
+            part.IsAncientItem = itemDetails.IsAncient;
         }
 
         protected override void UpdateWorldBoundingBox()

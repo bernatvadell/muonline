@@ -10,7 +10,7 @@
 #if OPENGL
 static const float GlowIntensityScale = 1.0;
 #else
-static const float GlowIntensityScale = 0.65; // Tone down glow on DirectX
+static const float GlowIntensityScale = 0.80; // Tone down glow on DirectX
 #endif
 
 float4x4 World;

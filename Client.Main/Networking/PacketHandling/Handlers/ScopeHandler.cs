@@ -600,13 +600,17 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 bool isAncientSetComplete = span[ANCIENT_SET_COMPLETE_OFFSET] != 0;
 
                 bool hasExcellent = excellentFlags != 0;
-                bool hasAncient = ancientDiscriminator != 0 && excellentFlags != 0;
+                bool hasAncient = ancientDiscriminator != 0;
 
                 const int MAX_ITEM_INDEX = 512;
                 int finalItemType = (itemGroup * MAX_ITEM_INDEX) + itemNumber;
 
                 _logger.LogDebug("Parsed AppearanceChanged for ID {Id:X4}: Slot={Slot}, Group={Group}, Number={Number}, Type={Type}, Level={Level}",
                     maskedId, itemSlot, itemGroup, itemNumber, finalItemType, itemLevel);
+
+                _logger.LogInformation("[ScopeHandler] AppearanceChanged ID {Id:X4}: ExcFlags=0x{ExcFlags:X2}, AncDisc=0x{AncDisc:X2}, " +
+                    "hasExc={HasExc}, hasAnc={HasAnc}, SetComplete={SetComplete}",
+                    maskedId, excellentFlags, ancientDiscriminator, hasExcellent, hasAncient, isAncientSetComplete);
 
                 await HandleEquipAsync(maskedId, itemSlot, itemGroup, itemNumber, finalItemType, itemLevel,
                     itemOptions, hasExcellent ? excellentFlags : (byte)0,

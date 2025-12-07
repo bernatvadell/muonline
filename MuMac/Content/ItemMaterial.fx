@@ -3,8 +3,14 @@
     #define VS_SHADERMODEL vs_3_0
     #define PS_SHADERMODEL ps_3_0
 #else
-    #define VS_SHADERMODEL vs_4_0_level_9_1
-    #define PS_SHADERMODEL ps_4_0_level_9_1
+    #define VS_SHADERMODEL vs_5_0
+    #define PS_SHADERMODEL ps_5_0
+#endif
+
+#if OPENGL
+static const float GlowIntensityScale = 1.0;
+#else
+static const float GlowIntensityScale = 0.80;
 #endif
 
 float4x4 World;
@@ -30,7 +36,7 @@ sampler2D DiffuseSampler = sampler_state
 
 int ItemOptions = 0;
 float Time = 0;
-float3 GlowColor = float3(1.0, 0.8, 0.0); // Default gold, can be overridden
+float3 GlowColor = float3(0.6, 0.5, 0.0);
 bool IsAncient = false;
 bool IsExcellent = false;
 
@@ -71,6 +77,34 @@ float Noise2(float2 coords)
     return result;
 }
 
+// HSV to RGB conversion for smooth rainbow
+float3 HSVtoRGB(float3 hsv)
+{
+    float h = hsv.x;
+    float s = hsv.y;
+    float v = hsv.z;
+
+    float c = v * s;
+    float x = c * (1.0 - abs(fmod(h * 6.0, 2.0) - 1.0));
+    float m = v - c;
+
+    float3 rgb;
+    if (h < 1.0/6.0)
+        rgb = float3(c, x, 0);
+    else if (h < 2.0/6.0)
+        rgb = float3(x, c, 0);
+    else if (h < 3.0/6.0)
+        rgb = float3(0, c, x);
+    else if (h < 4.0/6.0)
+        rgb = float3(0, x, c);
+    else if (h < 5.0/6.0)
+        rgb = float3(x, 0, c);
+    else
+        rgb = float3(c, 0, x);
+
+    return rgb + m;
+}
+
 VertexShaderOutput MainVS(in VertexShaderInput input)
 {
     VertexShaderOutput output = (VertexShaderOutput)0;
@@ -78,7 +112,7 @@ VertexShaderOutput MainVS(in VertexShaderInput input)
     float4 worldPosition = mul(input.Position, World);
     float4 viewPosition = mul(worldPosition, View);
     output.Position = mul(viewPosition, Projection);
-    
+
     output.WorldPosition = worldPosition.xyz;
     output.Normal = normalize(mul(input.Normal, (float3x3)World));
     output.TextureCoordinate = input.TextureCoordinate;
@@ -90,70 +124,70 @@ VertexShaderOutput MainVS(in VertexShaderInput input)
 float4 MainPS(VertexShaderOutput input) : COLOR
 {
     float4 color = tex2D(DiffuseSampler, input.TextureCoordinate);
-    
+
     if (color.a < 0.1)
         discard;
-    
+
     int itemLevel = ItemOptions % 16;
     bool isExcellent = (ItemOptions / 16) > 0;
-    
+
     float3 normal = normalize(input.Normal);
     float lightIntensity = max(0.1, dot(normal, -LightDirection));
     color.rgb *= lightIntensity;
-    
+
     float waveBase = frac(Time * 0.001) * 10000.0 * 0.0001;
     float3 view = normalize(input.ViewDirection) + normal + float3(10000.5, 10000.5, 10000.5);
-    
-    // Determine glow parameters based on item level
-    float3 effectColor = GlowColor;
+
+    float3 effectColor = GlowColor * GlowIntensityScale;
     float brightness = 1.0;
     float ghostIntensity = 0.0;
-    
+
     if (itemLevel < 7)
     {
-        // Level 0-6: no effects
-        brightness = 8.0;
+        brightness = 1.2;
         ghostIntensity = 0.0;
     }
     else if (itemLevel < 9)
     {
-        // Level 7-8: low ghosting
-        effectColor = GlowColor;
-        brightness = 2.6;
+        effectColor = GlowColor * GlowIntensityScale;
+        brightness = 1.6;
         ghostIntensity = 0.3;
     }
     else if (itemLevel < 10)
     {
-        // Level 9: medium ghosting
-        effectColor = GlowColor;
-        brightness = 3.4;
+        effectColor = GlowColor * GlowIntensityScale;
+        brightness = 1.8;
         ghostIntensity = 0.6;
     }
     else
     {
-        // Level 10+: full ghosting with increasing brightness per level
-        effectColor = GlowColor;
-        brightness = 4.0 + (itemLevel - 10) * 0.5; // Higher base + more per level
-        ghostIntensity = 1.0;
+        effectColor = GlowColor * GlowIntensityScale;
+        brightness = 1.8 + (itemLevel - 10) * 0.2;
+        ghostIntensity = 0.8;
     }
-    
-    // Pre-calculate all values to avoid flow control issues
+
     float subtlePulse = (1.0 + sin(Time * 0.8)) * 0.03 + 0.97;
     float shimmer = (1.0 + sin(Time * 8.0 + normal.x * 12.0)) * 0.15 + 0.85;
-    
+
     // Main ghosting offsets
     float2 ghostOffset1 = float2(sin(Time * 0.8) * 0.035, cos(Time * 0.7) * 0.035) * ghostIntensity;
     float2 ghostOffset2 = float2(sin(Time * 1.0 + 2.1) * 0.025, cos(Time * 0.9 + 1.8) * 0.025) * ghostIntensity;
     float2 ghostOffset3 = float2(sin(Time * 1.2 + 4.2) * 0.02, cos(Time * 1.1 + 3.7) * 0.02) * ghostIntensity;
     float2 ghostOffset4 = float2(sin(Time * 0.6 + 1.1) * 0.015, cos(Time * 1.3 + 2.3) * 0.015) * ghostIntensity;
-    
-    // Ancient/Excellent offsets
+
+    // Ancient offsets
     float2 ancientOffset1 = float2(sin(Time * 0.5) * 0.02, cos(Time * 0.4) * 0.02);
     float2 ancientOffset2 = float2(sin(Time * 0.7 + 1.0) * 0.015, cos(Time * 0.6 + 1.5) * 0.015);
-    float2 excellentOffset1 = float2(sin(Time * 0.6) * 0.025, cos(Time * 0.5) * 0.025);
-    float2 excellentOffset2 = float2(sin(Time * 0.8 + 1.2) * 0.02, cos(Time * 0.7 + 1.8) * 0.02);
-    
-    // Sample all textures at once
+
+    // Excellent offsets - more layers for richer effect
+    float2 excellentOffset1 = float2(sin(Time * 0.6) * 0.03, cos(Time * 0.5) * 0.03);
+    float2 excellentOffset2 = float2(sin(Time * 0.8 + 1.2) * 0.025, cos(Time * 0.7 + 1.8) * 0.025);
+    float2 excellentOffset3 = float2(sin(Time * 1.0 + 2.4) * 0.02, cos(Time * 0.9 + 2.6) * 0.02);
+    float2 excellentOffset4 = float2(sin(Time * 0.5 + 3.6) * 0.015, cos(Time * 1.1 + 3.2) * 0.015);
+    float2 excellentOffset5 = float2(sin(Time * 0.7 + 4.8) * 0.035, cos(Time * 0.6 + 4.4) * 0.035);
+    float2 excellentOffset6 = float2(sin(Time * 0.9 + 6.0) * 0.028, cos(Time * 0.8 + 5.5) * 0.028);
+
+    // Sample all textures
     float4 ghost1 = tex2D(DiffuseSampler, input.TextureCoordinate + ghostOffset1);
     float4 ghost2 = tex2D(DiffuseSampler, input.TextureCoordinate + ghostOffset2);
     float4 ghost3 = tex2D(DiffuseSampler, input.TextureCoordinate + ghostOffset3);
@@ -162,85 +196,148 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     float4 ancientGhost2 = tex2D(DiffuseSampler, input.TextureCoordinate + ancientOffset2);
     float4 excellentGhost1 = tex2D(DiffuseSampler, input.TextureCoordinate + excellentOffset1);
     float4 excellentGhost2 = tex2D(DiffuseSampler, input.TextureCoordinate + excellentOffset2);
-    
-    // Level 7+ mask
+    float4 excellentGhost3 = tex2D(DiffuseSampler, input.TextureCoordinate + excellentOffset3);
+    float4 excellentGhost4 = tex2D(DiffuseSampler, input.TextureCoordinate + excellentOffset4);
+    float4 excellentGhost5 = tex2D(DiffuseSampler, input.TextureCoordinate + excellentOffset5);
+    float4 excellentGhost6 = tex2D(DiffuseSampler, input.TextureCoordinate + excellentOffset6);
+
     float levelMask = step(7.0, itemLevel);
-    
+
     // Apply effects based on level
     if (itemLevel >= 7)
     {
-        // Apply metallic effect for +7 and higher
-        float3 metallic = effectColor * 3.0;
+        float3 metallic = effectColor * 0.8;
         color.rgb = color.rgb * metallic * brightness * subtlePulse;
-        color.rgb += ghost1.rgb * (0.8 * ghostIntensity) * shimmer;
-        color.rgb += ghost2.rgb * (0.6 * ghostIntensity) * shimmer;
-        color.rgb += ghost3.rgb * (0.5 * ghostIntensity) * shimmer;
-        color.rgb += ghost4.rgb * (0.4 * ghostIntensity) * shimmer;
+        color.rgb += ghost1.rgb * (0.8 * ghostIntensity) * shimmer * GlowIntensityScale;
+        color.rgb += ghost2.rgb * (0.6 * ghostIntensity) * shimmer * GlowIntensityScale;
+        color.rgb += ghost3.rgb * (0.5 * ghostIntensity) * shimmer * GlowIntensityScale;
+        color.rgb += ghost4.rgb * (0.4 * ghostIntensity) * shimmer * GlowIntensityScale;
     }
     else
     {
         color.rgb = color.rgb * brightness;
     }
-    
+
     // Additional brightness boost for higher levels
     float level10Mask = step(10.0, itemLevel);
-    float extraGlow = (itemLevel - 9.0) * 1.2;
-    float glowEffect = (1.0 + sin(Time * 1.0)) * 0.1 + 0.8;
+    float extraGlow = (itemLevel - 9.0) * 0.1;
+    float glowEffect = (1.0 + sin(Time * 1.0)) * 0.03 + 0.2;
     color.rgb += effectColor * glowEffect * extraGlow * level10Mask;
-    
-    // Ancient item effect - sweeping white-blue light wave
+
+    // Ancient item effect - fast blue sweep with pause
     float ancientEnabled = IsAncient ? 1.0 : 0.0;
-    float3 ancientColor = float3(0.8, 0.9, 1.0); // Brighter white-blue
-    
-    // Create sweeping wave effect across texture
-    float waveSpeed = Time * 1.2; // Faster sweep
-    float wavePhase = waveSpeed + input.TextureCoordinate.x * 8.0; // Wave travels across X axis
-    float wave = sin(wavePhase) * 0.5 + 0.5; // 0-1 range
-    
-    // Create narrow focused beam effect
-    float beamWidth = 0.3; // Narrower beam
-    float beamIntensity = pow(wave, 6.0) * 2.0; // Sharp, focused beam
-    
-    // Additional wave for more complex pattern
-    float wave2 = sin(waveSpeed * 0.7 + input.TextureCoordinate.y * 4.0) * 0.3 + 0.7;
+    float3 ancientColor = float3(0.3, 0.5, 1.0); // More blue color
+
+    // Cycle with pause: sweep takes 12% of cycle, pause is 88%
+    float cycleSpeed = 0.1; 
+    float cycleDuration = 1.0 / cycleSpeed;
+    float sweepPortion = 0.15; // Sweep happens in first 12% of cycle, very long pause after
+
+    float cycleProgress = frac(Time * cycleSpeed); // 0 to 1 over cycle
+    float sweepProgress = saturate(cycleProgress / sweepPortion); // 0 to 1 during sweep, then stays at 1
+
+    // Fast sweep across mesh using texture coordinate
+    float sweepPosition = sweepProgress;
+    float meshPosition = input.TextureCoordinate.x;
+
+    // Create sharp beam that sweeps across
+    float beamWidth = 0.15;
+    float distFromBeam = abs(meshPosition - sweepPosition);
+    float beamIntensity = 1.0 - saturate(distFromBeam / beamWidth);
+    beamIntensity = pow(beamIntensity, 2.0) * 3.0; // Sharp falloff, bright center
+
+    // Fade out beam at the end of sweep (before pause)
+    float fadeOut = 1.0 - smoothstep(0.85, 1.0, sweepProgress);
+    beamIntensity *= fadeOut;
+
+    // Add secondary vertical wave for depth
+    float wave2 = sin(Time * 3.0 + input.TextureCoordinate.y * 6.0) * 0.3 + 0.7;
     float combinedWave = beamIntensity * wave2;
-    
-    // Apply the sweeping light effect with higher intensity for +9 and higher items
-    float levelBoost = (itemLevel >= 9) ? 2.0 : 1.0; // Double intensity for +9 and higher
-    color.rgb += ancientGhost1.rgb * ancientColor * combinedWave * 1.2 * levelBoost * ancientEnabled;
-    color.rgb += ancientGhost2.rgb * ancientColor * combinedWave * 0.9 * levelBoost * ancientEnabled;
-    
-    // Add stronger base glow for higher level items
-    float baseGlow = sin(Time * 0.5) * 0.1 + 0.2;
-    float baseGlowIntensity = (itemLevel >= 9) ? 0.6 : 0.3; // Stronger for +9 and higher
+
+    float levelBoost = (itemLevel >= 9) ? 2.0 : 1.0;
+    color.rgb += ancientGhost1.rgb * ancientColor * combinedWave * 1.5 * levelBoost * ancientEnabled;
+    color.rgb += ancientGhost2.rgb * ancientColor * combinedWave * 1.1 * levelBoost * ancientEnabled;
+
+    // Subtle base blue glow (always present)
+    float baseGlow = sin(Time * 0.8) * 0.08 + 0.15;
+    float baseGlowIntensity = (itemLevel >= 9) ? 0.5 : 0.25;
     color.rgb += color.rgb * ancientColor * baseGlow * baseGlowIntensity * ancientEnabled;
-    
-    // Excellent item effect - smooth rainbow gradient always visible
-    float excellentPulse = sin(Time * 0.4) * 0.15 + 0.25;
+
+    // ==================== ENHANCED EXCELLENT EFFECT ====================
     float excellentEnabled = IsExcellent ? 1.0 : 0.0;
-    
-    // Smooth rainbow gradient with slower transitions and reduced intensity
-    float timePhase = Time * 0.8; // Slower color cycling
-    float3 rainbowColor1 = float3(
-        sin(timePhase) * 0.3 + 0.4,
-        sin(timePhase + 2.1) * 0.3 + 0.4,
-        sin(timePhase + 4.2) * 0.3 + 0.4
-    );
-    float3 rainbowColor2 = float3(
-        sin(timePhase + 1.5) * 0.3 + 0.4,
-        sin(timePhase + 3.6) * 0.3 + 0.4,
-        sin(timePhase + 5.7) * 0.3 + 0.4
-    );
-    
-    // Create gradient effect by blending two rainbow colors
-    float gradientFactor = sin(Time * 0.6) * 0.5 + 0.5;
-    float3 rainbowGradient = lerp(rainbowColor1, rainbowColor2, gradientFactor);
-    
-    float excellentIntensity = excellentPulse * 0.8;
-    
-    color.rgb += excellentGhost1.rgb * rainbowGradient * excellentIntensity * excellentEnabled;
-    color.rgb += excellentGhost2.rgb * rainbowGradient * excellentIntensity * 0.8 * excellentEnabled;
-    
+
+    // 1. Fresnel/Rim lighting effect - glowing edges
+    float3 viewDir = normalize(input.ViewDirection);
+    float fresnel = 1.0 - saturate(dot(viewDir, normal));
+    fresnel = pow(fresnel, 2.5); // Sharper edge glow
+
+    // 2. Smooth rainbow color cycling using HSV
+    float hueBase = frac(Time * 0.15); // Slow base rotation
+    float hueSpatial = input.TextureCoordinate.x * 0.3 + input.TextureCoordinate.y * 0.2; // Spatial variation
+    float hueNormal = (normal.x + normal.y) * 0.1; // Normal-based variation
+
+    // Create multiple rainbow colors at different phases
+    float3 rainbow1 = HSVtoRGB(float3(frac(hueBase + hueSpatial), 0.85, 1.0));
+    float3 rainbow2 = HSVtoRGB(float3(frac(hueBase + hueSpatial + 0.33), 0.85, 1.0));
+    float3 rainbow3 = HSVtoRGB(float3(frac(hueBase + hueSpatial + 0.66), 0.85, 1.0));
+    float3 rainbow4 = HSVtoRGB(float3(frac(hueBase + hueNormal + 0.5), 0.9, 1.0));
+
+    // 3. Sweeping shine effect - diagonal light beams
+    float sweepSpeed1 = Time * 1.5;
+    float sweepSpeed2 = Time * 1.2;
+    float sweepSpeed3 = Time * 0.9;
+
+    // Multiple diagonal sweeps at different angles
+    float sweep1 = input.TextureCoordinate.x + input.TextureCoordinate.y * 0.5;
+    float sweep2 = input.TextureCoordinate.x * 0.7 - input.TextureCoordinate.y * 0.3;
+    float sweep3 = input.TextureCoordinate.y + input.TextureCoordinate.x * 0.3;
+
+    float beam1 = pow(sin(sweep1 * 6.0 - sweepSpeed1) * 0.5 + 0.5, 8.0);
+    float beam2 = pow(sin(sweep2 * 8.0 + sweepSpeed2) * 0.5 + 0.5, 10.0);
+    float beam3 = pow(sin(sweep3 * 5.0 - sweepSpeed3) * 0.5 + 0.5, 6.0);
+
+    float combinedBeams = beam1 * 0.7 + beam2 * 0.5 + beam3 * 0.4;
+
+    // 4. Pulsating aura
+    float pulse1 = sin(Time * 1.2) * 0.5 + 0.5;
+    float pulse2 = sin(Time * 0.8 + 1.5) * 0.5 + 0.5;
+    float pulse3 = sin(Time * 1.5 + 3.0) * 0.5 + 0.5;
+    float combinedPulse = (pulse1 + pulse2 + pulse3) / 3.0;
+
+    // 6. Color wave effect - colors flowing across the surface
+    float colorWave1 = sin(Time * 0.6 + input.TextureCoordinate.x * 4.0) * 0.5 + 0.5;
+    float colorWave2 = sin(Time * 0.5 + input.TextureCoordinate.y * 3.0 + 1.0) * 0.5 + 0.5;
+    float colorWave3 = sin(Time * 0.7 + (input.TextureCoordinate.x + input.TextureCoordinate.y) * 2.5) * 0.5 + 0.5;
+
+    // Blend rainbow colors based on waves
+    float3 waveColor = rainbow1 * colorWave1 + rainbow2 * colorWave2 + rainbow3 * (1.0 - colorWave1 * colorWave2);
+    waveColor = normalize(waveColor) * length(waveColor) * 0.4;
+
+    // Apply ghost layers with rainbow colors
+    float ghostBaseIntensity = 0.2 * combinedPulse + 0.1;
+
+    color.rgb += excellentGhost1.rgb * rainbow1 * ghostBaseIntensity * 1.0 * excellentEnabled;
+    color.rgb += excellentGhost2.rgb * rainbow2 * ghostBaseIntensity * 0.9 * excellentEnabled;
+    color.rgb += excellentGhost3.rgb * rainbow3 * ghostBaseIntensity * 0.8 * excellentEnabled;
+    color.rgb += excellentGhost4.rgb * rainbow4 * ghostBaseIntensity * 0.7 * excellentEnabled;
+    color.rgb += excellentGhost5.rgb * waveColor * ghostBaseIntensity * 0.6 * excellentEnabled;
+    color.rgb += excellentGhost6.rgb * rainbow1 * ghostBaseIntensity * 0.5 * excellentEnabled;
+
+    // Apply sweeping beams with rainbow
+    float3 beamColor = lerp(rainbow1, rainbow2, sin(Time * 0.4) * 0.5 + 0.5);
+    color.rgb += beamColor * combinedBeams * 0.05 * excellentEnabled;
+
+    // Apply rim/fresnel glow with shifting colors
+    float3 rimColor = lerp(rainbow3, rainbow4, fresnel);
+    color.rgb += rimColor * fresnel * 0.05 * excellentEnabled;
+
+    // Subtle overall color enhancement
+    float3 overlayColor = waveColor * 0.015;
+    color.rgb += color.rgb * overlayColor * excellentEnabled;
+
+    // Brightness boost for excellent items
+    color.rgb *= lerp(1.0, 1.4, excellentEnabled);
+
     return color;
 }
 
