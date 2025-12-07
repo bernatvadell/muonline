@@ -119,6 +119,7 @@ namespace Client.Main.Objects.Player
         }
 
         public PlayerAction SelectedAttackAction { get; set; } = PlayerAction.PlayerAttackDeathstab;
+        private bool _helmItemEquipped;
 
         // Events
         public event EventHandler PlayerMoved;
@@ -316,6 +317,11 @@ namespace Client.Main.Objects.Player
             {
                 await LoadPartAsync(Helm, helmDef.TexturePath?.Replace("Item/", "Player/"));
                 SetItemProperties(Helm, inventory[InventoryConstants.HelmSlot]);
+                _helmItemEquipped = true;
+            }
+            else
+            {
+                _helmItemEquipped = false;
             }
 
             // Armor
@@ -390,6 +396,8 @@ namespace Client.Main.Objects.Player
             {
                 Weapon2.Model = null;
             }
+
+            await EnsureHelmHeadVisibleAsync();
         }
 
         private async Task UpdateEquipmentAppearanceAsync()
@@ -412,6 +420,11 @@ namespace Client.Main.Objects.Player
                 Helm.ItemLevel = Appearance.HelmItemLevel;
                 Helm.IsExcellentItem = Appearance.HelmExcellent;
                 Helm.IsAncientItem = Appearance.HelmAncient;
+                _helmItemEquipped = true;
+            }
+            else
+            {
+                _helmItemEquipped = false;
             }
             // Armor
             if (Appearance.ArmorItemIndex != 255)
@@ -547,6 +560,7 @@ namespace Client.Main.Objects.Player
             {
                 Weapon2.Model = null;
             }
+            await EnsureHelmHeadVisibleAsync();
         }
         public async Task UpdateEquipmentAppearanceFromConfig(AppearanceConfig appearanceConfig)
         {
@@ -576,6 +590,11 @@ namespace Client.Main.Objects.Player
                 Helm.ItemLevel = appearanceConfig.HelmItemLevel;
                 Helm.IsExcellentItem = appearanceConfig.HelmExcellent;
                 Helm.IsAncientItem = appearanceConfig.HelmAncient;
+                _helmItemEquipped = true;
+            }
+            else
+            {
+                _helmItemEquipped = false;
             }
             // Armor
             if (appearanceConfig.ArmorItemIndex != 0XFFFF)
@@ -744,6 +763,8 @@ namespace Client.Main.Objects.Player
             {
                 Weapon2.Model = null;
             }
+
+            await EnsureHelmHeadVisibleAsync();
         }
 
         private void SetActionSpeed(PlayerAction action, float speed)
@@ -1584,6 +1605,8 @@ namespace Client.Main.Objects.Player
             ClearItemProperties(Pants);
             ClearItemProperties(Gloves);
             ClearItemProperties(Boots);
+            HideHelmMask();
+            _helmItemEquipped = false;
 
             PlayerClass mapped = MapNetworkClassToModelClass(_characterClass);
             await SetBodyPartsAsync("Player/",
@@ -1598,6 +1621,8 @@ namespace Client.Main.Objects.Player
             ClearItemProperties(Pants);
             ClearItemProperties(Gloves);
             ClearItemProperties(Boots);
+            HideHelmMask();
+            _helmItemEquipped = false;
 
             await SetBodyPartsAsync("Player/",
                 "HelmClass", "ArmorClass", "PantClass", "GloveClass", "BootClass",
@@ -1629,6 +1654,57 @@ namespace Client.Main.Objects.Player
                 Console.WriteLine($"[PlayerObject] LoadPartAsync failed: {ex.Message}");
                 throw;
             }
+        }
+
+        private async Task EnsureHelmHeadVisibleAsync()
+        {
+            // Some helm models (e.g., diadems) don't include the face mesh; keep the class head visible underneath.
+            if (!_helmItemEquipped)
+            {
+                HideHelmMask();
+                return;
+            }
+
+            bool helmHasFace = HelmetModelHasFace(Helm);
+
+            if (!helmHasFace)
+            {
+                await ResetBodyPartToClassDefaultAsync(HelmMask, "HelmClass");
+                HelmMask.Hidden = false;
+            }
+            else
+            {
+                HideHelmMask();
+            }
+        }
+
+        private static bool HelmetModelHasFace(ModelObject helmObject)
+        {
+            var model = helmObject?.Model;
+            if (model?.Meshes == null)
+                return false;
+
+            if (model.Meshes.Length < 2)
+                return false;
+
+            for (int i = 1; i < model.Meshes.Length; i++)
+            {
+                var mesh = model.Meshes[i];
+                if ((mesh?.Vertices?.Length ?? 0) > 0 && (mesh?.Triangles?.Length ?? 0) > 0)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private void HideHelmMask()
+        {
+            if (HelmMask == null)
+                return;
+
+            HelmMask.Hidden = true;
+            HelmMask.Model = null;
+            ClearItemProperties(HelmMask);
         }
 
         private string GetPartPrefix(ModelObject bodyPart)
@@ -2021,7 +2097,9 @@ namespace Client.Main.Objects.Player
                         break;
 
                     case InventoryConstants.HelmSlot: // 2 - Helm
+                        _helmItemEquipped = true;
                         await UpdateArmorSlotAsync(Helm, equipmentData, equipmentData.ItemGroup, equipmentData.ItemNumber);
+                        await EnsureHelmHeadVisibleAsync();
                         break;
 
                     case InventoryConstants.ArmorSlot: // 3 - Armor
@@ -2083,6 +2161,8 @@ namespace Client.Main.Objects.Player
                 case InventoryConstants.HelmSlot:
                     await ResetBodyPartToClassDefaultAsync(Helm, "HelmClass");
                     ClearItemProperties(Helm);
+                    HideHelmMask();
+                    _helmItemEquipped = false;
                     break;
 
                 case InventoryConstants.ArmorSlot:
@@ -2173,6 +2253,11 @@ namespace Client.Main.Objects.Player
                     await ResetBodyPartToClassDefaultAsync(armorPart, partPrefix);
                 }
                 ClearItemProperties(armorPart);
+                if (armorPart == Helm)
+                {
+                    HideHelmMask();
+                    _helmItemEquipped = false;
+                }
             }
         }
 
