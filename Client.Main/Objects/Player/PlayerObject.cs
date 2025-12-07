@@ -13,6 +13,7 @@ using Client.Main.Networking.Services;
 using Client.Main.Networking;
 using System;
 using Client.Data.ATT;
+using Client.Data.BMD;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Controllers;
@@ -52,6 +53,7 @@ namespace Client.Main.Objects.Player
         private const int LeftHandBoneIndex = 33;
         private const int RightHandBoneIndex = 42;
         private const int BackWeaponBoneIndex = 47; // Same anchor used by wings
+        private string _helmModelPath;
 
         // Safe-zone weapon placement (editable XYZ values for clarity)
         private static readonly Vector3[] WeaponHolsterOffsets =
@@ -1666,16 +1668,16 @@ namespace Client.Main.Objects.Player
 
         private async Task EnsureHelmHeadVisibleAsync()
         {
-            // Some helm models (e.g., diadems) don't include the face mesh; keep the class head visible underneath.
+            // Some helm models don't include the face mesh; keep the class head visible underneath.
             if (!_helmItemEquipped)
             {
                 HideHelmMask();
                 return;
             }
 
-            bool helmHasFace = HelmetModelHasFace(Helm);
+            bool helmNeedsBaseHead = HelmModelRules.RequiresBaseHead(_helmModelPath, Helm?.Model) || !HelmetModelHasFace(Helm);
 
-            if (!helmHasFace)
+            if (helmNeedsBaseHead)
             {
                 await ResetBodyPartToClassDefaultAsync(HelmMask, "HelmClass");
                 HelmMask.Hidden = false;
@@ -1685,6 +1687,16 @@ namespace Client.Main.Objects.Player
                 HideHelmMask();
             }
         }
+
+        private static readonly HashSet<string> HelmModelsRequiringBaseHead = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "HelmMale01",
+            "HelmMale03",
+            "HelmElf01",
+            "HelmElf02",
+            "HelmElf03",
+            "HelmElf04"
+        };
 
         private static bool HelmetModelHasFace(ModelObject helmObject)
         {
@@ -2021,6 +2033,11 @@ namespace Client.Main.Objects.Player
         {
             if (part != null && !string.IsNullOrEmpty(modelPath))
             {
+                if (part == Helm)
+                {
+                    _helmModelPath = modelPath;
+                }
+
                 Console.WriteLine($"[PlayerObject] LoadPartAsync: Loading model {modelPath} for {part.GetType().Name}");
                 _logger?.LogInformation($"[PlayerObject] LoadPartAsync: Loading model {modelPath} for {part.GetType().Name}");
                 part.Model = await BMDLoader.Instance.Prepare(modelPath);

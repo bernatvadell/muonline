@@ -1,4 +1,4 @@
-﻿using Client.Main.Content;
+using Client.Main.Content;
 using Client.Main.Models;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
@@ -33,12 +33,13 @@ namespace Client.Main.Objects.Player
         }
 
         /// <summary>
-        /// Override to exclude face mesh (mesh 1) from item material effects
+        /// Override to exclude face mesh from item material effects.
+        /// Chooses the shell mesh index based on shared helm rules.
         /// </summary>
         protected override bool ShouldApplyItemMaterial(int meshIndex)
         {
-            // Apply item material only to mesh 0 (helmet part), not mesh 1 (face part)
-            return meshIndex == 0;
+            int shellMesh = HelmModelRules.GetHelmetShellMeshIndex(Model?.Name ?? string.Empty);
+            return meshIndex == shellMesh;
         }
 
         // Now returns Task, not void
