@@ -53,15 +53,34 @@ namespace Client.Main.Graphics
                 return;
 
             _shadowMap?.Dispose();
-            _shadowMap = new RenderTarget2D(
-                _graphicsDevice,
-                targetSize,
-                targetSize,
-                false,
-                SurfaceFormat.Single,
-                DepthFormat.Depth24Stencil8,
-                0,
-                RenderTargetUsage.PreserveContents);
+
+            // Prefer half-float to cut bandwidth; fall back to full float if unsupported
+            SurfaceFormat desiredFormat = SurfaceFormat.HalfSingle;
+            try
+            {
+                _shadowMap = new RenderTarget2D(
+                    _graphicsDevice,
+                    targetSize,
+                    targetSize,
+                    false,
+                    desiredFormat,
+                    DepthFormat.Depth24Stencil8,
+                    0,
+                    RenderTargetUsage.DiscardContents);
+            }
+            catch
+            {
+                desiredFormat = SurfaceFormat.Single;
+                _shadowMap = new RenderTarget2D(
+                    _graphicsDevice,
+                    targetSize,
+                    targetSize,
+                    false,
+                    desiredFormat,
+                    DepthFormat.Depth24Stencil8,
+                    0,
+                    RenderTargetUsage.DiscardContents);
+            }
             _forceRender = true; // make sure the new target is populated before reuse
         }
 
@@ -81,6 +100,7 @@ namespace Client.Main.Graphics
 
             float shadowDistance = ComputeShadowDistance(camera);
             bool cameraChanged = HasCameraChanged(camera, shadowDistance);
+            float frustumGuardBand = Math.Max(5f, shadowDistance * 0.01f);
 
             // Always update when camera/light range changed; otherwise respect interval for static views
             if (!_forceRender && !cameraChanged && _frameCounter % updateInterval != 0)
@@ -90,6 +110,7 @@ namespace Client.Main.Graphics
             _lastCameraPosition = camera.Position;
             _lastCameraTarget = camera.Target;
             _forceRender = false;
+            var lightFrustum = new BoundingFrustum(LightViewProjection);
 
             var shadowEffect = GraphicsManager.Instance.DynamicLightingEffect;
             if (shadowEffect == null || _shadowMap == null)
@@ -131,6 +152,10 @@ namespace Client.Main.Graphics
                         continue;
 
                     Vector3 objPos = model.WorldPosition.Translation;
+                    BoundingBox bounds = ExpandBoundingBox(model.BoundingBoxWorld, frustumGuardBand);
+                    if (lightFrustum.Contains(bounds) == ContainmentType.Disjoint)
+                        continue;
+
                     float distSq = Vector3.DistanceSquared(objPos, focus);
                     if (distSq > maxDistanceSq)
                         continue;
@@ -253,6 +278,15 @@ namespace Client.Main.Graphics
             LightViewProjection = LightView * LightProjection;
 
             _lastShadowDistance = shadowDistance;
+        }
+
+        private static BoundingBox ExpandBoundingBox(BoundingBox box, float amount)
+        {
+            if (amount <= 0f)
+                return box;
+
+            Vector3 margin = new Vector3(amount);
+            return new BoundingBox(box.Min - margin, box.Max + margin);
         }
     }
 }

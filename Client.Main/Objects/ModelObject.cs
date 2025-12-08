@@ -1676,6 +1676,9 @@ namespace Client.Main.Objects
             if (shadowEffect == null)
                 return;
 
+            int shadowSize = GraphicsManager.Instance.ShadowMapRenderer?.ShadowMap?.Width ?? Math.Max(256, Constants.SHADOW_MAP_SIZE);
+            Vector2 shadowTexel = new Vector2(1f / shadowSize, 1f / shadowSize);
+
             // Draw own meshes if available
             if (Model?.Meshes != null && _boneVertexBuffers != null && _boneIndexBuffers != null && _boneTextures != null)
             {
@@ -1690,7 +1693,7 @@ namespace Client.Main.Objects
                     shadowEffect.CurrentTechnique = shadowEffect?.Techniques["ShadowCaster"];
                     shadowEffect?.Parameters["World"]?.SetValue(WorldPosition);
                     shadowEffect?.Parameters["LightViewProjection"]?.SetValue(lightViewProjection);
-                    shadowEffect?.Parameters["ShadowMapTexelSize"]?.SetValue(new Vector2(1f / Constants.SHADOW_MAP_SIZE, 1f / Constants.SHADOW_MAP_SIZE));
+                    shadowEffect?.Parameters["ShadowMapTexelSize"]?.SetValue(shadowTexel);
                     shadowEffect?.Parameters["ShadowBias"]?.SetValue(Constants.SHADOW_BIAS);
                     shadowEffect?.Parameters["ShadowNormalBias"]?.SetValue(Constants.SHADOW_NORMAL_BIAS);
                     shadowEffect?.Parameters["SunDirection"]?.SetValue(GraphicsManager.Instance.ShadowMapRenderer?.LightDirection ?? Constants.SUN_DIRECTION);
