@@ -26,7 +26,8 @@ namespace Client.Main.Controls
 
         // --- Public Properties (Facades) ---
         public short WorldIndex { get; set; }
-        public Vector3 LightDirection { get; set; } = new Vector3(0.5f, -0.5f, 0.5f);
+        // Use the opposite of SUN_DIRECTION because the lightmap expects a vector pointing toward the sun.
+        public Vector3 LightDirection { get; set; } = Vector3.Normalize(-Constants.SUN_DIRECTION);
         public IReadOnlyList<DynamicLight> DynamicLights => _lightManager.DynamicLights;
         public IReadOnlyList<DynamicLight> ActiveLights => _lightManager.ActiveLights;
         public Texture2D HeightMapTexture => _data?.HeightMapTexture;
@@ -195,6 +196,14 @@ namespace Client.Main.Controls
         public Vector3 EvaluateDynamicLight(Vector2 position) => _lightManager.EvaluateDynamicLight(position);
         public byte GetBaseTextureIndexAt(int x, int y) => _physics.GetBaseTextureIndexAt(x, y);
         public float GetWindValue(int x, int y) => _wind.GetWindValue(x, y);
+
+        /// <summary>
+        /// Renders the terrain into the shared shadow map.
+        /// </summary>
+        public void RenderShadowMap(Effect shadowEffect, Matrix lightViewProjection)
+        {
+            _renderer?.DrawShadowMap(shadowEffect, lightViewProjection);
+        }
 
         // --- Light Management (Facade) ---
         public void AddDynamicLight(DynamicLight light) => _lightManager.AddDynamicLight(light);

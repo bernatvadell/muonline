@@ -40,6 +40,7 @@ namespace Client.Main.Controllers
         public Effect ItemMaterialEffect { get; private set; }
         public Effect MonsterMaterialEffect { get; private set; }
         public Effect DynamicLightingEffect { get; private set; }
+        public ShadowMapRenderer ShadowMapRenderer { get; private set; }
         
         // RasterizerState cache to avoid per-mesh allocations
         private static readonly Dictionary<(float bias, CullMode cull), RasterizerState> _rasterizerCache = new();
@@ -73,6 +74,7 @@ namespace Client.Main.Controllers
             ItemMaterialEffect = LoadEffect("ItemMaterial");
             MonsterMaterialEffect = LoadEffect("MonsterMaterial");
             DynamicLightingEffect = LoadEffect("DynamicLighting");
+            ShadowMapRenderer = new ShadowMapRenderer(_graphicsDevice);
 
             InitializeFXAAEffect();
 
@@ -234,6 +236,7 @@ namespace Client.Main.Controllers
             TempTarget1?.Dispose();
             TempTarget2?.Dispose();
             Pixel?.Dispose();
+            ShadowMapRenderer?.Dispose();
 
             AlphaRGBEffect?.Dispose();
             FXAAEffect?.Dispose();

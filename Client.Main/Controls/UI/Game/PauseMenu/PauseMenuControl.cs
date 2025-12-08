@@ -584,6 +584,8 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                     ref categoryX, categoryWidth, categoryHeight, categorySpacing, categoriesPerRow, ref categoryIndex);
                 AddCategoryButton("Lighting", () => BuildLightingCategory(), categoryStartY,
                     ref categoryX, categoryWidth, categoryHeight, categorySpacing, categoriesPerRow, ref categoryIndex);
+                AddCategoryButton("Shadow Quality", () => BuildShadowQualityCategory(), categoryStartY,
+                    ref categoryX, categoryWidth, categoryHeight, categorySpacing, categoriesPerRow, ref categoryIndex);
                 AddCategoryButton("Performance", () => BuildPerformanceCategory(), categoryStartY,
                     ref categoryX, categoryWidth, categoryHeight, categorySpacing, categoriesPerRow, ref categoryIndex);
 
@@ -755,6 +757,61 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                     AddOption("Item Material Shader", () => Constants.ENABLE_ITEM_MATERIAL_SHADER, value => Constants.ENABLE_ITEM_MATERIAL_SHADER = value, ref currentY, OptionRowHeight);
                     AddOption("Monster Material Shader", () => Constants.ENABLE_MONSTER_MATERIAL_SHADER, value => Constants.ENABLE_MONSTER_MATERIAL_SHADER = value, ref currentY, OptionRowHeight);
                 });
+            }
+
+            private void BuildShadowQualityCategory()
+            {
+                BuildCategory("Shadow Quality", (ref int currentY) =>
+                {
+                    AddOption("Shadow Mapping", () => Constants.ENABLE_SHADOW_MAPPING, value =>
+                    {
+                        Constants.ENABLE_SHADOW_MAPPING = value;
+                        if (value && Constants.GetCurrentShadowQuality() == Constants.ShadowQuality.Off)
+                        {
+                            Constants.ApplyShadowQualityPreset(Constants.ShadowQuality.Medium);
+                        }
+                        OnShadowSettingChanged();
+                    }, ref currentY, OptionRowHeight);
+
+                    currentY += 8;
+                    AddHeading("Quality Presets", ref currentY);
+
+                    AddOption("Off (Disabled)", () => Constants.GetCurrentShadowQuality() == Constants.ShadowQuality.Off, value =>
+                    {
+                        if (value) { Constants.ApplyShadowQualityPreset(Constants.ShadowQuality.Off); OnShadowSettingChanged(); }
+                    }, ref currentY, OptionRowHeight);
+
+                    AddOption("Low (512px, 800 units)", () => Constants.GetCurrentShadowQuality() == Constants.ShadowQuality.Low, value =>
+                    {
+                        if (value) { Constants.ApplyShadowQualityPreset(Constants.ShadowQuality.Low); OnShadowSettingChanged(); }
+                    }, ref currentY, OptionRowHeight);
+
+                    AddOption("Medium (1024px, 1200 units)", () => Constants.GetCurrentShadowQuality() == Constants.ShadowQuality.Medium, value =>
+                    {
+                        if (value) { Constants.ApplyShadowQualityPreset(Constants.ShadowQuality.Medium); OnShadowSettingChanged(); }
+                    }, ref currentY, OptionRowHeight);
+
+                    AddOption("High (1024px, 1500 units)", () => Constants.GetCurrentShadowQuality() == Constants.ShadowQuality.High, value =>
+                    {
+                        if (value) { Constants.ApplyShadowQualityPreset(Constants.ShadowQuality.High); OnShadowSettingChanged(); }
+                    }, ref currentY, OptionRowHeight);
+
+                    AddOption("Ultra (2048px, 2000 units)", () => Constants.GetCurrentShadowQuality() == Constants.ShadowQuality.Ultra, value =>
+                    {
+                        if (value) { Constants.ApplyShadowQualityPreset(Constants.ShadowQuality.Ultra); OnShadowSettingChanged(); }
+                    }, ref currentY, OptionRowHeight);
+                });
+            }
+
+            private void OnShadowSettingChanged()
+            {
+                // Force shadow map renderer to recreate render targets with new settings
+                var shadowRenderer = GraphicsManager.Instance?.ShadowMapRenderer;
+                if (shadowRenderer != null)
+                {
+                    shadowRenderer.EnsureRenderTarget();
+                }
+                RefreshOptions();
             }
 
             private void BuildPerformanceCategory()

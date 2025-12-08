@@ -36,6 +36,22 @@ float3 SunDirection = float3(1.0, 0.0, -0.6);
 float3 SunColor = float3(1.0, 0.95, 0.85);
 float SunStrength = 0.8;
 float ShadowStrength = 0.5;
+float4x4 LightViewProjection;
+float2 ShadowMapTexelSize = float2(1.0 / 2048.0, 1.0 / 2048.0);
+float ShadowBias = 0.0015;
+float ShadowNormalBias = 0.0025;
+bool ShadowsEnabled = false;
+
+texture ShadowMap;
+sampler2D ShadowSampler = sampler_state
+{
+    Texture = <ShadowMap>;
+    AddressU = Clamp;
+    AddressV = Clamp;
+    MinFilter = Linear;
+    MagFilter = Linear;
+    MipFilter = Point;
+};
 
 // Dynamic lights
 #define MAX_LIGHTS 16
@@ -147,6 +163,42 @@ float3 CalculateDynamicLighting(float3 worldPos, float3 normal)
     return dynamicLight;
 }
 
+float SampleShadow(float3 worldPos, float3 normal)
+{
+    if (!ShadowsEnabled)
+        return 1.0;
+
+    float4 lightPos = mul(float4(worldPos, 1.0), LightViewProjection);
+    float3 proj = lightPos.xyz / lightPos.w;
+
+    // Map from NDC to UV coordinates
+    // DirectX: NDC.y is inverted relative to texture V, so we flip Y
+    // OpenGL: No flip needed
+#if OPENGL
+    float2 uv = proj.xy * 0.5 + 0.5;
+    float depth = proj.z * 0.5 + 0.5; // OpenGL depth is [-1, 1], map to [0, 1]
+#else
+    float2 uv = float2(proj.x * 0.5 + 0.5, 0.5 - proj.y * 0.5); // Flip Y for DirectX
+    float depth = proj.z; // DirectX depth is already [0, 1]
+#endif
+
+    // Outside shadow map
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0)
+        return 1.0;
+
+    float ndotl = saturate(dot(normal, -SunDirection));
+    float bias = ShadowBias + ShadowNormalBias * (1.0 - ndotl);
+
+    // 2x2 PCF (4 samples instead of 9 for better performance)
+    float shadow = 0.0;
+    shadow += step(depth - bias, tex2D(ShadowSampler, uv + float2(-0.5, -0.5) * ShadowMapTexelSize).r);
+    shadow += step(depth - bias, tex2D(ShadowSampler, uv + float2( 0.5, -0.5) * ShadowMapTexelSize).r);
+    shadow += step(depth - bias, tex2D(ShadowSampler, uv + float2(-0.5,  0.5) * ShadowMapTexelSize).r);
+    shadow += step(depth - bias, tex2D(ShadowSampler, uv + float2( 0.5,  0.5) * ShadowMapTexelSize).r);
+
+    return shadow * 0.25;
+}
+
 // Pixel Shader - Optimized for minimum GPU overhead
 float4 PS_Main(PixelInput input) : SV_Target
 {
@@ -202,6 +254,14 @@ float4 PS_Main(PixelInput input) : SV_Target
         // Combine ambient, sun, and dynamic lighting
         finalLight += dynamicLight * TerrainDynamicIntensityScale;
     }
+
+    // Apply shadow only when enabled to avoid potential issues with uninitialized shadow map
+    if (ShadowsEnabled)
+    {
+        float shadowTerm = SampleShadow(input.WorldPos, normal);
+        float shadowMix = lerp(1.0 - ShadowStrength, 1.0, shadowTerm);
+        finalLight *= shadowMix;
+    }
     
     // Apply lighting with single multiply
     float3 finalColor = texColor.rgb * finalLight;
@@ -232,5 +292,47 @@ technique DynamicLighting
     {
         VertexShader = compile VS_SHADERMODEL VS_Main();
         PixelShader = compile PS_SHADERMODEL PS_Main();
+    }
+}
+
+struct ShadowVertexOutput
+{
+    float4 Position : SV_POSITION;
+    float2 TexCoord : TEXCOORD0;
+};
+
+// Use same input struct as main technique to ensure vertex layout compatibility
+ShadowVertexOutput ShadowVS(VertexInput input)
+{
+    ShadowVertexOutput output;
+    float4 worldPos = mul(float4(input.Position, 1.0), World);
+    output.Position = mul(worldPos, LightViewProjection);
+    output.TexCoord = input.TexCoord;
+    return output;
+}
+
+float4 ShadowPS(ShadowVertexOutput input) : SV_TARGET
+{
+    float alphaMask = tex2D(SamplerState0, input.TexCoord).a;
+    clip(alphaMask - 0.01);
+
+    // In pixel shader, SV_POSITION.z is already the depth value after perspective divide
+    // DirectX: z is in [0, 1] range
+    // OpenGL: z is in [-1, 1] range, needs remapping
+    float depth = input.Position.z / input.Position.w;
+#if OPENGL
+    float linearDepth = depth * 0.5 + 0.5; // Map from [-1, 1] to [0, 1]
+#else
+    float linearDepth = depth; // DirectX already in [0, 1]
+#endif
+    return float4(linearDepth, linearDepth, linearDepth, 1.0);
+}
+
+technique ShadowCaster
+{
+    pass Pass1
+    {
+        VertexShader = compile VS_SHADERMODEL ShadowVS();
+        PixelShader  = compile PS_SHADERMODEL ShadowPS();
     }
 }

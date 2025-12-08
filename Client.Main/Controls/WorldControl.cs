@@ -303,6 +303,13 @@ namespace Client.Main.Controls
         public override void Draw(GameTime time)
         {
             if (Status != GameControlStatus.Ready) return;
+            
+            // Build shadow map before any backbuffer drawing so terrain tiles aren't lost
+            if (EnableShadows && Constants.ENABLE_SHADOW_MAPPING && GraphicsManager.Instance.ShadowMapRenderer != null)
+            {
+                GraphicsManager.Instance.ShadowMapRenderer.RenderShadowMap(this);
+            }
+
             base.Draw(time);
             RenderObjects(time);
         }

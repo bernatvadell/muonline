@@ -664,7 +664,9 @@ namespace Client.Main.Objects
             // Pre-calculate shadow and highlight states at object level
             bool doShadow = false;
             Matrix shadowMatrix = Matrix.Identity;
-            if (!isAfterDraw && RenderShadow && !LowQuality)
+            bool useShadowMap = Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
+                                GraphicsManager.Instance.ShadowMapRenderer?.IsReady == true;
+            if (!isAfterDraw && RenderShadow && !LowQuality && !useShadowMap)
                 doShadow = TryGetShadowMatrix(out shadowMatrix);
             float shadowOpacity = ShadowOpacity;
             if (doShadow && World?.Terrain != null)
@@ -736,7 +738,7 @@ namespace Client.Main.Objects
                     }
 
                     // Object-level shadow and highlight passes
-                    if (doShadow)
+                    if (doShadow && !useShadowMap)
                         DrawMeshesShadow(meshIndices, shadowMatrix, view, projection, shadowOpacity);
                     if (highlightAllowed)
                         DrawMeshesHighlight(meshIndices, highlightMatrix, highlightColor);
@@ -1085,6 +1087,9 @@ namespace Client.Main.Objects
                     return;
                 }
 
+                effect.CurrentTechnique = effect.Techniques[0];
+                GraphicsManager.Instance.ShadowMapRenderer?.ApplyShadowParameters(effect);
+
                 var prevDepthState = gd.DepthStencilState;
                 bool depthStateChanged = false;
 
@@ -1112,6 +1117,13 @@ namespace Client.Main.Objects
 
                     gd.BlendState = blendState;
 
+                    Vector3 sunDir = GraphicsManager.Instance.ShadowMapRenderer?.LightDirection ?? Constants.SUN_DIRECTION;
+                    if (sunDir.LengthSquared() < 0.0001f)
+                        sunDir = new Vector3(1f, 0f, -0.6f);
+                    sunDir = Vector3.Normalize(sunDir);
+                    bool worldAllowsSun = World is WorldControl wc ? wc.IsSunWorld : true;
+                    bool sunEnabled = Constants.SUN_ENABLED && worldAllowsSun && UseSunLight && !HasWalkerAncestor();
+
                     // Set world view projection matrix
                     Matrix worldViewProjection = WorldPosition * Camera.Instance.View * Camera.Instance.Projection;
                     effect.Parameters["WorldViewProjection"]?.SetValue(worldViewProjection);
@@ -1119,6 +1131,8 @@ namespace Client.Main.Objects
                     effect.Parameters["View"]?.SetValue(Camera.Instance.View);
                     effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
                     effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
+                    effect.Parameters["LightDirection"]?.SetValue(sunDir);
+                    effect.Parameters["ShadowStrength"]?.SetValue(sunEnabled ? Constants.SUN_SHADOW_STRENGTH : 0f);
 
                     // Set texture
                     effect.Parameters["DiffuseTexture"]?.SetValue(texture);
@@ -1183,6 +1197,9 @@ namespace Client.Main.Objects
                     return;
                 }
 
+                effect.CurrentTechnique = effect.Techniques[0];
+                GraphicsManager.Instance.ShadowMapRenderer?.ApplyShadowParameters(effect);
+
                 var prevDepthState = gd.DepthStencilState;
                 bool depthStateChanged = false;
 
@@ -1210,11 +1227,20 @@ namespace Client.Main.Objects
 
                     gd.BlendState = blendState;
 
+                    Vector3 sunDir = GraphicsManager.Instance.ShadowMapRenderer?.LightDirection ?? Constants.SUN_DIRECTION;
+                    if (sunDir.LengthSquared() < 0.0001f)
+                        sunDir = new Vector3(1f, 0f, -0.6f);
+                    sunDir = Vector3.Normalize(sunDir);
+                    bool worldAllowsSun = World is WorldControl wc ? wc.IsSunWorld : true;
+                    bool sunEnabled = Constants.SUN_ENABLED && worldAllowsSun && UseSunLight && !HasWalkerAncestor();
+
                     // Set matrices
                     effect.Parameters["World"]?.SetValue(WorldPosition);
                     effect.Parameters["View"]?.SetValue(Camera.Instance.View);
                     effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
                     effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
+                    effect.Parameters["LightDirection"]?.SetValue(sunDir);
+                    effect.Parameters["ShadowStrength"]?.SetValue(sunEnabled ? Constants.SUN_SHADOW_STRENGTH : 0f);
 
                     // Set texture
                     effect.Parameters["DiffuseTexture"]?.SetValue(texture);
@@ -1275,6 +1301,9 @@ namespace Client.Main.Objects
                     return;
                 }
 
+                effect.CurrentTechnique = effect.Techniques["DynamicLighting"];
+                GraphicsManager.Instance.ShadowMapRenderer?.ApplyShadowParameters(effect);
+
                 var prevDepthState = gd.DepthStencilState;
                 bool depthStateChanged = false;
 
@@ -1309,7 +1338,7 @@ namespace Client.Main.Objects
                     Matrix worldViewProjection = WorldPosition * Camera.Instance.View * Camera.Instance.Projection;
                     effect.Parameters["WorldViewProjection"]?.SetValue(worldViewProjection);
                     effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
-                    Vector3 sunDir = Constants.SUN_DIRECTION;
+                    Vector3 sunDir = GraphicsManager.Instance.ShadowMapRenderer?.LightDirection ?? Constants.SUN_DIRECTION;
                     if (sunDir.LengthSquared() < 0.0001f)
                         sunDir = new Vector3(1f, 0f, -0.6f);
                     sunDir = Vector3.Normalize(sunDir);
@@ -1640,6 +1669,108 @@ namespace Client.Main.Objects
             {
                 _logger?.LogDebug($"Error in DrawShadowMesh: {ex.Message}");
             }
+        }
+
+        public virtual void DrawShadowCaster(Effect shadowEffect, Matrix lightViewProjection)
+        {
+            if (shadowEffect == null)
+                return;
+
+            // Draw own meshes if available
+            if (Model?.Meshes != null && _boneVertexBuffers != null && _boneIndexBuffers != null && _boneTextures != null)
+            {
+                try
+                {
+                    var gd = GraphicsDevice;
+                    var prevBlend = gd.BlendState;
+                    var prevDepth = gd.DepthStencilState;
+                    var prevRaster = gd.RasterizerState;
+                    var prevTechnique = shadowEffect?.CurrentTechnique;
+
+                    shadowEffect.CurrentTechnique = shadowEffect?.Techniques["ShadowCaster"];
+                    shadowEffect?.Parameters["World"]?.SetValue(WorldPosition);
+                    shadowEffect?.Parameters["LightViewProjection"]?.SetValue(lightViewProjection);
+                    shadowEffect?.Parameters["ShadowMapTexelSize"]?.SetValue(new Vector2(1f / Constants.SHADOW_MAP_SIZE, 1f / Constants.SHADOW_MAP_SIZE));
+                    shadowEffect?.Parameters["ShadowBias"]?.SetValue(Constants.SHADOW_BIAS);
+                    shadowEffect?.Parameters["ShadowNormalBias"]?.SetValue(Constants.SHADOW_NORMAL_BIAS);
+                    shadowEffect?.Parameters["SunDirection"]?.SetValue(GraphicsManager.Instance.ShadowMapRenderer?.LightDirection ?? Constants.SUN_DIRECTION);
+
+                    gd.BlendState = BlendState.Opaque;
+                    gd.DepthStencilState = DepthStencilState.Default;
+
+                    int meshCount = Model.Meshes.Length;
+                    for (int i = 0; i < meshCount; i++)
+                    {
+                        if (IsHiddenMesh(i))
+                            continue;
+
+                        var vb = _boneVertexBuffers[i];
+                        var ib = _boneIndexBuffers[i];
+                        var tex = _boneTextures[i];
+                        if (vb == null || ib == null || tex == null)
+                            continue;
+
+                        bool isTwoSided = IsMeshTwoSided(i, IsBlendMesh(i));
+                        gd.RasterizerState = isTwoSided ? _cullNone : _cullClockwise;
+
+                        shadowEffect?.Parameters["DiffuseTexture"]?.SetValue(tex);
+
+                        foreach (var pass in shadowEffect.CurrentTechnique.Passes)
+                        {
+                            pass.Apply();
+                            gd.SetVertexBuffer(vb);
+                            gd.Indices = ib;
+                            gd.DrawIndexedPrimitives(
+                                PrimitiveType.TriangleList,
+                                0, 0, ib.IndexCount / 3);
+                        }
+                    }
+
+                    gd.BlendState = prevBlend;
+                    gd.DepthStencilState = prevDepth;
+                    gd.RasterizerState = prevRaster;
+                    if (prevTechnique != null)
+                        shadowEffect.CurrentTechnique = prevTechnique;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogDebug($"Error drawing shadow caster: {ex.Message}");
+                }
+            }
+
+            // Recursively draw shadow casters for all children (armor, weapons, helm, etc.)
+            // Note: We don't use modelChild.Visible here because it includes OutOfView check,
+            // and children may not have their OutOfView properly updated since they're not in World.Objects directly.
+            // Instead, we check Status, Hidden, and RenderShadow directly.
+            int childCount = Children.Count;
+            bool skipSmallParts = Constants.SHADOW_SKIP_SMALL_PARTS;
+            for (int i = 0; i < childCount; i++)
+            {
+                var child = Children[i];
+                if (child is ModelObject modelChild &&
+                    modelChild.Status == GameControlStatus.Ready &&
+                    !modelChild.Hidden &&
+                    modelChild.RenderShadow)
+                {
+                    // Skip small parts (weapons, gloves, boots) for performance if enabled
+                    if (skipSmallParts && IsSmallShadowPart(modelChild))
+                        continue;
+
+                    modelChild.DrawShadowCaster(shadowEffect, lightViewProjection);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Checks if a model child is a small part that can be skipped for shadow casting.
+        /// Small parts like weapons, gloves, and boots don't contribute much to shadow silhouette.
+        /// </summary>
+        private static bool IsSmallShadowPart(ModelObject modelChild)
+        {
+            return modelChild is Player.WeaponObject ||
+                   modelChild is Player.PlayerGloveObject ||
+                   modelChild is Player.PlayerBootObject ||
+                   modelChild is Player.PlayerMaskHelmObject;
         }
 
         public override void DrawAfter(GameTime gameTime)

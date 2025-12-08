@@ -78,10 +78,91 @@ namespace Client.Main
 
         // Lighting
         public static bool SUN_ENABLED = true;
-        public static Vector3 SUN_DIRECTION = new Vector3(-1f, 0f, -0.6f);
+        public static Vector3 SUN_DIRECTION = new Vector3(-1f, 0f, -1f);
         public static float SUN_STRENGTH = 0.35f;
         public static float SUN_SHADOW_STRENGTH = 0.6f;
         public static short[] SUN_WORLD_INDICES = new short[] { 0, 2, 7, 1, 3 };
+        public static bool ENABLE_SHADOW_MAPPING;
+        public static int SHADOW_MAP_SIZE;
+        public static float SHADOW_DISTANCE;
+        public static float SHADOW_NEAR_PLANE;
+        public static float SHADOW_FAR_PLANE;
+        public static float SHADOW_BIAS;
+        public static float SHADOW_NORMAL_BIAS;
+        public static int SHADOW_UPDATE_INTERVAL; // Frames between shadow map updates (1 = every frame)
+        public static int SHADOW_MAX_CASTERS; // Max objects to render as shadow casters per frame
+        public static bool SHADOW_SKIP_SMALL_PARTS; // Skip weapons/gloves/boots for shadow casting
+
+        // Shadow quality presets
+        public enum ShadowQuality
+        {
+            Off,
+            Low,
+            Medium,
+            High,
+            Ultra
+        }
+
+        public static void ApplyShadowQualityPreset(ShadowQuality quality)
+        {
+            switch (quality)
+            {
+                case ShadowQuality.Off:
+                    ENABLE_SHADOW_MAPPING = false;
+                    break;
+
+                case ShadowQuality.Low:
+                    ENABLE_SHADOW_MAPPING = true;
+                    SHADOW_MAP_SIZE = 512;
+                    SHADOW_DISTANCE = 1500f;
+                    SHADOW_UPDATE_INTERVAL = 1;
+                    SHADOW_MAX_CASTERS = 15;
+                    SHADOW_SKIP_SMALL_PARTS = false;
+                    break;
+
+                case ShadowQuality.Medium:
+                    ENABLE_SHADOW_MAPPING = true;
+                    SHADOW_MAP_SIZE = 1024;
+                    SHADOW_DISTANCE = 1500f;
+                    SHADOW_UPDATE_INTERVAL = 1;
+                    SHADOW_MAX_CASTERS = 15;
+                    SHADOW_SKIP_SMALL_PARTS = false;
+                    break;
+
+                case ShadowQuality.High:
+                    ENABLE_SHADOW_MAPPING = true;
+                    SHADOW_MAP_SIZE = 1024;
+                    SHADOW_DISTANCE = 2000f;
+                    SHADOW_UPDATE_INTERVAL = 1;
+                    SHADOW_MAX_CASTERS = 15;
+                    SHADOW_SKIP_SMALL_PARTS = false;
+                    break;
+
+                case ShadowQuality.Ultra:
+                    ENABLE_SHADOW_MAPPING = true;
+                    SHADOW_MAP_SIZE = 2048;
+                    SHADOW_DISTANCE = 2500f;
+                    SHADOW_UPDATE_INTERVAL = 1;
+                    SHADOW_MAX_CASTERS = 15;
+                    SHADOW_SKIP_SMALL_PARTS = false;
+                    break;
+            }
+        }
+
+        public static ShadowQuality GetCurrentShadowQuality()
+        {
+            if (!ENABLE_SHADOW_MAPPING)
+                return ShadowQuality.Off;
+
+            // Match current settings to closest preset
+            if (SHADOW_MAP_SIZE <= 512)
+                return ShadowQuality.Low;
+            if (SHADOW_MAP_SIZE <= 1024 && SHADOW_SKIP_SMALL_PARTS)
+                return ShadowQuality.Medium;
+            if (SHADOW_MAP_SIZE <= 1024)
+                return ShadowQuality.High;
+            return ShadowQuality.Ultra;
+        }
 
         // Paths
         public static string DataPath;
@@ -133,6 +214,13 @@ namespace Client.Main
             HIGH_QUALITY_TEXTURES = true;
             DISABLE_VSYNC = true;
             UNLIMITED_FPS = true;
+            ENABLE_SHADOW_MAPPING = true;
+            // Default to the Medium preset unless user changes it in options
+            ApplyShadowQualityPreset(ShadowQuality.Medium);
+            SHADOW_NEAR_PLANE = 10f;
+            SHADOW_FAR_PLANE = 4000f;
+            SHADOW_BIAS = 0.002f;
+            SHADOW_NORMAL_BIAS = 0.003f;
 
             DataPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
         }

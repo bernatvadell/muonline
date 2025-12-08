@@ -139,6 +139,11 @@ namespace Client.Main.Controls.Terrain
 
             if (_useDynamicLightingShader)
             {
+                var effect = GraphicsManager.Instance.DynamicLightingEffect;
+                if (effect != null)
+                {
+                    effect.CurrentTechnique = effect.Techniques["DynamicLighting"];
+                }
                 if (!ConfigureDynamicLightingEffect())
                     return;
             }
@@ -179,6 +184,57 @@ namespace Client.Main.Controls.Terrain
             _lastBlendState = null;
         }
 
+        public void DrawShadowMap(Effect shadowEffect, Matrix lightViewProjection)
+        {
+            if (_graphicsDevice == null || _data.HeightMap == null || shadowEffect == null)
+                return;
+
+            var prevBlend = _graphicsDevice.BlendState;
+            var prevDepth = _graphicsDevice.DepthStencilState;
+            var prevRaster = _graphicsDevice.RasterizerState;
+            var prevTechnique = shadowEffect.CurrentTechnique;
+            var prevUseDynamic = _useDynamicLightingShader;
+            var prevLastBoundTexture = _lastBoundTexture;
+
+            // Reset texture binding to ensure correct textures are bound for shadow pass
+            _lastBoundTexture = null;
+            _useDynamicLightingShader = true;
+            _graphicsDevice.BlendState = BlendState.Opaque;
+            _graphicsDevice.DepthStencilState = DepthStencilState.Default;
+            _graphicsDevice.RasterizerState = RasterizerState.CullCounterClockwise;
+
+            shadowEffect.CurrentTechnique = shadowEffect.Techniques["ShadowCaster"];
+            shadowEffect.Parameters["World"]?.SetValue(Matrix.Identity);
+            shadowEffect.Parameters["LightViewProjection"]?.SetValue(lightViewProjection);
+            shadowEffect.Parameters["ShadowMapTexelSize"]?.SetValue(new Vector2(1f / Constants.SHADOW_MAP_SIZE, 1f / Constants.SHADOW_MAP_SIZE));
+            shadowEffect.Parameters["ShadowBias"]?.SetValue(Constants.SHADOW_BIAS);
+            shadowEffect.Parameters["ShadowNormalBias"]?.SetValue(Constants.SHADOW_NORMAL_BIAS);
+            shadowEffect.Parameters["TerrainLightingPass"]?.SetValue(false);
+            shadowEffect.Parameters["UseVertexColorLighting"]?.SetValue(false);
+            shadowEffect.Parameters["Alpha"]?.SetValue(1f);
+
+            foreach (var block in _visibility.VisibleBlocks)
+            {
+                if (block?.IsVisible == true)
+                {
+                    RenderTerrainBlock(
+                        block.Xi, block.Yi,
+                        after: false,
+                        _visibility.LodSteps[block.LODLevel],
+                        block);
+                }
+            }
+
+            FlushAllTileBatches();
+
+            _useDynamicLightingShader = prevUseDynamic;
+            _lastBoundTexture = prevLastBoundTexture;
+            _graphicsDevice.BlendState = prevBlend;
+            _graphicsDevice.DepthStencilState = prevDepth;
+            _graphicsDevice.RasterizerState = prevRaster;
+            shadowEffect.CurrentTechnique = prevTechnique;
+        }
+
         private bool ConfigureDynamicLightingEffect()
         {
             var effect = GraphicsManager.Instance.DynamicLightingEffect;
@@ -199,7 +255,7 @@ namespace Client.Main.Controls.Terrain
 
             // Ambient and sun are ignored when using baked vertex lighting, but keep sane defaults.
             effect.Parameters["AmbientLight"]?.SetValue(new Vector3(AmbientLight));
-            Vector3 sunDir = Constants.SUN_DIRECTION;
+            Vector3 sunDir = GraphicsManager.Instance.ShadowMapRenderer?.LightDirection ?? Constants.SUN_DIRECTION;
             if (sunDir.LengthSquared() < 0.0001f)
                 sunDir = new Vector3(1f, 0f, -0.6f);
             sunDir = Vector3.Normalize(sunDir);
@@ -209,6 +265,8 @@ namespace Client.Main.Controls.Terrain
             effect.Parameters["SunStrength"]?.SetValue(sunEnabled ? Constants.SUN_STRENGTH : 0f);
             effect.Parameters["ShadowStrength"]?.SetValue(sunEnabled ? Constants.SUN_SHADOW_STRENGTH : 0f);
 
+            // Apply global shadow map parameters when available so terrain receives the same shadows as objects
+            GraphicsManager.Instance.ShadowMapRenderer?.ApplyShadowParameters(effect);
             UploadDynamicLights(effect);
             return true;
         }

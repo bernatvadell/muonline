@@ -34,11 +34,28 @@ sampler2D DiffuseSampler = sampler_state
     AddressV = Wrap;
 };
 
+texture ShadowMap;
+sampler2D ShadowSampler = sampler_state
+{
+    Texture = <ShadowMap>;
+    MinFilter = Linear;
+    MagFilter = Linear;
+    MipFilter = Point;
+    AddressU = Clamp;
+    AddressV = Clamp;
+};
+
 int ItemOptions = 0;
 float Time = 0;
 float3 GlowColor = float3(0.6, 0.5, 0.0);
 bool IsAncient = false;
 bool IsExcellent = false;
+float4x4 LightViewProjection;
+float2 ShadowMapTexelSize = float2(1.0 / 2048.0, 1.0 / 2048.0);
+float ShadowBias = 0.0015;
+float ShadowNormalBias = 0.0025;
+bool ShadowsEnabled = false;
+float ShadowStrength = 0.5;
 
 struct VertexShaderInput
 {
@@ -103,6 +120,38 @@ float3 HSVtoRGB(float3 hsv)
         rgb = float3(c, 0, x);
     
     return rgb + m;
+}
+
+float SampleShadow(float3 worldPos, float3 normal)
+{
+    if (!ShadowsEnabled)
+        return 1.0;
+
+    float4 lightPos = mul(float4(worldPos, 1.0), LightViewProjection);
+    float3 proj = lightPos.xyz / lightPos.w;
+    float2 uv = proj.xy * 0.5 + 0.5;
+    float depth = proj.z * 0.5 + 0.5;
+
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0)
+        return 1.0;
+
+    float ndotl = saturate(dot(normal, -LightDirection));
+    float bias = ShadowBias + ShadowNormalBias * (1.0 - ndotl);
+
+    float shadow = 0.0;
+    [unroll]
+    for (int x = -1; x <= 1; x++)
+    {
+        [unroll]
+        for (int y = -1; y <= 1; y++)
+        {
+            float2 offset = float2(x, y) * ShadowMapTexelSize;
+            float sampleDepth = tex2D(ShadowSampler, uv + offset).r;
+            shadow += step(depth - bias, sampleDepth);
+        }
+    }
+
+    return shadow / 9.0;
 }
 
 VertexShaderOutput MainVS(in VertexShaderInput input)
@@ -337,7 +386,11 @@ float4 MainPS(VertexShaderOutput input) : COLOR
         
         // Brightness boost for excellent items
         color.rgb *= lerp(1.0, 1.4, excellentEnabled);
-        
+
+        float shadowTerm = SampleShadow(input.WorldPosition, normal);
+        float shadowMix = lerp(1.0 - ShadowStrength, 1.0, shadowTerm);
+        color.rgb *= shadowMix;
+
         return color;
 }
 
