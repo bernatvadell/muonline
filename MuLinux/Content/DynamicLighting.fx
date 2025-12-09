@@ -165,38 +165,38 @@ float3 CalculateDynamicLighting(float3 worldPos, float3 normal)
 
 float SampleShadow(float3 worldPos, float3 normal)
 {
-    if (!ShadowsEnabled)
-        return 1.0;
-
     float4 lightPos = mul(float4(worldPos, 1.0), LightViewProjection);
     float3 proj = lightPos.xyz / lightPos.w;
 
     // Map from NDC to UV coordinates
-    // DirectX: NDC.y is inverted relative to texture V, so we flip Y
-    // OpenGL: No flip needed
+    // Both DirectX and OpenGL need Y flip due to texture coordinate systems
 #if OPENGL
-    float2 uv = proj.xy * 0.5 + 0.5;
+    float2 uv = float2(proj.x * 0.5 + 0.5, 0.5 - proj.y * 0.5); // Flip Y for OpenGL render target
     float depth = proj.z * 0.5 + 0.5; // OpenGL depth is [-1, 1], map to [0, 1]
 #else
     float2 uv = float2(proj.x * 0.5 + 0.5, 0.5 - proj.y * 0.5); // Flip Y for DirectX
     float depth = proj.z; // DirectX depth is already [0, 1]
 #endif
 
-    // Outside shadow map
-    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0)
-        return 1.0;
+    // Check if outside shadow map bounds (branchless)
+    float2 uvClamped = saturate(uv);
+    float inBounds = step(abs(uv.x - uvClamped.x) + abs(uv.y - uvClamped.y), 0.0001);
 
     float ndotl = saturate(dot(normal, -SunDirection));
     float bias = ShadowBias + ShadowNormalBias * (1.0 - ndotl);
 
-    // 2x2 PCF (4 samples instead of 9 for better performance)
+    // 2x2 PCF (4 samples) - use tex2Dlod for OpenGL compatibility (no gradient operations)
     float shadow = 0.0;
-    shadow += step(depth - bias, tex2D(ShadowSampler, uv + float2(-0.5, -0.5) * ShadowMapTexelSize).r);
-    shadow += step(depth - bias, tex2D(ShadowSampler, uv + float2( 0.5, -0.5) * ShadowMapTexelSize).r);
-    shadow += step(depth - bias, tex2D(ShadowSampler, uv + float2(-0.5,  0.5) * ShadowMapTexelSize).r);
-    shadow += step(depth - bias, tex2D(ShadowSampler, uv + float2( 0.5,  0.5) * ShadowMapTexelSize).r);
+    shadow += step(depth - bias, tex2Dlod(ShadowSampler, float4(uv + float2(-0.5, -0.5) * ShadowMapTexelSize, 0, 0)).r);
+    shadow += step(depth - bias, tex2Dlod(ShadowSampler, float4(uv + float2( 0.5, -0.5) * ShadowMapTexelSize, 0, 0)).r);
+    shadow += step(depth - bias, tex2Dlod(ShadowSampler, float4(uv + float2(-0.5,  0.5) * ShadowMapTexelSize, 0, 0)).r);
+    shadow += step(depth - bias, tex2Dlod(ShadowSampler, float4(uv + float2( 0.5,  0.5) * ShadowMapTexelSize, 0, 0)).r);
+    shadow *= 0.25;
 
-    return shadow * 0.25;
+    // Blend to no shadow (1.0) when outside bounds or shadows disabled
+    // Convert bool to float branchlessly: bool evaluates to 1.0 when true, 0.0 when false in HLSL
+    float shadowEnabled = float(ShadowsEnabled);
+    return lerp(1.0, shadow, inBounds * shadowEnabled);
 }
 
 // Pixel Shader - Optimized for minimum GPU overhead
@@ -240,32 +240,27 @@ float4 PS_Main(PixelInput input) : SV_Target
     }
 
     float3 finalLight = baseLight;
-    if (ActiveLightCount > 0)
-    {
-        // Calculate dynamic lighting with mathematical optimizations
-        float3 dynamicLight = CalculateDynamicLighting(input.WorldPos, normal);
-        
-        // Debug mode: show lighting areas as black spots (branch predictor friendly)
-        if (DebugLightingAreas && length(dynamicLight) > 0.1)
-        {
-            return float4(0, 0, 0, finalAlpha); // Black color for debug
-        }
-        
-        // Combine ambient, sun, and dynamic lighting
-        finalLight += dynamicLight * TerrainDynamicIntensityScale;
-    }
 
-    // Apply shadow only when enabled to avoid potential issues with uninitialized shadow map
-    if (ShadowsEnabled)
-    {
-        float shadowTerm = SampleShadow(input.WorldPos, normal);
-        float shadowMix = lerp(1.0 - ShadowStrength, 1.0, shadowTerm);
-        finalLight *= shadowMix;
-    }
+    // Calculate dynamic lighting (branchless - always calculate, multiply by condition)
+    float3 dynamicLight = CalculateDynamicLighting(input.WorldPos, normal);
+    float hasActiveLights = step(1.0, float(ActiveLightCount));
+    finalLight += dynamicLight * TerrainDynamicIntensityScale * hasActiveLights;
+
+    // Debug mode: show lighting areas as black spots (branchless)
+    float isDebugPixel = float(DebugLightingAreas) * step(0.1, length(dynamicLight)) * hasActiveLights;
+
+    // Apply shadow (branchless - always calculate, apply based on condition)
+    float shadowTerm = SampleShadow(input.WorldPos, normal);
+    float shadowMix = lerp(1.0 - ShadowStrength, 1.0, shadowTerm);
+    float shadowWeight = float(ShadowsEnabled);
+    finalLight *= lerp(1.0, shadowMix, shadowWeight);
     
     // Apply lighting with single multiply
     float3 finalColor = texColor.rgb * finalLight;
-    
+
+    // Apply debug mode (branchless) - black color for debug pixels
+    finalColor = lerp(finalColor, float3(0, 0, 0), isDebugPixel);
+
     return float4(finalColor, finalAlpha);
     
     // Apply lighting: Don't multiply by vertex color if it's too bright
@@ -299,6 +294,7 @@ struct ShadowVertexOutput
 {
     float4 Position : SV_POSITION;
     float2 TexCoord : TEXCOORD0;
+    float2 Depth    : TEXCOORD1; // x = z, y = w (pass depth from VS since PS can't access SV_POSITION.zw in ps_3_0)
 };
 
 // Use same input struct as main technique to ensure vertex layout compatibility
@@ -308,6 +304,7 @@ ShadowVertexOutput ShadowVS(VertexInput input)
     float4 worldPos = mul(float4(input.Position, 1.0), World);
     output.Position = mul(worldPos, LightViewProjection);
     output.TexCoord = input.TexCoord;
+    output.Depth = output.Position.zw; // Pass z and w for depth calculation in PS
     return output;
 }
 
@@ -316,10 +313,8 @@ float4 ShadowPS(ShadowVertexOutput input) : SV_TARGET
     float alphaMask = tex2D(SamplerState0, input.TexCoord).a;
     clip(alphaMask - 0.01);
 
-    // In pixel shader, SV_POSITION.z is already the depth value after perspective divide
-    // DirectX: z is in [0, 1] range
-    // OpenGL: z is in [-1, 1] range, needs remapping
-    float depth = input.Position.z / input.Position.w;
+    // Use interpolated depth values (passed from VS since ps_3_0 can't access SV_POSITION.zw)
+    float depth = input.Depth.x / input.Depth.y;
 #if OPENGL
     float linearDepth = depth * 0.5 + 0.5; // Map from [-1, 1] to [0, 1]
 #else
