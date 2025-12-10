@@ -78,6 +78,34 @@ namespace Client.Main.Networking.Services
         }
 
         /// <summary>
+        /// Sends a party invite to another player.
+        /// </summary>
+        public async Task SendPartyInviteAsync(ushort targetPlayerId)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send party invite.");
+                return;
+            }
+
+            _logger.LogInformation("Sending party invite to player ID {PlayerId}", targetPlayerId);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new PartyInviteRequest(_connectionManager.Connection.Output.GetMemory(PartyInviteRequest.Length).Slice(0, PartyInviteRequest.Length));
+                    packet.TargetPlayerId = targetPlayerId;
+                    return PartyInviteRequest.Length;
+                });
+                _logger.LogInformation("Party invite sent to player ID {PlayerId}", targetPlayerId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending party invite to player ID {PlayerId}", targetPlayerId);
+            }
+        }
+
+        /// <summary>
         /// Sends a response to a party invitation.
         /// </summary>
         public async Task SendPartyResponseAsync(bool accepted, ushort requesterId)

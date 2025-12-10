@@ -65,6 +65,10 @@ namespace Client.Main.Scenes
         private ActiveBuffsPanel _activeBuffsPanel; // Active buffs display (top-left corner)
         private Texture2D _backgroundTexture;
         private ProgressBarControl _progressBar;
+        private PlayerContextMenu _playerContextMenu;
+        private LabelControl _playerMenuHint;
+        private double _playerMenuHoverTime;
+        private ushort? _playerMenuHoverId;
 
         // Cache expensive enum values to avoid allocations
         private static readonly Keys[] _allKeys = (Keys[])System.Enum.GetValues(typeof(Keys));
@@ -207,6 +211,20 @@ namespace Client.Main.Scenes
             _activeBuffsPanel = new ActiveBuffsPanel(MuGame.Network.GetCharacterState());
             Controls.Add(_activeBuffsPanel);
             _activeBuffsPanel.BringToFront();
+
+            _playerMenuHint = new LabelControl
+            {
+                Text = "ALT + RMB: player menu",
+                FontSize = 11f,
+                Padding = new Margin { Left = 6, Right = 6, Top = 4, Bottom = 4 },
+                BackgroundColor = new Color(0, 0, 0, 180),
+                TextColor = Color.White,
+                HasShadow = true,
+                Visible = false,
+                Interactive = false
+            };
+            Controls.Add(_playerMenuHint);
+            _playerMenuHint.BringToFront();
 
             try
             {
@@ -990,11 +1008,16 @@ namespace Client.Main.Scenes
             }
 
             var currentKeyboardState = MuGame.Instance.Keyboard;
+            bool escapePressed = currentKeyboardState.IsKeyDown(Keys.Escape) && _previousKeyboardState.IsKeyUp(Keys.Escape);
 
             // Toggle pause menu on ESC (edge-triggered)
-            if (currentKeyboardState.IsKeyDown(Keys.Escape) && _previousKeyboardState.IsKeyUp(Keys.Escape))
+            if (escapePressed)
             {
-                if (_pauseMenu != null)
+                if (_playerContextMenu?.Visible == true)
+                {
+                    _playerContextMenu.Visible = false;
+                }
+                else if (_pauseMenu != null)
                 {
                     _pauseMenu.Visible = !_pauseMenu.Visible;
                     if (_pauseMenu.Visible)
@@ -1077,9 +1100,54 @@ namespace Client.Main.Scenes
 
             if (World == null || World.Status != GameControlStatus.Ready)
             {
+                if (_playerContextMenu?.Visible == true)
+                {
+                    _playerContextMenu.Visible = false;
+                }
+                if (_playerMenuHint?.Visible == true)
+                {
+                    _playerMenuHint.Visible = false;
+                }
+                _playerMenuHoverTime = 0;
+                _playerMenuHoverId = null;
                 _previousKeyboardState = currentKeyboardState;
                 return;
             }
+
+            var uiMouse = MuGame.Instance.UiMouseState;
+            var prevUiMouse = MuGame.Instance.PrevUiMouseState;
+            bool contextMenuOpened = false;
+
+            if (!IsMouseInputConsumedThisFrame &&
+                MouseHoverObject is PlayerObject hoveredPlayer &&
+                hoveredPlayer != _hero)
+            {
+                bool altPressed = currentKeyboardState.IsKeyDown(Keys.LeftAlt) || currentKeyboardState.IsKeyDown(Keys.RightAlt);
+                bool rightClickReleased = prevUiMouse.RightButton == ButtonState.Pressed &&
+                                          uiMouse.RightButton == ButtonState.Released;
+
+                if (altPressed && rightClickReleased)
+                {
+                    ShowPlayerContextMenu(hoveredPlayer, uiMouse.Position);
+                    SetMouseInputConsumed();
+                    contextMenuOpened = true;
+                }
+            }
+
+            if (_playerContextMenu?.Visible == true && !contextMenuOpened)
+            {
+                bool clickReleasedOutside =
+                    ((prevUiMouse.LeftButton == ButtonState.Pressed && uiMouse.LeftButton == ButtonState.Released) ||
+                     (prevUiMouse.RightButton == ButtonState.Pressed && uiMouse.RightButton == ButtonState.Released))
+                    && !_playerContextMenu.IsMouseOver;
+
+                if (clickReleasedOutside)
+                {
+                    _playerContextMenu.Visible = false;
+                }
+            }
+
+            UpdatePlayerMenuHint(gameTime, currentKeyboardState, MouseHoverObject as PlayerObject, uiMouse.Position);
 
             // Handle attack clicks on monsters with proper validation
             if (!IsMouseInputConsumedThisFrame &&
@@ -1435,6 +1503,66 @@ namespace Client.Main.Scenes
                     stack.Push(children[i]);
                 }
             }
+        }
+
+        private void ShowPlayerContextMenu(PlayerObject targetPlayer, Point mousePos)
+        {
+            if (_playerContextMenu == null)
+            {
+                _playerContextMenu = new PlayerContextMenu();
+                Controls.Add(_playerContextMenu);
+            }
+
+            _playerContextMenu.SetTarget(targetPlayer.NetworkId, targetPlayer.Name);
+            _playerContextMenu.ShowAt(mousePos.X, mousePos.Y);
+            _playerContextMenu.BringToFront();
+        }
+
+        private void UpdatePlayerMenuHint(GameTime gameTime, KeyboardState keyboardState, PlayerObject hoveredPlayer, Point mousePos)
+        {
+            bool ctrlDown = keyboardState.IsKeyDown(Keys.LeftControl) || keyboardState.IsKeyDown(Keys.RightControl);
+            bool menuOpen = _playerContextMenu?.Visible == true;
+            bool shouldShow = hoveredPlayer != null && hoveredPlayer != _hero && !ctrlDown && !menuOpen;
+
+            if (!shouldShow)
+            {
+                _playerMenuHoverId = null;
+                _playerMenuHoverTime = 0;
+                if (_playerMenuHint != null)
+                {
+                    _playerMenuHint.Visible = false;
+                }
+                return;
+            }
+
+            if (_playerMenuHoverId == hoveredPlayer.NetworkId)
+            {
+                _playerMenuHoverTime += gameTime.ElapsedGameTime.TotalSeconds;
+            }
+            else
+            {
+                _playerMenuHoverId = hoveredPlayer.NetworkId;
+                _playerMenuHoverTime = 0;
+            }
+
+            const double hintDelaySeconds = 0.35;
+            if (_playerMenuHoverTime < hintDelaySeconds || _playerMenuHint == null)
+            {
+                _playerMenuHint.Visible = false;
+                return;
+            }
+
+            var hintPosition = new Point(mousePos.X + 14, mousePos.Y + 18);
+            int hintWidth = _playerMenuHint.ControlSize.X + _playerMenuHint.Padding.Left + _playerMenuHint.Padding.Right;
+            int hintHeight = _playerMenuHint.ControlSize.Y + _playerMenuHint.Padding.Top + _playerMenuHint.Padding.Bottom;
+            _playerMenuHint.ViewSize = new Point(hintWidth, hintHeight);
+
+            int maxX = UiScaler.VirtualSize.X - hintWidth - 4;
+            int maxY = UiScaler.VirtualSize.Y - hintHeight - 4;
+            _playerMenuHint.X = Math.Clamp(hintPosition.X, 4, Math.Max(4, maxX));
+            _playerMenuHint.Y = Math.Clamp(hintPosition.Y, 4, Math.Max(4, maxY));
+            _playerMenuHint.Visible = true;
+            _playerMenuHint.BringToFront();
         }
 
         /// <summary>
