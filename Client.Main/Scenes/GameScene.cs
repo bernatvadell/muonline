@@ -67,8 +67,11 @@ namespace Client.Main.Scenes
         private ProgressBarControl _progressBar;
         private PlayerContextMenu _playerContextMenu;
         private LabelControl _playerMenuHint;
+        private const double PlayerMenuHintCooldownSeconds = 0.3;
         private double _playerMenuHoverTime;
         private ushort? _playerMenuHoverId;
+        private double _playerMenuHintCooldown;
+        private float _playerMenuHintAlpha;
 
         // Cache expensive enum values to avoid allocations
         private static readonly Keys[] _allKeys = (Keys[])System.Enum.GetValues(typeof(Keys));
@@ -1016,6 +1019,7 @@ namespace Client.Main.Scenes
                 if (_playerContextMenu?.Visible == true)
                 {
                     _playerContextMenu.Visible = false;
+                    _playerMenuHintCooldown = PlayerMenuHintCooldownSeconds;
                 }
                 else if (_pauseMenu != null)
                 {
@@ -1110,6 +1114,8 @@ namespace Client.Main.Scenes
                 }
                 _playerMenuHoverTime = 0;
                 _playerMenuHoverId = null;
+                _playerMenuHintCooldown = 0;
+                _playerMenuHintAlpha = 0;
                 _previousKeyboardState = currentKeyboardState;
                 return;
             }
@@ -1141,9 +1147,12 @@ namespace Client.Main.Scenes
                      (prevUiMouse.RightButton == ButtonState.Pressed && uiMouse.RightButton == ButtonState.Released))
                     && !_playerContextMenu.IsMouseOver;
 
-                if (clickReleasedOutside)
+                bool targetMissing = !IsPlayerAvailable(_playerContextMenu.TargetPlayerId);
+
+                if (clickReleasedOutside || targetMissing)
                 {
                     _playerContextMenu.Visible = false;
+                    _playerMenuHintCooldown = PlayerMenuHintCooldownSeconds;
                 }
             }
 
@@ -1516,37 +1525,57 @@ namespace Client.Main.Scenes
             _playerContextMenu.SetTarget(targetPlayer.NetworkId, targetPlayer.Name);
             _playerContextMenu.ShowAt(mousePos.X, mousePos.Y);
             _playerContextMenu.BringToFront();
+            _playerMenuHintCooldown = PlayerMenuHintCooldownSeconds;
+            _playerMenuHintAlpha = 0;
+            if (_playerMenuHint != null)
+            {
+                _playerMenuHint.Visible = false;
+            }
         }
 
         private void UpdatePlayerMenuHint(GameTime gameTime, KeyboardState keyboardState, PlayerObject hoveredPlayer, Point mousePos)
         {
+            const double hintDelaySeconds = 0.35;
+            double dt = gameTime.ElapsedGameTime.TotalSeconds;
+
+            if (_playerMenuHintCooldown > 0)
+            {
+                _playerMenuHintCooldown = Math.Max(0, _playerMenuHintCooldown - dt);
+            }
+
             bool ctrlDown = keyboardState.IsKeyDown(Keys.LeftControl) || keyboardState.IsKeyDown(Keys.RightControl);
             bool menuOpen = _playerContextMenu?.Visible == true;
-            bool shouldShow = hoveredPlayer != null && hoveredPlayer != _hero && !ctrlDown && !menuOpen;
+            bool playerValid = hoveredPlayer != null && hoveredPlayer != _hero && hoveredPlayer.World == World;
+            bool shouldShow = playerValid && !ctrlDown && !menuOpen && _playerMenuHintCooldown <= 0;
 
-            if (!shouldShow)
+            if (!playerValid)
             {
                 _playerMenuHoverId = null;
                 _playerMenuHoverTime = 0;
-                if (_playerMenuHint != null)
-                {
-                    _playerMenuHint.Visible = false;
-                }
-                return;
             }
 
-            if (_playerMenuHoverId == hoveredPlayer.NetworkId)
+            if (shouldShow && hoveredPlayer != null && _playerMenuHoverId == hoveredPlayer.NetworkId)
             {
                 _playerMenuHoverTime += gameTime.ElapsedGameTime.TotalSeconds;
             }
-            else
+            else if (hoveredPlayer != null)
             {
                 _playerMenuHoverId = hoveredPlayer.NetworkId;
                 _playerMenuHoverTime = 0;
             }
 
-            const double hintDelaySeconds = 0.35;
-            if (_playerMenuHoverTime < hintDelaySeconds || _playerMenuHint == null)
+            bool pastDelay = _playerMenuHoverTime >= hintDelaySeconds;
+            float targetAlpha = (shouldShow && pastDelay) ? 1f : 0f;
+            _playerMenuHintAlpha = MathHelper.Lerp(_playerMenuHintAlpha, targetAlpha, (float)Math.Min(1, dt * 8));
+
+            if (_playerMenuHint == null)
+            {
+                return;
+            }
+
+            _playerMenuHint.Alpha = _playerMenuHintAlpha;
+
+            if (_playerMenuHintAlpha < 0.01f)
             {
                 _playerMenuHint.Visible = false;
                 return;
@@ -1563,6 +1592,19 @@ namespace Client.Main.Scenes
             _playerMenuHint.Y = Math.Clamp(hintPosition.Y, 4, Math.Max(4, maxY));
             _playerMenuHint.Visible = true;
             _playerMenuHint.BringToFront();
+        }
+
+        private bool IsPlayerAvailable(ushort playerId)
+        {
+            if (playerId == 0 || World is not WalkableWorldControl walkableWorld)
+                return false;
+
+            if (walkableWorld.WalkerObjectsById.TryGetValue(playerId, out var walker) && walker is PlayerObject po)
+            {
+                return po.World == World;
+            }
+
+            return false;
         }
 
         /// <summary>

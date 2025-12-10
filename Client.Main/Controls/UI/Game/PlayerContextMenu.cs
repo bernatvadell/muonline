@@ -78,6 +78,8 @@ namespace Client.Main.Controls.UI.Game
             _targetPlayerName = playerName ?? string.Empty;
         }
 
+        public ushort TargetPlayerId => _targetPlayerId;
+
         /// <summary>
         /// Shows the context menu at the specified screen position.
         /// Position is clamped to stay within screen bounds.
