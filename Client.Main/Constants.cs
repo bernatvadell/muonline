@@ -116,20 +116,11 @@ namespace Client.Main
                     SHADOW_MAP_SIZE = 512;
                     SHADOW_DISTANCE = 1500f;
                     SHADOW_UPDATE_INTERVAL = 1;
-                    SHADOW_MAX_CASTERS = 15;
+                    SHADOW_MAX_CASTERS = 10;
                     SHADOW_SKIP_SMALL_PARTS = false;
                     break;
 
                 case ShadowQuality.Medium:
-                    ENABLE_SHADOW_MAPPING = true;
-                    SHADOW_MAP_SIZE = 1024;
-                    SHADOW_DISTANCE = 1500f;
-                    SHADOW_UPDATE_INTERVAL = 1;
-                    SHADOW_MAX_CASTERS = 15;
-                    SHADOW_SKIP_SMALL_PARTS = false;
-                    break;
-
-                case ShadowQuality.High:
                     ENABLE_SHADOW_MAPPING = true;
                     SHADOW_MAP_SIZE = 1024;
                     SHADOW_DISTANCE = 2000f;
@@ -138,12 +129,21 @@ namespace Client.Main
                     SHADOW_SKIP_SMALL_PARTS = false;
                     break;
 
+                case ShadowQuality.High:
+                    ENABLE_SHADOW_MAPPING = true;
+                    SHADOW_MAP_SIZE = 1024;
+                    SHADOW_DISTANCE = 3000f;
+                    SHADOW_UPDATE_INTERVAL = 1;
+                    SHADOW_MAX_CASTERS = 35;
+                    SHADOW_SKIP_SMALL_PARTS = false;
+                    break;
+
                 case ShadowQuality.Ultra:
                     ENABLE_SHADOW_MAPPING = true;
                     SHADOW_MAP_SIZE = 2048;
-                    SHADOW_DISTANCE = 2500f;
+                    SHADOW_DISTANCE = 4000f;
                     SHADOW_UPDATE_INTERVAL = 1;
-                    SHADOW_MAX_CASTERS = 15;
+                    SHADOW_MAX_CASTERS = 50;
                     SHADOW_SKIP_SMALL_PARTS = false;
                     break;
             }
@@ -214,13 +214,13 @@ namespace Client.Main
             HIGH_QUALITY_TEXTURES = true;
             DISABLE_VSYNC = true;
             UNLIMITED_FPS = true;
-            ENABLE_SHADOW_MAPPING = true;
+            ENABLE_SHADOW_MAPPING = false;
             // Default to the Medium preset unless user changes it in options
-            ApplyShadowQualityPreset(ShadowQuality.Medium);
+            // ApplyShadowQualityPreset(ShadowQuality.Medium);
             SHADOW_NEAR_PLANE = 10f;
-            SHADOW_FAR_PLANE = 4000f;
-            SHADOW_BIAS = 0.002f;
-            SHADOW_NORMAL_BIAS = 0.003f;
+            SHADOW_FAR_PLANE = 6000f;
+            SHADOW_BIAS = 0.005f;
+            SHADOW_NORMAL_BIAS = 0.008f;
 
             DataPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Data");
         }

@@ -14,6 +14,7 @@ namespace Client.Main.Objects
         public MapTileObject()
         {
             BlendState = BlendState.AlphaBlend;
+            RenderShadow = false;
         }
 
         public override async Task Load()
