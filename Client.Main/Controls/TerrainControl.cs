@@ -1,5 +1,6 @@
 using Client.Data.ATT;
 using Client.Main.Controls.Terrain;
+using Client.Main.Graphics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
@@ -27,7 +28,7 @@ namespace Client.Main.Controls
         // --- Public Properties (Facades) ---
         public short WorldIndex { get; set; }
         // Use the opposite of SUN_DIRECTION because the lightmap expects a vector pointing toward the sun.
-        public Vector3 LightDirection { get; set; } = Vector3.Normalize(-Constants.SUN_DIRECTION);
+        public Vector3 LightDirection { get; set; } = Vector3.Normalize(-SunCycleManager.BaseSunDirection);
         public IReadOnlyList<DynamicLight> DynamicLights => _lightManager.DynamicLights;
         public IReadOnlyList<DynamicLight> ActiveLights => _lightManager.ActiveLights;
         public Texture2D HeightMapTexture => _data?.HeightMapTexture;
@@ -54,7 +55,7 @@ namespace Client.Main.Controls
         public HashSet<byte> GrassTextureIndices => _grassRenderer.GrassTextureIndices;
         public bool IsGpuTerrainLighting => _renderer?.IsGpuLightingActive == true;
         public bool IsDynamicLightingShaderAvailable => _renderer?.IsDynamicLightingShaderAvailable == true;
-        
+
         /// <summary>
         /// Configures grass settings for specific world requirements.
         /// This should be called in world's AfterLoad() method.
@@ -65,7 +66,7 @@ namespace Client.Main.Controls
         {
             var oldBrightness = _grassRenderer.GrassBrightness;
             _grassRenderer.GrassBrightness = brightness;
-            
+
             if (textureIndices != null && textureIndices.Length > 0)
             {
                 _grassRenderer.GrassTextureIndices.Clear();
@@ -74,7 +75,7 @@ namespace Client.Main.Controls
                     _grassRenderer.GrassTextureIndices.Add(index);
                 }
             }
-            
+
             Console.WriteLine($"[TerrainControl] ConfigureGrass for World{WorldIndex} - Brightness: {oldBrightness:F2} → {brightness:F2}, TextureIndices: [{string.Join(", ", textureIndices ?? new byte[] { 0 })}]");
         }
 
@@ -109,12 +110,12 @@ namespace Client.Main.Controls
         public override async Task Load()
         {
             _loader = new TerrainLoader(WorldIndex);
-            
+
             if (_pendingTextureMap.Count > 0)
             {
                 _loader.SetTextureMapping(_pendingTextureMap);
             }
-            
+
             _data = await _loader.LoadAsync();
             _pendingTextureMap.Clear();
 
@@ -139,7 +140,7 @@ namespace Client.Main.Controls
             _lightManager.CreateTerrainNormals();
             _lightManager.CreateFinalLightmap(LightDirection);
             _renderer.CreateHeightMapTexture();
-            
+
             // Reset grass to defaults before loading world-specific content
             _grassRenderer.LoadContent(WorldIndex);
 

@@ -537,7 +537,7 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
             private readonly PauseMenuControl _owner;
             private readonly List<IOptionRow> _options = new();
             private readonly List<GameControl> _dynamicControls = new();
-            private const int ContentStartY = 140;
+            private const int ContentStartY = 175;
             private const int OptionRowHeight = 26;
             private readonly ButtonControl _closeButton;
             private readonly int _panelWidth;
@@ -734,6 +734,12 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                 BuildCategory("Lighting & Materials", (ref int currentY) =>
                 {
                     AddOption("Sun Light", () => Constants.SUN_ENABLED, value => Constants.SUN_ENABLED = value, ref currentY, OptionRowHeight);
+                    AddOption("Day-Night Cycle (Real Time)", () => Constants.ENABLE_DAY_NIGHT_CYCLE, value =>
+                    {
+                        Constants.ENABLE_DAY_NIGHT_CYCLE = value;
+                        if (!value)
+                            SunCycleManager.ResetToDefault();
+                    }, ref currentY, OptionRowHeight);
                     AddOption("Sun From +X", () => Constants.SUN_DIRECTION.X >= 0f, value =>
                     {
                         var dir = Constants.SUN_DIRECTION;

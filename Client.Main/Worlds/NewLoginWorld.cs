@@ -14,6 +14,7 @@ namespace Client.Main.Worlds
 
         public NewLoginWorld() : base(worldIndex: 95)
         {
+            EnableShadows = false;
             _player = new PlayerObject();
             Camera.Instance.ViewFar = 50000f;
         }

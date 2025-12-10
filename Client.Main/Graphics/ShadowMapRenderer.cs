@@ -32,7 +32,8 @@ namespace Client.Main.Graphics
         public Vector3 LightDirection { get; private set; } = Vector3.Normalize(Constants.SUN_DIRECTION);
 
         public RenderTarget2D ShadowMap => _shadowMap;
-        public bool IsReady => _shadowMap != null && Constants.ENABLE_SHADOW_MAPPING && Constants.SUN_ENABLED;
+        public bool IsReady => _shadowMap != null && Constants.ENABLE_SHADOW_MAPPING && Constants.SUN_ENABLED
+            && !(Constants.ENABLE_DAY_NIGHT_CYCLE && SunCycleManager.IsNight);
 
         public ShadowMapRenderer(GraphicsDevice graphicsDevice)
         {
@@ -87,6 +88,10 @@ namespace Client.Main.Graphics
         public void RenderShadowMap(WorldControl world)
         {
             if (world == null || !world.EnableShadows || !Constants.ENABLE_SHADOW_MAPPING || !Constants.SUN_ENABLED)
+                return;
+
+            // Skip shadow rendering at night when day-night cycle is active
+            if (Constants.ENABLE_DAY_NIGHT_CYCLE && SunCycleManager.IsNight)
                 return;
 
             var camera = Camera.Instance;

@@ -254,7 +254,10 @@ namespace Client.Main.Controls.Terrain
             effect.Parameters["DebugLightingAreas"]?.SetValue(Constants.DEBUG_LIGHTING_AREAS);
 
             // Ambient and sun are ignored when using baked vertex lighting, but keep sane defaults.
-            effect.Parameters["AmbientLight"]?.SetValue(new Vector3(AmbientLight));
+            float ambientValue = AmbientLight * SunCycleManager.AmbientMultiplier;
+            effect.Parameters["AmbientLight"]?.SetValue(new Vector3(ambientValue));
+            // GlobalLightMultiplier dims vertex color lighting for day-night cycle
+            effect.Parameters["GlobalLightMultiplier"]?.SetValue(SunCycleManager.AmbientMultiplier);
             Vector3 sunDir = GraphicsManager.Instance.ShadowMapRenderer?.LightDirection ?? Constants.SUN_DIRECTION;
             if (sunDir.LengthSquared() < 0.0001f)
                 sunDir = new Vector3(1f, 0f, -0.6f);
@@ -262,8 +265,8 @@ namespace Client.Main.Controls.Terrain
             bool sunEnabled = Constants.SUN_ENABLED;
             effect.Parameters["SunDirection"]?.SetValue(sunDir);
             effect.Parameters["SunColor"]?.SetValue(new Vector3(1f, 0.95f, 0.85f));
-            effect.Parameters["SunStrength"]?.SetValue(sunEnabled ? Constants.SUN_STRENGTH : 0f);
-            effect.Parameters["ShadowStrength"]?.SetValue(sunEnabled ? Constants.SUN_SHADOW_STRENGTH : 0f);
+            effect.Parameters["SunStrength"]?.SetValue(sunEnabled ? SunCycleManager.GetEffectiveSunStrength() : 0f);
+            effect.Parameters["ShadowStrength"]?.SetValue(sunEnabled ? SunCycleManager.GetEffectiveShadowStrength() : 0f);
 
             // Apply global shadow map parameters when available so terrain receives the same shadows as objects
             GraphicsManager.Instance.ShadowMapRenderer?.ApplyShadowParameters(effect);

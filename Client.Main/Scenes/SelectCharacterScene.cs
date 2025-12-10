@@ -3,6 +3,7 @@ using Client.Main.Controls.UI.Common;
 using Client.Main.Controls.UI.Game;
 using Client.Main.Controllers;
 using Client.Main.Core.Client;
+using Client.Main.Graphics;
 using Client.Main.Helpers;
 using Client.Main.Models;
 using Client.Main.Networking;
@@ -36,6 +37,9 @@ namespace Client.Main.Scenes
         private bool _isSelectionInProgress = false;
         private Texture2D _backgroundTexture;
         private ProgressBarControl _progressBar;
+        private bool _previousDayNightEnabled;
+        private Vector3 _previousSunDirection;
+        private bool _dayNightPatched;
 
         private const int NavigationButtonSize = 64;
         private const int NavigationHorizontalOffset = 200;
@@ -77,6 +81,26 @@ namespace Client.Main.Scenes
             Controls.Add(_progressBar);
 
             SubscribeToNetworkEvents();
+        }
+
+        private void DisableDayNightCycleForScene()
+        {
+            if (_dayNightPatched) return;
+
+            _dayNightPatched = true;
+            _previousDayNightEnabled = Constants.ENABLE_DAY_NIGHT_CYCLE;
+            _previousSunDirection = Constants.SUN_DIRECTION;
+            Constants.ENABLE_DAY_NIGHT_CYCLE = false;
+            SunCycleManager.ResetToDefault();
+        }
+
+        private void RestoreDayNightCycle()
+        {
+            if (!_dayNightPatched) return;
+
+            Constants.ENABLE_DAY_NIGHT_CYCLE = _previousDayNightEnabled;
+            Constants.SUN_DIRECTION = _previousSunDirection;
+            _dayNightPatched = false;
         }
 
         private void UpdateLoadProgress(string message, float progress)
@@ -235,6 +259,7 @@ namespace Client.Main.Scenes
 
         protected override async Task LoadSceneContentWithProgress(Action<string, float> progressCallback)
         {
+            DisableDayNightCycleForScene();
             UpdateLoadProgress("Initializing Character Selection...", 0.0f);
             _logger.LogInformation(">>> SelectCharacterScene LoadSceneContentWithProgress starting...");
 
@@ -435,6 +460,7 @@ namespace Client.Main.Scenes
                 _loadingScreen.Dispose();
                 _loadingScreen = null;
             }
+            RestoreDayNightCycle();
             base.Dispose();
         }
 

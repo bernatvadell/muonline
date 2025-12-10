@@ -6,6 +6,7 @@ using Client.Main.Core.Models;   // For ServerInfo
 using Client.Main.Models;
 using Client.Main.Networking;
 using Client.Main.Worlds;
+using Client.Main.Graphics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using MUnique.OpenMU.Network.Packets; // Needed for CharacterClassNumber
@@ -26,6 +27,10 @@ namespace Client.Main.Scenes
         private ServerList _serverList;
         private LabelControl _statusLabel;
         private ClientConnectionState _previousStateHandled = ClientConnectionState.Initial;
+
+        private bool _previousDayNightEnabled;
+        private Vector3 _previousSunDirection;
+        private bool _dayNightPatched;
 
         private NetworkManager _networkManager;
         private ILogger<LoginScene> _logger;
@@ -63,6 +68,26 @@ namespace Client.Main.Scenes
             _serverList = null;
         }
 
+        private void DisableDayNightCycleForScene()
+        {
+            if (_dayNightPatched) return;
+
+            _dayNightPatched = true;
+            _previousDayNightEnabled = Constants.ENABLE_DAY_NIGHT_CYCLE;
+            _previousSunDirection = Constants.SUN_DIRECTION;
+            Constants.ENABLE_DAY_NIGHT_CYCLE = false;
+            SunCycleManager.ResetToDefault();
+        }
+
+        private void RestoreDayNightCycle()
+        {
+            if (!_dayNightPatched) return;
+
+            Constants.ENABLE_DAY_NIGHT_CYCLE = _previousDayNightEnabled;
+            Constants.SUN_DIRECTION = _previousSunDirection;
+            _dayNightPatched = false;
+        }
+
         // This method is now part of the new progress reporting system
         protected override async Task LoadSceneContentWithProgress(Action<string, float> progressCallback)
         {
@@ -71,6 +96,7 @@ namespace Client.Main.Scenes
             // World Loading is 20% to 70% (0.2 to 0.7 progress)
             // Sound & UI checks are 70% to 90% (0.7 to 0.9 progress)
 
+            DisableDayNightCycleForScene();
             progressCallback?.Invoke("Initializing Network Manager...", 0.05f);
             _networkManager = MuGame.Network ?? throw new InvalidOperationException("NetworkManager not initialized in MuGame");
             SubscribeToNetworkEvents();
@@ -134,6 +160,7 @@ namespace Client.Main.Scenes
         {
             _logger?.LogDebug("Disposing LoginScene, unsubscribing from network events.");
             UnsubscribeFromNetworkEvents();
+            RestoreDayNightCycle();
             base.Dispose();
         }
 

@@ -438,6 +438,7 @@ namespace Client.Main
                 FrameIndex++;
                 UpdateInputInfo(gameTime);
                 CheckShaderToggles();
+                SunCycleManager.Update();
 
                 try // inner try for ActiveScene.Update
                 {

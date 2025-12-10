@@ -65,6 +65,7 @@ bool DebugLightingAreas = false;
 bool UseVertexColorLighting = false;
 bool TerrainLightingPass = false;
 float TerrainDynamicIntensityScale = 1.5;
+float GlobalLightMultiplier = 1.0; // Day-night cycle multiplier for vertex color lighting
 
 // Terrain static lighting
 float3 TerrainLight = float3(1.0, 1.0, 1.0);
@@ -223,7 +224,7 @@ float4 PS_Main(PixelInput input) : SV_Target
     float3 baseLight;
     if (UseVertexColorLighting)
     {
-        baseLight = input.Color.rgb;
+        baseLight = input.Color.rgb * GlobalLightMultiplier;
     }
     else
     {

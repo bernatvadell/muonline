@@ -85,6 +85,10 @@ namespace Client.Main
         public static bool ENABLE_SHADOW_MAPPING;
         public static int SHADOW_MAP_SIZE;
         public static float SHADOW_DISTANCE;
+
+        // Day-Night Cycle (real-time sun movement)
+        public static bool ENABLE_DAY_NIGHT_CYCLE;
+        public static float DAY_NIGHT_SPEED_MULTIPLIER = 1f; // 1 = real-time, 60 = 1 game day per real minute
         public static float SHADOW_NEAR_PLANE;
         public static float SHADOW_FAR_PLANE;
         public static float SHADOW_BIAS;
@@ -215,6 +219,8 @@ namespace Client.Main
             DISABLE_VSYNC = true;
             UNLIMITED_FPS = true;
             ENABLE_SHADOW_MAPPING = false;
+            ENABLE_DAY_NIGHT_CYCLE = false;
+            DAY_NIGHT_SPEED_MULTIPLIER = 60f;
             // Default to the Medium preset unless user changes it in options
             // ApplyShadowQualityPreset(ShadowQuality.Medium);
             SHADOW_NEAR_PLANE = 10f;

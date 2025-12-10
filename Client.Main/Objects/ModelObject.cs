@@ -666,7 +666,9 @@ namespace Client.Main.Objects
             Matrix shadowMatrix = Matrix.Identity;
             bool useShadowMap = Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
                                 GraphicsManager.Instance.ShadowMapRenderer?.IsReady == true;
-            if (!isAfterDraw && RenderShadow && !LowQuality && !useShadowMap)
+            // Skip blob shadows at night when day-night cycle is active
+            bool isNight = Constants.ENABLE_DAY_NIGHT_CYCLE && SunCycleManager.IsNight;
+            if (!isAfterDraw && RenderShadow && !LowQuality && !useShadowMap && !isNight)
                 doShadow = TryGetShadowMatrix(out shadowMatrix);
             float shadowOpacity = ShadowOpacity;
             if (doShadow && World?.Terrain != null)
@@ -1132,7 +1134,7 @@ namespace Client.Main.Objects
                     effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
                     effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
                     effect.Parameters["LightDirection"]?.SetValue(sunDir);
-                    effect.Parameters["ShadowStrength"]?.SetValue(sunEnabled ? Constants.SUN_SHADOW_STRENGTH : 0f);
+                    effect.Parameters["ShadowStrength"]?.SetValue(sunEnabled ? SunCycleManager.GetEffectiveShadowStrength() : 0f);
 
                     // Set texture
                     effect.Parameters["DiffuseTexture"]?.SetValue(texture);
@@ -1240,7 +1242,7 @@ namespace Client.Main.Objects
                     effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
                     effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
                     effect.Parameters["LightDirection"]?.SetValue(sunDir);
-                    effect.Parameters["ShadowStrength"]?.SetValue(sunEnabled ? Constants.SUN_SHADOW_STRENGTH : 0f);
+                    effect.Parameters["ShadowStrength"]?.SetValue(sunEnabled ? SunCycleManager.GetEffectiveShadowStrength() : 0f);
 
                     // Set texture
                     effect.Parameters["DiffuseTexture"]?.SetValue(texture);
@@ -1346,8 +1348,8 @@ namespace Client.Main.Objects
                     bool sunEnabled = Constants.SUN_ENABLED && worldAllowsSun && UseSunLight && !HasWalkerAncestor();
                     effect.Parameters["SunDirection"]?.SetValue(sunDir);
                     effect.Parameters["SunColor"]?.SetValue(_sunColor);
-                    effect.Parameters["SunStrength"]?.SetValue(sunEnabled ? Constants.SUN_STRENGTH : 0f);
-                    effect.Parameters["ShadowStrength"]?.SetValue(sunEnabled ? Constants.SUN_SHADOW_STRENGTH : 0f);
+                    effect.Parameters["SunStrength"]?.SetValue(sunEnabled ? SunCycleManager.GetEffectiveSunStrength() : 0f);
+                    effect.Parameters["ShadowStrength"]?.SetValue(sunEnabled ? SunCycleManager.GetEffectiveShadowStrength() : 0f);
 
                     // Set texture
                     effect.Parameters["DiffuseTexture"]?.SetValue(texture);
@@ -1363,8 +1365,8 @@ namespace Client.Main.Objects
                     {
                         terrainLight = World.Terrain.EvaluateTerrainLight(worldTranslation.X, worldTranslation.Y);
                     }
-                    // Set ambient lighting for dynamic lighting shader
-                    effect.Parameters["AmbientLight"]?.SetValue(_ambientLightVector);
+                    // Set ambient lighting for dynamic lighting shader (modulated by day-night cycle)
+                    effect.Parameters["AmbientLight"]?.SetValue(_ambientLightVector * SunCycleManager.AmbientMultiplier);
 
                     // Ensure terrain light is reasonable - don't divide by 255 as it makes it too dark
                     terrainLight = Vector3.Clamp(terrainLight / 255f, Vector3.Zero, Vector3.One);
