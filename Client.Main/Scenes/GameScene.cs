@@ -1520,6 +1520,7 @@ namespace Client.Main.Scenes
             {
                 _playerContextMenu = new PlayerContextMenu();
                 Controls.Add(_playerContextMenu);
+                _playerContextMenu.WhisperRequested += StartWhisperToPlayer;
             }
 
             _playerContextMenu.SetTarget(targetPlayer.NetworkId, targetPlayer.Name);
@@ -1605,6 +1606,16 @@ namespace Client.Main.Scenes
             }
 
             return false;
+        }
+
+        private void StartWhisperToPlayer(string playerName)
+        {
+            if (string.IsNullOrWhiteSpace(playerName) || _chatInput == null)
+            {
+                return;
+            }
+
+            _chatInput.StartWhisperTo(playerName);
         }
 
         /// <summary>

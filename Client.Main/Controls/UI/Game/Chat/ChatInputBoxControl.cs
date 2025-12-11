@@ -311,6 +311,32 @@ namespace Client.Main.Controls.UI
             SoundController.Instance.PlayBuffer("Sound/iButtonClick.wav");
         }
 
+        public void StartWhisperTo(string targetName)
+        {
+            if (string.IsNullOrWhiteSpace(targetName))
+            {
+                return;
+            }
+
+            if (!Visible)
+            {
+                Show();
+            }
+
+            _isWhisperSendMode = true;
+            _whisperIdInput.Visible = true;
+            _whisperIdInput.Value = targetName;
+            UpdateVisualStates();
+
+            _whisperIdInput.Blur();
+            _chatInput.Focus();
+            if (Scene != null)
+            {
+                Scene.FocusControl = _chatInput;
+            }
+            _chatInput.MoveCursorToEnd();
+        }
+
         public void Hide()
         {
             Visible = false;

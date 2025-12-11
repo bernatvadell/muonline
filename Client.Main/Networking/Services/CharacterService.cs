@@ -275,6 +275,92 @@ namespace Client.Main.Networking.Services
         }
 
         /// <summary>
+        /// Sends a duel start request to another player.
+        /// </summary>
+        public async Task SendDuelStartRequestAsync(ushort targetPlayerId, string targetPlayerName)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send duel request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending duel request to player ID {PlayerId}", targetPlayerId);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new DuelStartRequest(_connectionManager.Connection.Output.GetMemory(DuelStartRequest.Length).Slice(0, DuelStartRequest.Length));
+                    packet.PlayerId = targetPlayerId;
+                    packet.PlayerName = targetPlayerName ?? string.Empty;
+                    return DuelStartRequest.Length;
+                });
+                _logger.LogInformation("Duel request sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending duel request to player ID {PlayerId}", targetPlayerId);
+            }
+        }
+
+        /// <summary>
+        /// Sends a guild join request to the specified guild master (target player).
+        /// </summary>
+        public async Task SendGuildJoinRequestAsync(ushort guildMasterPlayerId)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send guild join request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending guild join request to guild master ID {PlayerId}", guildMasterPlayerId);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new GuildJoinRequest(_connectionManager.Connection.Output.GetMemory(GuildJoinRequest.Length).Slice(0, GuildJoinRequest.Length));
+                    packet.GuildMasterPlayerId = guildMasterPlayerId;
+                    return GuildJoinRequest.Length;
+                });
+                _logger.LogInformation("Guild join request sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending guild join request to player ID {PlayerId}", guildMasterPlayerId);
+            }
+        }
+
+        /// <summary>
+        /// Requests the item list of another player's personal store.
+        /// </summary>
+        public async Task SendPlayerStoreListRequestAsync(ushort targetPlayerId, string targetPlayerName)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot request player store.");
+                return;
+            }
+
+            _logger.LogInformation("Requesting player store list from player ID {PlayerId}", targetPlayerId);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new PlayerShopItemListRequest(_connectionManager.Connection.Output.GetMemory(PlayerShopItemListRequest.Length).Slice(0, PlayerShopItemListRequest.Length));
+                    packet.PlayerId = targetPlayerId;
+                    packet.PlayerName = targetPlayerName ?? string.Empty;
+                    return PlayerShopItemListRequest.Length;
+                });
+                _logger.LogInformation("Player store list request sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error requesting player store list from player ID {PlayerId}", targetPlayerId);
+            }
+        }
+
+        /// <summary>
         /// Sets the money amount in the trade.
         /// </summary>
         public async Task SendTradeMoneyAsync(uint amount)
