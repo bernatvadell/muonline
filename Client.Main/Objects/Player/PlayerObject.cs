@@ -414,8 +414,11 @@ namespace Client.Main.Objects.Player
             // Update CharacterClass based on appearance data
             //CharacterClass = Appearance.CharacterClass; // TODO: Wrong character class?
 
+            static bool HasEquippedAppearanceItem(short index)
+                => index != 0xFF && index != 0x1FF;
+
             // Helm
-            if (Appearance.HelmItemIndex != 255)
+            if (HasEquippedAppearanceItem(Appearance.HelmItemIndex))
             {
                 var helmDef = ItemDatabase.GetItemDefinition(7, Appearance.HelmItemIndex);
                 if (helmDef?.TexturePath != null)
@@ -434,7 +437,7 @@ namespace Client.Main.Objects.Player
                 _helmItemEquipped = false;
             }
             // Armor
-            if (Appearance.ArmorItemIndex != 255)
+            if (HasEquippedAppearanceItem(Appearance.ArmorItemIndex))
             {
                 var armorDef = ItemDatabase.GetItemDefinition(8, Appearance.ArmorItemIndex);
                 if (armorDef?.TexturePath != null)
@@ -449,7 +452,7 @@ namespace Client.Main.Objects.Player
             }
 
             // Pants
-            if (Appearance.PantsItemIndex != 255)
+            if (HasEquippedAppearanceItem(Appearance.PantsItemIndex))
             {
                 var pantsDef = ItemDatabase.GetItemDefinition(9, Appearance.PantsItemIndex);
                 if (pantsDef?.TexturePath != null)
@@ -464,7 +467,7 @@ namespace Client.Main.Objects.Player
             }
 
             // Gloves
-            if (Appearance.GlovesItemIndex != 255)
+            if (HasEquippedAppearanceItem(Appearance.GlovesItemIndex))
             {
                 var glovesDef = ItemDatabase.GetItemDefinition(10, Appearance.GlovesItemIndex);
                 if (glovesDef?.TexturePath != null)
@@ -485,7 +488,7 @@ namespace Client.Main.Objects.Player
             }
 
             // Boots
-            if (Appearance.BootsItemIndex != 255)
+            if (HasEquippedAppearanceItem(Appearance.BootsItemIndex))
             {
                 var bootsDef = ItemDatabase.GetItemDefinition(11, Appearance.BootsItemIndex);
                 if (bootsDef?.TexturePath != null)
@@ -2020,7 +2023,7 @@ namespace Client.Main.Objects.Player
 
             string TryGetItemPath(int group, short itemIndex)
             {
-                if (itemIndex is 0xFF or 255 || itemIndex < 0)
+                if (itemIndex is 0xFF or 0x1FF || itemIndex < 0)
                     return null;
 
                 var def = ItemDatabase.GetItemDefinition((byte)group, itemIndex);
