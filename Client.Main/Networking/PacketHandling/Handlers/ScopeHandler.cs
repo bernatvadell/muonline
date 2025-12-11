@@ -116,6 +116,17 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 ushort masked = (ushort)(raw & 0x7FFF);
                 var cls = ClassFromAppearance(c.Appearance);
 
+                // Capture any active effects from the packet
+                if (c.EffectCount > 0)
+                {
+                    for (int e = 0; e < c.EffectCount; e++)
+                    {
+                        byte effectId = c[e].Id;
+                        _characterState.ActivateBuff(effectId, raw);
+                        ElfBuffEffectManager.Instance?.HandleBuff(effectId, raw, true);
+                    }
+                }
+
                 // Always update the manager, even for the local player
                 _scopeManager.AddOrUpdatePlayerInScope(masked, raw, c.CurrentPositionX, c.CurrentPositionY, c.Name);
 
@@ -261,6 +272,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                 world.Objects.Add(p);
                 _logger.LogDebug($"[Spawn] Added {name} to world.Objects.");
+
+                ElfBuffEffectManager.Instance?.EnsureBuffsForPlayer(maskedId);
 
                 // Set final position
                 if (p.World != null && p.World.Terrain != null)

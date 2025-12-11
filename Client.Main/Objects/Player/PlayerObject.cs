@@ -50,8 +50,8 @@ namespace Client.Main.Objects.Player
 
         public VehicleObject Vehicle { get; private set; }
 
-        private const int LeftHandBoneIndex = 33;
-        private const int RightHandBoneIndex = 42;
+        internal const int LeftHandBoneIndex = 33;
+        internal const int RightHandBoneIndex = 42;
         private const int BackWeaponBoneIndex = 47; // Same anchor used by wings
         private string _helmModelPath;
 
@@ -1172,6 +1172,22 @@ namespace Client.Main.Objects.Player
                 weapon.Angle = Vector3.Zero;
             }
         }
+
+        public bool TryGetBoneWorldMatrix(int boneIndex, out Matrix worldMatrix)
+        {
+            var bones = GetBoneTransforms();
+            if (bones != null && boneIndex >= 0 && boneIndex < bones.Length)
+            {
+                worldMatrix = bones[boneIndex] * WorldPosition;
+                return true;
+            }
+
+            worldMatrix = Matrix.Identity;
+            return false;
+        }
+
+        public bool TryGetHandWorldMatrix(bool isLeftHand, out Matrix worldMatrix) =>
+            TryGetBoneWorldMatrix(isLeftHand ? LeftHandBoneIndex : RightHandBoneIndex, out worldMatrix);
 
         private MovementMode GetModeFromCurrentAction() =>
             CurrentAction switch

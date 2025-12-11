@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 using MUnique.OpenMU.Network.Packets;
 using MUnique.OpenMU.Network.Packets.ServerToClient;
-using Client.Main.Core.Utilities;
 using System;
 using System.Threading.Tasks;
+using Client.Main.Core.Utilities;
 using Client.Main.Core.Client;
 using Client.Main.Controllers;
 using Client.Main.Controls;
@@ -25,6 +25,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         private readonly CharacterState _characterState;
         private readonly NetworkManager _networkManager;
         private readonly TargetProtocolVersion _targetVersion;
+        private readonly ElfBuffEffectManager _elfBuffEffectManager;
 
         // ───────────────────────── Constructors ─────────────────────────
         public CharacterDataHandler(
@@ -37,6 +38,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             _characterState = characterState;
             _networkManager = networkManager;
             _targetVersion = targetVersion;
+            _elfBuffEffectManager = new ElfBuffEffectManager();
         }
 
         // ───────────────────────── Packet Handlers ─────────────────────────
@@ -60,7 +62,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     _characterState.ActivateBuff(effectId, playerId);
 
                     // Special message for Elf Soldier buff (ID 3 - NPC Helper buff) - only for local player
-                    if (effectId == 3 && playerId == _characterState.Id)
+                    if (effectId == 3 && (playerId & 0x7FFF) == (_characterState.Id & 0x7FFF))
                     {
                         MuGame.ScheduleOnMainThread(() =>
                         {
@@ -74,8 +76,10 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 }
                 else
                 {
-                    _characterState.DeactivateBuff(effectId);
+                    _characterState.DeactivateBuff(effectId, playerId);
                 }
+
+                HandleElfBuffVisual(effectId, playerId, isActive);
 
                 return Task.CompletedTask;
             }
@@ -102,7 +106,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 // For now, we'll use the lower byte of skill ID as effect ID
                 // This mapping may need to be adjusted based on actual game data
                 byte effectId = (byte)(skillId & 0xFF);
-                _characterState.DeactivateBuff(effectId);
+                _characterState.DeactivateBuff(effectId, targetId);
+                HandleElfBuffVisual(effectId, targetId, false);
 
                 return Task.CompletedTask;
             }
@@ -1235,5 +1240,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
             return Task.CompletedTask;
         }
+
+        private void HandleElfBuffVisual(byte effectId, ushort playerId, bool isActive) =>
+            _elfBuffEffectManager.HandleBuff(effectId, playerId, isActive);
     }
 }

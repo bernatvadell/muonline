@@ -337,7 +337,7 @@ namespace Client.Main.Objects.Effects
                     _textureCenter,
                     finalScale,
                     SpriteEffects.None,
-                    0f
+                    depth
                 );
             }
             

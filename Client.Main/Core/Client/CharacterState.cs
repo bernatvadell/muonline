@@ -46,9 +46,14 @@ namespace Client.Main.Core.Client
         public byte EffectId { get; set; }
 
         /// <summary>
-        /// Gets or sets the player ID this effect is active on.
+        /// Gets or sets the raw player ID this effect is active on.
         /// </summary>
-        public ushort PlayerId { get; set; }
+        public ushort PlayerIdRaw { get; set; }
+
+        /// <summary>
+        /// Gets or sets the masked player ID (ID &amp; 0x7FFF).
+        /// </summary>
+        public ushort PlayerIdMasked { get; set; }
 
         /// <summary>
         /// Gets or sets when this effect was activated.
@@ -173,7 +178,7 @@ namespace Client.Main.Core.Client
         private readonly ConcurrentDictionary<ushort, SkillEntryState> _skillList = new();
 
         // Active Buffs/Effects
-        private readonly ConcurrentDictionary<byte, ActiveBuffState> _activeBuffs = new();
+        private readonly ConcurrentDictionary<(byte EffectId, ushort PlayerIdMasked), ActiveBuffState> _activeBuffs = new();
         public event Action ActiveBuffsChanged;
 
         // --- Update Methods ---
@@ -876,30 +881,35 @@ namespace Client.Main.Core.Client
         /// </summary>
         public void ActivateBuff(byte effectId, ushort playerId)
         {
-            _activeBuffs[effectId] = new ActiveBuffState
+            ushort maskedId = (ushort)(playerId & 0x7FFF);
+            var key = (effectId, maskedId);
+            _activeBuffs[key] = new ActiveBuffState
             {
                 EffectId = effectId,
-                PlayerId = playerId,
+                PlayerIdRaw = playerId,
+                PlayerIdMasked = maskedId,
                 ActivatedAt = DateTime.UtcNow
             };
             ActiveBuffsChanged?.Invoke();
-            _logger.LogDebug("Buff activated. Effect ID: {EffectId}, Player ID: {PlayerId}", effectId, playerId);
+            _logger.LogDebug("Buff activated. Effect ID: {EffectId}, Player ID: {PlayerId} (masked {MaskedId})", effectId, playerId, maskedId);
         }
 
         /// <summary>
         /// Removes/deactivates a buff/effect.
         /// </summary>
-        public void DeactivateBuff(byte effectId)
+        public void DeactivateBuff(byte effectId, ushort playerId)
         {
-            bool removed = _activeBuffs.TryRemove(effectId, out _);
+            ushort maskedId = (ushort)(playerId & 0x7FFF);
+            var key = (effectId, maskedId);
+            bool removed = _activeBuffs.TryRemove(key, out _);
             if (removed)
             {
                 ActiveBuffsChanged?.Invoke();
-                _logger.LogDebug("Buff deactivated. Effect ID: {EffectId}", effectId);
+                _logger.LogDebug("Buff deactivated. Effect ID: {EffectId}, Player ID: {PlayerId} (masked {MaskedId})", effectId, playerId, maskedId);
             }
             else
             {
-                _logger.LogWarning("Attempted to deactivate buff with ID {EffectId}, but buff not found.", effectId);
+                _logger.LogWarning("Attempted to deactivate buff with ID {EffectId} for player {PlayerId} (masked {MaskedId}), but buff not found.", effectId, playerId, maskedId);
             }
         }
 
@@ -908,7 +918,16 @@ namespace Client.Main.Core.Client
         /// </summary>
         public IEnumerable<ActiveBuffState> GetActiveBuffs()
         {
-            return _activeBuffs.Values.OrderBy(b => b.ActivatedAt);
+            ushort selfMasked = (ushort)(Id & 0x7FFF);
+            return _activeBuffs.Values
+                .Where(b => b.PlayerIdMasked == selfMasked)
+                .OrderBy(b => b.ActivatedAt);
+        }
+
+        public bool HasActiveBuff(byte effectId, ushort playerId)
+        {
+            ushort maskedId = (ushort)(playerId & 0x7FFF);
+            return _activeBuffs.ContainsKey((effectId, maskedId));
         }
 
         /// <summary>

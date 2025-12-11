@@ -32,6 +32,7 @@ using System.Reflection;
 using Client.Main.Content;
 using Client.Data.ATT;
 using Client.Main.Controls.UI.Game.Buffs;
+using Client.Main.Objects.Effects;
 
 namespace Client.Main.Scenes
 {
@@ -783,6 +784,9 @@ namespace Client.Main.Scenes
 
                         // Track the added player
                         _activePlayerIds.Add(s.Id);
+
+                        // Re-attach any buffered buffs (e.g., Elf Soldier) which arrived before world was ready
+                        ElfBuffEffectManager.Instance?.EnsureBuffsForPlayer(s.Id);
                     }
                     catch (Exception ex)
                     {
