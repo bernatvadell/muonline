@@ -32,7 +32,7 @@ namespace Client.Main.Objects
 
             if (TextureData != null)
             {
-                SpriteBatch = new SpriteBatch(GraphicsDevice);
+                SpriteBatch = GraphicsManager.Instance.Sprite;
                 SpriteTexture = TextureLoader.Instance.GetTexture2D(TexturePath);
             }
             else
@@ -124,8 +124,7 @@ namespace Client.Main.Objects
         public override void Dispose()
         {
             base.Dispose();
-
-            SpriteBatch?.Dispose();
+            SpriteBatch = null;
             SpriteTexture = null;
         }
     }

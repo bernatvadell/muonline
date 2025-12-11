@@ -45,6 +45,8 @@ namespace Client.Main.Controls.Terrain
         private readonly Vector3[] _cachedLightColors = new Vector3[16];
         private readonly float[] _cachedLightRadii = new float[16];
         private readonly float[] _cachedLightIntensities = new float[16];
+        private readonly float[] _cachedLightScores = new float[16];
+        private const float MinLightInfluence = 0.001f;
 
         private Vector2 _waterFlowDir = Vector2.UnitX;
         private float _waterTotal = 0f;
@@ -280,18 +282,11 @@ namespace Client.Main.Controls.Terrain
             int maxLights = Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16;
             int count = 0;
 
-            if (activeLights != null && activeLights.Count > 0)
+            if (activeLights != null && activeLights.Count > 0 && Camera.Instance != null)
             {
-                int limit = Math.Min(activeLights.Count, maxLights);
-                for (int i = 0; i < limit; i++)
-                {
-                    var light = activeLights[i];
-                    _cachedLightPositions[count] = light.Position;
-                    _cachedLightColors[count] = light.Color;
-                    _cachedLightRadii[count] = light.Radius;
-                    _cachedLightIntensities[count] = light.Intensity;
-                    count++;
-                }
+                var camPos = Camera.Instance.Position;
+                var cam2 = new Vector2(camPos.X, camPos.Y);
+                count = SelectRelevantLights(activeLights, cam2, maxLights);
             }
 
             effect.Parameters["ActiveLightCount"]?.SetValue(count);
@@ -303,6 +298,72 @@ namespace Client.Main.Controls.Terrain
                 effect.Parameters["LightRadii"]?.SetValue(_cachedLightRadii);
                 effect.Parameters["LightIntensities"]?.SetValue(_cachedLightIntensities);
             }
+        }
+
+        private int SelectRelevantLights(IReadOnlyList<DynamicLight> activeLights, Vector2 referencePos, int maxLights)
+        {
+            maxLights = Math.Min(maxLights, _cachedLightPositions.Length);
+            if (activeLights == null || activeLights.Count == 0 || maxLights <= 0)
+                return 0;
+
+            int selected = 0;
+            float weakestScore = float.MaxValue;
+            int weakestIndex = 0;
+
+            for (int i = 0; i < activeLights.Count; i++)
+            {
+                var light = activeLights[i];
+                float radius = light.Radius;
+                float radiusSq = radius * radius;
+
+                var diff = new Vector2(light.Position.X, light.Position.Y) - referencePos;
+                float distSq = diff.LengthSquared();
+                if (distSq >= radiusSq)
+                    continue;
+
+                float influence = (1f - distSq / radiusSq) * light.Intensity;
+                if (influence <= MinLightInfluence)
+                    continue;
+
+                if (selected < maxLights)
+                {
+                    _cachedLightScores[selected] = influence;
+                    _cachedLightPositions[selected] = light.Position;
+                    _cachedLightColors[selected] = light.Color;
+                    _cachedLightRadii[selected] = radius;
+                    _cachedLightIntensities[selected] = light.Intensity;
+
+                    if (influence < weakestScore)
+                    {
+                        weakestScore = influence;
+                        weakestIndex = selected;
+                    }
+
+                    selected++;
+                }
+                else if (influence > weakestScore)
+                {
+                    _cachedLightScores[weakestIndex] = influence;
+                    _cachedLightPositions[weakestIndex] = light.Position;
+                    _cachedLightColors[weakestIndex] = light.Color;
+                    _cachedLightRadii[weakestIndex] = radius;
+                    _cachedLightIntensities[weakestIndex] = light.Intensity;
+
+                    weakestScore = _cachedLightScores[0];
+                    weakestIndex = 0;
+                    for (int j = 1; j < selected; j++)
+                    {
+                        float score = _cachedLightScores[j];
+                        if (score < weakestScore)
+                        {
+                            weakestScore = score;
+                            weakestIndex = j;
+                        }
+                    }
+                }
+            }
+
+            return selected;
         }
 
         private void RenderTerrainBlock(int xi, int yi, bool after, int lodStep, TerrainBlock block = null)

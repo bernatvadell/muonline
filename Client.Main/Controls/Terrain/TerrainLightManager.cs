@@ -120,11 +120,27 @@ namespace Client.Main.Controls.Terrain
             _lightUpdateTimer = 0;
             
             _activeLights.Clear();
-            if (_dynamicLights.Count == 0 || _parent.World == null)
+            var world = _parent.World;
+            if (_dynamicLights.Count == 0 || world == null)
             {
                 ClearLightGridState();
                 InvalidateLightCache();
                 return;
+            }
+
+            bool isLoginScene = _parent.Scene is LoginScene;
+            bool enableLowQualityCheck = Constants.ENABLE_LOW_QUALITY_SWITCH &&
+                                         !(isLoginScene && !Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE) &&
+                                         Camera.Instance != null;
+
+            Vector2 cam2 = Vector2.Zero;
+            float lowQualityDistSq = 0f;
+            if (enableLowQualityCheck)
+            {
+                var camPos = Camera.Instance.Position;
+                cam2 = new Vector2(camPos.X, camPos.Y);
+                float d = Constants.LOW_QUALITY_DISTANCE;
+                lowQualityDistSq = d * d;
             }
 
             for (int i = 0; i < _dynamicLights.Count; i++)
@@ -132,33 +148,18 @@ namespace Client.Main.Controls.Terrain
                 var light = _dynamicLights[i];
                 if (light.Intensity <= 0.001f) continue;
 
-                bool isLoginScene = _parent.Scene is LoginScene;
-                if (Constants.ENABLE_LOW_QUALITY_SWITCH &&
-                    !(isLoginScene && !Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE))
+                if (enableLowQualityCheck)
                 {
-                    var camPos = Camera.Instance.Position;
                     var lightPos = new Vector2(light.Position.X, light.Position.Y);
-                    var cam2 = new Vector2(camPos.X, camPos.Y);
-                    if (Vector2.DistanceSquared(cam2, lightPos) > Constants.LOW_QUALITY_DISTANCE * Constants.LOW_QUALITY_DISTANCE)
+                    if (Vector2.DistanceSquared(cam2, lightPos) > lowQualityDistSq)
                         continue;
                 }
 
+                if (!world.IsLightInView(light))
+                    continue;
+
                 // Keep all relevant lights; spatial grid + distance checks handle performance.
                 _activeLights.Add(light);
-            }
-
-            // Sort lights by distance from player, closest first
-            if (_activeLights.Count > 1 && _parent.World is WalkableWorldControl walkable)
-            {
-                Vector2 playerPos = walkable.Walker.Location;
-                Vector3 playerWorldPos = new Vector3(playerPos.X * 100, playerPos.Y * 100, 0);
-                
-                _activeLights.Sort((light1, light2) =>
-                {
-                    float dist1 = Vector3.DistanceSquared(light1.Position, playerWorldPos);
-                    float dist2 = Vector3.DistanceSquared(light2.Position, playerWorldPos);
-                    return dist1.CompareTo(dist2);
-                });
             }
             
             // Always rebuild spatial grid when lights are updated (lights can move/change)

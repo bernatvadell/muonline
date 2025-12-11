@@ -761,7 +761,7 @@ namespace Client.Main.Controls
         /// <returns>True if the light's sphere is at least partially in view, otherwise false.</returns>
         public bool IsLightInView(DynamicLight light)
         {
-            if (_boundingFrustum == null) return false;
+            if (_boundingFrustum == null) return true;
 
             // Create a bounding sphere representing the light's full radius of effect.
             var lightSphere = new BoundingSphere(light.Position, light.Radius);

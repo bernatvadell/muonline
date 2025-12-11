@@ -4,18 +4,26 @@ using Client.Main.Controls;
 using Client.Main.Models;
 using Client.Main.Objects.Player;
 using Client.Main.Scenes;
+using Client.Main.Objects;
 using Microsoft.Xna.Framework;
 
 namespace Client.Main.Objects.Effects
 {
     /// <summary>
-    /// Manages hand-attached mist emitters for the Elf Soldier NPC buff.
+    /// Manages hand-attached mist emitters and orbiting light trails for the Elf Soldier NPC buff.
     /// </summary>
     public class ElfBuffEffectManager
     {
         public static ElfBuffEffectManager Instance { get; private set; }
 
-        private readonly Dictionary<ushort, (ElfBuffMistEmitter Left, ElfBuffMistEmitter Right)> _emitters = new();
+        private sealed class BuffVisualSet
+        {
+            public ElfBuffMistEmitter Left { get; init; }
+            public ElfBuffMistEmitter Right { get; init; }
+            public List<ElfBuffOrbitingLight> Orbits { get; init; } = new();
+        }
+
+        private readonly Dictionary<ushort, BuffVisualSet> _visuals = new();
         private readonly HashSet<ushort> _activePlayers = new();
         
         public ElfBuffEffectManager() => Instance = this;
@@ -47,9 +55,9 @@ namespace Client.Main.Objects.Effects
             if (!_activePlayers.Contains(playerId))
                 return;
 
-            if (_emitters.TryGetValue(playerId, out var existing))
+            if (_visuals.TryGetValue(playerId, out var existing))
             {
-                if (IsAlive(existing.Left) && IsAlive(existing.Right))
+                if (IsAlive(existing.Left) && IsAlive(existing.Right) && AreAlive(existing.Orbits))
                     return;
 
                 Detach(playerId);
@@ -72,13 +80,24 @@ namespace Client.Main.Objects.Effects
 
             var left = CreateEmitter(target, PlayerObject.LeftHandBoneIndex, new Vector3(-6f, 0f, 16f));
             var right = CreateEmitter(target, PlayerObject.RightHandBoneIndex, new Vector3(6f, 0f, 16f));
+            List<ElfBuffOrbitingLight> orbits = CreateOrbits(target);
 
             world.Objects.Add(left);
             world.Objects.Add(right);
+            for (int i = 0; i < orbits.Count; i++)
+                world.Objects.Add(orbits[i]);
+
             _ = left.Load();
             _ = right.Load();
+            for (int i = 0; i < orbits.Count; i++)
+                _ = orbits[i].Load();
 
-            _emitters[playerId] = (left, right);
+            _visuals[playerId] = new BuffVisualSet
+            {
+                Left = left,
+                Right = right,
+                Orbits = orbits
+            };
         }
 
         public void EnsureBuffsForPlayer(ushort playerId)
@@ -89,39 +108,107 @@ namespace Client.Main.Objects.Effects
 
         private void Detach(ushort playerId)
         {
-            if (!_emitters.TryGetValue(playerId, out var emitters))
+            if (!_visuals.TryGetValue(playerId, out var visuals))
                 return;
 
-            _emitters.Remove(playerId);
+            _visuals.Remove(playerId);
 
-            RemoveEmitter(emitters.Left);
-            RemoveEmitter(emitters.Right);
+            RemoveObject(visuals.Left);
+            RemoveObject(visuals.Right);
+            if (visuals.Orbits != null)
+            {
+                for (int i = 0; i < visuals.Orbits.Count; i++)
+                    RemoveObject(visuals.Orbits[i]);
+            }
         }
 
         private ElfBuffMistEmitter CreateEmitter(PlayerObject target, int boneIndex, Vector3 offset)
             => new ElfBuffMistEmitter(target, boneIndex, offset);
 
-        private static void RemoveEmitter(ElfBuffMistEmitter emitter)
+        private List<ElfBuffOrbitingLight> CreateOrbits(PlayerObject target)
         {
-            if (emitter == null)
-                return;
+            float scale = MathHelper.Clamp(target?.TotalScale ?? 1f, 0.6f, 1.4f);
 
-            if (emitter.Parent != null)
+            // Create two layers of orbiting lights for richer visual effect
+            // Orbits encompass the entire player model
+            // Inner layer: 3 orbs at mid height
+            // Outer layer: 3 orbs at varied heights
+            const int innerCount = 3;
+            const int outerCount = 3;
+            int totalCount = innerCount + outerCount;
+
+            // Larger radius to encompass entire player
+            float innerRadius = 95f * scale;
+            float outerRadius = 130f * scale;
+            float innerHeight = 70f * scale;
+            float outerHeight = 95f * scale;
+
+            var list = new List<ElfBuffOrbitingLight>(totalCount);
+
+            // Inner layer orbs - mid-body height
+            for (int i = 0; i < innerCount; i++)
             {
-                emitter.Parent.Children.Remove(emitter);
-                return;
+                float radiusJitter = MathHelper.Lerp(-8f, 12f, (float)MuGame.Random.NextDouble());
+                float heightJitter = MathHelper.Lerp(-20f, 25f, (float)MuGame.Random.NextDouble());
+                list.Add(new ElfBuffOrbitingLight(
+                    target,
+                    innerRadius + radiusJitter,
+                    innerHeight + heightJitter,
+                    i,
+                    innerCount));
             }
 
-            if (emitter.World != null)
+            // Outer layer orbs - upper body / head height
+            for (int i = 0; i < outerCount; i++)
             {
-                emitter.World.Objects.Remove(emitter);
-                return;
+                float radiusJitter = MathHelper.Lerp(-12f, 18f, (float)MuGame.Random.NextDouble());
+                float heightJitter = MathHelper.Lerp(-25f, 30f, (float)MuGame.Random.NextDouble());
+                list.Add(new ElfBuffOrbitingLight(
+                    target,
+                    outerRadius + radiusJitter,
+                    outerHeight + heightJitter,
+                    i,
+                    outerCount));
             }
 
-            emitter.Dispose();
+            return list;
         }
 
-        private static bool IsAlive(ElfBuffMistEmitter emitter) =>
-            emitter != null && emitter.Status != GameControlStatus.Disposed;
+        private static void RemoveObject(WorldObject obj)
+        {
+            if (obj == null)
+                return;
+
+            if (obj.Parent != null)
+            {
+                obj.Parent.Children.Remove(obj);
+                return;
+            }
+
+            if (obj.World != null)
+            {
+                obj.World.Objects.Remove(obj);
+                return;
+            }
+
+            obj.Dispose();
+        }
+
+        private static bool IsAlive(WorldObject obj) =>
+            obj != null && obj.Status != GameControlStatus.Disposed;
+
+        private static bool AreAlive(List<ElfBuffOrbitingLight> orbits)
+        {
+            if (orbits == null || orbits.Count == 0)
+                return false;
+
+            for (int i = 0; i < orbits.Count; i++)
+            {
+                if (!IsAlive(orbits[i]))
+                    return false;
+            }
+
+            return true;
+        }
     }
 }
