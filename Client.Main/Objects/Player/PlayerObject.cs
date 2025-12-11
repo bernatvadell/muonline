@@ -1787,22 +1787,36 @@ namespace Client.Main.Objects.Player
             if (screen.Z < 0f || screen.Z > 1f)
                 return;
 
-            const int width = 50;
-            const int height = 5;
+            const float baseWidth = 50f;
+            const float baseHeight = 5f;
+            const float baseOffsetY = 2f;
+            const float basePadding = 1f;
+
+            // Keep the on-screen size stable when render scale changes (supersampling/undersampling)
+            float pixelScale = MathF.Max(Constants.RENDER_SCALE, 0.1f);
+            int width = Math.Max(1, (int)MathF.Round(baseWidth * pixelScale));
+            int height = Math.Max(1, (int)MathF.Round(baseHeight * pixelScale));
+            int verticalOffset = Math.Max(1, (int)MathF.Round(baseOffsetY * pixelScale));
+            int padding = Math.Max(1, (int)MathF.Round(basePadding * pixelScale));
+            int outline = padding;
 
             Rectangle bgRect = new(
-                (int)screen.X - width / 2,
-                (int)screen.Y - height - 2,
+                (int)MathF.Round(screen.X) - width / 2,
+                (int)MathF.Round(screen.Y) - height - verticalOffset,
                 width,
                 height);
 
-            Rectangle fillRect = new(
-                bgRect.X + 1,
-                bgRect.Y + 1,
-                (int)((width - 2) * Math.Clamp(hpPercent, 0f, 1f)),
-                height - 2);
+            int innerWidth = Math.Max(0, width - padding * 2);
+            int innerHeight = Math.Max(1, height - padding * 2);
+            float hpFill = Math.Clamp(hpPercent, 0f, 1f);
 
-            float segmentWidth = (width - 2) / 8f;
+            Rectangle fillRect = new(
+                bgRect.X + padding,
+                bgRect.Y + padding,
+                Math.Max(0, (int)MathF.Round(innerWidth * hpFill)),
+                innerHeight);
+
+            float segmentWidth = innerWidth / 8f;
 
             var sb = GraphicsManager.Instance.Sprite;
             var pixel = GraphicsManager.Instance.Pixel;
@@ -1817,13 +1831,17 @@ namespace Client.Main.Objects.Player
                 sb.Draw(pixel, fillRect, Color.Red);
                 for (int i = 1; i < 8; i++)
                 {
-                    int x = bgRect.X + 1 + (int)(segmentWidth * i);
+                    int x = bgRect.X + padding + (int)MathF.Round(segmentWidth * i);
                     sb.Draw(pixel,
-                            new Rectangle(x, bgRect.Y + 1, 1, height - 2),
+                            new Rectangle(x, bgRect.Y + padding, outline, innerHeight),
                             Color.Black * 0.4f);
                 }
                 sb.Draw(pixel,
-                        new Rectangle(bgRect.X - 1, bgRect.Y - 1, bgRect.Width + 2, bgRect.Height + 2),
+                        new Rectangle(
+                            bgRect.X - outline,
+                            bgRect.Y - outline,
+                            bgRect.Width + outline * 2,
+                            bgRect.Height + outline * 2),
                         Color.White * 0.3f);
             }
         }
