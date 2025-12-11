@@ -46,9 +46,12 @@ namespace Client.Main.Objects.Effects
         // Visual parameters
         private const float PulseSpeed = 4.5f;
         private const float PulseMin = 0.7f;
-        private const float PulseMax = 1.15f;
-        private const float BaseOrbScale = 1.2f;
-        private const float SparkleInterval = 0.12f;
+	        private const float PulseMax = 1.15f;
+	        private const float BaseOrbScale = 1.2f;
+	        private const float SparkleInterval = 0.12f;
+	        private const int MaxSparklesPerFrame = 12;
+	        private static int _sparkleFrame = -1;
+	        private static int _sparklesThisFrame = 0;
 
         public override string TexturePath => "Effect/Shiny02.jpg";
 
@@ -202,20 +205,30 @@ namespace Client.Main.Objects.Effects
             base.Update(gameTime);
         }
 
-        private void SpawnSparkle()
-        {
-            if (World == null || Status != GameControlStatus.Ready || Hidden)
-                return;
+	        private void SpawnSparkle()
+	        {
+	            if (World == null || Status != GameControlStatus.Ready || Hidden)
+	                return;
 
-            // 50% chance to spawn a sparkle each interval
-            if (MuGame.Random.NextDouble() > 0.5)
-                return;
+	            // 50% chance to spawn a sparkle each interval
+	            if (MuGame.Random.NextDouble() > 0.5)
+	                return;
 
-            var sparkle = ElfBuffSparkle.Rent(GetCurrentOrbPosition(), _trailHue);
-            World.Objects.Add(sparkle);
-            if (sparkle.Status == GameControlStatus.NonInitialized)
-                _ = sparkle.Load();
-        }
+	            int frame = MuGame.FrameIndex;
+	            if (frame != _sparkleFrame)
+	            {
+	                _sparkleFrame = frame;
+	                _sparklesThisFrame = 0;
+	            }
+	            if (_sparklesThisFrame >= MaxSparklesPerFrame)
+	                return;
+	            _sparklesThisFrame++;
+
+	            var sparkle = ElfBuffSparkle.Rent(GetCurrentOrbPosition(), _trailHue);
+	            World.Objects.Add(sparkle);
+	            if (sparkle.Status == GameControlStatus.NonInitialized)
+	                _ = sparkle.Load();
+	        }
 
         public override float Depth => Position.Y + Position.Z + 400f;
 

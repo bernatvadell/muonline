@@ -1,4 +1,5 @@
 using Client.Main.Controllers;
+using Client.Main.Helpers;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -60,6 +61,7 @@ namespace Client.Main.Objects.Effects
             // They use 2D sprites so they don't interact with 3D depth buffer properly
             IsTransparent = false;
             AffectedByTransparency = false;  // Render in "solid in front" pass, after everything else
+            BlendState = BlendState.Additive;
 
             // Large local bbox to prevent frustum culling - particles handle their own culling
             BoundingBoxLocal = new BoundingBox(
@@ -260,94 +262,86 @@ namespace Client.Main.Objects.Effects
             // Cache view-projection
             _viewProj = camera.View * camera.Projection;
             _cameraPos = camera.Position;
-            
-            // Save states
-            var prevBlend = device.BlendState;
-            var prevDepth = device.DepthStencilState;
-            var prevRaster = device.RasterizerState;
-            var prevSampler = device.SamplerStates[0];
-            
-            // Begin batch with Deferred (no sorting overhead)
-            // Use DepthRead to respect existing depth buffer from 3D objects
-            spriteBatch.Begin(
-                SpriteSortMode.Deferred,
-                BlendState.Additive,
-                SamplerState.LinearClamp,
-                DepthStencilState.DepthRead,  // Read depth but don't write
-                RasterizerState.CullNone
-            );
-            
+
             var viewport = device.Viewport;
             float maxDistSq = MaxDistance * MaxDistance;
             Vector3 camForward = Vector3.Normalize(camera.Target - _cameraPos);
-            
-            for (int i = 0; i < _activeCount; i++)
+
+            void DrawParticles()
             {
-                ref var pos = ref _positions[i];
-                
-                // Fast frustum check - skip particles behind camera
-                Vector3 toParticle = pos - _cameraPos;
-                if (Vector3.Dot(toParticle, camForward) < 0) continue;
-                
-                // Distance-based culling (squared, no sqrt)
-                float distSq = toParticle.LengthSquared();
-                if (distSq > maxDistSq) continue;
-                
-                // Project to screen (optimized inline)
-                Vector4 clipPos = Vector4.Transform(pos, _viewProj);
-                
-                if (clipPos.W <= 0.001f) continue; // Behind near plane
-                
-                float invW = 1f / clipPos.W;
-                float screenX = (clipPos.X * invW * 0.5f + 0.5f) * viewport.Width;
-                float screenY = (0.5f - clipPos.Y * invW * 0.5f) * viewport.Height;
-                float depth = clipPos.Z * invW;
+                for (int i = 0; i < _activeCount; i++)
+                {
+                    ref var pos = ref _positions[i];
 
-                if (depth < 0f || depth > 1f) continue;
+                    // Fast frustum check - skip particles behind camera
+                    Vector3 toParticle = pos - _cameraPos;
+                    if (Vector3.Dot(toParticle, camForward) < 0) continue;
 
-                // Depth test against 3D scene - skip if particle is behind solid objects
-                // Note: This is approximate since we can't read depth buffer in SpriteBatch
-                // A better solution would be to render particles as billboards in 3D space
-                
-                // Screen bounds check
-                if (screenX < -100 || screenX > viewport.Width + 100 ||
-                    screenY < -100 || screenY > viewport.Height + 100) continue;
-                
-                // Calculate alpha and scale
-                float lifeRatio = _lives[i] / _maxLives[i];
-                float alpha = lifeRatio * lifeRatio; // Quadratic fade
-                
-                // Distance-based scale (using squared distance, approximation)
-                float distFactor = distSq / maxDistSq;
-                float depthScale = MathHelper.Lerp(1f, 0.5f, distFactor);  // Zmienione z 0.3 na 0.5 (mniejsza redukcja)
+                    // Distance-based culling (squared, no sqrt)
+                    float distSq = toParticle.LengthSquared();
+                    if (distSq > maxDistSq) continue;
 
-                // Growth over lifetime
-                float growth = 1f + ScaleGrowth * (1f - lifeRatio);
-                float finalScale = _baseScales[i] * growth * depthScale;
-                
-                // Color with alpha
-                Color color = ParticleColor * alpha;
+                    // Project to screen (optimized inline)
+                    Vector4 clipPos = Vector4.Transform(pos, _viewProj);
 
-                spriteBatch.Draw(
-                    _texture,
-                    new Vector2(screenX, screenY),
-                    null,
-                    color,
-                    _rotations[i],
-                    _textureCenter,
-                    finalScale,
-                    SpriteEffects.None,
-                    depth
-                );
+                    if (clipPos.W <= 0.001f) continue; // Behind near plane
+
+                    float invW = 1f / clipPos.W;
+                    float screenX = (clipPos.X * invW * 0.5f + 0.5f) * viewport.Width;
+                    float screenY = (0.5f - clipPos.Y * invW * 0.5f) * viewport.Height;
+                    float depth = clipPos.Z * invW;
+
+                    if (depth < 0f || depth > 1f) continue;
+
+                    // Screen bounds check
+                    if (screenX < -100 || screenX > viewport.Width + 100 ||
+                        screenY < -100 || screenY > viewport.Height + 100) continue;
+
+                    // Calculate alpha and scale
+                    float lifeRatio = _lives[i] / _maxLives[i];
+                    float alpha = lifeRatio * lifeRatio; // Quadratic fade
+
+                    // Distance-based scale (using squared distance, approximation)
+                    float distFactor = distSq / maxDistSq;
+                    float depthScale = MathHelper.Lerp(1f, 0.5f, distFactor);
+
+                    // Growth over lifetime
+                    float growth = 1f + ScaleGrowth * (1f - lifeRatio);
+                    float finalScale = _baseScales[i] * growth * depthScale;
+
+                    Color color = ParticleColor * alpha;
+
+                    spriteBatch.Draw(
+                        _texture,
+                        new Vector2(screenX, screenY),
+                        null,
+                        color,
+                        _rotations[i],
+                        _textureCenter,
+                        finalScale,
+                        SpriteEffects.None,
+                        depth
+                    );
+                }
             }
-            
-            spriteBatch.End();
-            
-            // Restore states
-            device.BlendState = prevBlend;
-            device.DepthStencilState = prevDepth;
-            device.RasterizerState = prevRaster;
-            device.SamplerStates[0] = prevSampler;
+
+            if (!SpriteBatchScope.BatchIsBegun)
+            {
+                using (new SpriteBatchScope(
+                    spriteBatch,
+                    SpriteSortMode.Deferred,
+                    BlendState.Additive,
+                    SamplerState.LinearClamp,
+                    DepthStencilState.DepthRead,
+                    RasterizerState.CullNone))
+                {
+                    DrawParticles();
+                }
+            }
+            else
+            {
+                DrawParticles();
+            }
         }
 
         public override void Dispose()

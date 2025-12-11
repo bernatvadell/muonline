@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using Client.Main.Controls;
 using Client.Main.Models;
@@ -15,14 +16,17 @@ namespace Client.Main.Objects.Effects
     {
         private const float MaxLifetime = 3.5f;
         private const float CatchDistance = 45f;
+        private const float CatchDistanceSq = CatchDistance * CatchDistance;
 
-        private readonly Func<Vector3> _targetProvider;
+        private static readonly ConcurrentBag<ExperienceOrbEffect> _pool = new();
+
+        private Func<Vector3> _targetProvider;
         private readonly WeaponTrailEffect _trail;
-        private readonly float _hoverPhase;
-        private readonly float _swirlStrength;
-        private readonly float _sideDrift;
-        private readonly Vector3 _sideAxis;
-        private readonly float _speedJitter;
+        private float _hoverPhase;
+        private float _swirlStrength;
+        private float _sideDrift;
+        private Vector3 _sideAxis;
+        private float _speedJitter;
         private Vector3 _velocity;
         private float _age;
 
@@ -30,8 +34,35 @@ namespace Client.Main.Objects.Effects
 
         public ExperienceOrbEffect(Vector3 startPosition, Func<Vector3> targetProvider)
         {
+            _trail = new WeaponTrailEffect
+            {
+                Alpha = 0.9f
+            };
+            _trail.SamplePoint = () => WorldPosition.Translation;
+            _trail.SetTrailColor(new Color(1f, 0.85f, 0.35f));
+
+            Reset(startPosition, targetProvider);
+        }
+
+        public static ExperienceOrbEffect Rent(Vector3 startPosition, Func<Vector3> targetProvider)
+        {
+            if (_pool.TryTake(out var orb))
+            {
+                orb.Reset(startPosition, targetProvider);
+                return orb;
+            }
+
+            return new ExperienceOrbEffect(startPosition, targetProvider);
+        }
+
+        private void Reset(Vector3 startPosition, Func<Vector3> targetProvider)
+        {
             Position = startPosition;
+            Angle = Vector3.Zero;
+            Hidden = false;
+
             _targetProvider = targetProvider ?? throw new ArgumentNullException(nameof(targetProvider));
+            _age = 0f;
 
             BlendState = BlendState.Additive;
             DepthState = DepthStencilState.DepthRead;
@@ -68,19 +99,21 @@ namespace Client.Main.Objects.Effects
             _sideAxis = side;
             _speedJitter = MathHelper.Lerp(0.05f, 0.35f, (float)MuGame.Random.NextDouble());
 
-            _trail = new WeaponTrailEffect
+            if (_trail != null)
             {
-                Alpha = 0.9f
-            };
-            _trail.SamplePoint = () => WorldPosition.Translation;
-            _trail.SetTrailColor(new Color(1f, 0.85f, 0.35f));
+                _trail.Hidden = true; // Clears old samples on next update
+                _trail.Hidden = false;
+            }
         }
 
         public override async Task Load()
         {
             await base.Load();
-            Children.Add(_trail);
-            await _trail.Load();
+            if (!Children.Contains(_trail))
+                Children.Add(_trail);
+
+            if (_trail.Status == GameControlStatus.NonInitialized)
+                await _trail.Load();
         }
 
         public override void Update(GameTime gameTime)
@@ -94,14 +127,15 @@ namespace Client.Main.Objects.Effects
 
             var target = _targetProvider?.Invoke() ?? WorldPosition.Translation;
             Vector3 toTarget = target - WorldPosition.Translation;
-            float distance = toTarget.Length();
+            float distSq = toTarget.LengthSquared();
 
-            if (distance <= CatchDistance || _age >= MaxLifetime)
+            if (distSq <= CatchDistanceSq || _age >= MaxLifetime)
             {
-                Despawn();
+                Recycle();
                 return;
             }
 
+            float distance = MathF.Sqrt(distSq);
             Vector3 dir = distance > 0.001f ? toTarget / distance : Vector3.Zero;
 
             float chaseSpeed = MathHelper.Lerp(220f, 640f, MathHelper.Clamp(_age / 1.2f, 0f, 1f)) * (1f + _speedJitter);
@@ -136,16 +170,16 @@ namespace Client.Main.Objects.Effects
             Alpha = MathHelper.Clamp(1f - (_age / MaxLifetime), 0.25f, 1f);
         }
 
-        private void Despawn()
+        private void Recycle()
         {
-            if (World != null)
-            {
-                World.RemoveObject(this);
-            }
-            else
-            {
-                Dispose();
-            }
+            if (Parent != null)
+                Parent.Children.Detach(this);
+            else if (World != null)
+                World.Objects.Detach(this);
+
+            World = null;
+            Hidden = true;
+            _pool.Add(this);
         }
 
         public static void SpawnBurst(WorldControl world, Vector3 origin, Func<Vector3> targetProvider, int count)
@@ -162,9 +196,10 @@ namespace Client.Main.Objects.Effects
                     MathHelper.Lerp(-35f, 35f, (float)MuGame.Random.NextDouble()),
                     MathHelper.Lerp(10f, 40f, (float)MuGame.Random.NextDouble()));
 
-                var orb = new ExperienceOrbEffect(origin + jitter, targetProvider);
+                var orb = Rent(origin + jitter, targetProvider);
                 world.Objects.Add(orb);
-                _ = orb.Load();
+                if (orb.Status == GameControlStatus.NonInitialized)
+                    _ = orb.Load();
             }
         }
     }

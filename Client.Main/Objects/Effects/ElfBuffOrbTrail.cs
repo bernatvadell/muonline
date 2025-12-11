@@ -199,39 +199,17 @@ namespace Client.Main.Objects.Effects
             // Get current reference position to convert offsets to world positions
             Vector3 currentRef = ReferencePoint.Invoke();
 
-            // Sort points by age (oldest first) for proper layering
-            Span<int> sortedIndices = stackalloc int[MaxPoints];
-            Span<float> sortedAges = stackalloc float[MaxPoints];
-            int sortedCount = 0;
+            // Distance scaling is effectively constant across the trail (points are close to each other).
+            float refDistance = Vector3.Distance(camera.Position, currentRef);
+            float distScale = 1f / MathF.Max(refDistance / 800f, 0.1f);
 
-            for (int i = 0; i < MaxPoints; i++)
+            void DrawPoints()
             {
-                if (_points[i].Active)
+                for (int i = 0; i < MaxPoints; i++)
                 {
-                    sortedIndices[sortedCount] = i;
-                    sortedAges[sortedCount] = _points[i].Age / MathF.Max(_points[i].Lifetime, float.Epsilon);
-                    sortedCount++;
-                }
-            }
+                    if (!_points[i].Active)
+                        continue;
 
-            // Simple bubble sort (small array)
-            for (int i = 0; i < sortedCount - 1; i++)
-            {
-                for (int j = 0; j < sortedCount - i - 1; j++)
-                {
-                    if (sortedAges[j] < sortedAges[j + 1])
-                    {
-                        (sortedAges[j], sortedAges[j + 1]) = (sortedAges[j + 1], sortedAges[j]);
-                        (sortedIndices[j], sortedIndices[j + 1]) = (sortedIndices[j + 1], sortedIndices[j]);
-                    }
-                }
-            }
-
-            using (new Helpers.SpriteBatchScope(sb, SpriteSortMode.Deferred, BlendState.Additive, SamplerState.LinearClamp, DepthStencilState.DepthRead))
-            {
-                for (int s = 0; s < sortedCount; s++)
-                {
-                    int i = sortedIndices[s];
                     ref var point = ref _points[i];
 
                     float life = 1f - (point.Age / point.Lifetime);
@@ -250,10 +228,6 @@ namespace Client.Main.Objects.Effects
 
                     if (projected.Z < 0f || projected.Z > 1f)
                         continue;
-
-                    // Calculate scale based on distance and life
-                    float distanceToCamera = Vector3.Distance(camera.Position, worldPos);
-                    float distScale = 1f / MathF.Max(distanceToCamera / 800f, 0.1f);
 
                     // Smooth fade: starts small, grows, then shrinks and fades
                     float sizeCurve;
@@ -287,6 +261,18 @@ namespace Client.Main.Objects.Effects
                         SpriteEffects.None,
                         projected.Z);
                 }
+            }
+
+            if (!Helpers.SpriteBatchScope.BatchIsBegun)
+            {
+                using (new Helpers.SpriteBatchScope(sb, SpriteSortMode.Deferred, BlendState.Additive, SamplerState.LinearClamp, DepthStencilState.DepthRead))
+                {
+                    DrawPoints();
+                }
+            }
+            else
+            {
+                DrawPoints();
             }
         }
 

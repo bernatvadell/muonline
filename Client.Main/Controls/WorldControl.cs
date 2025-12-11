@@ -5,6 +5,7 @@ using Client.Main.Controllers;
 using Client.Main.Core.Utilities;
 using Client.Main.Models;
 using Client.Main.Objects;
+using Client.Main.Objects.Effects;
 using Client.Main.Objects.Player;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
@@ -577,9 +578,7 @@ namespace Client.Main.Controls
             {
                 _solidBehind.Sort(Constants.ENABLE_BATCH_OPTIMIZED_SORTING ? _cmpBatchAsc : _cmpAsc);
             }
-            SetDepthState(DepthStateDefault);
-            foreach (var obj in _solidBehind)
-                DrawObject(obj, time, DepthStateDefault);
+            DrawListWithSpriteBatchGrouping(_solidBehind, DepthStateDefault, time);
 
             // Draw transparent objects
             if (_transparentObjects.Count > 1)
@@ -587,20 +586,14 @@ namespace Client.Main.Controls
                 // Transparent rendering requires strict back-to-front ordering, so never batch-optimize.
                 _transparentObjects.Sort(_cmpDesc);
             }
-            if (_transparentObjects.Count > 0)
-                SetDepthState(DepthStateDepthRead);
-            foreach (var obj in _transparentObjects)
-                DrawObject(obj, time, DepthStateDepthRead);
+            DrawListWithSpriteBatchGrouping(_transparentObjects, DepthStateDepthRead, time);
 
             // Draw solid in front objects
             if (_solidInFront.Count > 1)
             {
                 _solidInFront.Sort(Constants.ENABLE_BATCH_OPTIMIZED_SORTING ? _cmpBatchAsc : _cmpAsc);
             }
-            if (_solidInFront.Count > 0)
-                SetDepthState(DepthStateDefault);
-            foreach (var obj in _solidInFront)
-                DrawObject(obj, time, DepthStateDefault);
+            DrawListWithSpriteBatchGrouping(_solidInFront, DepthStateDefault, time);
 
             // Draw post-pass (DrawAfter)
             DrawAfterPass(_solidBehind, DepthStateDefault, time);
@@ -608,12 +601,77 @@ namespace Client.Main.Controls
             DrawAfterPass(_solidInFront, DepthStateDefault, time);
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void DrawObject(WorldObject obj, GameTime time, DepthStencilState state)
+        private void DrawListWithSpriteBatchGrouping(List<WorldObject> list, DepthStencilState depthState, GameTime time)
         {
-            obj.DepthState = state;
-            obj.Draw(time);
-            obj.RenderOrder = ++_renderCounter;
+            if (list.Count == 0)
+                return;
+
+            SetDepthState(depthState);
+
+            var spriteBatch = GraphicsManager.Instance.Sprite;
+            Helpers.SpriteBatchScope scope = null;
+            BlendState currentBlend = null;
+            SamplerState currentSampler = null;
+            DepthStencilState currentBatchDepth = null;
+
+            for (int i = 0; i < list.Count; i++)
+            {
+                var obj = list[i];
+                if (obj == null)
+                    continue;
+
+                obj.DepthState = depthState;
+
+                bool usesSpriteBatch =
+                    obj is SpriteObject ||
+                    obj is WaterMistParticleSystem ||
+                    obj is ElfBuffOrbTrail;
+
+                if (usesSpriteBatch)
+                {
+                    var blend = obj.BlendState ?? BlendState.AlphaBlend;
+                    SamplerState sampler;
+                    if (obj is WaterMistParticleSystem || obj is ElfBuffOrbTrail)
+                    {
+                        sampler = SamplerState.LinearClamp;
+                    }
+                    else
+                    {
+                        sampler = ReferenceEquals(blend, BlendState.Additive)
+                            ? GraphicsManager.GetQualityLinearSamplerState()
+                            : GraphicsManager.GetQualitySamplerState();
+                    }
+                    var batchDepth = obj is WaterMistParticleSystem ? DepthStencilState.DepthRead : depthState;
+
+                    if (scope == null ||
+                        !ReferenceEquals(blend, currentBlend) ||
+                        !ReferenceEquals(sampler, currentSampler) ||
+                        !ReferenceEquals(batchDepth, currentBatchDepth))
+                    {
+                        scope?.Dispose();
+                        scope = new Helpers.SpriteBatchScope(spriteBatch, SpriteSortMode.Deferred, blend, sampler, batchDepth);
+                        currentBlend = blend;
+                        currentSampler = sampler;
+                        currentBatchDepth = batchDepth;
+                    }
+
+                    obj.Draw(time);
+                }
+                else
+                {
+                    scope?.Dispose();
+                    scope = null;
+                    currentBlend = null;
+                    currentSampler = null;
+                    currentBatchDepth = null;
+
+                    obj.Draw(time);
+                }
+
+                obj.RenderOrder = ++_renderCounter;
+            }
+
+            scope?.Dispose();
         }
 
         private void DrawAfterPass(List<WorldObject> list, DepthStencilState state, GameTime time)

@@ -20,6 +20,7 @@ namespace Client.Main.Objects.Effects
 
         private float _trailDuration = 0.18f;
         private float _minDistance = 4.5f;
+        private float _minDistanceSq = 4.5f * 4.5f;
         private float _maxSampleInterval = 0.035f;
         private float _baseWidth = 2.5f;
         private float _maxWidth = 8f;
@@ -71,7 +72,11 @@ namespace Client.Main.Objects.Effects
             float? endAlpha = null)
         {
             if (duration.HasValue) _trailDuration = MathF.Max(0.02f, duration.Value);
-            if (minDistance.HasValue) _minDistance = MathF.Max(0.5f, minDistance.Value);
+            if (minDistance.HasValue)
+            {
+                _minDistance = MathF.Max(0.5f, minDistance.Value);
+                _minDistanceSq = _minDistance * _minDistance;
+            }
             if (maxSampleInterval.HasValue) _maxSampleInterval = MathF.Max(0.001f, maxSampleInterval.Value);
             if (baseWidth.HasValue) _baseWidth = MathF.Max(0.25f, baseWidth.Value);
             if (maxWidth.HasValue) _maxWidth = MathF.Max(_baseWidth + 0.5f, maxWidth.Value);
@@ -174,17 +179,18 @@ namespace Client.Main.Objects.Effects
                 _hasLast = true;
             }
             else
-            {
-                _timeSinceLastSample += dt;
-                Vector3 delta = current - _lastPosition;
-                float dist = delta.Length();
-
-                if (dist >= _minDistance || _timeSinceLastSample >= _maxSampleInterval)
                 {
-                    float speed = dist / MathF.Max(dt, 0.0001f);
-                    AddSample(current, speed);
-                    _lastPosition = current;
-                    _timeSinceLastSample = 0f;
+                    _timeSinceLastSample += dt;
+                    Vector3 delta = current - _lastPosition;
+                    float distSq = delta.LengthSquared();
+
+                    if (distSq >= _minDistanceSq || _timeSinceLastSample >= _maxSampleInterval)
+                    {
+                        float dist = MathF.Sqrt(distSq);
+                        float speed = dist / MathF.Max(dt, 0.0001f);
+                        AddSample(current, speed);
+                        _lastPosition = current;
+                        _timeSinceLastSample = 0f;
                 }
             }
 
