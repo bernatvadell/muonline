@@ -137,9 +137,9 @@ namespace Client.Main.Objects.Effects
             const int outerCount = 3;
             int totalCount = innerCount + outerCount;
 
-            // Larger radius to encompass entire player
-            float innerRadius = 95f * scale;
-            float outerRadius = 130f * scale;
+            // Tuned a bit tighter so orbs sit closer to the player model
+            float innerRadius = 65f * scale;
+            float outerRadius = 95f * scale;
             float innerHeight = 70f * scale;
             float outerHeight = 95f * scale;
 
