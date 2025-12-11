@@ -159,17 +159,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             int raw = (app[0] >> 3) & 0b1_1111;
             return raw switch
             {
-                0 => CharacterClassNumber.DarkWizard,
-                1 => CharacterClassNumber.SoulMaster,
-                2 => CharacterClassNumber.GrandMaster,
-                4 => CharacterClassNumber.DarkKnight,
-                6 => CharacterClassNumber.BladeKnight,
-                8 => CharacterClassNumber.FairyElf,
-                10 => CharacterClassNumber.MuseElf,
-                12 => CharacterClassNumber.MagicGladiator,
-                16 => CharacterClassNumber.DarkLord,
-                20 => CharacterClassNumber.Summoner,
-                24 => CharacterClassNumber.RageFighter,
+                0 or 2 or 3 or 4 or 6 or 7 or 8 or 10 or 11 or 12 or 13 or
+                16 or 17 or 20 or 22 or 23 or 24 or 25 => (CharacterClassNumber)raw,
                 _ => CharacterClassNumber.DarkWizard
             };
         }

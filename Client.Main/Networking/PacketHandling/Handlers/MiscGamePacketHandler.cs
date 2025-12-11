@@ -455,30 +455,13 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         /// </summary>
         private CharacterClassNumber MapClassValueToEnum(int value)
         {
+            // According to S6 protocol, the 5-bit class value in appearance maps
+            // directly to CharacterClassNumber values (including 2nd/3rd classes).
+            // Values not listed below are treated as DarkWizard fallback.
             return value switch
             {
-                0 => CharacterClassNumber.DarkWizard,
-                1 => CharacterClassNumber.SoulMaster,
-                2 => CharacterClassNumber.SoulMaster,
-                3 => CharacterClassNumber.GrandMaster,
-                4 => CharacterClassNumber.DarkKnight,
-                5 => CharacterClassNumber.BladeKnight,
-                6 => CharacterClassNumber.BladeKnight,
-                7 => CharacterClassNumber.BladeMaster,
-                8 => CharacterClassNumber.FairyElf,
-                9 => CharacterClassNumber.MuseElf,
-                10 => CharacterClassNumber.MuseElf,
-                11 => CharacterClassNumber.HighElf,
-                12 => CharacterClassNumber.MagicGladiator,
-                13 => CharacterClassNumber.DuelMaster,
-                16 => CharacterClassNumber.DarkLord,
-                17 => CharacterClassNumber.LordEmperor,
-                20 => CharacterClassNumber.Summoner,
-                21 => CharacterClassNumber.BloodySummoner,
-                22 => CharacterClassNumber.BloodySummoner,
-                23 => CharacterClassNumber.DimensionMaster,
-                24 => CharacterClassNumber.RageFighter,
-                25 => CharacterClassNumber.FistMaster,
+                0 or 2 or 3 or 4 or 6 or 7 or 8 or 10 or 11 or 12 or 13 or
+                16 or 17 or 20 or 22 or 23 or 24 or 25 => (CharacterClassNumber)value,
                 _ => CharacterClassNumber.DarkWizard
             };
         }
