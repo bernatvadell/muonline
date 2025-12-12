@@ -1,4 +1,5 @@
 using Client.Main.Controllers;
+using Client.Main.Controls;
 using Client.Main.Graphics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -47,6 +48,9 @@ namespace Client.Main.Controls.Terrain
         private readonly float[] _cachedLightIntensities = new float[16];
         private readonly float[] _cachedLightScores = new float[16];
         private const float MinLightInfluence = 0.001f;
+        private int _cachedSelectedLightsVersion = -1;
+        private int _cachedSelectedLightsMax = -1;
+        private int _cachedSelectedLightCount = 0;
 
         private Vector2 _waterFlowDir = Vector2.UnitX;
         private float _waterTotal = 0f;
@@ -180,7 +184,7 @@ namespace Client.Main.Controls.Terrain
             DrawnTriangles = 0;
             DrawnBlocks = 0;
             DrawnCells = 0;
-            
+
             // Reset state tracking for new frame
             _lastBoundTexture = null;
             _lastBlendState = null;
@@ -281,12 +285,27 @@ namespace Client.Main.Controls.Terrain
             var activeLights = _lightManager.ActiveLights;
             int maxLights = Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16;
             int count = 0;
+            int version = _lightManager.ActiveLightsVersion;
 
-            if (activeLights != null && activeLights.Count > 0 && Camera.Instance != null)
+		            if (activeLights != null && activeLights.Count > 0 && Camera.Instance != null)
+		            {
+		                if (_cachedSelectedLightsVersion != version || _cachedSelectedLightsMax != maxLights)
+		                {
+		                    // Terrain dynamic lights should be selected around what the camera is looking at (target),
+		                    // not the camera position which can be far away in isometric view.
+		                    var camTarget = Camera.Instance.Target;
+		                    var referencePos = new Vector2(camTarget.X, camTarget.Y);
+		                    _cachedSelectedLightCount = SelectRelevantLights(activeLights, referencePos, maxLights);
+		                    _cachedSelectedLightsVersion = version;
+		                    _cachedSelectedLightsMax = maxLights;
+		                }
+		                count = _cachedSelectedLightCount;
+		            }
+            else
             {
-                var camPos = Camera.Instance.Position;
-                var cam2 = new Vector2(camPos.X, camPos.Y);
-                count = SelectRelevantLights(activeLights, cam2, maxLights);
+                _cachedSelectedLightCount = 0;
+                _cachedSelectedLightsVersion = version;
+                _cachedSelectedLightsMax = maxLights;
             }
 
             effect.Parameters["ActiveLightCount"]?.SetValue(count);
@@ -300,7 +319,7 @@ namespace Client.Main.Controls.Terrain
             }
         }
 
-        private int SelectRelevantLights(IReadOnlyList<DynamicLight> activeLights, Vector2 referencePos, int maxLights)
+        private int SelectRelevantLights(IReadOnlyList<DynamicLightSnapshot> activeLights, Vector2 referencePos, int maxLights)
         {
             maxLights = Math.Min(maxLights, _cachedLightPositions.Length);
             if (activeLights == null || activeLights.Count == 0 || maxLights <= 0)
@@ -419,7 +438,7 @@ namespace Client.Main.Controls.Terrain
                             }
                         }
                     }
-                    
+
                     if (shouldRender)
                     {
                         RenderTerrainTile(
@@ -680,7 +699,7 @@ namespace Client.Main.Controls.Terrain
                     effect.Parameters["DiffuseTexture"]?.SetValue(texture);
                     _lastBoundTexture = texture;
                 }
-                
+
                 if (_lastBlendState != blendState)
                 {
                     _graphicsDevice.BlendState = blendState;
@@ -734,7 +753,7 @@ namespace Client.Main.Controls.Terrain
                     effect.Texture = texture;
                     _lastBoundTexture = texture;
                 }
-                
+
                 if (_lastBlendState != blendState)
                 {
                     _graphicsDevice.BlendState = blendState;
@@ -768,21 +787,21 @@ namespace Client.Main.Controls.Terrain
         {
             // IMPORTANT: For proper terrain blending, we must render ALL opaque layers first,
             // then ALL alpha layers. This preserves the correct depth/blend order.
-            
+
             // First pass: render all opaque batches
             for (int t = 0; t < 256; t++)
             {
                 if (_tileBatchCounts[t] > 0)
                     FlushSingleTexture(t, alphaLayer: false);
             }
-            
+
             // Second pass: render all alpha batches
             for (int t = 0; t < 256; t++)
             {
                 if (_tileAlphaCounts[t] > 0)
                     FlushSingleTexture(t, alphaLayer: true);
             }
-            
+
             if (_lastBlendState != BlendState.Opaque)
             {
                 _graphicsDevice.BlendState = BlendState.Opaque;

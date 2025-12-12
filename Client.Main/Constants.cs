@@ -85,6 +85,7 @@ namespace Client.Main
         public static bool ENABLE_SHADOW_MAPPING;
         public static int SHADOW_MAP_SIZE;
         public static float SHADOW_DISTANCE;
+        public static int DYNAMIC_LIGHT_UPDATE_FPS;
 
         // Day-Night Cycle (real-time sun movement)
         public static bool ENABLE_DAY_NIGHT_CYCLE;
@@ -221,6 +222,7 @@ namespace Client.Main
             ENABLE_SHADOW_MAPPING = false;
             ENABLE_DAY_NIGHT_CYCLE = false;
             DAY_NIGHT_SPEED_MULTIPLIER = 60f;
+            DYNAMIC_LIGHT_UPDATE_FPS = 30;
             // Default to the Medium preset unless user changes it in options
             // ApplyShadowQualityPreset(ShadowQuality.Medium);
             SHADOW_NEAR_PLANE = 10f;
@@ -256,6 +258,7 @@ namespace Client.Main
             ENABLE_WEAPON_TRAIL = false;
             HIGH_QUALITY_TEXTURES = false;
             RENDER_SCALE = 0.75f;
+            DYNAMIC_LIGHT_UPDATE_FPS = 30;
         }
 #endif
     }

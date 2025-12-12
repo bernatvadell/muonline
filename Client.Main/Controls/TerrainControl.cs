@@ -30,7 +30,8 @@ namespace Client.Main.Controls
         // Use the opposite of SUN_DIRECTION because the lightmap expects a vector pointing toward the sun.
         public Vector3 LightDirection { get; set; } = Vector3.Normalize(-SunCycleManager.BaseSunDirection);
         public IReadOnlyList<DynamicLight> DynamicLights => _lightManager.DynamicLights;
-        public IReadOnlyList<DynamicLight> ActiveLights => _lightManager.ActiveLights;
+        public IReadOnlyList<DynamicLightSnapshot> ActiveLights => _lightManager.ActiveLights;
+        public int ActiveLightsVersion => _lightManager.ActiveLightsVersion;
         public Texture2D HeightMapTexture => _data?.HeightMapTexture;
         private Dictionary<int, string> _pendingTextureMap = new();
 

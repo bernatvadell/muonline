@@ -171,6 +171,17 @@ namespace Client.Main.Objects
         private static readonly float[] _cachedLightScores = new float[16];
         private const float MinLightInfluence = 0.001f;
 
+        // Per-object cached light selection (updated on throttled light snapshot version changes)
+        private int _dynamicLightSelectionVersion = -1;
+        private int _dynamicLightSelectionMaxLights = -1;
+        private int _dynamicLightSelectionCount = 0;
+        private int[] _dynamicLightSelectionIndices;
+
+        // Track per-pass preparation to avoid re-uploading shared effect parameters per mesh
+        private static int _drawModelInvocationCounter = 0;
+        private int _drawModelInvocationId = 0;
+        private int _dynamicLightingPreparedInvocationId = -1;
+
         // Cache for Environment.TickCount to reduce system calls
         private static float _cachedTime = 0f;
         private static int _lastTickCount = 0;
@@ -669,6 +680,8 @@ namespace Client.Main.Objects
                 ReleaseMeshGroups();
                 return;
             }
+
+            _drawModelInvocationId = ++_drawModelInvocationCounter;
 
             // Cache commonly used values
             var view = Camera.Instance.View;
@@ -1317,9 +1330,6 @@ namespace Client.Main.Objects
                     return;
                 }
 
-                effect.CurrentTechnique = effect.Techniques["DynamicLighting"];
-                GraphicsManager.Instance.ShadowMapRenderer?.ApplyShadowParameters(effect);
-
                 var prevDepthState = gd.DepthStencilState;
                 bool depthStateChanged = false;
 
@@ -1347,70 +1357,14 @@ namespace Client.Main.Objects
 
                     gd.BlendState = blendState;
 
-                    // Set transformation matrices
-                    effect.Parameters["World"]?.SetValue(WorldPosition);
-                    effect.Parameters["View"]?.SetValue(Camera.Instance.View);
-                    effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
-                    Matrix worldViewProjection = WorldPosition * Camera.Instance.View * Camera.Instance.Projection;
-                    effect.Parameters["WorldViewProjection"]?.SetValue(worldViewProjection);
-                    effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
-                    Vector3 sunDir = GraphicsManager.Instance.ShadowMapRenderer?.LightDirection ?? Constants.SUN_DIRECTION;
-                    if (sunDir.LengthSquared() < 0.0001f)
-                        sunDir = new Vector3(1f, 0f, -0.6f);
-                    sunDir = Vector3.Normalize(sunDir);
-                    bool worldAllowsSun = World is WorldControl wc ? wc.IsSunWorld : true;
-                    bool sunEnabled = Constants.SUN_ENABLED && worldAllowsSun && UseSunLight && !HasWalkerAncestor();
-                    effect.Parameters["SunDirection"]?.SetValue(sunDir);
-                    effect.Parameters["SunColor"]?.SetValue(_sunColor);
-                    effect.Parameters["SunStrength"]?.SetValue(sunEnabled ? SunCycleManager.GetEffectiveSunStrength() : 0f);
-                    effect.Parameters["ShadowStrength"]?.SetValue(sunEnabled ? SunCycleManager.GetEffectiveShadowStrength() : 0f);
+                    if (_dynamicLightingPreparedInvocationId != _drawModelInvocationId)
+                    {
+                        PrepareDynamicLightingEffect(effect);
+                        _dynamicLightingPreparedInvocationId = _drawModelInvocationId;
+                    }
 
                     // Set texture
                     effect.Parameters["DiffuseTexture"]?.SetValue(texture);
-                    effect.Parameters["Alpha"]?.SetValue(TotalAlpha);
-                    effect.Parameters["UseVertexColorLighting"]?.SetValue(false);
-                    effect.Parameters["TerrainLightingPass"]?.SetValue(false);
-                    effect.Parameters["TerrainDynamicIntensityScale"]?.SetValue(1.5f);
-
-                    // Set terrain lighting
-                    Vector3 worldTranslation = WorldPosition.Translation;
-                    Vector3 terrainLight = Vector3.One;
-                    if (LightEnabled && World?.Terrain != null)
-                    {
-                        terrainLight = World.Terrain.EvaluateTerrainLight(worldTranslation.X, worldTranslation.Y);
-                    }
-                    // Set ambient lighting for dynamic lighting shader (modulated by day-night cycle)
-                    effect.Parameters["AmbientLight"]?.SetValue(_ambientLightVector * SunCycleManager.AmbientMultiplier);
-
-                    // Ensure terrain light is reasonable - don't divide by 255 as it makes it too dark
-                    terrainLight = Vector3.Clamp(terrainLight / 255f, Vector3.Zero, Vector3.One);
-                    effect.Parameters["TerrainLight"]?.SetValue(terrainLight);
-
-                    // Set dynamic lights
-                    var activeLights = World?.Terrain?.ActiveLights;
-                    if (activeLights != null && activeLights.Count > 0)
-                    {
-                        int maxLights = Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16;
-                        int lightCount = SelectRelevantLights(activeLights, worldTranslation, maxLights);
-                        effect.Parameters["ActiveLightCount"]?.SetValue(lightCount);
-                        effect.Parameters["MaxLightsToProcess"]?.SetValue(maxLights);
-
-                        if (lightCount > 0)
-                        {
-                            effect.Parameters["LightPositions"]?.SetValue(_cachedLightPositions);
-                            effect.Parameters["LightColors"]?.SetValue(_cachedLightColors);
-                            effect.Parameters["LightRadii"]?.SetValue(_cachedLightRadii);
-                            effect.Parameters["LightIntensities"]?.SetValue(_cachedLightIntensities);
-                        }
-                    }
-                    else
-                    {
-                        effect.Parameters["ActiveLightCount"]?.SetValue(0);
-                        effect.Parameters["MaxLightsToProcess"]?.SetValue(Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16);
-                    }
-
-                    // Set debug lighting areas parameter
-                    effect.Parameters["DebugLightingAreas"]?.SetValue(Constants.DEBUG_LIGHTING_AREAS);
 
                     gd.SetVertexBuffer(vertexBuffer);
                     gd.Indices = indexBuffer;
@@ -1439,9 +1393,120 @@ namespace Client.Main.Objects
             }
         }
 
-        private int SelectRelevantLights(IReadOnlyList<DynamicLight> activeLights, Vector3 worldTranslation, int maxLights)
+        private void PrepareDynamicLightingEffect(Effect effect)
+        {
+            effect.CurrentTechnique = effect.Techniques["DynamicLighting"];
+            GraphicsManager.Instance.ShadowMapRenderer?.ApplyShadowParameters(effect);
+
+            var camera = Camera.Instance;
+            if (camera == null)
+                return;
+
+            // Set transformation matrices
+            effect.Parameters["World"]?.SetValue(WorldPosition);
+            effect.Parameters["View"]?.SetValue(camera.View);
+            effect.Parameters["Projection"]?.SetValue(camera.Projection);
+            Matrix worldViewProjection = WorldPosition * camera.View * camera.Projection;
+            effect.Parameters["WorldViewProjection"]?.SetValue(worldViewProjection);
+            effect.Parameters["EyePosition"]?.SetValue(camera.Position);
+
+            Vector3 sunDir = GraphicsManager.Instance.ShadowMapRenderer?.LightDirection ?? Constants.SUN_DIRECTION;
+            if (sunDir.LengthSquared() < 0.0001f)
+                sunDir = new Vector3(1f, 0f, -0.6f);
+            sunDir = Vector3.Normalize(sunDir);
+            bool worldAllowsSun = World is WorldControl wc ? wc.IsSunWorld : true;
+            bool sunEnabled = Constants.SUN_ENABLED && worldAllowsSun && UseSunLight && !HasWalkerAncestor();
+            effect.Parameters["SunDirection"]?.SetValue(sunDir);
+            effect.Parameters["SunColor"]?.SetValue(_sunColor);
+            effect.Parameters["SunStrength"]?.SetValue(sunEnabled ? SunCycleManager.GetEffectiveSunStrength() : 0f);
+            effect.Parameters["ShadowStrength"]?.SetValue(sunEnabled ? SunCycleManager.GetEffectiveShadowStrength() : 0f);
+
+            effect.Parameters["Alpha"]?.SetValue(TotalAlpha);
+            effect.Parameters["UseVertexColorLighting"]?.SetValue(false);
+            effect.Parameters["TerrainLightingPass"]?.SetValue(false);
+            effect.Parameters["TerrainDynamicIntensityScale"]?.SetValue(1.5f);
+            effect.Parameters["AmbientLight"]?.SetValue(_ambientLightVector * SunCycleManager.AmbientMultiplier);
+            effect.Parameters["DebugLightingAreas"]?.SetValue(Constants.DEBUG_LIGHTING_AREAS);
+
+            // Set terrain lighting (cached per draw pass)
+            Vector3 worldTranslation = WorldPosition.Translation;
+            Vector3 terrainLight = Vector3.One;
+            if (LightEnabled && World?.Terrain != null)
+                terrainLight = World.Terrain.EvaluateTerrainLight(worldTranslation.X, worldTranslation.Y);
+            terrainLight = Vector3.Clamp(terrainLight / 255f, Vector3.Zero, Vector3.One);
+            effect.Parameters["TerrainLight"]?.SetValue(terrainLight);
+
+            // Select dynamic lights (cached per object, updated on throttled light version changes)
+            int maxLights = Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16;
+            int lightCount = 0;
+            var terrain = World?.Terrain;
+            if (terrain != null)
+            {
+                int version = terrain.ActiveLightsVersion;
+                var activeLights = terrain.ActiveLights;
+
+                if (_dynamicLightSelectionVersion != version || _dynamicLightSelectionMaxLights != maxLights)
+                {
+                    _dynamicLightSelectionCount = 0;
+                    if (activeLights != null && activeLights.Count > 0)
+                    {
+                        EnsureDynamicLightSelectionBuffer();
+                        _dynamicLightSelectionCount = SelectRelevantLightIndices(activeLights, worldTranslation, maxLights, _dynamicLightSelectionIndices);
+                    }
+
+                    _dynamicLightSelectionVersion = version;
+                    _dynamicLightSelectionMaxLights = maxLights;
+                }
+
+                if (activeLights != null && _dynamicLightSelectionCount > 0)
+                {
+                    lightCount = FillSelectedLightArrays(activeLights, _dynamicLightSelectionIndices, _dynamicLightSelectionCount);
+                }
+            }
+
+            effect.Parameters["ActiveLightCount"]?.SetValue(lightCount);
+            effect.Parameters["MaxLightsToProcess"]?.SetValue(maxLights);
+            if (lightCount > 0)
+            {
+                effect.Parameters["LightPositions"]?.SetValue(_cachedLightPositions);
+                effect.Parameters["LightColors"]?.SetValue(_cachedLightColors);
+                effect.Parameters["LightRadii"]?.SetValue(_cachedLightRadii);
+                effect.Parameters["LightIntensities"]?.SetValue(_cachedLightIntensities);
+            }
+        }
+
+        private void EnsureDynamicLightSelectionBuffer()
+        {
+            if (_dynamicLightSelectionIndices == null || _dynamicLightSelectionIndices.Length != _cachedLightPositions.Length)
+            {
+                _dynamicLightSelectionIndices = new int[_cachedLightPositions.Length];
+            }
+        }
+
+        private int FillSelectedLightArrays(IReadOnlyList<DynamicLightSnapshot> activeLights, int[] selectedIndices, int count)
+        {
+            int filled = 0;
+            int max = Math.Min(count, _cachedLightPositions.Length);
+            for (int i = 0; i < max; i++)
+            {
+                int idx = selectedIndices[i];
+                if ((uint)idx >= (uint)activeLights.Count)
+                    continue;
+
+                var light = activeLights[idx];
+                _cachedLightPositions[filled] = light.Position;
+                _cachedLightColors[filled] = light.Color;
+                _cachedLightRadii[filled] = light.Radius;
+                _cachedLightIntensities[filled] = light.Intensity;
+                filled++;
+            }
+            return filled;
+        }
+
+        private int SelectRelevantLightIndices(IReadOnlyList<DynamicLightSnapshot> activeLights, Vector3 worldTranslation, int maxLights, int[] selectedIndices)
         {
             maxLights = Math.Min(maxLights, _cachedLightPositions.Length);
+            maxLights = Math.Min(maxLights, selectedIndices.Length);
             if (activeLights == null || activeLights.Count == 0 || maxLights <= 0)
                 return 0;
 
@@ -1468,10 +1533,7 @@ namespace Client.Main.Objects
                 if (selected < maxLights)
                 {
                     _cachedLightScores[selected] = influence;
-                    _cachedLightPositions[selected] = light.Position;
-                    _cachedLightColors[selected] = light.Color;
-                    _cachedLightRadii[selected] = radius;
-                    _cachedLightIntensities[selected] = light.Intensity;
+                    selectedIndices[selected] = i;
 
                     if (influence < weakestScore)
                     {
@@ -1484,10 +1546,7 @@ namespace Client.Main.Objects
                 else if (influence > weakestScore)
                 {
                     _cachedLightScores[weakestIndex] = influence;
-                    _cachedLightPositions[weakestIndex] = light.Position;
-                    _cachedLightColors[weakestIndex] = light.Color;
-                    _cachedLightRadii[weakestIndex] = radius;
-                    _cachedLightIntensities[weakestIndex] = light.Intensity;
+                    selectedIndices[weakestIndex] = i;
 
                     weakestScore = _cachedLightScores[0];
                     weakestIndex = 0;
