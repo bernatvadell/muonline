@@ -63,8 +63,8 @@ namespace Client.Main.Objects.Worlds.Lorencia
             {
                 Owner = this,
                 Color = new Vector3(1f, 0.7f, 0.4f),
-                Radius = 250f,
-                Intensity = 1f,
+                Radius = 400f,
+                Intensity = 1.5f,
                 Position = Vector3.Zero
             };
 

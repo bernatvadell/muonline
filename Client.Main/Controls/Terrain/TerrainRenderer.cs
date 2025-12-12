@@ -287,20 +287,28 @@ namespace Client.Main.Controls.Terrain
             int count = 0;
             int version = _lightManager.ActiveLightsVersion;
 
-		            if (activeLights != null && activeLights.Count > 0 && Camera.Instance != null)
-		            {
-		                if (_cachedSelectedLightsVersion != version || _cachedSelectedLightsMax != maxLights)
-		                {
-		                    // Terrain dynamic lights should be selected around what the camera is looking at (target),
-		                    // not the camera position which can be far away in isometric view.
-		                    var camTarget = Camera.Instance.Target;
-		                    var referencePos = new Vector2(camTarget.X, camTarget.Y);
-		                    _cachedSelectedLightCount = SelectRelevantLights(activeLights, referencePos, maxLights);
-		                    _cachedSelectedLightsVersion = version;
-		                    _cachedSelectedLightsMax = maxLights;
-		                }
-		                count = _cachedSelectedLightCount;
-		            }
+            if (activeLights != null && activeLights.Count > 0 && Camera.Instance != null)
+            {
+                if (_cachedSelectedLightsVersion != version || _cachedSelectedLightsMax != maxLights)
+                {
+                    if (TryGetVisibleTerrainBounds(out Vector2 visibleMin, out Vector2 visibleMax))
+                    {
+                        _cachedSelectedLightCount = SelectRelevantLights(activeLights, visibleMin, visibleMax, maxLights);
+                    }
+                    else
+                    {
+                        // Fallback: select around what the camera is looking at (target).
+                        var camTarget = Camera.Instance.Target;
+                        var referencePos = new Vector2(camTarget.X, camTarget.Y);
+                        _cachedSelectedLightCount = SelectRelevantLights(activeLights, referencePos, maxLights);
+                    }
+
+                    _cachedSelectedLightsVersion = version;
+                    _cachedSelectedLightsMax = maxLights;
+                }
+
+                count = _cachedSelectedLightCount;
+            }
             else
             {
                 _cachedSelectedLightCount = 0;
@@ -317,6 +325,111 @@ namespace Client.Main.Controls.Terrain
                 effect.Parameters["LightRadii"]?.SetValue(_cachedLightRadii);
                 effect.Parameters["LightIntensities"]?.SetValue(_cachedLightIntensities);
             }
+        }
+
+        private bool TryGetVisibleTerrainBounds(out Vector2 min, out Vector2 max)
+        {
+            min = new Vector2(float.MaxValue, float.MaxValue);
+            max = new Vector2(float.MinValue, float.MinValue);
+
+            if (_visibility?.VisibleBlocks == null || _visibility.VisibleBlocks.Count == 0)
+                return false;
+
+            bool any = false;
+            foreach (var block in _visibility.VisibleBlocks)
+            {
+                if (block == null)
+                    continue;
+
+                var bmin = block.Bounds.Min;
+                var bmax = block.Bounds.Max;
+
+                if (bmin.X < min.X) min.X = bmin.X;
+                if (bmin.Y < min.Y) min.Y = bmin.Y;
+                if (bmax.X > max.X) max.X = bmax.X;
+                if (bmax.Y > max.Y) max.Y = bmax.Y;
+
+                any = true;
+            }
+
+            return any;
+        }
+
+        private static float DistanceSquaredPointToRect(Vector2 p, Vector2 min, Vector2 max)
+        {
+            float cx = p.X < min.X ? min.X : (p.X > max.X ? max.X : p.X);
+            float cy = p.Y < min.Y ? min.Y : (p.Y > max.Y ? max.Y : p.Y);
+
+            float dx = p.X - cx;
+            float dy = p.Y - cy;
+            return dx * dx + dy * dy;
+        }
+
+        private int SelectRelevantLights(IReadOnlyList<DynamicLightSnapshot> activeLights, Vector2 regionMin, Vector2 regionMax, int maxLights)
+        {
+            maxLights = Math.Min(maxLights, _cachedLightPositions.Length);
+            if (activeLights == null || activeLights.Count == 0 || maxLights <= 0)
+                return 0;
+
+            int selected = 0;
+            float weakestScore = float.MaxValue;
+            int weakestIndex = 0;
+
+            for (int i = 0; i < activeLights.Count; i++)
+            {
+                var light = activeLights[i];
+                float radius = light.Radius;
+                float radiusSq = radius * radius;
+                if (radiusSq <= 0.001f) continue;
+
+                var lightPos2 = new Vector2(light.Position.X, light.Position.Y);
+                float distSq = DistanceSquaredPointToRect(lightPos2, regionMin, regionMax);
+                if (distSq >= radiusSq)
+                    continue;
+
+                float influence = (1f - distSq / radiusSq) * light.Intensity;
+                if (influence <= MinLightInfluence)
+                    continue;
+
+                if (selected < maxLights)
+                {
+                    _cachedLightScores[selected] = influence;
+                    _cachedLightPositions[selected] = light.Position;
+                    _cachedLightColors[selected] = light.Color;
+                    _cachedLightRadii[selected] = radius;
+                    _cachedLightIntensities[selected] = light.Intensity;
+
+                    if (influence < weakestScore)
+                    {
+                        weakestScore = influence;
+                        weakestIndex = selected;
+                    }
+
+                    selected++;
+                }
+                else if (influence > weakestScore)
+                {
+                    _cachedLightScores[weakestIndex] = influence;
+                    _cachedLightPositions[weakestIndex] = light.Position;
+                    _cachedLightColors[weakestIndex] = light.Color;
+                    _cachedLightRadii[weakestIndex] = radius;
+                    _cachedLightIntensities[weakestIndex] = light.Intensity;
+
+                    weakestScore = _cachedLightScores[0];
+                    weakestIndex = 0;
+                    for (int j = 1; j < selected; j++)
+                    {
+                        float score = _cachedLightScores[j];
+                        if (score < weakestScore)
+                        {
+                            weakestScore = score;
+                            weakestIndex = j;
+                        }
+                    }
+                }
+            }
+
+            return selected;
         }
 
         private int SelectRelevantLights(IReadOnlyList<DynamicLightSnapshot> activeLights, Vector2 referencePos, int maxLights)
