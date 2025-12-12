@@ -1640,6 +1640,21 @@ namespace Client.Main.Objects
 
             try
             {
+                // For bone-attached models (weapons, wings, etc.) reuse the parent's blob-shadow basis
+                // so attachments share the same shadow anchor/orientation as the character.
+                if (ParentBoneLink >= 0 && Parent is ModelObject parentModel)
+                {
+                    if (!parentModel.TryGetShadowMatrix(out Matrix parentShadowWorld))
+                        return false;
+
+                    Matrix localMatrix = Matrix.CreateScale(Scale) *
+                                         Matrix.CreateFromQuaternion(MathUtils.AngleQuaternion(Angle)) *
+                                         Matrix.CreateTranslation(Position);
+
+                    shadowWorld = localMatrix * ParentBodyOrigin * parentShadowWorld;
+                    return true;
+                }
+
                 Vector3 position = WorldPosition.Translation;
                 float terrainH = World.Terrain.RequestTerrainHeight(position.X, position.Y);
                 terrainH += terrainH * 0.5f;
