@@ -99,11 +99,7 @@ namespace Client.Main.Objects.Effects
             _sideAxis = side;
             _speedJitter = MathHelper.Lerp(0.05f, 0.35f, (float)MuGame.Random.NextDouble());
 
-            if (_trail != null)
-            {
-                _trail.Hidden = true; // Clears old samples on next update
-                _trail.Hidden = false;
-            }
+            _trail?.ResetTrail();
         }
 
         public override async Task Load()

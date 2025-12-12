@@ -57,6 +57,14 @@ namespace Client.Main.Objects.Effects
             _endColor = new Vector4(vec.X, vec.Y, vec.Z, 0f);
         }
 
+        public void ResetTrail()
+        {
+            _samples.Clear();
+            _hasLast = false;
+            _timeSinceLastSample = 0f;
+            _lastPosition = Vector3.Zero;
+        }
+
         /// <summary>
         /// Optional tuning for trail visuals without affecting defaults used by weapons.
         /// </summary>
