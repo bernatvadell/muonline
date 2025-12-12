@@ -411,6 +411,7 @@ namespace Client.Main.Objects
         private Vector3 _lastSampledLight = Vector3.Zero;
         private double _lastAnimationUpdateTime = 0;
         private double _lastFrameTimeMs = 0; // To track timing in methods without GameTime
+        private double _lastStrideAnimationBufferUpdateTimeMs = double.NegativeInfinity;
 
         public override async Task LoadContent()
         {
@@ -628,7 +629,12 @@ namespace Client.Main.Objects
 
         public void SetAnimationUpdateStride(int stride)
         {
-            AnimationUpdateStride = Math.Max(1, stride);
+            int newStride = Math.Max(1, stride);
+            if (AnimationUpdateStride == newStride)
+                return;
+
+            AnimationUpdateStride = newStride;
+            _lastStrideAnimationBufferUpdateTimeMs = double.NegativeInfinity;
         }
 
         public override void Draw(GameTime gameTime)
@@ -1975,6 +1981,20 @@ namespace Client.Main.Objects
                 _animTime = Math.Min(_animTime, endIdx + 0.0001f);
                 framePos = _animTime;
             }
+            else if (this is WalkerObject walker && walker.IsOneShotPlaying)
+            {
+                int endIdx = Math.Max(0, totalFrames - 1);
+                if (_animTime >= endIdx)
+                {
+                    _animTime = endIdx;
+                    framePos = _animTime;
+                    walker.NotifyOneShotAnimationCompleted();
+                }
+                else
+                {
+                    framePos = _animTime;
+                }
+            }
             else
             {
                 framePos = _animTime % totalFrames;
@@ -2372,11 +2392,25 @@ namespace Client.Main.Objects
                     (_invalidatedBufferFlags & ~(BUFFER_FLAG_ANIMATION | BUFFER_FLAG_TRANSFORM)) == 0 &&
                     AnimationUpdateStride > 1)
                 {
-                    if (((currentFrame + (uint)_animationStrideOffset) % (uint)AnimationUpdateStride) != 0)
+                    const double strideFrameMs = 1000.0 / 60.0;
+                    double nowMs = _lastFrameTimeMs;
+                    double intervalMs = strideFrameMs * AnimationUpdateStride;
+
+                    // Time-based throttling avoids aliasing at low FPS where frame-based modulo
+                    // can reduce updates far below the intended rate (causing visible stutter).
+                    if (double.IsNegativeInfinity(_lastStrideAnimationBufferUpdateTimeMs))
+                    {
+                        double phaseMs = (_animationStrideOffset % AnimationUpdateStride) * strideFrameMs;
+                        _lastStrideAnimationBufferUpdateTimeMs = nowMs - intervalMs + phaseMs;
+                    }
+
+                    if (nowMs - _lastStrideAnimationBufferUpdateTimeMs < intervalMs)
                     {
                         _invalidatedBufferFlags &= ~BUFFER_FLAG_TRANSFORM;
                         return;
                     }
+
+                    _lastStrideAnimationBufferUpdateTimeMs = nowMs;
                 }
 
                 // Ensure arrays only when needed

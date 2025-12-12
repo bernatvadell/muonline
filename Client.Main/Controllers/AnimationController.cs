@@ -247,13 +247,15 @@ namespace Client.Main.Controllers
         private static AnimationType GetPlayerAnimationType(PlayerAction a) => a switch
         {
             PlayerAction.PlayerDie1 or PlayerAction.PlayerDie2 => AnimationType.Death,
-            PlayerAction.PlayerPoseMale1 or PlayerAction.PlayerPoseMale1 => AnimationType.Rest,
+            PlayerAction.PlayerPoseMale1 or PlayerAction.PlayerPoseFemale1 => AnimationType.Rest,
             PlayerAction.PlayerSit1 or PlayerAction.PlayerSitFemale1 => AnimationType.Sit,
             PlayerAction.PlayerStopMale or PlayerAction.PlayerStopFemale or PlayerAction.PlayerStopFly
                                                                                => AnimationType.Idle,
 
             PlayerAction.PlayerWalkMale or PlayerAction.PlayerWalkFemale or
             PlayerAction.PlayerRunSwim or PlayerAction.PlayerFly => AnimationType.Walk,
+
+            PlayerAction.PlayerShock => AnimationType.Emote,
             PlayerAction.PlayerAttackFist or PlayerAction.PlayerAttackBow or
             PlayerAction.PlayerAttackSwordRight1 or PlayerAction.PlayerAttackCrossbow or
             PlayerAction.PlayerAttackScythe1 or PlayerAction.PlayerAttackScythe2 or

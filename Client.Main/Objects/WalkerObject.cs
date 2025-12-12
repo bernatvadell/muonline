@@ -104,6 +104,11 @@ namespace Client.Main.Objects
 
         public bool IsOneShotPlaying => _animationController?.IsOneShotPlaying ?? false;
 
+        internal void NotifyOneShotAnimationCompleted()
+        {
+            _animationController.NotifyAnimationCompleted();
+        }
+
         protected WalkerObject()
         {
             _animationController = new AnimationController(this);
@@ -305,6 +310,17 @@ namespace Client.Main.Objects
         /// </summary>
         public void PlayAction(ushort actionIndex, bool fromServer = false)
         {
+            // If we re-trigger a one-shot while already in the same action, restart it.
+            // This avoids "stuck" or jittery attacks/skills at low FPS / packet bursts.
+            if (_priorAction == actionIndex)
+            {
+                var kind = _animationController.GetAnimationType(actionIndex);
+                if (kind is AnimationType.Attack or AnimationType.Skill or AnimationType.Emote or AnimationType.Appear)
+                {
+                    _animTime = 0.0;
+                }
+            }
+
             _serverControlledAnimation = fromServer;
             _animationController?.PlayAnimation(actionIndex, fromServer);
         }
