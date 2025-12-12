@@ -1,4 +1,6 @@
 using System;
+using System.Threading.Tasks;
+using Client.Main.Controls;
 using Client.Main.Models;
 using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
@@ -15,6 +17,7 @@ namespace Client.Main.Objects.Effects
         private readonly int _boneIndex;
         private readonly Vector3 _offset;
         private readonly float _baseEmissionRate;
+        private readonly DynamicLight _dynamicLight;
         private float _pulseTimer;
         private float _spawnBoostTimer = 0.35f;
         private const float SpawnBoostRate = 32f;
@@ -29,6 +32,10 @@ namespace Client.Main.Objects.Effects
             SpawnRadius = new Vector2(4f, 4f);
             LifetimeRange = new Vector2(0.3f, 0.4f);
             ScaleRange = new Vector2(0.65f, 1.25f);
+            UseDistanceEmissionScaling = false;
+            UseDistanceScaling = false;
+            UseConstantWorldSize = true;
+            ReferenceDistance = 2000f;
             HorizontalVelocityRange = new Vector2(-8f, 8f);
             UpwardVelocityRange = new Vector2(22f, 30f);
             UpwardAcceleration = 10f;
@@ -40,6 +47,26 @@ namespace Client.Main.Objects.Effects
             AffectedByTransparency = true;
 
             _baseEmissionRate = EmissionRate;
+
+            // Create red dynamic light for the hand effect
+            _dynamicLight = new DynamicLight
+            {
+                Owner = this,
+                Color = new Vector3(1.0f, 0.2f, 0.15f),
+                Radius = 120f,
+                Intensity = 0.6f
+            };
+        }
+
+        public override async Task LoadContent()
+        {
+            await base.LoadContent();
+
+            if (World?.Terrain != null)
+            {
+                _dynamicLight.Position = Position;
+                World.Terrain.AddDynamicLight(_dynamicLight);
+            }
         }
 
         public override void Update(GameTime gameTime)
@@ -81,6 +108,8 @@ namespace Client.Main.Objects.Effects
             bool shouldHide = _owner.Status != GameControlStatus.Ready || _owner.Hidden || _owner.IsDead;
 
             Hidden = shouldHide;
+            UpdateDynamicLightVisibility(shouldHide);
+
             if (shouldHide)
             {
                 EmissionRate = 0f;
@@ -107,6 +136,25 @@ namespace Client.Main.Objects.Effects
             byte a = (byte)Math.Clamp(170f + 70f * pulse, 0f, 255f);
 
             ParticleColor = new Color(r, g, b, a);
+
+            // Update dynamic light to pulse with the color
+            if (_dynamicLight != null)
+            {
+                _dynamicLight.Position = Position;
+                _dynamicLight.Intensity = 0.4f + pulse * 0.4f;
+                _dynamicLight.Color = new Vector3(
+                    0.9f + pulse * 0.1f,
+                    0.15f + pulse * 0.1f,
+                    0.1f + pulse * 0.1f);
+            }
+        }
+
+        private void UpdateDynamicLightVisibility(bool shouldHide)
+        {
+            if (_dynamicLight != null)
+            {
+                _dynamicLight.Intensity = shouldHide ? 0f : 0.6f;
+            }
         }
 
         public override float Depth => Position.Y + Position.Z;
@@ -126,6 +174,16 @@ namespace Client.Main.Objects.Effects
             }
 
             Dispose();
+        }
+
+        public override void Dispose()
+        {
+            if (World?.Terrain != null && _dynamicLight != null)
+            {
+                World.Terrain.RemoveDynamicLight(_dynamicLight);
+            }
+
+            base.Dispose();
         }
     }
 }

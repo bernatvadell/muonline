@@ -52,8 +52,20 @@ namespace Client.Main.Objects.Effects
         public Color ParticleColor { get; set; } = new Color(200, 220, 255, 180);
         public Vector2 SpawnRadius { get; set; } = new(6f, 6f);
         public float MaxDistance { get; set; } = 1500f;
+        public bool UseDistanceEmissionScaling { get; set; } = true;
+        public bool UseDistanceScaling { get; set; } = true;
+        public float MinDistanceScale { get; set; } = 0.5f;
         public float ScaleGrowth { get; set; } = 0.4f;
         public Vector2 Wind { get; set; } = Vector2.Zero;
+        /// <summary>
+        /// When true, compensates for perspective so particles maintain constant size
+        /// relative to 3D world objects regardless of camera distance.
+        /// </summary>
+        public bool UseConstantWorldSize { get; set; } = false;
+        /// <summary>
+        /// Reference distance at which particle scale = 1.0 when UseConstantWorldSize is true.
+        /// </summary>
+        public float ReferenceDistance { get; set; } = 800f;
 
         public WaterMistParticleSystem()
         {
@@ -184,9 +196,13 @@ namespace Client.Main.Objects.Effects
                 return;
             }
 
-            // Scale emission rate by distance (squared falloff)
-            float distRatio = distToCamera / maxDistSq;
-            float emissionScale = 1f - distRatio * distRatio;
+            float emissionScale = 1f;
+            if (UseDistanceEmissionScaling)
+            {
+                // Scale emission rate by distance (squared falloff)
+                float distRatio = distToCamera / maxDistSq;
+                emissionScale = 1f - distRatio * distRatio;
+            }
 
             _emissionAccumulator += EmissionRate * emissionScale * dt;
             int emitCount = (int)_emissionAccumulator;
@@ -301,13 +317,25 @@ namespace Client.Main.Objects.Effects
                     float lifeRatio = _lives[i] / _maxLives[i];
                     float alpha = lifeRatio * lifeRatio; // Quadratic fade
 
-                    // Distance-based scale (using squared distance, approximation)
-                    float distFactor = distSq / maxDistSq;
-                    float depthScale = MathHelper.Lerp(1f, 0.5f, distFactor);
+                    float depthScale = 1f;
+                    if (UseDistanceScaling)
+                    {
+                        // Distance-based scale (using squared distance, approximation)
+                        float distFactor = distSq / maxDistSq;
+                        depthScale = MathHelper.Lerp(1f, MinDistanceScale, distFactor);
+                    }
+
+                    // Perspective compensation - maintain constant world size
+                    float perspectiveScale = 1f;
+                    if (UseConstantWorldSize)
+                    {
+                        float dist = MathF.Sqrt(distSq);
+                        perspectiveScale = ReferenceDistance / MathF.Max(dist, 1f);
+                    }
 
                     // Growth over lifetime
                     float growth = 1f + ScaleGrowth * (1f - lifeRatio);
-                    float finalScale = _baseScales[i] * growth * depthScale;
+                    float finalScale = _baseScales[i] * growth * depthScale * perspectiveScale;
 
                     Color color = ParticleColor * alpha;
 
