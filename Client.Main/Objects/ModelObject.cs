@@ -312,6 +312,14 @@ namespace Client.Main.Objects
         private const uint BUFFER_FLAG_TEXTURE = 1u << 4;       // Texture changed
         private const uint BUFFER_FLAG_ALL = uint.MaxValue;     // Force full rebuild
 
+        // Exposed equivalents for derived classes (to avoid magic numbers)
+        protected const uint BufferFlagAnimation = BUFFER_FLAG_ANIMATION;
+        protected const uint BufferFlagLighting = BUFFER_FLAG_LIGHTING;
+        protected const uint BufferFlagTransform = BUFFER_FLAG_TRANSFORM;
+        protected const uint BufferFlagMaterial = BUFFER_FLAG_MATERIAL;
+        protected const uint BufferFlagTexture = BUFFER_FLAG_TEXTURE;
+        protected const uint BufferFlagAll = BUFFER_FLAG_ALL;
+
         // State grouping optimization
         private readonly struct MeshStateKey : IEquatable<MeshStateKey>
         {
@@ -2310,6 +2318,27 @@ namespace Client.Main.Objects
             }
         }
 
+        /// <summary>
+        /// Allows derived objects to provide modified bone transforms for rendering.
+        /// Default returns the input bones unchanged.
+        /// Useful for lightweight procedural deformations (e.g., cape flutter).
+        /// </summary>
+        /// <param name="bones">Current bone transforms used for skinning.</param>
+        /// <returns>Bone transforms to use for rendering.</returns>
+        protected virtual Matrix[] GetRenderBoneTransforms(Matrix[] bones)
+        {
+            return bones;
+        }
+
+        /// <summary>
+        /// Allows derived objects to deform vertices procedurally during buffer generation.
+        /// Default returns null (no deformation).
+        /// </summary>
+        protected virtual IVertexDeformer GetVertexDeformer()
+        {
+            return null;
+        }
+
         private void SetDynamicBuffers()
         {
             if (_invalidatedBufferFlags == 0 || Model?.Meshes == null)
@@ -2368,11 +2397,15 @@ namespace Client.Main.Objects
 
                 // Get bone transforms with caching
                 Matrix[] bones = GetCachedBoneTransforms();
+                bones = GetRenderBoneTransforms(bones) ?? bones;
                 if (bones == null)
                 {
                     _logger?.LogDebug("SetDynamicBuffers: BoneTransform == null – skip");
                     return;
                 }
+
+                IVertexDeformer vertexDeformer = GetVertexDeformer();
+                bool hasVertexDeformer = vertexDeformer != null;
 
                 // Calculate lighting only once if lighting flags are set
                 bool needLightCalculation = (_invalidatedBufferFlags & BUFFER_FLAG_LIGHTING) != 0;
@@ -2438,7 +2471,8 @@ namespace Client.Main.Objects
                             ref _boneVertexBuffers[meshIndex],
                             ref _boneIndexBuffers[meshIndex],
                             // Force bypassing internal cache when texture coordinates changed
-                            ((_invalidatedBufferFlags & BUFFER_FLAG_TEXTURE) != 0));
+                            ((_invalidatedBufferFlags & BUFFER_FLAG_TEXTURE) != 0) || hasVertexDeformer,
+                            vertexDeformer);
 
                         // Update cache
                         cache.VertexBuffer = _boneVertexBuffers[meshIndex];

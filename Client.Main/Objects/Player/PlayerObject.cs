@@ -18,8 +18,8 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Controllers;
 using Client.Main.Helpers;
-using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Objects.Vehicle;
+using Client.Main.Controls.UI.Game.Inventory;
 
 namespace Client.Main.Objects.Player
 {
@@ -80,6 +80,10 @@ namespace Client.Main.Objects.Player
         // Timer for footstep sound playback
         private float _footstepTimer;
 
+        private readonly object _inventoryAppearanceUpdateSync = new();
+        private bool _inventoryAppearanceUpdateRunning;
+        private bool _inventoryAppearanceUpdatePending;
+
         // ───────────────────────────────── PROPERTIES ─────────────────────────────────
         public bool IsResting { get; set; }
         public bool IsSitting { get; set; }
@@ -112,7 +116,8 @@ namespace Client.Main.Objects.Player
         }
 
         /// <summary>True if wings are equipped and visible.</summary>
-        public bool HasEquippedWings => EquippedWings is { Hidden: false, Type: > 0 };
+        public bool HasEquippedWings =>
+            EquippedWings is { Hidden: false } && (EquippedWings.Type > 0 || EquippedWings.ItemIndex >= 0);
 
         public new PlayerAction CurrentAction
         {
@@ -189,7 +194,7 @@ namespace Client.Main.Objects.Player
                 // Then, hook events to update equipment based on inventory
                 HookInventoryEvents();
                 // Perform the initial appearance update and wait for it to complete
-                await UpdateAppearanceFromInventoryAsync();
+                await RunInventoryAppearanceUpdateAsync();
             }
             else
             {
@@ -224,7 +229,7 @@ namespace Client.Main.Objects.Player
                 // Then, hook events to update equipment based on inventory
                 HookInventoryEvents();
                 // Perform the initial appearance update and wait for it to complete
-                await UpdateAppearanceFromInventoryAsync();
+                await RunInventoryAppearanceUpdateAsync();
             }
             else
             {
@@ -274,8 +279,51 @@ namespace Client.Main.Objects.Player
         private void OnEquipmentChanged()
         {
             if (!IsMainWalker) return;
-            // Fire-and-forget the async update method
-            _ = UpdateAppearanceFromInventoryAsync();
+            // Equipment updates can arrive from networking threads; marshal to main thread.
+            MuGame.ScheduleOnMainThread(() => _ = RunInventoryAppearanceUpdateAsync());
+        }
+
+        private async Task RunInventoryAppearanceUpdateAsync()
+        {
+            lock (_inventoryAppearanceUpdateSync)
+            {
+                if (_inventoryAppearanceUpdateRunning)
+                {
+                    _inventoryAppearanceUpdatePending = true;
+                    return;
+                }
+
+                _inventoryAppearanceUpdateRunning = true;
+                _inventoryAppearanceUpdatePending = false;
+            }
+
+            try
+            {
+                while (true)
+                {
+                    await UpdateAppearanceFromInventoryAsync();
+
+                    lock (_inventoryAppearanceUpdateSync)
+                    {
+                        if (_inventoryAppearanceUpdatePending)
+                        {
+                            _inventoryAppearanceUpdatePending = false;
+                            continue;
+                        }
+
+                        _inventoryAppearanceUpdateRunning = false;
+                        break;
+                    }
+                }
+            }
+            finally
+            {
+                lock (_inventoryAppearanceUpdateSync)
+                {
+                    _inventoryAppearanceUpdateRunning = false;
+                    _inventoryAppearanceUpdatePending = false;
+                }
+            }
         }
 
         private static class InventoryConstants
@@ -368,12 +416,37 @@ namespace Client.Main.Objects.Player
             if (wingsDef != null && !string.IsNullOrEmpty(wingsDef.TexturePath))
             {
                 EquippedWings.Hidden = false;
-                EquippedWings.Type = (short)(wingsDef.Id + 1);
+                EquippedWings.Type = 0;
+                EquippedWings.ItemIndex = (short)wingsDef.Id;
                 EquippedWings.LinkParentAnimation = false;
             }
             else
             {
-                EquippedWings.Hidden = true;
+                // For the main player we rely on the inventory slot as source of truth.
+                // Only if an item is present but couldn't be parsed, fall back to appearance mapping.
+                if (inventory.ContainsKey(InventoryConstants.WingsSlot) && Appearance.WingInfo.HasWings)
+                {
+                    var mappedIndex = TryMapWingAppearanceToItemIndex(Appearance.WingInfo, CharacterClass);
+                    if (mappedIndex.HasValue)
+                    {
+                        EquippedWings.Hidden = false;
+                        EquippedWings.Type = 0;
+                        EquippedWings.ItemIndex = mappedIndex.Value;
+                        EquippedWings.LinkParentAnimation = false;
+                    }
+                    else
+                    {
+                        EquippedWings.Hidden = true;
+                        EquippedWings.Type = 0;
+                        EquippedWings.ItemIndex = -1;
+                    }
+                }
+                else
+                {
+                    EquippedWings.Hidden = true;
+                    EquippedWings.Type = 0;
+                    EquippedWings.ItemIndex = -1;
+                }
             }
 
             // Left Hand
@@ -511,13 +584,26 @@ namespace Client.Main.Objects.Player
             // Wings
             if (Appearance.WingInfo.HasWings)
             {
-                EquippedWings.Type = (short)(Appearance.WingInfo.Type + Appearance.WingInfo.Level + 1);
-                EquippedWings.Hidden = false;
-                EquippedWings.LinkParentAnimation = false;
+                var mappedIndex = TryMapWingAppearanceToItemIndex(Appearance.WingInfo, CharacterClass);
+                if (mappedIndex.HasValue)
+                {
+                    EquippedWings.Hidden = false;
+                    EquippedWings.Type = 0;
+                    EquippedWings.ItemIndex = mappedIndex.Value;
+                    EquippedWings.LinkParentAnimation = false;
+                }
+                else
+                {
+                    EquippedWings.Hidden = true;
+                    EquippedWings.Type = 0;
+                    EquippedWings.ItemIndex = -1;
+                }
             }
             else
             {
                 EquippedWings.Hidden = true;
+                EquippedWings.Type = 0;
+                EquippedWings.ItemIndex = -1;
             }
             // Weapons
             // This requires more sophisticated logic to determine the exact weapon model
@@ -1660,8 +1746,6 @@ namespace Client.Main.Objects.Player
 
         private async Task ResetBodyPartToClassDefaultAsync(ModelObject bodyPart, string partPrefix)
         {
-            Console.WriteLine($"[PlayerObject] ResetBodyPartToClassDefaultAsync called: partPrefix={partPrefix}");
-
             // Clear item shader properties first
             ClearItemProperties(bodyPart);
 
@@ -1669,20 +1753,10 @@ namespace Client.Main.Objects.Player
             string fileSuffix = ((int)mapped).ToString("D2");
             string modelPath = $"Player/{partPrefix}{fileSuffix}.bmd";
 
-            Console.WriteLine($"[PlayerObject] Resetting body part: CharClass={_characterClass}, MappedClass={mapped}, Path={modelPath}");
             _logger?.LogDebug("Resetting body part to class default: CharClass={CharClass}, MappedClass={Mapped}, Path={Path}",
                 _characterClass, mapped, modelPath);
 
-            try
-            {
-                await LoadPartAsync(bodyPart, modelPath);
-                Console.WriteLine($"[PlayerObject] LoadPartAsync completed successfully for {modelPath}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[PlayerObject] LoadPartAsync failed: {ex.Message}");
-                throw;
-            }
+            await LoadPartAsync(bodyPart, modelPath);
         }
 
         private async Task EnsureHelmHeadVisibleAsync()
@@ -2061,10 +2135,81 @@ namespace Client.Main.Objects.Player
 
             if (Appearance.WingInfo.HasWings)
             {
-                int wingModelIndex = Appearance.WingInfo.Type + Appearance.WingInfo.Level + 1;
-                yield return $"Item/Wing{wingModelIndex:D2}.bmd";
+                var wingTexturePath = TryGetWingTexturePath(Appearance.WingInfo, CharacterClass);
+                if (!string.IsNullOrWhiteSpace(wingTexturePath))
+                {
+                    yield return wingTexturePath;
+                }
+                else
+                {
+                    int wingModelIndex = Appearance.WingInfo.Type + Appearance.WingInfo.Level + 1;
+                    yield return $"Item/Wing{wingModelIndex:D2}.bmd";
+                }
             }
         }
+
+        private const short CapeOfLordItemIndex = 30;
+
+        private static short? TryMapWingAppearanceToItemIndex(WingAppearance wingAppearance, CharacterClassNumber characterClass)
+        {
+            if (!wingAppearance.HasWings)
+            {
+                return null;
+            }
+
+            // Dark Lord / Lord Emperor use cape models; Cape of Lord is encoded specially in S6 appearance.
+            if (IsDarkLordClass(characterClass))
+            {
+                // Servers often encode Cape of Lord as Level=2, Type=5.
+                if (wingAppearance.Level == 2 && wingAppearance.Type == 5)
+                {
+                    return CapeOfLordItemIndex;
+                }
+
+                // Other capes (e.g., Emperor) follow the generic tier/type mapping.
+            }
+
+            // Season 6 appearance bits encode wing tier (Level) and type within tier.
+            // We map this to actual item ids (group 12) for common wings/capes.
+            // Tier 1: 0-6 (Elf..Darkness)
+            // Tier 2: Spirits, Soul, Dragon, Darkness, Despair
+            // Tier 3: Storm, Eternal, Illusion, Ruin, Emperor, Curse, Dimension
+            short[] tierIds = wingAppearance.Level switch
+            {
+                1 => new short[] { 0, 1, 2, 3, 4, 5, 6 },
+                2 => new short[] { 3, 4, 5, 6, 42 },
+                3 => new short[] { 36, 37, 38, 39, 40, 41, 43 },
+                _ => Array.Empty<short>()
+            };
+
+            int index = wingAppearance.Type - 1;
+            if (index < 0 || index >= tierIds.Length)
+            {
+                return null;
+            }
+
+            return tierIds[index];
+        }
+
+        private static string TryGetWingTexturePath(WingAppearance wingAppearance, CharacterClassNumber characterClass)
+        {
+            if (wingAppearance.ItemIndex >= 0)
+            {
+                return ItemDatabase.GetItemDefinition(12, wingAppearance.ItemIndex)?.TexturePath;
+            }
+
+            var mappedIndex = TryMapWingAppearanceToItemIndex(wingAppearance, characterClass);
+            if (mappedIndex.HasValue)
+            {
+                return ItemDatabase.GetItemDefinition(12, mappedIndex.Value)?.TexturePath;
+            }
+
+            return null;
+        }
+
+        private static bool IsDarkLordClass(CharacterClassNumber characterClass) =>
+            characterClass == CharacterClassNumber.DarkLord
+            || characterClass == CharacterClassNumber.LordEmperor;
 
         private async Task LoadPartAsync(ModelObject part, string modelPath)
         {
@@ -2074,24 +2219,11 @@ namespace Client.Main.Objects.Player
                 {
                     _helmModelPath = modelPath;
                 }
-
-                Console.WriteLine($"[PlayerObject] LoadPartAsync: Loading model {modelPath} for {part.GetType().Name}");
-                _logger?.LogInformation($"[PlayerObject] LoadPartAsync: Loading model {modelPath} for {part.GetType().Name}");
                 part.Model = await BMDLoader.Instance.Prepare(modelPath);
                 if (part.Model == null)
                 {
-                    Console.WriteLine($"[PlayerObject] LoadPartAsync: FAILED to load model {modelPath} for {part.GetType().Name}");
-                    _logger?.LogWarning($"[PlayerObject] LoadPartAsync: Failed to load model {modelPath} for {part.GetType().Name}");
+                    _logger?.LogWarning("[PlayerObject] Failed to load model {Path} for {Part}", modelPath, part.GetType().Name);
                 }
-                else
-                {
-                    Console.WriteLine($"[PlayerObject] LoadPartAsync: SUCCESSFULLY loaded model {modelPath} for {part.GetType().Name}");
-                    _logger?.LogInformation($"[PlayerObject] LoadPartAsync: Successfully loaded model {modelPath} for {part.GetType().Name}");
-                }
-            }
-            else
-            {
-                Console.WriteLine($"[PlayerObject] LoadPartAsync: Skipped - part is null or modelPath is empty. Part={part?.GetType().Name}, Path='{modelPath}'");
             }
         }
 
@@ -2131,19 +2263,12 @@ namespace Client.Main.Objects.Player
         /// </summary>
         public async Task UpdateEquipmentSlotAsync(byte itemSlot, EquipmentSlotData equipmentData)
         {
-            Console.WriteLine($"[PlayerObject] UpdateEquipmentSlotAsync called: slot={itemSlot}, equipmentData={(equipmentData == null ? "NULL" : "NOT NULL")}");
-            _logger?.LogInformation("UpdateEquipmentSlotAsync called: slot={Slot}, equipmentData={Data}", itemSlot, equipmentData == null ? "NULL" : "NOT NULL");
-
             if (equipmentData == null)
             {
                 // Item is being unequipped
-                Console.WriteLine($"[PlayerObject] UNEQUIPPING SLOT {itemSlot} for player {Name}");
-                _logger?.LogDebug("UNEQUIPPING SLOT {Slot} for player {Name}", itemSlot, Name);
                 await UnequipSlotAsync(itemSlot);
                 return;
             }
-
-            Console.WriteLine($"[PlayerObject] UpdateEquipmentSlotAsync: Past null check, continuing with slot={itemSlot}");
 
             _logger?.LogDebug($"[PlayerObject] UpdateEquipmentSlotAsync: slot={itemSlot}, data group={equipmentData?.ItemGroup}, data number={equipmentData?.ItemNumber}");
 
@@ -2174,10 +2299,8 @@ namespace Client.Main.Objects.Player
                         break;
 
                     case InventoryConstants.GlovesSlot: // 5 - Gloves
-                        Console.WriteLine($"[PlayerObject] Processing gloves slot 5, calling UpdateArmorSlotAsync");
                         _logger?.LogDebug($"[PlayerObject] UpdateEquipmentSlotAsync: Processing gloves slot, calling UpdateArmorSlotAsync");
                         await UpdateArmorSlotAsync(Gloves, equipmentData, equipmentData.ItemGroup, equipmentData.ItemNumber);
-                        Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync completed for gloves slot 5");
                         break;
 
                     case InventoryConstants.BootsSlot: // 6 - Boots
@@ -2206,7 +2329,6 @@ namespace Client.Main.Objects.Player
 
         private async Task UnequipSlotAsync(byte itemSlot)
         {
-            Console.WriteLine($"[PlayerObject] UnequipSlotAsync called for slot {itemSlot}");
             _logger?.LogDebug("UnequipSlotAsync called for slot {Slot}", itemSlot);
 
             switch (itemSlot)
@@ -2229,8 +2351,6 @@ namespace Client.Main.Objects.Player
                     break;
 
                 case InventoryConstants.ArmorSlot:
-                    Console.WriteLine($"[PlayerObject] ARMOR CASE: slot={itemSlot}, ArmorSlot={InventoryConstants.ArmorSlot}");
-                    _logger?.LogDebug("ARMOR CASE: calling ResetBodyPartToClassDefaultAsync");
                     await ResetBodyPartToClassDefaultAsync(Armor, "ArmorClass");
                     ClearItemProperties(Armor);
                     break;
@@ -2253,10 +2373,10 @@ namespace Client.Main.Objects.Player
                 case InventoryConstants.WingsSlot:
                     EquippedWings.Hidden = true;
                     EquippedWings.Type = 0;
+                    EquippedWings.ItemIndex = -1;
                     break;
 
                 default:
-                    Console.WriteLine($"[PlayerObject] DEFAULT CASE: Unknown slot {itemSlot}");
                     _logger?.LogWarning("Unknown equipment slot {Slot} in unequip", itemSlot);
                     break;
             }
@@ -2282,30 +2402,15 @@ namespace Client.Main.Objects.Player
 
         private async Task UpdateArmorSlotAsync(ModelObject armorPart, EquipmentSlotData equipmentData, byte itemGroup, ushort itemNumber)
         {
-            Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync START: Part={armorPart.GetType().Name}, Group={itemGroup}, Number={itemNumber}");
-            _logger?.LogDebug($"[PlayerObject] UpdateArmorSlotAsync: Part={armorPart.GetType().Name}, Group={itemGroup}, Number={itemNumber}");
-
             var itemDef = ItemDatabase.GetItemDefinition(itemGroup, (short)itemNumber);
-            Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: ItemDef {(itemDef == null ? "NULL" : "FOUND")}");
             if (itemDef != null && !string.IsNullOrEmpty(itemDef.TexturePath))
             {
                 string playerTexturePath = itemDef.TexturePath.Replace("Item/", "Player/");
-                Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: Converting texture path: {itemDef.TexturePath} -> {playerTexturePath}");
-                _logger?.LogDebug($"[PlayerObject] UpdateArmorSlotAsync: ItemDef found. Original={itemDef.TexturePath}, Player={playerTexturePath}");
 
                 // Clear old model first
-                var oldModel = armorPart.Model;
                 armorPart.Model = null;
-                Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: Cleared old model for {armorPart.GetType().Name}");
-                _logger?.LogDebug($"[PlayerObject] UpdateArmorSlotAsync: Cleared old model for {armorPart.GetType().Name}");
-
-                Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: About to call LoadPartAsync with: {playerTexturePath}");
                 await LoadPartAsync(armorPart, playerTexturePath);
-                Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: LoadPartAsync completed");
                 SetItemPropertiesFromEquipmentData(armorPart, equipmentData);
-
-                Console.WriteLine($"[PlayerObject] UpdateArmorSlotAsync: Model loading completed. New model null? {armorPart.Model == null}");
-                _logger?.LogDebug($"[PlayerObject] UpdateArmorSlotAsync: Model loading completed. New model null? {armorPart.Model == null}");
             }
             else
             {
@@ -2326,19 +2431,20 @@ namespace Client.Main.Objects.Player
 
         private Task UpdateWingsSlotAsync(EquipmentSlotData equipmentData)
         {
-            var itemDef = ItemDatabase.GetItemDefinition(equipmentData.ItemGroup, (short)equipmentData.ItemNumber);
-            if (itemDef != null)
+            if (equipmentData.ItemGroup == 12)
             {
                 EquippedWings.Hidden = false;
-                // Wing type calculation may need adjustment based on your wing system
-                EquippedWings.Type = (short)(equipmentData.ItemType + equipmentData.ItemLevel + 1);
+                EquippedWings.Type = 0;
+                EquippedWings.ItemIndex = (short)equipmentData.ItemNumber;
                 EquippedWings.LinkParentAnimation = false;
             }
             else
             {
                 EquippedWings.Hidden = true;
                 EquippedWings.Type = 0;
+                EquippedWings.ItemIndex = -1;
             }
+
             return Task.CompletedTask;
         }
 

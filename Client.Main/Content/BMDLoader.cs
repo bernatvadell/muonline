@@ -304,7 +304,8 @@ namespace Client.Main.Content
          Matrix[] boneMatrix,
          ref DynamicVertexBuffer vertexBuffer,
          ref DynamicIndexBuffer indexBuffer,
-         bool skipCache = false)
+         bool skipCache = false,
+         IVertexDeformer vertexDeformer = null)
         {
             if (asset == null || boneMatrix == null || _graphicsDevice == null)
             {
@@ -447,6 +448,11 @@ namespace Client.Main.Content
                             else
                             {
                                 posCache[vi] = vert.Position;
+                            }
+
+                            if (vertexDeformer != null)
+                            {
+                                posCache[vi] = vertexDeformer.DeformVertex(in vert, in posCache[vi]);
                             }
                         }
 

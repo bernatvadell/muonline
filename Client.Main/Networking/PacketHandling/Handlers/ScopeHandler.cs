@@ -561,64 +561,131 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         {
             try
             {
-                const int EXPECTED_MIN_LENGTH = 13;
                 const byte UNEQUIP_MARKER = 0xFF;
                 const ushort ID_MASK = 0x7FFF;
-                const int OBJECT_ID_OFFSET = 3;
-                const int ITEM_GROUP_OFFSET = 5;
-                const int SLOT_AND_GLOW_OFFSET = 6;
-                const int ITEM_OPTIONS_OFFSET = 8;
-                const int EXCELLENT_FLAGS_OFFSET = 9;
-                const int ANCIENT_DISCRIMINATOR_OFFSET = 10;
-                const int ANCIENT_SET_COMPLETE_OFFSET = 11;
+
+                var span = packet.Span;
+
+                // Season 6 servers can send two variants:
+                // - Standard AppearanceChanged (length 13): player id + 8 bytes packed item appearance.
+                // - AppearanceChangedExtended (length 14): explicit slot/group/number/level fields.
+                if (span.Length == 14)
+                {
+                    const int EXT_PLAYER_ID_OFFSET = 4;
+                    const int EXT_ITEM_SLOT_OFFSET = 6;
+                    const int EXT_ITEM_GROUP_OFFSET = 7;
+                    const int EXT_ITEM_NUMBER_OFFSET = 8;
+                    const int EXT_ITEM_LEVEL_OFFSET = 10;
+                    const int EXT_EXCELLENT_FLAGS_OFFSET = 11;
+                    const int EXT_ANCIENT_DISCRIMINATOR_OFFSET = 12;
+                    const int EXT_SET_COMPLETE_OFFSET = 13;
+
+                    ushort extRawKey = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(span.Slice(EXT_PLAYER_ID_OFFSET, 2));
+                    ushort extMaskedId = (ushort)(extRawKey & ID_MASK);
+
+                    byte extItemSlot = span[EXT_ITEM_SLOT_OFFSET];
+                    byte extItemGroup = span[EXT_ITEM_GROUP_OFFSET];
+
+                    if (extItemGroup == UNEQUIP_MARKER)
+                    {
+                        await HandleUnequipAsync(extMaskedId, extItemSlot);
+                        return;
+                    }
+
+                    ushort extItemNumber = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(span.Slice(EXT_ITEM_NUMBER_OFFSET, 2));
+                    byte extItemLevel = span[EXT_ITEM_LEVEL_OFFSET];
+                    byte extExcellentFlags = span[EXT_EXCELLENT_FLAGS_OFFSET];
+                    byte extAncientDiscriminator = span[EXT_ANCIENT_DISCRIMINATOR_OFFSET];
+                    bool extIsAncientSetComplete = span[EXT_SET_COMPLETE_OFFSET] != 0;
+
+                    const int EXT_MAX_ITEM_INDEX = 512;
+                    int extFinalItemType = (extItemGroup * EXT_MAX_ITEM_INDEX) + extItemNumber;
+
+                    _logger.LogDebug("Parsed AppearanceChangedExtended for ID {Id:X4}: Slot={Slot}, Group={Group}, Number={Number}, Type={Type}, Level={Level}",
+                        extMaskedId, extItemSlot, extItemGroup, extItemNumber, extFinalItemType, extItemLevel);
+
+                    _logger.LogInformation("[ScopeHandler] AppearanceChangedExtended ID {Id:X4}: ExcFlags=0x{ExcFlags:X2}, AncDisc=0x{AncDisc:X2}, SetComplete={SetComplete}",
+                        extMaskedId, extExcellentFlags, extAncientDiscriminator, extIsAncientSetComplete);
+
+                    await HandleEquipAsync(extMaskedId, extItemSlot, extItemGroup, extItemNumber, extFinalItemType, extItemLevel,
+                        itemOptions: 0, extExcellentFlags, extAncientDiscriminator, extIsAncientSetComplete);
+                    return;
+                }
+
+                // Standard packed variant.
+                const int STD_MIN_LENGTH = 7; // header(3) + id(2) + at least 2 bytes of item data
+                const int STD_PLAYER_ID_OFFSET = 3;
+                const int STD_ITEM_DATA_OFFSET = 5;
                 const int WEAPON_SLOT_THRESHOLD = 2;
                 const int WEAPON_GROUP = 0;
                 const int ARMOR_GROUP_OFFSET = 5;
 
-                if (packet.Length < EXPECTED_MIN_LENGTH)
+                if (span.Length < STD_MIN_LENGTH)
                 {
-                    _logger.LogWarning("AppearanceChanged packet has invalid length: {Length}. Expected at least {Expected}.", packet.Length, EXPECTED_MIN_LENGTH);
-                }
-
-                var span = packet.Span;
-                ushort rawKey = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(span.Slice(OBJECT_ID_OFFSET));
-                ushort maskedId = (ushort)(rawKey & ID_MASK);
-
-                bool isUnequip = span[ITEM_GROUP_OFFSET] == UNEQUIP_MARKER;
-                byte itemSlot = (byte)((span[SLOT_AND_GLOW_OFFSET] >> 4) & 0x0F);
-
-                if (isUnequip)
-                {
-                    await HandleUnequipAsync(maskedId, itemSlot);
+                    _logger.LogWarning("AppearanceChanged packet (0x25) too short: {Length}.", span.Length);
                     return;
                 }
 
-                byte glowLevel = (byte)(span[SLOT_AND_GLOW_OFFSET] & 0x0F);
-                byte itemGroup = itemSlot < WEAPON_SLOT_THRESHOLD ? (byte)WEAPON_GROUP : (byte)(itemSlot + ARMOR_GROUP_OFFSET);
-                byte itemNumber = (byte)(span[ITEM_GROUP_OFFSET] & 0x0F);
+                ushort stdRawKey = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(span.Slice(STD_PLAYER_ID_OFFSET, 2));
+                ushort stdMaskedId = (ushort)(stdRawKey & ID_MASK);
+
+                var itemData = span.Slice(STD_ITEM_DATA_OFFSET);
+                if (itemData.Length < 2)
+                {
+                    _logger.LogWarning("AppearanceChanged packet (0x25) item data too short: {Length}.", itemData.Length);
+                    return;
+                }
+
+                byte itemSlot = (byte)((itemData[1] >> 4) & 0x0F);
+
+                if (itemData[0] == UNEQUIP_MARKER)
+                {
+                    await HandleUnequipAsync(stdMaskedId, itemSlot);
+                    return;
+                }
+
+                byte glowLevel = (byte)(itemData[1] & 0x0F);
+
+                ushort itemNumber = itemData[0];
+                byte itemGroup;
+
+                if (itemSlot < WEAPON_SLOT_THRESHOLD)
+                {
+                    // For weapon slots the group is encoded in itemData[2] high nibble,
+                    // and the item number high bits in its low nibble (same layout as viewport equipment).
+                    if (itemData.Length > 2)
+                    {
+                        itemGroup = (byte)((itemData[2] >> 4) & 0x0F);
+                        itemNumber = (ushort)(itemNumber | ((itemData[2] & 0x0F) << 8));
+                    }
+                    else
+                    {
+                        itemGroup = (byte)WEAPON_GROUP;
+                    }
+                }
+                else
+                {
+                    itemGroup = (byte)(itemSlot + ARMOR_GROUP_OFFSET);
+                }
+
                 byte itemLevel = ConvertGlowToItemLevel(glowLevel);
 
-                byte itemOptions = span[ITEM_OPTIONS_OFFSET];
-                byte excellentFlags = span[EXCELLENT_FLAGS_OFFSET];
-                byte ancientDiscriminator = span[ANCIENT_DISCRIMINATOR_OFFSET];
-                bool isAncientSetComplete = span[ANCIENT_SET_COMPLETE_OFFSET] != 0;
-
-                bool hasExcellent = excellentFlags != 0;
-                bool hasAncient = ancientDiscriminator != 0;
+                byte itemOptions = itemData.Length > 3 ? itemData[3] : (byte)0;
+                byte excellentFlags = itemData.Length > 4 ? itemData[4] : (byte)0;
+                byte ancientDiscriminator = itemData.Length > 5 ? itemData[5] : (byte)0;
+                bool isAncientSetComplete = itemData.Length > 6 && itemData[6] != 0;
 
                 const int MAX_ITEM_INDEX = 512;
                 int finalItemType = (itemGroup * MAX_ITEM_INDEX) + itemNumber;
 
                 _logger.LogDebug("Parsed AppearanceChanged for ID {Id:X4}: Slot={Slot}, Group={Group}, Number={Number}, Type={Type}, Level={Level}",
-                    maskedId, itemSlot, itemGroup, itemNumber, finalItemType, itemLevel);
+                    stdMaskedId, itemSlot, itemGroup, itemNumber, finalItemType, itemLevel);
 
-                _logger.LogInformation("[ScopeHandler] AppearanceChanged ID {Id:X4}: ExcFlags=0x{ExcFlags:X2}, AncDisc=0x{AncDisc:X2}, " +
-                    "hasExc={HasExc}, hasAnc={HasAnc}, SetComplete={SetComplete}",
-                    maskedId, excellentFlags, ancientDiscriminator, hasExcellent, hasAncient, isAncientSetComplete);
+                _logger.LogInformation("[ScopeHandler] AppearanceChanged ID {Id:X4}: ExcFlags=0x{ExcFlags:X2}, AncDisc=0x{AncDisc:X2}, SetComplete={SetComplete}",
+                    stdMaskedId, excellentFlags, ancientDiscriminator, isAncientSetComplete);
 
-                await HandleEquipAsync(maskedId, itemSlot, itemGroup, itemNumber, finalItemType, itemLevel,
-                    itemOptions, hasExcellent ? excellentFlags : (byte)0,
-                    hasAncient ? ancientDiscriminator : (byte)0, isAncientSetComplete);
+                await HandleEquipAsync(stdMaskedId, itemSlot, itemGroup, itemNumber, finalItemType, itemLevel,
+                    itemOptions, excellentFlags, ancientDiscriminator, isAncientSetComplete);
             }
             catch (Exception ex)
             {
@@ -655,7 +722,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
-        private Task HandleEquipAsync(ushort maskedId, byte itemSlot, byte itemGroup, byte itemNumber,
+        private Task HandleEquipAsync(ushort maskedId, byte itemSlot, byte itemGroup, ushort itemNumber,
             int finalItemType, byte itemLevel, byte itemOptions, byte excellentFlags,
             byte ancientDiscriminator, bool isAncientSetComplete)
         {
