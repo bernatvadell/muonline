@@ -35,7 +35,7 @@ namespace Client.Main.Objects.Effects
             UseDistanceEmissionScaling = false;
             UseDistanceScaling = false;
             UseConstantWorldSize = true;
-            ReferenceDistance = 2000f;
+            ReferenceDistance = 800f;
             HorizontalVelocityRange = new Vector2(-8f, 8f);
             UpwardVelocityRange = new Vector2(22f, 30f);
             UpwardAcceleration = 10f;

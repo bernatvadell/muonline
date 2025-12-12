@@ -329,8 +329,9 @@ namespace Client.Main.Objects.Effects
                     float perspectiveScale = 1f;
                     if (UseConstantWorldSize)
                     {
-                        float dist = MathF.Sqrt(distSq);
-                        perspectiveScale = ReferenceDistance / MathF.Max(dist, 1f);
+                        perspectiveScale = clipPos.W > 0.001f
+                            ? MathF.Max(0.1f, ReferenceDistance / clipPos.W) * Constants.RENDER_SCALE
+                            : 1f;
                     }
 
                     // Growth over lifetime
