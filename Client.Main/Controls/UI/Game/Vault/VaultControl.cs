@@ -7,6 +7,7 @@ using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Core.Client;
 using Client.Main.Core.Utilities;
+using Client.Main.Controls.UI;
 using Client.Main.Controls.UI.Common;
 using Client.Main.Controls.UI.Game.Common;
 using Client.Main.Controls.UI.Game.Inventory;
@@ -18,6 +19,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using MUnique.OpenMU.Network.Packets;
+using MUnique.OpenMU.Network.Packets.ClientToServer;
 
 namespace Client.Main.Controls.UI.Game
 {
@@ -102,6 +104,8 @@ namespace Client.Main.Controls.UI.Game
         private Rectangle _gridFrameRect;
         private Rectangle _footerRect;
         private Rectangle _zenFieldRect;
+        private Rectangle _depositButtonRect;
+        private Rectangle _withdrawButtonRect;
         private Rectangle _closeButtonRect;
 
         private RenderTarget2D _staticSurface;
@@ -127,6 +131,18 @@ namespace Client.Main.Controls.UI.Game
         private bool _pendingShow;
         private bool _warmupComplete;
 
+        // Zen transfer
+        private const uint MaxZen = 2_000_000_000;
+        private const int ZenInputMaxDigits = 10;
+        private const double CursorBlinkIntervalMs = 500;
+        private bool _zenFieldHovered;
+        private bool _depositHovered;
+        private bool _withdrawHovered;
+        private bool _isZenInputActive;
+        private string _zenInputText = string.Empty;
+        private double _zenInputBlinkTimer;
+        private bool _zenInputShowCursor;
+        private VaultMoveMoneyRequest.VaultMoneyMoveDirection _zenMoveDirection = VaultMoveMoneyRequest.VaultMoneyMoveDirection.InventoryToVault;
         private long _vaultZen;
 
         // Window drag support
@@ -197,7 +213,15 @@ namespace Client.Main.Controls.UI.Game
                 GRID_HEIGHT);
 
             _footerRect = new Rectangle(WINDOW_MARGIN, _gridFrameRect.Bottom + 4, _gridFrameRect.Width, FOOTER_HEIGHT - 8);
-            _zenFieldRect = new Rectangle(_footerRect.X + 36, _footerRect.Y + 8, _footerRect.Width - 46, 28);
+
+            const int buttonWidth = 44;
+            const int buttonGap = 6;
+            const int fieldHeight = 28;
+            int fieldX = _footerRect.X + 36;
+            int fieldWidth = _footerRect.Width - (fieldX - _footerRect.X) - (buttonWidth * 2 + buttonGap * 2);
+            _zenFieldRect = new Rectangle(fieldX, _footerRect.Y + 8, fieldWidth, fieldHeight);
+            _depositButtonRect = new Rectangle(_zenFieldRect.Right + buttonGap, _zenFieldRect.Y, buttonWidth, fieldHeight);
+            _withdrawButtonRect = new Rectangle(_depositButtonRect.Right + buttonGap, _zenFieldRect.Y, buttonWidth, fieldHeight);
             _closeButtonRect = new Rectangle(WINDOW_WIDTH - 30, 10, 20, 20);
         }
 
@@ -238,6 +262,20 @@ namespace Client.Main.Controls.UI.Game
 
             if (Visible)
             {
+                if (!_wasVisible)
+                {
+                    _closeRequestSent = false;
+                }
+
+                if (_isZenInputActive &&
+                    MuGame.Instance.Keyboard.IsKeyDown(Keys.Escape) &&
+                    MuGame.Instance.PrevKeyboard.IsKeyUp(Keys.Escape))
+                {
+                    CancelZenInput();
+                    Scene?.ConsumeKeyboardEscape();
+                    return;
+                }
+
                 if (MuGame.Instance.Keyboard.IsKeyDown(Keys.Escape) &&
                     MuGame.Instance.PrevKeyboard.IsKeyUp(Keys.Escape))
                 {
@@ -258,6 +296,8 @@ namespace Client.Main.Controls.UI.Game
                     CloseWindow();
                     return;
                 }
+
+                HandleZenInputKeyboard();
 
                 // Handle window dragging
                 if (leftJustPressed && IsMouseOverDragArea(mousePos) && !_isDragging && _draggedItem == null)
@@ -288,8 +328,15 @@ namespace Client.Main.Controls.UI.Game
 
                 if (!_isDragging)
                 {
+                    if (HandleZenControlsMouseInput(mousePos, leftJustPressed))
+                    {
+                        Scene?.SetMouseInputConsumed();
+                    }
+                    else
+                    {
                     UpdateHoverState();
                     HandleMouseInput();
+                    }
                 }
 
                 PrecacheAnimatedPreviews();
@@ -313,6 +360,15 @@ namespace Client.Main.Controls.UI.Game
         {
             var closeRect = Translate(_closeButtonRect);
             _closeHovered = closeRect.Contains(mousePos);
+
+            var zenRect = Translate(_zenFieldRect);
+            _zenFieldHovered = zenRect.Contains(mousePos);
+
+            var depRect = Translate(_depositButtonRect);
+            _depositHovered = depRect.Contains(mousePos);
+
+            var wdrRect = Translate(_withdrawButtonRect);
+            _withdrawHovered = wdrRect.Contains(mousePos);
         }
 
         public override void Draw(GameTime gameTime)
@@ -341,6 +397,7 @@ namespace Client.Main.Controls.UI.Game
                 DrawGridOverlays(spriteBatch);
                 DrawVaultItems(spriteBatch);
                 DrawCloseButton(spriteBatch);
+                DrawZenButtons(spriteBatch);
                 DrawZenText(spriteBatch);
             }
             finally
@@ -686,13 +743,64 @@ namespace Client.Main.Controls.UI.Game
             if (_font == null) return;
 
             var zenRect = Translate(_zenFieldRect);
-            string zenText = _vaultZen.ToString("N0");
+            var pixel = GraphicsManager.Instance.Pixel;
+ 
+            if (_isZenInputActive && pixel != null)
+            {
+                var borderColor = Theme.AccentBright * 0.9f;
+                spriteBatch.Draw(pixel, new Rectangle(zenRect.X, zenRect.Y, zenRect.Width, 2), borderColor);
+                spriteBatch.Draw(pixel, new Rectangle(zenRect.X, zenRect.Bottom - 2, zenRect.Width, 2), borderColor);
+                spriteBatch.Draw(pixel, new Rectangle(zenRect.X, zenRect.Y, 2, zenRect.Height), borderColor);
+                spriteBatch.Draw(pixel, new Rectangle(zenRect.Right - 2, zenRect.Y, 2, zenRect.Height), borderColor);
+            }
+
+            string zenText = _isZenInputActive
+                ? $"{(_zenMoveDirection == VaultMoveMoneyRequest.VaultMoneyMoveDirection.InventoryToVault ? "IN" : "OUT")}: {(_zenInputText.Length == 0 ? "0" : _zenInputText)}{(_zenInputShowCursor ? "|" : string.Empty)}"
+                : _vaultZen.ToString();
             float scale = 0.35f;
             Vector2 size = _font.MeasureString(zenText) * scale;
             Vector2 pos = new(zenRect.X + 8, zenRect.Y + (zenRect.Height - size.Y) / 2);
 
             spriteBatch.DrawString(_font, zenText, pos, Theme.TextGold * Alpha,
                                   0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+        }
+
+        private void DrawZenButtons(SpriteBatch spriteBatch)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null || _font == null) return;
+
+            DrawZenButton(spriteBatch, _depositButtonRect, "IN", _depositHovered, VaultMoveMoneyRequest.VaultMoneyMoveDirection.InventoryToVault);
+            DrawZenButton(spriteBatch, _withdrawButtonRect, "OUT", _withdrawHovered, VaultMoveMoneyRequest.VaultMoneyMoveDirection.VaultToInventory);
+        }
+
+        private void DrawZenButton(SpriteBatch spriteBatch, Rectangle localRect, string label, bool hovered, VaultMoveMoneyRequest.VaultMoneyMoveDirection direction)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null || _font == null) return;
+
+            var rect = Translate(localRect);
+            bool selected = _isZenInputActive && _zenMoveDirection == direction;
+
+            Color bg = Theme.BgDarkest * 0.7f;
+            if (hovered) bg = Color.Lerp(bg, Theme.BgLight, 0.25f);
+            if (selected) bg = Color.Lerp(bg, Theme.Secondary, 0.45f);
+
+            Color border = selected ? Theme.Accent : Theme.BorderInner;
+
+            spriteBatch.Draw(pixel, rect, bg);
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, 2), border);
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - 2, rect.Width, 2), border);
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, 2, rect.Height), border);
+            spriteBatch.Draw(pixel, new Rectangle(rect.Right - 2, rect.Y, 2, rect.Height), border);
+
+            float scale = 0.30f;
+            Vector2 size = _font.MeasureString(label) * scale;
+            Vector2 pos = new(rect.X + (rect.Width - size.X) / 2, rect.Y + (rect.Height - size.Y) / 2);
+            Color textColor = selected ? Theme.TextWhite : Theme.TextGray;
+
+            spriteBatch.DrawString(_font, label, pos + Vector2.One, Color.Black * 0.6f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            spriteBatch.DrawString(_font, label, pos, textColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
         }
 
         private void DrawGridOverlays(SpriteBatch spriteBatch)
@@ -1184,6 +1292,7 @@ namespace Client.Main.Controls.UI.Game
 
         private void HandleVisibilityLost()
         {
+            CancelZenInput();
             SendCloseNpcRequest();
             _characterState?.ClearVaultItems();
             _items.Clear();
@@ -1196,6 +1305,11 @@ namespace Client.Main.Controls.UI.Game
             _isDragging = false;
             _pendingShow = false;
             _warmupComplete = false;
+        }
+
+        public void SetVaultZen(uint amount)
+        {
+            _vaultZen = amount;
         }
 
         private void SendCloseNpcRequest()
@@ -1228,9 +1342,6 @@ namespace Client.Main.Controls.UI.Game
 
             _items.Clear();
             ClearGrid();
-
-            // TODO: Get actual vault zen from server/character state
-            _vaultZen = 0;
 
             var vaultItems = _characterState.GetVaultItems();
             foreach (var kv in vaultItems)
@@ -1279,6 +1390,213 @@ namespace Client.Main.Controls.UI.Game
                 _closeRequestSent = false;
                 _isDragging = false;
             }
+        }
+
+        private bool HandleZenControlsMouseInput(Point mousePos, bool leftJustPressed)
+        {
+            if (_draggedItem != null)
+            {
+                return false;
+            }
+
+            if (_isZenInputActive)
+            {
+                if (!leftJustPressed)
+                {
+                    return false;
+                }
+
+                if (_depositHovered)
+                {
+                    BeginZenInput(VaultMoveMoneyRequest.VaultMoneyMoveDirection.InventoryToVault);
+                    return true;
+                }
+
+                if (_withdrawHovered)
+                {
+                    BeginZenInput(VaultMoveMoneyRequest.VaultMoneyMoveDirection.VaultToInventory);
+                    return true;
+                }
+
+                if (_zenFieldHovered)
+                {
+                    return true;
+                }
+
+                CancelZenInput();
+                return true;
+            }
+
+            if (!leftJustPressed)
+            {
+                return false;
+            }
+
+            if (_depositHovered)
+            {
+                BeginZenInput(VaultMoveMoneyRequest.VaultMoneyMoveDirection.InventoryToVault);
+                return true;
+            }
+
+            if (_withdrawHovered)
+            {
+                BeginZenInput(VaultMoveMoneyRequest.VaultMoneyMoveDirection.VaultToInventory);
+                return true;
+            }
+
+            if (_zenFieldHovered)
+            {
+                BeginZenInput(_zenMoveDirection);
+                return true;
+            }
+
+            return false;
+        }
+
+        private void BeginZenInput(VaultMoveMoneyRequest.VaultMoneyMoveDirection direction)
+        {
+            _zenMoveDirection = direction;
+            if (!_isZenInputActive)
+            {
+                _zenInputText = string.Empty;
+                _zenInputBlinkTimer = 0;
+                _zenInputShowCursor = true;
+            }
+
+            _isZenInputActive = true;
+        }
+
+        private void CancelZenInput()
+        {
+            _isZenInputActive = false;
+            _zenInputText = string.Empty;
+            _zenInputBlinkTimer = 0;
+            _zenInputShowCursor = false;
+        }
+
+        private void HandleZenInputKeyboard()
+        {
+            if (!_isZenInputActive || !Visible)
+            {
+                return;
+            }
+
+            if (_currentGameTime != null)
+            {
+                _zenInputBlinkTimer += _currentGameTime.ElapsedGameTime.TotalMilliseconds;
+                if (_zenInputBlinkTimer >= CursorBlinkIntervalMs)
+                {
+                    _zenInputShowCursor = !_zenInputShowCursor;
+                    _zenInputBlinkTimer = 0;
+                }
+            }
+
+            var keysPressed = MuGame.Instance.Keyboard.GetPressedKeys();
+            foreach (var key in keysPressed)
+            {
+                if (MuGame.Instance.PrevKeyboard.IsKeyUp(key))
+                {
+                    if (key == Keys.Back)
+                    {
+                        if (_zenInputText.Length > 0)
+                        {
+                            _zenInputText = _zenInputText[..^1];
+                        }
+                    }
+                    else if (key == Keys.Enter)
+                    {
+                        Scene?.ConsumeKeyboardEnter();
+                        CommitZenMove();
+                        return;
+                    }
+                    else if (key == Keys.Escape)
+                    {
+                        Scene?.ConsumeKeyboardEscape();
+                        CancelZenInput();
+                        return;
+                    }
+                    else if (TryGetDigitKey(key, out char digit))
+                    {
+                        if (_zenInputText.Length < ZenInputMaxDigits)
+                        {
+                            _zenInputText += digit;
+                        }
+                    }
+                }
+            }
+        }
+
+        private static bool TryGetDigitKey(Keys key, out char digit)
+        {
+            if (key >= Keys.D0 && key <= Keys.D9)
+            {
+                digit = (char)('0' + (key - Keys.D0));
+                return true;
+            }
+
+            if (key >= Keys.NumPad0 && key <= Keys.NumPad9)
+            {
+                digit = (char)('0' + (key - Keys.NumPad0));
+                return true;
+            }
+
+            digit = '\0';
+            return false;
+        }
+
+        private void CommitZenMove()
+        {
+            if (_networkManager == null || _characterState == null)
+            {
+                CancelZenInput();
+                return;
+            }
+
+            uint amount = 0;
+            if (!string.IsNullOrWhiteSpace(_zenInputText))
+            {
+                _ = uint.TryParse(_zenInputText, out amount);
+            }
+
+            if (amount == 0)
+            {
+                CancelZenInput();
+                return;
+            }
+
+            uint inventoryZen = _characterState.InventoryZen;
+            uint vaultZen = _vaultZen <= 0 ? 0 : (uint)Math.Min(_vaultZen, uint.MaxValue);
+
+            if (_zenMoveDirection == VaultMoveMoneyRequest.VaultMoneyMoveDirection.InventoryToVault)
+            {
+                if (amount > inventoryZen)
+                {
+                    RequestDialog.ShowInfo("Not enough Zen in inventory.");
+                    return;
+                }
+            }
+            else
+            {
+                if (amount > vaultZen)
+                {
+                    RequestDialog.ShowInfo("Not enough Zen in vault.");
+                    return;
+                }
+
+                if (inventoryZen >= MaxZen || (ulong)inventoryZen + amount > MaxZen)
+                {
+                    RequestDialog.ShowInfo("Inventory Zen limit reached.");
+                    return;
+                }
+            }
+
+            var svc = _networkManager.GetCharacterService();
+            if (svc != null)
+            {
+                _ = svc.SendVaultMoveMoneyAsync(_zenMoveDirection, amount);
+            }
+
+            CancelZenInput();
         }
 
         private void WarmupTexturesSync()

@@ -30,6 +30,7 @@ namespace Client.Main.Scenes
         public bool IsMouseHandledByUI { get; set; }
         public bool IsMouseInputConsumedThisFrame { get; private set; }
         public bool IsKeyboardEnterConsumedThisFrame { get; private set; }
+        public bool IsKeyboardEscapeConsumedThisFrame { get; private set; }
 
         private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<BaseScene>();
 
@@ -129,6 +130,7 @@ namespace Client.Main.Scenes
             MouseControl = null;
             IsMouseInputConsumedThisFrame = false;
             IsKeyboardEnterConsumedThisFrame = false;
+            IsKeyboardEscapeConsumedThisFrame = false;
 
             // Determine MouseHoverControl and MouseControl for the scene
             // Iterate UI controls (children of BaseScene) in reverse order (topmost first)
@@ -316,6 +318,11 @@ namespace Client.Main.Scenes
         public void ConsumeKeyboardEnter()
         {
             IsKeyboardEnterConsumedThisFrame = true;
+        }
+
+        public void ConsumeKeyboardEscape()
+        {
+            IsKeyboardEscapeConsumedThisFrame = true;
         }
 
         public override void Draw(GameTime gameTime)

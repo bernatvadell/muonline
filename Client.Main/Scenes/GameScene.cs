@@ -1017,8 +1017,10 @@ namespace Client.Main.Scenes
             var currentKeyboardState = MuGame.Instance.Keyboard;
             bool escapePressed = currentKeyboardState.IsKeyDown(Keys.Escape) && _previousKeyboardState.IsKeyUp(Keys.Escape);
 
-            // Toggle pause menu on ESC (edge-triggered)
-            if (escapePressed)
+            base.Update(gameTime);
+
+            // Toggle pause menu on ESC (edge-triggered), unless a UI control consumed Escape.
+            if (escapePressed && !IsKeyboardEscapeConsumedThisFrame)
             {
                 if (_playerContextMenu?.Visible == true)
                 {
@@ -1032,8 +1034,6 @@ namespace Client.Main.Scenes
                         _pauseMenu.BringToFront();
                 }
             }
-
-            base.Update(gameTime);
 
             if (FocusControl == _moveCommandWindow && _moveCommandWindow.Visible)
             {

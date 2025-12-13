@@ -8,6 +8,7 @@ using Client.Main.Controllers;
 using Client.Main.Controls.UI;
 using Client.Main.Models;
 using Client.Main.Controls;
+using Client.Main.Controls.UI.Game;
 using Client.Main.Objects;
 using MUnique.OpenMU.Network.Packets;
 
@@ -71,6 +72,40 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             {
                 _logger.LogError(ex, "Error parsing InventoryMoneyUpdate packet.");
             }
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0x81, PacketRouter.NoSubCode)]  // VaultMoneyUpdate
+        public Task HandleVaultMoneyUpdateAsync(Memory<byte> packet)
+        {
+            try
+            {
+                if (packet.Length < VaultMoneyUpdate.Length)
+                {
+                    _logger.LogWarning("VaultMoneyUpdate packet too short: {Length}", packet.Length);
+                    return Task.CompletedTask;
+                }
+
+                var update = new VaultMoneyUpdate(packet);
+                _logger.LogInformation("VaultMoneyUpdate: Success={Success}, Vault={Vault}, Inventory={Inventory}", update.Success, update.VaultMoney, update.InventoryMoney);
+
+                _characterState.UpdateInventoryZen(update.InventoryMoney);
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    VaultControl.Instance.SetVaultZen(update.VaultMoney);
+
+                    if (!update.Success)
+                    {
+                        RequestDialog.ShowInfo("Vault money transfer failed.");
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing VaultMoneyUpdate packet.");
+            }
+
             return Task.CompletedTask;
         }
 

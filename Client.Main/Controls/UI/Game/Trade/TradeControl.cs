@@ -150,6 +150,16 @@ namespace Client.Main.Controls.UI.Game.Trade
         private bool _closeHovered;
         private bool _tradeButtonHovered;
 
+        // Money input
+        private const uint MaxZen = 2_000_000_000;
+        private const int MoneyInputMaxDigits = 10;
+        private const double CursorBlinkIntervalMs = 500;
+        private bool _isMoneyInputActive;
+        private bool _moneyInputHovered;
+        private string _moneyInputText = string.Empty;
+        private double _moneyInputBlinkTimer;
+        private bool _moneyInputShowCursor;
+
         // Window drag support
         private bool _isDragging;
         private Point _dragOffset;
@@ -393,10 +403,17 @@ namespace Client.Main.Controls.UI.Game.Trade
 
             UpdateTradeLockTimers();
 
-            // ESC to close
+            // ESC: close money input first, otherwise cancel trade
             if (MuGame.Instance.Keyboard.IsKeyDown(Keys.Escape) &&
                 MuGame.Instance.PrevKeyboard.IsKeyUp(Keys.Escape))
             {
+                if (_isMoneyInputActive)
+                {
+                    CancelMoneyInput();
+                    Scene?.ConsumeKeyboardEscape();
+                    return;
+                }
+
                 CancelTrade();
                 return;
             }
@@ -407,6 +424,15 @@ namespace Client.Main.Controls.UI.Game.Trade
             bool leftJustReleased = !leftPressed && MuGame.Instance.PrevUiMouseState.LeftButton == ButtonState.Pressed;
 
             UpdateChromeHover(mousePos);
+
+            // Click outside money input commits it before other interactions (e.g. accept/cancel).
+            if (_isMoneyInputActive && leftJustPressed && !_moneyInputHovered)
+            {
+                CommitMoneyInput();
+                _isMoneyInputActive = false;
+            }
+
+            HandleMoneyInputKeyboard();
 
             // Handle close button
             if (leftJustPressed && _closeHovered)
@@ -470,6 +496,9 @@ namespace Client.Main.Controls.UI.Game.Trade
 
             var tradeButtonRect = Translate(_tradeButtonRect);
             _tradeButtonHovered = tradeButtonRect.Contains(mousePos);
+
+            var moneyRect = Translate(_myMoneyInputRect);
+            _moneyInputHovered = moneyRect.Contains(mousePos);
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -855,6 +884,8 @@ namespace Client.Main.Controls.UI.Game.Trade
         {
             if (_font == null) return;
 
+            var pixel = GraphicsManager.Instance.Pixel;
+
             // Partner name with level-based color
             if (!string.IsNullOrEmpty(_partnerName))
             {
@@ -891,7 +922,7 @@ namespace Client.Main.Controls.UI.Game.Trade
 
             // Partner money
             {
-                string moneyText = _partnerMoney.ToString("N0");
+                string moneyText = _partnerMoney.ToString();
                 float scale = 0.35f;
                 Vector2 pos = new(
                     DisplayRectangle.X + _partnerMoneyRect.X + 8,
@@ -915,11 +946,24 @@ namespace Client.Main.Controls.UI.Game.Trade
 
             // My money
             {
-                string moneyText = _myMoney.ToString("N0");
+                string moneyText = _isMoneyInputActive
+                    ? (_moneyInputText.Length == 0 ? "0" : _moneyInputText) + (_moneyInputShowCursor ? "|" : string.Empty)
+                    : _myMoney.ToString();
                 float scale = 0.35f;
+
+                var screenRect = Translate(_myMoneyInputRect);
+                if (_isMoneyInputActive && pixel != null)
+                {
+                    var borderColor = Theme.AccentBright * 0.9f;
+                    spriteBatch.Draw(pixel, new Rectangle(screenRect.X, screenRect.Y, screenRect.Width, 2), borderColor);
+                    spriteBatch.Draw(pixel, new Rectangle(screenRect.X, screenRect.Bottom - 2, screenRect.Width, 2), borderColor);
+                    spriteBatch.Draw(pixel, new Rectangle(screenRect.X, screenRect.Y, 2, screenRect.Height), borderColor);
+                    spriteBatch.Draw(pixel, new Rectangle(screenRect.Right - 2, screenRect.Y, 2, screenRect.Height), borderColor);
+                }
+
                 Vector2 pos = new(
-                    DisplayRectangle.X + _myMoneyInputRect.X + 8,
-                    DisplayRectangle.Y + _myMoneyInputRect.Y + (_myMoneyInputRect.Height - _font.MeasureString(moneyText).Y * scale) / 2);
+                    screenRect.X + 8,
+                    screenRect.Y + (screenRect.Height - _font.MeasureString(moneyText).Y * scale) / 2);
                 spriteBatch.DrawString(_font, moneyText, pos, Theme.TextGold * Alpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }
         }
@@ -1292,6 +1336,14 @@ namespace Client.Main.Controls.UI.Game.Trade
 
             var mousePos = MuGame.Instance.UiMouseState.Position;
 
+            // Money input focus
+            if (_moneyInputHovered && _draggedItem == null)
+            {
+                BeginMoneyInput();
+                Scene?.SetMouseInputConsumed();
+                return;
+            }
+
             // If we're already dragging an item, try to drop it (click-click behavior)
             if (_draggedItem != null)
             {
@@ -1627,6 +1679,10 @@ namespace Client.Main.Controls.UI.Game.Trade
             _partnerButtonState = TradeButtonStateChanged.TradeButtonState.Unchecked;
             _myLockEndTime = DateTime.MinValue;
             _partnerLockEndTime = DateTime.MinValue;
+            _isMoneyInputActive = false;
+            _moneyInputText = string.Empty;
+            _moneyInputBlinkTimer = 0;
+            _moneyInputShowCursor = false;
 
             _partnerItems.Clear();
             _myItems.Clear();
@@ -1640,6 +1696,140 @@ namespace Client.Main.Controls.UI.Game.Trade
             _pendingDropSlot = new Point(-1, -1);
             _itemTextureCache.Clear();
             _bmdPreviewCache.Clear();
+        }
+
+        private void BeginMoneyInput()
+        {
+            if (_isDragging || IsMyTradeLocked)
+            {
+                return;
+            }
+
+            _isMoneyInputActive = true;
+            _moneyInputText = _myMoney == 0 ? string.Empty : _myMoney.ToString();
+            _moneyInputBlinkTimer = 0;
+            _moneyInputShowCursor = true;
+        }
+
+        private void CancelMoneyInput()
+        {
+            _isMoneyInputActive = false;
+            _moneyInputText = string.Empty;
+            _moneyInputBlinkTimer = 0;
+            _moneyInputShowCursor = false;
+        }
+
+        private void HandleMoneyInputKeyboard()
+        {
+            if (!_isMoneyInputActive || !Visible)
+            {
+                return;
+            }
+
+            if (_currentGameTime != null)
+            {
+                _moneyInputBlinkTimer += _currentGameTime.ElapsedGameTime.TotalMilliseconds;
+                if (_moneyInputBlinkTimer >= CursorBlinkIntervalMs)
+                {
+                    _moneyInputShowCursor = !_moneyInputShowCursor;
+                    _moneyInputBlinkTimer = 0;
+                }
+            }
+
+            var keysPressed = MuGame.Instance.Keyboard.GetPressedKeys();
+            foreach (var key in keysPressed)
+            {
+                if (MuGame.Instance.PrevKeyboard.IsKeyUp(key))
+                {
+                    if (key == Keys.Back)
+                    {
+                        if (_moneyInputText.Length > 0)
+                        {
+                            _moneyInputText = _moneyInputText[..^1];
+                        }
+                    }
+                    else if (key == Keys.Enter)
+                    {
+                        Scene?.ConsumeKeyboardEnter();
+                        CommitMoneyInput();
+                        _isMoneyInputActive = false;
+                        return;
+                    }
+                    else if (key == Keys.Escape)
+                    {
+                        Scene?.ConsumeKeyboardEscape();
+                        CancelMoneyInput();
+                        return;
+                    }
+                    else if (TryGetDigitKey(key, out char digit))
+                    {
+                        if (_moneyInputText.Length < MoneyInputMaxDigits)
+                        {
+                            _moneyInputText += digit;
+                        }
+                    }
+                }
+            }
+        }
+
+        private static bool TryGetDigitKey(Keys key, out char digit)
+        {
+            if (key >= Keys.D0 && key <= Keys.D9)
+            {
+                digit = (char)('0' + (key - Keys.D0));
+                return true;
+            }
+
+            if (key >= Keys.NumPad0 && key <= Keys.NumPad9)
+            {
+                digit = (char)('0' + (key - Keys.NumPad0));
+                return true;
+            }
+
+            digit = '\0';
+            return false;
+        }
+
+        private void CommitMoneyInput()
+        {
+            if (_characterState == null)
+            {
+                return;
+            }
+
+            uint requested = 0;
+            if (!string.IsNullOrWhiteSpace(_moneyInputText))
+            {
+                _ = uint.TryParse(_moneyInputText, out requested);
+            }
+
+            ulong available = (ulong)_characterState.InventoryZen + (ulong)_myMoney;
+            ulong clamped = requested;
+            if (clamped > available)
+            {
+                clamped = available;
+            }
+            if (clamped > MaxZen)
+            {
+                clamped = MaxZen;
+            }
+            uint amount = (uint)clamped;
+
+            if (amount == _myMoney)
+            {
+                _moneyInputText = string.Empty;
+                return;
+            }
+
+            _characterState.SetMyTradeMoney(amount);
+
+            var svc = _networkManager?.GetCharacterService();
+            if (svc != null)
+            {
+                EnqueueTradeSend(() => svc.SendTradeMoneyAsync(amount));
+            }
+
+            _moneyInputText = string.Empty;
         }
 
         private void CancelTrade()

@@ -900,6 +900,35 @@ namespace Client.Main.Networking.Services
         }
 
         /// <summary>
+        /// Requests to move money between inventory and vault storage.
+        /// </summary>
+        public async Task SendVaultMoveMoneyAsync(VaultMoveMoneyRequest.VaultMoneyMoveDirection direction, uint amount)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot move vault money.");
+                return;
+            }
+
+            _logger.LogInformation("Sending VaultMoveMoneyRequest: Direction={Direction}, Amount={Amount}", direction, amount);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new VaultMoveMoneyRequest(_connectionManager.Connection.Output.GetMemory(VaultMoveMoneyRequest.Length).Slice(0, VaultMoveMoneyRequest.Length));
+                    packet.Direction = direction;
+                    packet.Amount = amount;
+                    return VaultMoveMoneyRequest.Length;
+                });
+                _logger.LogInformation("VaultMoveMoneyRequest sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending VaultMoveMoneyRequest.");
+            }
+        }
+
+        /// <summary>
         /// Sends a buy request for the given NPC shop slot.
         /// </summary>
         public async Task SendBuyItemFromNpcRequestAsync(byte shopSlot)
