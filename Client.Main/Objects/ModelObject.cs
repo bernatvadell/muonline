@@ -72,6 +72,7 @@ namespace Client.Main.Objects
         protected Matrix[] BoneTransform { get; set; }
         public Matrix[] GetBoneTransforms() => BoneTransform;
         public int CurrentAction { get; set; }
+        public int CurrentFrame { get; private set; }
         public int ParentBoneLink { get; set; } = -1;
         private BMD _model;
         public BMD Model
@@ -2032,6 +2033,7 @@ namespace Client.Main.Objects
                     _priorAction = currentActionIndex;
                     InvalidateBuffers(BUFFER_FLAG_ANIMATION);
                 }
+                CurrentFrame = 0;
                 return;
             }
 
@@ -2077,6 +2079,7 @@ namespace Client.Main.Objects
             int f0 = (int)framePos;
             int f1 = (f0 + 1) % totalFrames;
             float t = (float)(framePos - f0);
+            CurrentFrame = f0;
 
             // Only applies to objects that specifically request it (e.g., portals with stuttering)
             if (PreventLastFrameInterpolation && totalFrames > 1 && f0 == totalFrames - 1)
