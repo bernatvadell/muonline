@@ -29,10 +29,12 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
         private ButtonControl _btnServerSelect;
         private ButtonControl _btnOptions;
         private ButtonControl _btnExit;
+        private ButtonControl _btnResume;
         private bool _returnInProgress;
         private bool _exitInProgress;
         private OptionsPanelControl _optionsPanel;
 
+        public event EventHandler ResumeClicked;
         public event EventHandler CharacterSelectClicked;
         public event EventHandler ServerSelectClicked;
         public event EventHandler OptionsClicked;
@@ -52,8 +54,8 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
             _panel = new PanelControl
             {
                 AutoViewSize = false,
-                ControlSize = new Point(360, 300),
-                ViewSize = new Point(360, 300),
+                ControlSize = new Point(360, 400),
+                ViewSize = new Point(360, 400),
                 Align = Models.ControlAlign.HorizontalCenter | Models.ControlAlign.VerticalCenter,
                 BackgroundColor = new Color(20, 20, 30, 230),
                 BorderColor = new Color(80, 80, 120, 255),
@@ -78,6 +80,19 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
             int x = (_panel.ViewSize.X - btnWidth) / 2;
             int y = 60;
             int spacing = 18;
+
+            _btnResume = CreateButton("Resume", x, y, btnWidth, btnHeight);
+            _btnResume.Click += (s, e) =>
+            {
+                ResumeClicked?.Invoke(this, EventArgs.Empty);
+                Visible = false;
+                if (_optionsPanel != null)
+                {
+                    _optionsPanel.Visible = false;
+                }
+            };
+            _panel.Controls.Add(_btnResume);
+            y += btnHeight + spacing;
 
             _btnCharacterSelect = CreateButton("Return to Character Select", x, y, btnWidth, btnHeight);
             _btnCharacterSelect.Click += async (s, e) =>
