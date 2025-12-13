@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Controllers;
 using Client.Main.Controls;
+using Client.Main.Graphics;
 using Client.Main.Controls.UI;
 using Client.Main.Objects.Player;
 using Client.Main.Models;

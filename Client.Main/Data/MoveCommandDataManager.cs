@@ -2,7 +2,7 @@ using Client.Main.Models;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Client.Main
+namespace Client.Main.Data
 {
     public class MoveCommandDataManager
     {

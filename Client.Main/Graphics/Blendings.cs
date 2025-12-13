@@ -1,7 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
-namespace Client.Main
+namespace Client.Main.Graphics
 {
     public static class Blendings
     {

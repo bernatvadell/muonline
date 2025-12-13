@@ -1,5 +1,6 @@
 ﻿using Client.Main.Content;
 using Client.Main.Controls;
+using Client.Main.Data;
 using Client.Main.Models;
 
 using Client.Main.Objects;
@@ -17,6 +18,7 @@ using Client.Data.BMD;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Controllers;
+using Client.Main.Graphics;
 using Client.Main.Helpers;
 using Client.Main.Objects.Vehicle;
 using Client.Main.Controls.UI.Game.Inventory;

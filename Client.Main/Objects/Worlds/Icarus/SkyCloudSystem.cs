@@ -1,5 +1,6 @@
 using Client.Main.Content;
 using Client.Main.Controllers;
+using Client.Main.Graphics;
 using Client.Main.Helpers;
 using Client.Main.Scenes;
 using Microsoft.Xna.Framework;

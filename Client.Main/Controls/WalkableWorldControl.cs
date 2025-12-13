@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controllers;
+using Client.Main.Graphics;
 using Client.Main.Models;
 using Client.Main.Objects;
 using Client.Main.Objects.Monsters;

@@ -1,7 +1,7 @@
 ﻿using Microsoft.Xna.Framework;
 using System;
 
-namespace Client.Main
+namespace Client.Main.Graphics
 {
     public class Camera
     {

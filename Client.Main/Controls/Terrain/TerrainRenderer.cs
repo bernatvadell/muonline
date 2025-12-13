@@ -569,7 +569,7 @@ namespace Client.Main.Controls.Terrain
             DrawnCells++;
 
             int i1 = GetTerrainIndex(xi, yi);
-            if (_data.Attributes.TerrainWall[i1].HasFlag(Data.ATT.TWFlags.NoGround)) return;
+            if (_data.Attributes.TerrainWall[i1].HasFlag(Client.Data.ATT.TWFlags.NoGround)) return;
 
             int i2 = GetTerrainIndex(xi + lodInt, yi);
             int i3 = GetTerrainIndex(xi + lodInt, yi + lodInt);
@@ -704,13 +704,13 @@ namespace Client.Main.Controls.Terrain
             _tempTerrainVertex[2] = new Vector3(sx + ss, sy + ss, h3);
             _tempTerrainVertex[3] = new Vector3(sx, sy + ss, h4);
 
-            if (i1 < _data.Attributes.TerrainWall.Length && _data.Attributes.TerrainWall[i1].HasFlag(Data.ATT.TWFlags.Height))
+            if (i1 < _data.Attributes.TerrainWall.Length && _data.Attributes.TerrainWall[i1].HasFlag(Client.Data.ATT.TWFlags.Height))
                 _tempTerrainVertex[0].Z += SpecialHeight;
-            if (i2 < _data.Attributes.TerrainWall.Length && _data.Attributes.TerrainWall[i2].HasFlag(Data.ATT.TWFlags.Height))
+            if (i2 < _data.Attributes.TerrainWall.Length && _data.Attributes.TerrainWall[i2].HasFlag(Client.Data.ATT.TWFlags.Height))
                 _tempTerrainVertex[1].Z += SpecialHeight;
-            if (i3 < _data.Attributes.TerrainWall.Length && _data.Attributes.TerrainWall[i3].HasFlag(Data.ATT.TWFlags.Height))
+            if (i3 < _data.Attributes.TerrainWall.Length && _data.Attributes.TerrainWall[i3].HasFlag(Client.Data.ATT.TWFlags.Height))
                 _tempTerrainVertex[2].Z += SpecialHeight;
-            if (i4 < _data.Attributes.TerrainWall.Length && _data.Attributes.TerrainWall[i4].HasFlag(Data.ATT.TWFlags.Height))
+            if (i4 < _data.Attributes.TerrainWall.Length && _data.Attributes.TerrainWall[i4].HasFlag(Client.Data.ATT.TWFlags.Height))
                 _tempTerrainVertex[3].Z += SpecialHeight;
 
             _tempTerrainNormals[0] = GetTerrainNormal(i1);

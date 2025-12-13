@@ -1,4 +1,5 @@
 using Client.Main.Controls.UI.Common;
+using Client.Main.Data;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
@@ -36,7 +37,7 @@ namespace Client.Main.Controls.UI.Game
 
         private const int COL_MAP_NAME_X = 0;
         private const int COL_LEVEL_X = 105;
-        private const int COL_ZEN_X = 145; 
+        private const int COL_ZEN_X = 145;
 
 
         private LabelControl _titleLabel;
@@ -432,7 +433,7 @@ namespace Client.Main.Controls.UI.Game
                 _scrollBar.Value -= scrollDelta; // scrollDelta: positive for up, negative for down
                 return true;
             }
-            
+
             return false; // window didn't use the scroll (e.g., no scrollbar visible)
         }
 

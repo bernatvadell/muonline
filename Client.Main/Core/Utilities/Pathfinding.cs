@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 
-namespace Client.Main
+namespace Client.Main.Core.Utilities
 {
     public class PathNode
     {

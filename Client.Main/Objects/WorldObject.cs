@@ -2,6 +2,8 @@
 
 using Client.Main.Controllers;
 using Client.Main.Controls;
+using Client.Main.Core.Utilities;
+using Client.Main.Graphics;
 using Client.Main.Helpers;
 using Client.Main.Models;
 using Client.Main.Scenes;
@@ -41,7 +43,7 @@ namespace Client.Main.Objects
         private Texture2D _whiteTexture;
         private float _cullingCheckTimer = 0;
         private const float CullingCheckInterval = 0.1f; // Check culling every 100ms instead of every frame
-        
+
         // Advanced update optimization for invisible objects
         private float _lowPriorityUpdateTimer = 0;
         private const float LowPriorityUpdateInterval = 0.25f; // Update invisible objects every 250ms
@@ -49,7 +51,7 @@ namespace Client.Main.Objects
         private float _lastDistanceToCamera = float.MaxValue;
         private bool _wasOutOfView = true;
         private const int MaxSkipFrames = 15; // Skip up to 15 frames for very distant objects
-        
+
         // PERFORMANCE: Static bbox indices to avoid per-frame allocation
         private static readonly int[] BoundingBoxIndices = new int[]
         {
@@ -57,30 +59,30 @@ namespace Client.Main.Objects
             4, 5, 5, 6, 6, 7, 7, 4,
             0, 4, 1, 5, 2, 6, 3, 7
         };
-        
+
         // Reusable vertices for 3D bbox (avoid per-frame allocations)
         private readonly VertexPositionColor[] _bboxVerts = new VertexPositionColor[8];
         // Reusable bbox corners buffer to avoid allocations in UpdateWorldBoundingBox
         private readonly Vector3[] _bboxCorners = new Vector3[8];
         private readonly StringBuilder _bboxInfoBuilder = new(256);
-        
+
         // Static frame counter for staggered updates
         private static int _globalFrameCounter = 0;
         private readonly int _updateOffset; // Unique offset for each object to stagger updates
         private const int HoverChecksPerFrame = 32;
         private static int _hoverFrame = -1;
         private static int _hoverChecksThisFrame = 0;
-        
+
         // Debug counters
         public static int TotalSkippedUpdates { get; private set; } = 0;
         public static int TotalUpdatesPerformed { get; private set; } = 0;
         private static int _lastResetTime = Environment.TickCount;
-        
+
         public static string GetOptimizationStats()
         {
             int total = TotalSkippedUpdates + TotalUpdatesPerformed;
             if (total == 0) return "No updates tracked yet";
-            
+
             float skipPercentage = (TotalSkippedUpdates / (float)total) * 100f;
             return $"Updates: {TotalUpdatesPerformed}, Skipped: {TotalSkippedUpdates} ({skipPercentage:F1}%)";
         }
@@ -132,7 +134,7 @@ namespace Client.Main.Objects
             Children.ControlAdded += Children_ControlAdded;
 
             _font = GraphicsManager.Instance.Font;
-            
+
             // Initialize update offset for staggered updates - spread objects across frames
             _updateOffset = GetHashCode() % 60; // Spread across ~1 second at 60fps
         }
@@ -206,13 +208,13 @@ namespace Client.Main.Objects
             _globalFrameCounter = (int)(gameTime.TotalGameTime.TotalSeconds * 60.0);
 
             float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            
+
             // Update OutOfView flag with intelligent frequency based on object state
             bool shouldCheckCulling = false;
             if (World != null)
             {
                 _cullingCheckTimer += deltaTime;
-                
+
                 // Adjust culling check frequency based on object state
                 float checkInterval = _wasOutOfView ? CullingCheckInterval * 2f : CullingCheckInterval;
                 if (_cullingCheckTimer >= checkInterval)
@@ -238,14 +240,14 @@ namespace Client.Main.Objects
             if (OutOfView)
             {
                 _lowPriorityUpdateTimer += deltaTime;
-                
+
                 // Much more aggressive - update invisible objects only every 1 second!
                 if (_lowPriorityUpdateTimer < 1.0f && _globalFrameCounter % 60 != (_updateOffset % 60))
                 {
                     TotalSkippedUpdates++;
                     return; // Skip this frame entirely for invisible objects - VERY aggressive
                 }
-                
+
                 _lowPriorityUpdateTimer = 0;
 
                 // Only update critical children for invisible objects
@@ -292,9 +294,9 @@ namespace Client.Main.Objects
             for (int i = 0; i < Children.Count; i++)
             {
                 var child = Children[i];
-                
+
                 // Always update players and important objects
-                if (child is Player.PlayerObject || 
+                if (child is Player.PlayerObject ||
                     child is MonsterObject ||
                     child.Interactive ||
                     !child.OutOfView)
@@ -312,7 +314,7 @@ namespace Client.Main.Objects
         private void PerformFullUpdate(GameTime gameTime, float distanceToCamera)
         {
             TotalUpdatesPerformed++;
-            
+
             // Reset debug counters every 5 seconds
             if (Environment.TickCount - _lastResetTime > 5000)
             {
@@ -348,7 +350,7 @@ namespace Client.Main.Objects
             // Defer expensive hover checks when many objects spawn: use a staggered cadence for non-interactive objects
             bool hoverBudgetThisFrame = (_globalFrameCounter + _updateOffset) % 3 == 0; // 1/3 frames
             bool shouldCheckMouseHover = inFrustum && (Interactive || Constants.DRAW_BOUNDING_BOXES || hoverBudgetThisFrame);
-            
+
             if (shouldCheckMouseHover)
             {
                 if (!TryBeginHoverCheck(Interactive || Constants.DRAW_BOUNDING_BOXES))

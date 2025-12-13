@@ -9,7 +9,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using static Client.Main.Utils;
+using static Client.Main.Core.Utilities.Utils;
 
 namespace Client.Main.Controls.Terrain
 {

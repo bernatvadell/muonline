@@ -13,7 +13,7 @@ namespace Client.Main
         private static readonly ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger(typeof(WorldObjectFactory));
         private static readonly ConcurrentDictionary<Type, Func<WorldObject>> _ctorCache = new();
 
-        public static WorldObject CreateMapTileObject(this WorldControl world, Data.OBJS.IMapObject obj)
+        public static WorldObject CreateMapTileObject(this WorldControl world, Client.Data.OBJS.IMapObject obj)
         {
             var objType = obj.Type;
 

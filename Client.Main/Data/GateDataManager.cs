@@ -5,7 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text.Json;
 
-namespace Client.Main
+namespace Client.Main.Data
 {
     public class GateDataManager
     {

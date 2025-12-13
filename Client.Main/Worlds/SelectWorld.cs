@@ -1,6 +1,7 @@
 ﻿using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Controls.UI; // Added for LabelControl
+using Client.Main.Graphics;
 using Client.Main.Models; // Added for LabelControl
 using Client.Main.Objects;
 using Client.Main.Objects.Player;

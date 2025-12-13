@@ -10,7 +10,7 @@ using System.Text.Json;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using static Client.Main.Utils;
+using static Client.Main.Core.Utilities.Utils;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 
@@ -76,13 +76,13 @@ namespace Client.Main.Content
         public int LastFrameMeshesProcessed { get; private set; }
         public int LastFrameCacheHits { get; private set; }
         public int LastFrameCacheMisses { get; private set; }
-        
+
         private struct BufferCacheEntry
         {
             public Color LastColor;
             public int LastBoneMatrixHash;
             public bool IsValid;
-            
+
             public BufferCacheEntry(Color color, int boneMatrixHash)
             {
                 LastColor = color;
@@ -162,7 +162,7 @@ namespace Client.Main.Content
         {
             _graphicsDevice = graphicsDevice;
         }
-        
+
         /// <summary>
         /// Call this at the start of each frame to enable DISCARD/NoOverwrite optimization
         /// </summary>
@@ -338,7 +338,7 @@ namespace Client.Main.Content
 
             // Create cache key based on asset and mesh
             // (reusing cacheKey defined above)
-            
+
             // Calculate bone matrix hash for cache validation
             // Build or get the set of bones used by this mesh (distinct node indices)
             if (!_meshUsedBones.TryGetValue(cacheKey, out short[] usedBones))
@@ -357,7 +357,7 @@ namespace Client.Main.Content
 
             // Calculate a hash over only the bones influencing this mesh
             int boneMatrixHash = CalculateBoneMatrixHashSubset(boneMatrix, usedBones);
-            
+
             bool canUseCache = !DisableGlobalMeshCache &&
                                !skipCache &&
                                _bufferCacheState.TryGetValue(cacheKey, out var cacheEntry) &&
@@ -656,7 +656,7 @@ namespace Client.Main.Content
 
             return result;
         }
-        
+
         // Clear cache when needed (e.g., when objects are disposed)
         public void ClearBufferCache()
         {

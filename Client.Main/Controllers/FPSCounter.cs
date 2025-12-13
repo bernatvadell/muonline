@@ -4,9 +4,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static Org.BouncyCastle.Asn1.Cmp.Challenge;
 
-namespace Client.Main
+namespace Client.Main.Controllers
 {
     public class FPSCounter
     {

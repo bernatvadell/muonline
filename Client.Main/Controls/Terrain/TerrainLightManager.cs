@@ -1,5 +1,7 @@
 using Client.Main.Scenes;
 using Client.Main.Controls;
+using Client.Main.Graphics;
+using Client.Main.Core.Utilities;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;

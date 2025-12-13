@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+﻿using Client.Main.Controllers;
+using Microsoft.Xna.Framework;
 using System;
 
 namespace Client.Main.Objects.Particles.Effects

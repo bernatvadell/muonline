@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Client.Main
+namespace Client.Main.Helpers
 {
     public interface IChildItem<T> where T : class
     {

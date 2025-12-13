@@ -202,9 +202,9 @@ namespace Client.Main.Controls.UI.Game.Skills
             // Build tooltip text
             string typeText = skillType switch
             {
-                Data.BMD.SkillType.Area => "[AREA]",
-                Data.BMD.SkillType.Target => "[TARGET]",
-                Data.BMD.SkillType.Self => "[SELF]",
+                Client.Data.BMD.SkillType.Area => "[AREA]",
+                Client.Data.BMD.SkillType.Target => "[TARGET]",
+                Client.Data.BMD.SkillType.Self => "[SELF]",
                 _ => ""
             };
 

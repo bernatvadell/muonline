@@ -12,6 +12,7 @@ using Client.Main;
 using Client.Main.Controllers;
 using Client.Main.Controls.UI.Game;
 using Client.Main.Graphics;
+using Client.Main.Helpers;
 using MUnique.OpenMU.Network.Packets; // LogOutType
 
 namespace Client.Main.Controls.UI.Game.PauseMenu

@@ -1,5 +1,6 @@
 using Client.Main.Controllers;              // GraphicsManager
 using Client.Main.Core.Models;              // ScopeObject
+using Client.Main.Graphics;
 using Client.Main.Models;                   // MessageType
 using Client.Main.Networking.Services;      // CharacterService
 using Client.Main.Controls.UI;              // ChatLogWindow + LabelControl

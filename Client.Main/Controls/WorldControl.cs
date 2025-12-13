@@ -3,6 +3,8 @@ using Client.Data.CAP;
 using Client.Data.OBJS;
 using Client.Main.Controllers;
 using Client.Main.Core.Utilities;
+using Client.Main.Graphics;
+using Client.Main.Helpers;
 using Client.Main.Models;
 using Client.Main.Objects;
 using Client.Main.Objects.Effects;

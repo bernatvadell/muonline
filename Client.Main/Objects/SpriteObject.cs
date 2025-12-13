@@ -1,6 +1,7 @@
 ﻿using Client.Data.Texture;
 using Client.Main.Content;
 using Client.Main.Controllers;
+using Client.Main.Graphics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;

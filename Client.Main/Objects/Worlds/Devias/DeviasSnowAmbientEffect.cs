@@ -5,6 +5,7 @@ using Client.Main.Configuration;
 using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Controls;
+using Client.Main.Graphics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 

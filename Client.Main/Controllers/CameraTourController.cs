@@ -1,5 +1,6 @@
 ﻿using Client.Data.CWS;
 using Client.Main.Controls;
+using Client.Main.Graphics;
 using Microsoft.Xna.Framework;
 
 namespace Client.Main.Controllers

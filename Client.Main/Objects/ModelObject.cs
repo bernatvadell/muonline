@@ -2,6 +2,7 @@
 using Client.Data.Texture;
 using Client.Main.Content;
 using Client.Main.Controllers;
+using Client.Main.Core.Utilities;
 using Client.Main.Graphics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;

@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Client.Data.Texture;
 using Client.Main.Content;
 using Client.Main.Controllers;
+using Client.Main.Graphics;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;

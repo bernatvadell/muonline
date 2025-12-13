@@ -1,11 +1,12 @@
 using Client.Main.Controllers;
+using Client.Main.Graphics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
-using static Client.Main.Utils;
+using static Client.Main.Core.Utilities.Utils;
 using Client.Main.Content;
 
 namespace Client.Main.Controls.Terrain

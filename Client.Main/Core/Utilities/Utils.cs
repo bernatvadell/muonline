@@ -3,7 +3,7 @@ using System.IO;
 using Client.Main.Objects;
 using Client.Main.Objects.Effects;
 
-namespace Client.Main
+namespace Client.Main.Core.Utilities
 {
     public static class Utils
     {

@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework.Graphics;
 using Client.Main;
 using Client.Main.Content;
 using Client.Main.Controllers;
+using Client.Main.Graphics;
 using Client.Main.Models;
 using System.Reflection;
 
