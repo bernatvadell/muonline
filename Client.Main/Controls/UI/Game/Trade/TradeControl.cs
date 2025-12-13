@@ -44,7 +44,8 @@ namespace Client.Main.Controls.UI.Game.Trade
         private const int TRADE_ROWS = 4;
         private const int TRADE_SQUARE_WIDTH = 34;
         private const int TRADE_SQUARE_HEIGHT = 34;
-        private const int TRADE_LOCK_SECONDS = 0;
+        // Matches the original client behavior (~150 frames @ 60fps).
+        private const int TRADE_RED_SECONDS = 3;
 
         private static readonly int GRID_WIDTH = TRADE_COLUMNS * TRADE_SQUARE_WIDTH;
         private static readonly int GRID_HEIGHT = TRADE_ROWS * TRADE_SQUARE_HEIGHT;
@@ -165,9 +166,12 @@ namespace Client.Main.Controls.UI.Game.Trade
         private DateTime _myLockEndTime = DateTime.MinValue;
         private DateTime _partnerLockEndTime = DateTime.MinValue;
 
-        private bool IsMyTradeLocked => _myButtonState != TradeButtonStateChanged.TradeButtonState.Unchecked;
-        private bool IsPartnerTradeLocked => _partnerButtonState != TradeButtonStateChanged.TradeButtonState.Unchecked;
+        private bool IsMyTradeLocked => _myButtonState == TradeButtonStateChanged.TradeButtonState.Checked;
+        private bool IsPartnerTradeLocked => _partnerButtonState == TradeButtonStateChanged.TradeButtonState.Checked;
         private bool IsMyButtonCoolingDown => _myButtonState == TradeButtonStateChanged.TradeButtonState.Red && _myLockEndTime > DateTime.UtcNow;
+
+        private readonly object _tradeSendLock = new();
+        private Task _tradeSendChain = Task.CompletedTask;
 
         // ═══════════════════════════════════════════════════════════════
         // CONSTRUCTOR
@@ -211,8 +215,9 @@ namespace Client.Main.Controls.UI.Game.Trade
 
         public void AcceptItemFromInventory(InventoryItem item, Point dropSlot, byte inventorySlot)
         {
-            if (IsMyTradeLocked) return;
             if (item == null || !CanPlaceAt(dropSlot, item)) return;
+
+            UnacceptTradeIfNeeded();
 
             // Calculate trade slot (0-31 for 8x4 grid)
             byte tradeSlot = (byte)(dropSlot.Y * TRADE_COLUMNS + dropSlot.X);
@@ -232,7 +237,7 @@ namespace Client.Main.Controls.UI.Game.Trade
                 // Mark inventory item as pending to prevent visual duplication
                 state.StashPendingInventoryMove(inventorySlot, inventorySlot);
 
-                _ = Task.Run(async () =>
+                EnqueueTradeSend(async () =>
                 {
                     await svc.SendStorageItemMoveAsync(
                         ItemStorageKind.Inventory,  // FromStorage = Inventory (0)
@@ -834,7 +839,7 @@ namespace Client.Main.Controls.UI.Game.Trade
             string text = _myButtonState switch
             {
                 TradeButtonStateChanged.TradeButtonState.Red =>
-                    $"LOCK {Math.Max(1, GetRemainingSeconds(_myLockEndTime))}s",
+                    $"CHANGED ({Math.Max(1, GetRemainingSeconds(_myLockEndTime))}s)",
                 TradeButtonStateChanged.TradeButtonState.Checked => "ACCEPTED",
                 _ => "TRADE",
             };
@@ -872,13 +877,7 @@ namespace Client.Main.Controls.UI.Game.Trade
 
             if (IsPartnerTradeLocked)
             {
-                int remaining = _partnerButtonState == TradeButtonStateChanged.TradeButtonState.Red
-                    ? GetRemainingSeconds(_partnerLockEndTime)
-                    : 0;
-
-                string status = _partnerButtonState == TradeButtonStateChanged.TradeButtonState.Checked
-                    ? "PARTNER ACCEPTED"
-                    : $"PARTNER LOCKING{(remaining > 0 ? $" ({remaining}s)" : string.Empty)}";
+                const string status = "PARTNER ACCEPTED";
 
                 float scale = 0.30f;
                 Vector2 size = _font.MeasureString(status) * scale;
@@ -887,8 +886,7 @@ namespace Client.Main.Controls.UI.Game.Trade
                     DisplayRectangle.Y + _partnerInfoRect.Y + 2);
 
                 spriteBatch.DrawString(_font, status, pos + Vector2.One, Color.Black * 0.6f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-                Color statusColor = _partnerButtonState == TradeButtonStateChanged.TradeButtonState.Red ? Theme.Danger : Theme.Success;
-                spriteBatch.DrawString(_font, status, pos, statusColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                spriteBatch.DrawString(_font, status, pos, Theme.Success, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }
 
             // Partner money
@@ -1314,6 +1312,7 @@ namespace Client.Main.Controls.UI.Game.Trade
 
         private void BeginDrag(InventoryItem item)
         {
+            UnacceptTradeIfNeeded();
             _draggedItem = item;
             _draggedOriginalSlot = item.GridPosition;
             RemoveItemFromGrid(_myGrid, item);
@@ -1324,11 +1323,7 @@ namespace Client.Main.Controls.UI.Game.Trade
         private void AttemptDrop(Point mousePos)
         {
             if (_draggedItem == null) return;
-            if (IsMyTradeLocked)
-            {
-                CancelDragIfLocked();
-                return;
-            }
+            UnacceptTradeIfNeeded();
 
             var myGridScreen = Translate(_myGridRect);
             bool dropped = false;
@@ -1365,13 +1360,16 @@ namespace Client.Main.Controls.UI.Game.Trade
                         byte[] raw = _draggedItem.RawData ?? Array.Empty<byte>();
 
                         state.RemoveMyTradeItem(tradeSlot);
-                        _ = svc.SendStorageItemMoveAsync(
-                            ItemStorageKind.Trade,
-                            tradeSlot,
-                            ItemStorageKind.Inventory,
-                            targetInventorySlot,
-                            _networkManager.TargetVersion,
-                            raw);
+                        EnqueueTradeSend(async () =>
+                        {
+                            await svc.SendStorageItemMoveAsync(
+                                ItemStorageKind.Trade,
+                                tradeSlot,
+                                ItemStorageKind.Inventory,
+                                targetInventorySlot,
+                                _networkManager.TargetVersion,
+                                raw);
+                        });
 
                         MuGame.ScheduleOnMainThread(() => state.RaiseInventoryChanged());
                     }
@@ -1439,7 +1437,7 @@ namespace Client.Main.Controls.UI.Game.Trade
 
             if (state == TradeButtonStateChanged.TradeButtonState.Red)
             {
-                _myLockEndTime = DateTime.UtcNow.AddSeconds(TRADE_LOCK_SECONDS);
+                _myLockEndTime = DateTime.UtcNow.AddSeconds(TRADE_RED_SECONDS);
             }
             else
             {
@@ -1463,7 +1461,7 @@ namespace Client.Main.Controls.UI.Game.Trade
 
             if (state == TradeButtonStateChanged.TradeButtonState.Red)
             {
-                _partnerLockEndTime = DateTime.UtcNow.AddSeconds(TRADE_LOCK_SECONDS);
+                _partnerLockEndTime = DateTime.UtcNow.AddSeconds(TRADE_RED_SECONDS);
             }
             else
             {
@@ -1549,7 +1547,8 @@ namespace Client.Main.Controls.UI.Game.Trade
                 _myLockEndTime != DateTime.MinValue &&
                 now >= _myLockEndTime)
             {
-                ApplyMyButtonState(TradeButtonStateChanged.TradeButtonState.Checked, true);
+                // "Red" is a temporary warning state; it always returns to Unchecked.
+                ApplyMyButtonState(TradeButtonStateChanged.TradeButtonState.Unchecked, true);
             }
 
             if (_partnerButtonState == TradeButtonStateChanged.TradeButtonState.Red &&
@@ -1557,8 +1556,8 @@ namespace Client.Main.Controls.UI.Game.Trade
                 now >= _partnerLockEndTime)
             {
                 _partnerLockEndTime = DateTime.MinValue;
-                _partnerButtonState = TradeButtonStateChanged.TradeButtonState.Checked;
-                _characterState?.SetPartnerTradeButtonState(TradeButtonStateChanged.TradeButtonState.Checked);
+                _partnerButtonState = TradeButtonStateChanged.TradeButtonState.Unchecked;
+                _characterState?.SetPartnerTradeButtonState(TradeButtonStateChanged.TradeButtonState.Unchecked);
             }
         }
 
@@ -1648,18 +1647,18 @@ namespace Client.Main.Controls.UI.Game.Trade
             var svc = _networkManager?.GetCharacterService();
             if (svc != null)
             {
-                _ = svc.SendTradeCancelAsync();
+                EnqueueTradeSend(svc.SendTradeCancelAsync);
             }
             Hide();
         }
 
         private void ToggleTradeButton()
         {
-            bool accept = _myButtonState == TradeButtonStateChanged.TradeButtonState.Unchecked;
+            bool accept = _myButtonState != TradeButtonStateChanged.TradeButtonState.Checked;
 
-            if (!accept && IsMyButtonCoolingDown)
+            if (accept && IsMyButtonCoolingDown)
             {
-                // Still cooling down from initial lock; ignore uncheck attempts.
+                // Still in "red" warning state; ignore accept attempts.
                 return;
             }
 
@@ -1671,9 +1670,59 @@ namespace Client.Main.Controls.UI.Game.Trade
             }
 
             ApplyMyButtonState(
-                accept ? TradeButtonStateChanged.TradeButtonState.Red : TradeButtonStateChanged.TradeButtonState.Unchecked,
+                accept ? TradeButtonStateChanged.TradeButtonState.Checked : TradeButtonStateChanged.TradeButtonState.Unchecked,
                 true);
-            _ = svc.SendTradeButtonAsync(accept);
+            EnqueueTradeSend(() => svc.SendTradeButtonAsync(accept));
+        }
+
+        private void UnacceptTradeIfNeeded()
+        {
+            if (_myButtonState != TradeButtonStateChanged.TradeButtonState.Checked)
+            {
+                return;
+            }
+
+            var svc = _networkManager?.GetCharacterService();
+            if (svc == null)
+            {
+                ApplyMyButtonState(TradeButtonStateChanged.TradeButtonState.Unchecked, true);
+                return;
+            }
+
+            ApplyMyButtonState(TradeButtonStateChanged.TradeButtonState.Unchecked, true);
+            EnqueueTradeSend(() => svc.SendTradeButtonAsync(false));
+        }
+
+        private void EnqueueTradeSend(Func<Task> sendAsync)
+        {
+            if (sendAsync == null) return;
+
+            lock (_tradeSendLock)
+            {
+                _tradeSendChain = _tradeSendChain.ContinueWith(async previous =>
+                {
+                    try
+                    {
+                        if (previous.Exception != null)
+                        {
+                            _logger?.LogDebug(previous.Exception, "Previous trade send task faulted.");
+                        }
+                    }
+                    catch
+                    {
+                        // ignore
+                    }
+
+                    try
+                    {
+                        await sendAsync().ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "Trade send task failed.");
+                    }
+                }, System.Threading.Tasks.TaskScheduler.Default).Unwrap();
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════

@@ -181,7 +181,16 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 var state = stateChanged.State;
 
                 _logger.LogInformation("Trade button state changed to {State}", state);
-                _characterState.SetPartnerTradeButtonState(state);
+                if (state == TradeButtonStateChanged.TradeButtonState.Red)
+                {
+                    // Matches original client behavior: red state is a temporary warning which resets both accept states.
+                    _characterState.SetMyTradeButtonState(TradeButtonStateChanged.TradeButtonState.Red);
+                    _characterState.SetPartnerTradeButtonState(TradeButtonStateChanged.TradeButtonState.Unchecked);
+                }
+                else
+                {
+                    _characterState.SetPartnerTradeButtonState(state);
+                }
             }
             catch (Exception ex)
             {
