@@ -1,5 +1,6 @@
 using Client.Main.Controls;
 using Client.Main.Core.Utilities;
+using Client.Main.Objects.Worlds.Dungeon;
 using Microsoft.Xna.Framework;
 
 namespace Client.Main.Worlds
@@ -36,6 +37,15 @@ namespace Client.Main.Worlds
             Walker.MoveTargetPosition = Walker.TargetPosition;
             Walker.Position = Walker.TargetPosition;
             base.AfterLoad();
+        }
+
+        protected override void CreateMapTileObjects()
+        {
+            base.CreateMapTileObjects();
+            MapTileObjects[1] = typeof(SpiderWeb1Object);
+            MapTileObjects[17] = typeof(SpiderWeb17Object);
+            MapTileObjects[52] = typeof(RestPlaceObject);
+            MapTileObjects[60] = typeof(RestPlaceObject);
         }
     }
 }

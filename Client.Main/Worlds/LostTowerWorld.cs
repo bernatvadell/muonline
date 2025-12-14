@@ -1,5 +1,6 @@
 using Client.Main.Controls;
 using Client.Main.Core.Utilities;
+using Client.Main.Objects.Worlds.LostTower;
 using Microsoft.Xna.Framework;
 
 namespace Client.Main.Worlds
@@ -36,6 +37,12 @@ namespace Client.Main.Worlds
             Walker.MoveTargetPosition = Walker.TargetPosition;
             Walker.Position = Walker.TargetPosition;
             base.AfterLoad();
+        }
+
+        protected override void CreateMapTileObjects()
+        {
+            base.CreateMapTileObjects();
+            MapTileObjects[18] = typeof(LightBeamObject);
         }
     }
 }

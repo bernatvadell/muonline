@@ -1,5 +1,6 @@
 ﻿using Client.Main.Controls;
 using Client.Main.Core.Utilities;
+using Client.Main.Objects.Worlds.Tarkan;
 using Microsoft.Xna.Framework;
 
 namespace Client.Main.Worlds
@@ -35,6 +36,23 @@ namespace Client.Main.Worlds
             Walker.MoveTargetPosition = Walker.TargetPosition;
             Walker.Position = Walker.TargetPosition;
             base.AfterLoad();
+        }
+
+        protected override void CreateMapTileObjects()
+        {
+            base.CreateMapTileObjects();
+            MapTileObjects[82] = typeof(LightBeamObject);
+            MapTileObjects[7] = typeof(LavaObject);
+            MapTileObjects[8] = typeof(FlagObject);
+            MapTileObjects[6] = typeof(GrassObject);
+            MapTileObjects[15] = typeof(GrassObject);
+            MapTileObjects[16] = typeof(GrassObject);
+            MapTileObjects[17] = typeof(GrassObject);
+            MapTileObjects[18] = typeof(GrassObject);
+            MapTileObjects[19] = typeof(GrassObject);
+            MapTileObjects[22] = typeof(GrassObject);
+            MapTileObjects[33] = typeof(TreeObject);
+            MapTileObjects[35] = typeof(GrassObject);
         }
     }
 }

@@ -7,10 +7,6 @@ using Client.Main.Objects.Player;
 using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using MUnique.OpenMU.Network.Packets;
 using MUnique.OpenMU.Network.Packets.ServerToClient;
 using Client.Main.Objects;
@@ -73,6 +69,9 @@ namespace Client.Main.Scenes
         private ushort? _playerMenuHoverId;
         private double _playerMenuHintCooldown;
         private float _playerMenuHintAlpha;
+        private BlendingEditorControl _blendingEditor;
+        private ObjectSelectionDialog _blendingObjectSelectionDialog;
+        private ObjectSelectionDialog _deletionObjectSelectionDialog;
 
         // Cache expensive enum values to avoid allocations
         private static readonly Keys[] _allKeys = (Keys[])System.Enum.GetValues(typeof(Keys));
@@ -229,6 +228,12 @@ namespace Client.Main.Scenes
             };
             Controls.Add(_playerMenuHint);
             _playerMenuHint.BringToFront();
+
+#if DEBUG
+            // Blending editor
+            _blendingEditor = new BlendingEditorControl();
+            Controls.Add(_blendingEditor);
+#endif
 
             try
             {
@@ -1228,6 +1233,26 @@ namespace Client.Main.Scenes
                 }
             }
 
+            // Handle blending editor activation with left mouse click + "/" key
+            if (!IsMouseInputConsumedThisFrame &&
+                currentKeyboardState.IsKeyDown(Keys.OemQuestion) && // "/" key
+                MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
+                MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released)
+            {
+                HandleBlendingEditorActivation();
+                SetMouseInputConsumed();
+            }
+
+            // Handle object deletion with left mouse click + DEL key
+            if (!IsMouseInputConsumedThisFrame &&
+                currentKeyboardState.IsKeyDown(Keys.Delete) && // DEL key
+                MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
+                MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released)
+            {
+                HandleObjectDeletion();
+                SetMouseInputConsumed();
+            }
+
             if (currentKeyboardState.IsKeyDown(Keys.F5) && _previousKeyboardState.IsKeyUp(Keys.F5)) _chatLog?.ToggleFrame();
             if (currentKeyboardState.IsKeyDown(Keys.F4) && _previousKeyboardState.IsKeyUp(Keys.F4)) _chatLog?.CycleSize();
             if (currentKeyboardState.IsKeyDown(Keys.F6) && _previousKeyboardState.IsKeyUp(Keys.F6)) _chatLog?.CycleBackgroundAlpha();
@@ -1697,6 +1722,156 @@ namespace Client.Main.Scenes
                 targetY,
                 rotation,
                 extraTargetId);
+        }
+
+        private void HandleBlendingEditorActivation()
+        {
+            if (World == null || World.Status != GameControlStatus.Ready || !Constants.DRAW_BOUNDING_BOXES)
+                return;
+
+            // Get all objects that are currently hovered
+            var hoveredObjects = new List<ModelObject>();
+            foreach (var obj in World.Objects)
+            {
+                if (obj is ModelObject modelObj && modelObj.IsMouseHover)
+                {
+                    hoveredObjects.Add(modelObj);
+                }
+            }
+
+            if (hoveredObjects.Count == 0)
+                return;
+
+            if (hoveredObjects.Count == 1)
+            {
+                // Single object - open blending editor directly
+                ShowBlendingEditor(hoveredObjects[0]);
+            }
+            else
+            {
+                // Multiple objects - show selection dialog
+                ShowObjectSelectionDialog(hoveredObjects);
+            }
+        }
+
+        private void ShowBlendingEditor(ModelObject targetObject)
+        {
+            if (_blendingEditor == null)
+                return;
+
+            _blendingEditor.ShowForObject(targetObject);
+            _logger?.LogDebug($"Opening blending editor for {targetObject.GetType().Name}");
+        }
+
+        private void ShowObjectSelectionDialog(List<ModelObject> objects)
+        {
+            // Remove previous dialog if exists
+            if (_blendingObjectSelectionDialog != null)
+            {
+                Controls.Remove(_blendingObjectSelectionDialog);
+                _blendingObjectSelectionDialog = null;
+            }
+
+            _blendingObjectSelectionDialog = new ObjectSelectionDialog(objects.Cast<WorldObject>().ToList());
+            _blendingObjectSelectionDialog.ObjectSelected += OnObjectSelectedForEditing;
+            Controls.Add(_blendingObjectSelectionDialog);
+
+            // Position near mouse cursor
+            var mousePos = MuGame.Instance.UiMouseState.Position;
+            _blendingObjectSelectionDialog.ShowAt(mousePos.X + 10, mousePos.Y + 10);
+
+            _logger?.LogDebug($"Showing selection dialog for {objects.Count} objects");
+        }
+
+        private void OnObjectSelectedForEditing(WorldObject selectedObject)
+        {
+            if (selectedObject is ModelObject modelObj)
+            {
+                ShowBlendingEditor(modelObj);
+            }
+
+            // Clean up dialog
+            if (_blendingObjectSelectionDialog != null)
+            {
+                Controls.Remove(_blendingObjectSelectionDialog);
+                _blendingObjectSelectionDialog = null;
+            }
+        }
+
+        private void HandleObjectDeletion()
+        {
+            if (World == null || World.Status != GameControlStatus.Ready || !Constants.DRAW_BOUNDING_BOXES)
+                return;
+
+            // Get all objects that are currently hovered
+            var hoveredObjects = new List<WorldObject>();
+            foreach (var obj in World.Objects)
+            {
+                if (obj.IsMouseHover)
+                {
+                    hoveredObjects.Add(obj);
+                }
+            }
+
+            if (hoveredObjects.Count == 0)
+                return;
+
+            if (hoveredObjects.Count == 1)
+            {
+                // Single object - delete directly
+                DeleteObject(hoveredObjects[0]);
+            }
+            else
+            {
+                // Multiple objects - show selection dialog for deletion
+                ShowObjectSelectionDialogForDeletion(hoveredObjects);
+            }
+        }
+
+        private void DeleteObject(WorldObject targetObject)
+        {
+            if (targetObject == null)
+                return;
+
+            _logger?.LogDebug($"Deleting object: {targetObject.GetType().Name} (ID: {targetObject.NetworkId})");
+
+            // Remove from world
+            World.RemoveObject(targetObject);
+
+            // Dispose the object
+            targetObject.Dispose();
+        }
+
+        private void ShowObjectSelectionDialogForDeletion(List<WorldObject> objects)
+        {
+            // Remove previous dialog if exists
+            if (_deletionObjectSelectionDialog != null)
+            {
+                Controls.Remove(_deletionObjectSelectionDialog);
+                _deletionObjectSelectionDialog = null;
+            }
+
+            _deletionObjectSelectionDialog = new ObjectSelectionDialog(objects);
+            _deletionObjectSelectionDialog.ObjectSelected += OnObjectSelectedForDeletion;
+            Controls.Add(_deletionObjectSelectionDialog);
+
+            // Position near mouse cursor
+            var mousePos = MuGame.Instance.UiMouseState.Position;
+            _deletionObjectSelectionDialog.ShowAt(mousePos.X + 10, mousePos.Y + 10);
+
+            _logger?.LogDebug($"Showing deletion selection dialog for {objects.Count} objects");
+        }
+
+        private void OnObjectSelectedForDeletion(WorldObject selectedObject)
+        {
+            DeleteObject(selectedObject);
+
+            // Clean up dialog
+            if (_deletionObjectSelectionDialog != null)
+            {
+                Controls.Remove(_deletionObjectSelectionDialog);
+                _deletionObjectSelectionDialog = null;
+            }
         }
 
         public override void Dispose()

@@ -66,6 +66,7 @@ namespace Client.Main.Worlds
             MapTileObjects[22] = typeof(BubblesObject);
             MapTileObjects[23] = typeof(WaterPortalObject);
             MapTileObjects[38] = typeof(LightBeamObject);
+            MapTileObjects[39] = typeof(RestPlaceObject);
             MapTileObjects[40] = typeof(PortalObject);
         }
 

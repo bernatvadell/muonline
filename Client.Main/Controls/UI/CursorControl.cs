@@ -21,7 +21,7 @@ public class CursorControl : SpriteControl
     private Type[] restPlaceTypes;
     private string currentTexturePath = "";
     private Vector2[] currentAnimationState;
-    
+
     // BringToFront throttling - no need to call every frame
     private double _bringToFrontTimer = 0;
     private const double BRING_TO_FRONT_INTERVAL = 0.5; // seconds
@@ -43,7 +43,9 @@ public class CursorControl : SpriteControl
         {
             typeof(Client.Main.Objects.Worlds.Devias.RestPlaceObject),
             typeof(Client.Main.Objects.Worlds.Noria.RestPlaceObject),
-            typeof(Client.Main.Objects.Worlds.Lorencia.RestPlaceObject)
+            typeof(Client.Main.Objects.Worlds.Lorencia.RestPlaceObject),
+            typeof(Client.Main.Objects.Worlds.Dungeon.RestPlaceObject),
+            typeof(Client.Main.Objects.Worlds.Atlans.RestPlaceObject)
         };
     }
 
@@ -72,7 +74,7 @@ public class CursorControl : SpriteControl
             currentAnimationState = animation;
             TexturePath = texturePath;
             CurrentAnimation = animation;
-            
+
             // Reset animation only when texture/animation actually changes
             animationIndex = 0;
             animationTimer = 0;
@@ -151,7 +153,8 @@ public class CursorControl : SpriteControl
             {
                 SetCursorState("Interface/CursorPush.ozt", DefaultAnimation);
 
-                if (hoveredObject is NPCObject npc) {
+                if (hoveredObject is NPCObject npc)
+                {
                     npc.OnClick();
                 }
             }
