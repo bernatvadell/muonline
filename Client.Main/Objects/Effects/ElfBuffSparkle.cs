@@ -22,23 +22,23 @@ namespace Client.Main.Objects.Effects
 
         public override string TexturePath => "Effect/Shiny05.jpg";
 
-        public ElfBuffSparkle(Vector3 startPosition, float hueShift = 1f)
+        public ElfBuffSparkle(Vector3 startPosition, float hueShift = 1f, float customLifetime = -1, Vector3? customColor = null)
         {
-            Reset(startPosition, hueShift);
+            Reset(startPosition, hueShift, customLifetime, customColor);
         }
 
-        public static ElfBuffSparkle Rent(Vector3 startPosition, float hueShift = 1f)
+        public static ElfBuffSparkle Rent(Vector3 startPosition, float hueShift = 1f, float customLifetime = -1, Vector3? customColor = null)
         {
             if (_pool.TryTake(out var sparkle))
             {
-                sparkle.Reset(startPosition, hueShift);
+                sparkle.Reset(startPosition, hueShift, customLifetime, customColor);
                 return sparkle;
             }
 
-            return new ElfBuffSparkle(startPosition, hueShift);
+            return new ElfBuffSparkle(startPosition, hueShift, customLifetime, customColor);
         }
 
-        private void Reset(Vector3 startPosition, float hueShift)
+        private void Reset(Vector3 startPosition, float hueShift, float customLifetime = -1, Vector3? customColor = null)
         {
             Position = startPosition;
             Angle = Vector3.Zero;
@@ -53,12 +53,23 @@ namespace Client.Main.Objects.Effects
 
             _age = 0f;
 
-            _lifetime = MathHelper.Lerp(0.4f, 0.8f, (float)MuGame.Random.NextDouble());
+            _lifetime = customLifetime > 0 ? customLifetime : MathHelper.Lerp(0.4f, 0.8f, (float)MuGame.Random.NextDouble());
             _initialScale = MathHelper.Lerp(0.7f, 1.3f, (float)MuGame.Random.NextDouble());
             _rotationSpeed = MathHelper.Lerp(-6f, 6f, (float)MuGame.Random.NextDouble());
 
             Scale = _initialScale;
             Alpha = MathHelper.Lerp(0.75f, 1f, (float)MuGame.Random.NextDouble());
+
+            if (customColor.HasValue)
+            {
+                Light = customColor.Value;
+                LightEnabled = true;
+                BlendState = BlendState.Additive;
+            }
+            else
+            {
+                BlendState = BlendState.Additive;
+            }
 
             float angle = (float)(MuGame.Random.NextDouble() * MathHelper.TwoPi);
             float horizontalSpeed = MathHelper.Lerp(15f, 45f, (float)MuGame.Random.NextDouble());

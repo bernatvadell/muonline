@@ -42,7 +42,7 @@ namespace Client.Main.Objects
             }
         }
 
-        
+
         public override void Draw(GameTime gameTime)
         {
             base.Draw(gameTime);
@@ -78,9 +78,7 @@ namespace Client.Main.Objects
         protected void DrawSprite(Vector3 projected, float layerDepth)
         {
             var sb = GraphicsManager.Instance.Sprite;
-            Color color = (BlendState == BlendState.Additive)
-                ? Color.White * TotalAlpha
-                : (LightEnabled ? new Color(Light) * TotalAlpha : Color.White * TotalAlpha);
+            Color color = LightEnabled ? new Color(Light) * TotalAlpha : Color.White * TotalAlpha;
 
             sb.Draw(
                 SpriteTexture,

@@ -18,8 +18,8 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
         public override async Task Load()
         {
-            var idx = (Type - (ushort)ModelType.Light01 + 1).ToString().PadLeft(2, '0');
-            Model = await BMDLoader.Instance.Prepare($"Object1/Light{idx}.bmd");
+            // var idx = (Type - (ushort)ModelType.Light01 + 1).ToString().PadLeft(2, '0');
+            // Model = await BMDLoader.Instance.Prepare($"Object1/Light{idx}.bmd");
             await base.Load();
         }
     }

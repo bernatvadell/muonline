@@ -22,6 +22,8 @@ namespace Client.Main.Controllers
         private bool _oneShotEnded;
         private bool _serverControlled;
         private volatile bool _forceReturnToIdle;
+        private ushort? _returnActionOverride;
+        private Action _onOneShotComplete;
         private AnimationTimerMode _timerMode = AnimationTimerMode.None;
         private float _timerRemaining;
         private ushort _timerAction;
@@ -42,6 +44,47 @@ namespace Client.Main.Controllers
             _forceReturnToIdle = true;
 
             ReturnToIdle();
+        }
+
+        public bool TryGetActionDurationSeconds(ushort actionIndex, out float durationSeconds)
+        {
+            return TryGetDuration(actionIndex, out durationSeconds);
+        }
+
+        public bool PlayOneShot(ushort actionIndex, ushort returnActionIndex, Action onCompleted = null)
+        {
+            var kind = GetAnimationType(actionIndex);
+
+            if (_currentOneShot.HasValue &&
+                GetAnimationType(_currentOneShot.Value) == AnimationType.Death &&
+                kind != AnimationType.Death)
+            {
+                return false;
+            }
+
+            if (!AllowWhenDead(kind)) return false;
+
+            ClearTimer();
+            _oneShotEnded = false;
+            _forceReturnToIdle = false;
+
+            _serverControlled = false;
+            _currentOneShot = actionIndex;
+            _returnActionOverride = returnActionIndex;
+            _onOneShotComplete = onCompleted;
+
+            _owner.CurrentAction = actionIndex;
+            _owner.InvalidateBuffers();
+
+            if (TryGetDuration(actionIndex, out var real))
+            {
+                ArmTimer(AnimationTimerMode.OneShotBackup, actionIndex, real + BACKUP_MARGIN);
+            }
+            else
+            {
+                ArmTimer(AnimationTimerMode.OneShotBackup, actionIndex, 0.5f);
+            }
+            return true;
         }
 
         public void PlayAnimation(ushort idx, bool fromServer = false)
@@ -93,6 +136,8 @@ namespace Client.Main.Controllers
             _forceReturnToIdle = false;
             _currentOneShot = null;
             _serverControlled = false;
+            _returnActionOverride = null;
+            _onOneShotComplete = null;
 
             // Force return to idle animation
             if (_owner.Status != GameControlStatus.Disposed)
@@ -144,11 +189,19 @@ namespace Client.Main.Controllers
             if (GetAnimationType((ushort)_owner.CurrentAction) == AnimationType.Death
                 && !_owner.IsAlive()) return;
 
-            ushort idle = _owner switch
+            ushort idle;
+            if (_returnActionOverride.HasValue)
             {
-                PlayerObject p => p.GetCorrectIdleAction(),
-                _ => (ushort)MonsterActionType.Stop1
-            };
+                idle = _returnActionOverride.Value;
+            }
+            else
+            {
+                idle = _owner switch
+                {
+                    PlayerObject p => p.GetCorrectIdleAction(),
+                    _ => (ushort)MonsterActionType.Stop1
+                };
+            }
 
             // Debug.WriteLine($"[AnimCtrl] Setting idle action: {_owner.CurrentAction} → {idle}");
             _owner.CurrentAction = idle;
@@ -156,6 +209,11 @@ namespace Client.Main.Controllers
 
             _currentOneShot = null;
             _serverControlled = false;
+
+            var cb = _onOneShotComplete;
+            _onOneShotComplete = null;
+            _returnActionOverride = null;
+            cb?.Invoke();
         }
 
         private bool TryGetDuration(ushort idx, out float duration)
