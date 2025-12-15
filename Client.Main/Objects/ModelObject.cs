@@ -184,6 +184,10 @@ namespace Client.Main.Objects
         private int _drawModelInvocationId = 0;
         private int _dynamicLightingPreparedInvocationId = -1;
 
+        // Cached ModelObject children to avoid per-frame type checks and allocations
+        private ModelObject[] _cachedModelChildren = Array.Empty<ModelObject>();
+        private int _cachedChildrenCount = -1;
+
         // Cache for Environment.TickCount to reduce system calls
         private static float _cachedTime = 0f;
         private static int _lastTickCount = 0;
@@ -441,7 +445,7 @@ namespace Client.Main.Objects
                 _boneTextures = null;
                 _scriptTextures = null;
                 _dataTextures = null;
-                _logger?.LogDebug($"Model is null for {ObjectName}. Clearing buffers. This is likely an unequip action.");
+                _logger?.LogDebug("Model is null for {ObjectName}. Clearing buffers. This is likely an unequip action.", ObjectName);
                 // Set to Ready because it's a valid, though non-renderable, state.
                 Status = GameControlStatus.Ready;
                 return;
@@ -508,6 +512,10 @@ namespace Client.Main.Objects
             {
                 BoneTransform = new Matrix[Model.Bones.Length];
 
+                // Pre-allocate blend buffer to avoid allocations during action transitions
+                if (_blendFromBones == null || _blendFromBones.Length != Model.Bones.Length)
+                    _blendFromBones = new Matrix[Model.Bones.Length];
+
                 if (Model.Actions != null && Model.Actions.Length > 0)
                 {
                     GenerateBoneMatrix(0, 0, 0, 0);
@@ -529,6 +537,35 @@ namespace Client.Main.Objects
             UpdateBoundings();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void EnsureModelChildrenCache()
+        {
+            // Check if children collection changed by comparing count
+            int currentCount = Children.Count;
+            if (_cachedChildrenCount == currentCount && _cachedModelChildren.Length > 0)
+                return;
+
+            // Rebuild cache - filter to ModelObject children only
+            int modelObjectCount = 0;
+            for (int i = 0; i < currentCount; i++)
+            {
+                if (Children[i] is ModelObject)
+                    modelObjectCount++;
+            }
+
+            if (_cachedModelChildren.Length != modelObjectCount)
+                _cachedModelChildren = new ModelObject[modelObjectCount];
+
+            int index = 0;
+            for (int i = 0; i < currentCount; i++)
+            {
+                if (Children[i] is ModelObject modelChild)
+                    _cachedModelChildren[index++] = modelChild;
+            }
+
+            _cachedChildrenCount = currentCount;
+        }
+
         public override void Update(GameTime gameTime)
         {
             if (World == null || !_contentLoaded) return;
@@ -546,23 +583,25 @@ namespace Client.Main.Objects
 
             if (isVisible)
             {
-                for (int i = 0; i < Children.Count; i++)
+                // Update cached children if collection changed
+                EnsureModelChildrenCache();
+
+                // Use cached array to avoid per-frame type checks
+                for (int i = 0; i < _cachedModelChildren.Length; i++)
                 {
-                    if (Children[i] is ModelObject childModel)
+                    var childModel = _cachedModelChildren[i];
+                    if (childModel.ParentBoneLink >= 0 || childModel.LinkParentAnimation)
                     {
-                        if (childModel.ParentBoneLink >= 0 || childModel.LinkParentAnimation)
+                        childModel.CurrentAction = this.CurrentAction;
+                        childModel._animTime = this._animTime;
+                        childModel._isBlending = this._isBlending;
+                        childModel._blendElapsed = this._blendElapsed;
+
+                        childModel.RecalculateWorldPosition();
+
+                        if (this._isBlending || this.BoneTransform != null)
                         {
-                            childModel.CurrentAction = this.CurrentAction;
-                            childModel._animTime = this._animTime;
-                            childModel._isBlending = this._isBlending;
-                            childModel._blendElapsed = this._blendElapsed;
-
-                            childModel.RecalculateWorldPosition();
-
-                            if (this._isBlending || this.BoneTransform != null)
-                            {
-                                childModel.InvalidateBuffers(BUFFER_FLAG_ANIMATION);
-                            }
+                            childModel.InvalidateBuffers(BUFFER_FLAG_ANIMATION);
                         }
                     }
                 }
@@ -1687,7 +1726,7 @@ namespace Client.Main.Objects
             }
             catch (Exception ex)
             {
-                _logger?.LogDebug($"Error creating shadow matrix: {ex.Message}");
+                _logger?.LogDebug("Error creating shadow matrix: {Message}", ex.Message);
                 return false;
             }
         }
@@ -1759,7 +1798,7 @@ namespace Client.Main.Objects
             }
             catch (Exception ex)
             {
-                _logger?.LogDebug($"Error in DrawShadowMesh: {ex.Message}");
+                _logger?.LogDebug("Error in DrawShadowMesh: {Message}", ex.Message);
             }
         }
 
@@ -1829,7 +1868,7 @@ namespace Client.Main.Objects
                 }
                 catch (Exception ex)
                 {
-                    _logger?.LogDebug($"Error drawing shadow caster: {ex.Message}");
+                    _logger?.LogDebug("Error drawing shadow caster: {Message}", ex.Message);
                 }
             }
 
@@ -2045,9 +2084,7 @@ namespace Client.Main.Objects
                 _isBlending = true;
                 _animTime = 0.0;
 
-                int boneCount = Model.Bones.Length;
-                if (_blendFromBones == null || _blendFromBones.Length != boneCount)
-                    _blendFromBones = new Matrix[boneCount];
+                // _blendFromBones is pre-allocated in LoadContent - no need to allocate here
             }
 
             _animTime += delta * (action.PlaySpeed == 0 ? 1.0f : action.PlaySpeed) * AnimationSpeed;
@@ -2598,7 +2635,7 @@ namespace Client.Main.Objects
                         if (_boneTextures[meshIndex] == null && (_invalidatedBufferFlags & BUFFER_FLAG_TEXTURE) != 0)
                         {
                             // This should rarely happen since textures are preloaded in LoadContent
-                            _logger?.LogDebug($"Lazy loading texture for mesh {meshIndex} - this may cause frame stutter");
+                            _logger?.LogDebug("Lazy loading texture for mesh {MeshIndex} - this may cause frame stutter", meshIndex);
                             string texturePath = _meshTexturePath[meshIndex]
                                 ?? BMDLoader.Instance.GetTexturePath(Model, mesh.TexturePath);
 
@@ -2615,7 +2652,7 @@ namespace Client.Main.Objects
                     }
                     catch (Exception exMesh)
                     {
-                        _logger?.LogDebug($"SetDynamicBuffers – mesh {meshIndex}: {exMesh.Message}");
+                        _logger?.LogDebug("SetDynamicBuffers – mesh {MeshIndex}: {Message}", meshIndex, exMesh.Message);
                     }
                 }
 
@@ -2623,7 +2660,7 @@ namespace Client.Main.Objects
             }
             catch (Exception ex)
             {
-                _logger?.LogDebug($"SetDynamicBuffers FATAL: {ex.Message}");
+                _logger?.LogDebug("SetDynamicBuffers FATAL: {Message}", ex.Message);
             }
         }
 

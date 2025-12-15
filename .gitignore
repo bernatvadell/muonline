@@ -325,4 +325,6 @@ appsettings.local.json
 .claude/settings.local.json
 ServerPackets/
 SourceMain5.2/
+.claude/
+.codex/
 *.py

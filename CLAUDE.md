@@ -7,6 +7,38 @@ Guide for Claude Code with the most important, current details about this repo.
 - Intended to connect to OpenMU (or any Season 6 compatible server).
 - Educational/research focus; do not commit proprietary game data.
 
+## CRITICAL: Automatic Pattern Enforcement
+
+**IMPORTANT**: When working on specific task categories, you MUST automatically apply the corresponding patterns WITHOUT being asked. These are MANDATORY workflows, not optional suggestions.
+
+### Task Category → Required Pattern Mapping
+
+| When user asks to... | You MUST automatically... |
+|---------------------|---------------------------|
+| **Build/run** the project, fix build errors, setup environment | Use muonline-build-and-run skill from ~/.claude/skills/: Always pass `-p:MonoGameFramework=...` on Windows, verify DataPath, provide exact commands, diagnose common failures |
+| **After making code changes** (editing .cs files, adding features, fixing bugs) | Use muonline-build-and-run skill: IMMEDIATELY verify compilation with exact build commands, test affected platform heads (DX/GL/Linux), report build status before claiming success |
+| **Fix animations**, equipment rendering, helm visibility, bone attachments | Use muonline-animation-and-equipment skill from ~/.claude/skills/: Check HelmModelRules.cs, understand object hierarchy (WorldObject→ModelObject→WalkerObject), distinguish OneShot vs Loop animations, test both DX/GL backends |
+| **Create UI controls**, panels, windows, HUD elements | Use muonline-ui-design skill from ~/.claude/skills/: Define Theme class with 5 bg levels + gold accent, implement static surface caching, use UiDrawHelper, ensure proper disposal, reference InventoryControl.cs |
+| **Optimize performance**, reduce FPS drops, fix allocations, reduce draw calls | Use muonline-rendering-performance skill from ~/.claude/skills/: Stop per-frame allocations (no LINQ in Draw/Update), batch by texture/effect, check Constants.cs quality toggles, measure before/after, test DX/GL parity |
+
+### Enforcement Rules
+
+1. **Detect task category** from user request
+2. **Read the corresponding skill** from `~/.claude/skills/*/SKILL.md`
+3. **Automatically apply** all patterns from the skill (don't ask permission)
+4. **Follow all rules** from the skill (build commands, file structure, checklists)
+5. **Announce** which skill you're applying: "Applying [skill-name] workflow for this [task type]"
+6. **After ANY code changes**: ALWAYS use muonline-build-and-run skill to verify compilation before claiming task completion
+
+**Examples:**
+- User: "Build Windows version" → YOU: "Applying muonline-build-and-run workflow. Building with `-p:MonoGameFramework=MonoGame.Framework.WindowsDX`..."
+- User: "Fix performance in ModelObject" → YOU: [Makes code changes] → "Applying muonline-build-and-run workflow to verify compilation. Building MuLinux target..."
+- User: "Head disappears with helm" → YOU: "Applying muonline-animation-and-equipment workflow. Checking HelmModelRules.cs for helm type/class visibility rules..."
+- User: "Create shop UI" → YOU: "Applying muonline-ui-design workflow. Creating control with Theme class (5 bg levels, gold accent) and static surface caching..."
+- User: "Game runs slow" → YOU: "Applying muonline-rendering-performance workflow. Checking for per-frame allocations in Draw/Update paths..."
+
+**This is NOT negotiable.** If task matches a category, apply the pattern automatically.
+
 ## High-level architecture
 - Platform heads per runtime (Windows DX/GL, Linux, macOS, Android, iOS) call into shared core libraries.
 - Core loop lives in `Client.Main` with rendering, scenes, networking, task scheduling, and UI.
@@ -163,3 +195,11 @@ Guide for Claude Code with the most important, current details about this repo.
 - Add/update packet handlers with `[PacketHandler]` and return `Task`.
 - Touch databases/configs instead of hardcoding IDs inline.
 - Document run/build commands in your PR description.
+
+## Workflow (AI assistants)
+For non-trivial changes:
+- Start with brainstorming.
+- Write a plan before implementation.
+- Prefer small, verifiable steps.
+
+If relevant Claude skills exist, use them.
