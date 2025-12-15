@@ -132,6 +132,10 @@ namespace Client.Main.Core.Client
         private readonly ConcurrentDictionary<byte, byte[]> _shopItems = new();
         public event Action ShopItemsChanged;
         private readonly ConcurrentDictionary<byte, byte[]> _vaultItems = new();
+
+        // Last interacted NPC (for repair mode detection)
+        public ushort LastNpcNetworkId { get; set; } = 0;
+        public ushort LastNpcTypeNumber { get; set; } = 0;
         public event Action VaultItemsChanged;
 
         // Trade State
@@ -818,6 +822,7 @@ namespace Client.Main.Core.Client
                 {
                     itemData[durabilityIndex] = durability;
                     _logger.LogDebug("Item durability updated for slot {Slot} to {Durability}", slot, durability);
+                    RaiseInventoryChanged(); // Trigger UI refresh after durability update
                 }
                 else
                 {

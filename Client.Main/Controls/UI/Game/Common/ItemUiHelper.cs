@@ -115,6 +115,24 @@ namespace Client.Main.Controls.UI.Game.Common
             if (def.IsConsumable())
                 lines.Add(("Right-click to use", new Color(255, 215, 0)));
 
+            // Add repair cost if in repair mode
+            var npcShop = NpcShopControl.Instance;
+            if (npcShop != null && npcShop.Visible && npcShop.IsRepairMode)
+            {
+                if (Core.Utilities.ItemPriceCalculator.IsRepairable(item))
+                {
+                    int repairCost = Core.Utilities.ItemPriceCalculator.CalculateRepairPrice(item, npcDiscount: true);
+                    if (repairCost > 0)
+                    {
+                        lines.Add(($"Repair Cost: {repairCost:N0} Zen", new Color(212, 175, 85)));
+                    }
+                }
+                else
+                {
+                    lines.Add(("Cannot be repaired", new Color(255, 100, 100)));
+                }
+            }
+
             return lines;
         }
     }

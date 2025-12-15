@@ -14,6 +14,8 @@ namespace Client.Main.Objects.NPCS
     [NpcInfo(251, "Hanzo The Blacksmith")]
     public class Hanzo : NPCObject
     {
+        public override bool CanRepair => true;
+
         private static readonly ushort[] Sequence = { 0, 1, 2 };
 
         private int _loopsTarget;

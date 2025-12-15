@@ -49,9 +49,20 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 if (resp.Window == NpcWindowResponse.NpcWindow.Merchant || resp.Window == NpcWindowResponse.NpcWindow.Merchant1)
                 {
                     _characterState.ClearShopItems();
+
+                    // Check if the NPC can repair items using the last NPC type number
+                    bool canRepair = false;
+                    if (_characterState.LastNpcTypeNumber != 0)
+                    {
+                        canRepair = NpcDatabase.CanNpcRepair(_characterState.LastNpcTypeNumber);
+                        _logger.LogDebug("NPC type {TypeId} CanRepair = {CanRepair}",
+                            _characterState.LastNpcTypeNumber, canRepair);
+                    }
+
                     MuGame.ScheduleOnMainThread(() =>
                     {
                         var shop = NpcShopControl.Instance;
+                        shop.SetRepairShop(canRepair);
                         shop.Visible = true;
                         shop.BringToFront();
 

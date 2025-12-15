@@ -45,5 +45,31 @@ namespace Client.Main.Core.Utilities
 
         /// <summary>Pełna mapa typów (do iteracji lub debugowania).</summary>
         public static IReadOnlyDictionary<ushort, Type> AllNpcTypes => NpcTypes;
+
+        /// <summary>
+        /// Checks if an NPC can repair items by checking if the NPC type has CanRepair = true.
+        /// </summary>
+        /// <param name="typeId">The NPC type ID.</param>
+        /// <returns>True if the NPC can repair items, false otherwise.</returns>
+        public static bool CanNpcRepair(ushort typeId)
+        {
+            if (!NpcTypes.TryGetValue(typeId, out var npcType))
+                return false;
+
+            // Try to create an instance and check CanRepair property
+            try
+            {
+                if (Activator.CreateInstance(npcType) is NPCObject npcInstance)
+                {
+                    return npcInstance.CanRepair;
+                }
+            }
+            catch
+            {
+                // If we can't instantiate, return false
+            }
+
+            return false;
+        }
     }
 }

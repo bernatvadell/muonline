@@ -21,23 +21,33 @@ namespace Client.Main.Controls.UI.Game
     public class NpcShopControl : UIControl
     {
         // ═══════════════════════════════════════════════════════════════
+        // SHOP MODE
+        // ═══════════════════════════════════════════════════════════════
+        public enum ShopMode
+        {
+            BuyAndSell = 1,
+            Repair = 2
+        }
+
+        // ═══════════════════════════════════════════════════════════════
         // WINDOW DIMENSIONS
         // ═══════════════════════════════════════════════════════════════
         private const int SHOP_COLUMNS = 8;
-        private const int SHOP_ROWS = 14;
+        private const int SHOP_ROWS = 15;
         private const int SHOP_SQUARE_WIDTH = 32;
         private const int SHOP_SQUARE_HEIGHT = 32;
 
         private const int HEADER_HEIGHT = 46;
         private const int SECTION_HEADER_HEIGHT = 22;
         private const int GRID_PADDING = 10;
+        private const int BUTTON_AREA_HEIGHT = 40;
         private const int FOOTER_HEIGHT = 46;
         private const int WINDOW_MARGIN = 12;
 
         private static readonly int GRID_WIDTH = SHOP_COLUMNS * SHOP_SQUARE_WIDTH;
         private static readonly int GRID_HEIGHT = SHOP_ROWS * SHOP_SQUARE_HEIGHT;
         private static readonly int WINDOW_WIDTH = GRID_WIDTH + GRID_PADDING * 2 + WINDOW_MARGIN * 2;
-        private static readonly int WINDOW_HEIGHT = HEADER_HEIGHT + SECTION_HEADER_HEIGHT + GRID_PADDING * 2 + GRID_HEIGHT + FOOTER_HEIGHT + WINDOW_MARGIN;
+        private int WindowHeight => HEADER_HEIGHT + SECTION_HEADER_HEIGHT + GRID_PADDING * 2 + GRID_HEIGHT + (_isRepairShop ? BUTTON_AREA_HEIGHT : 0) + FOOTER_HEIGHT + WINDOW_MARGIN;
 
         // ═══════════════════════════════════════════════════════════════
         // MODERN DARK THEME
@@ -90,8 +100,13 @@ namespace Client.Main.Controls.UI.Game
         private Rectangle _headerRect;
         private Rectangle _gridRect;
         private Rectangle _gridFrameRect;
+        private Rectangle _buttonAreaRect;
         private Rectangle _footerRect;
         private Rectangle _closeButtonRect;
+        private Rectangle _repairButtonRect;
+        private Rectangle _repairAllButtonRect;
+        private bool _repairButtonHovered;
+        private bool _repairAllButtonHovered;
 
         private RenderTarget2D _staticSurface;
         private bool _staticSurfaceDirty = true;
@@ -114,11 +129,15 @@ namespace Client.Main.Controls.UI.Game
         private Point _dragOffset;
         private DateTime _lastClickTime = DateTime.MinValue;
 
+        // Repair mode
+        private ShopMode _shopMode = ShopMode.BuyAndSell;
+        private bool _isRepairShop = false;
+
         private NpcShopControl()
         {
             BuildLayoutMetrics();
 
-            ControlSize = new Point(WINDOW_WIDTH, WINDOW_HEIGHT);
+            ControlSize = new Point(WINDOW_WIDTH, WindowHeight);
             ViewSize = ControlSize;
             AutoViewSize = false;
             Interactive = true;
@@ -159,6 +178,8 @@ namespace Client.Main.Controls.UI.Game
 
         private void BuildLayoutMetrics()
         {
+            int buttonAreaHeight = _isRepairShop ? BUTTON_AREA_HEIGHT : 0;
+
             _headerRect = new Rectangle(0, 0, WINDOW_WIDTH, HEADER_HEIGHT);
 
             int gridFrameX = WINDOW_MARGIN;
@@ -173,8 +194,19 @@ namespace Client.Main.Controls.UI.Game
                 GRID_WIDTH,
                 GRID_HEIGHT);
 
-            _footerRect = new Rectangle(WINDOW_MARGIN, _gridFrameRect.Bottom + 4, _gridFrameRect.Width, FOOTER_HEIGHT - 8);
+            _buttonAreaRect = new Rectangle(WINDOW_MARGIN, _gridFrameRect.Bottom + 2, _gridFrameRect.Width, buttonAreaHeight);
+            _footerRect = new Rectangle(WINDOW_MARGIN, _buttonAreaRect.Bottom + 4, _gridFrameRect.Width, FOOTER_HEIGHT - 8);
             _closeButtonRect = new Rectangle(WINDOW_WIDTH - 30, 10, 20, 20);
+
+            // Repair buttons in button area
+            int buttonWidth = 100;
+            int buttonHeight = 29;
+            int buttonSpacing = 10;
+            int buttonY = _buttonAreaRect.Y + (_buttonAreaRect.Height - buttonHeight) / 2;
+            int startX = _buttonAreaRect.X + 10;
+
+            _repairButtonRect = new Rectangle(startX, buttonY, buttonWidth, buttonHeight);
+            _repairAllButtonRect = new Rectangle(startX + buttonWidth + buttonSpacing, buttonY, buttonWidth, buttonHeight);
         }
 
         public override async System.Threading.Tasks.Task Load()
@@ -224,6 +256,19 @@ namespace Client.Main.Controls.UI.Game
                     return;
                 }
 
+                // Handle 'L' key for repair mode toggle (only if repair shop and no dragged item)
+                if (_isRepairShop &&
+                    MuGame.Instance.Keyboard.IsKeyDown(Keys.L) &&
+                    MuGame.Instance.PrevKeyboard.IsKeyUp(Keys.L))
+                {
+                    // Only toggle if not dragging an item
+                    if (InventoryControl.Instance?.GetDraggedItem() == null)
+                    {
+                        ToggleRepairMode();
+                        SoundController.Instance.PlayBuffer("Sound/iButton.wav");
+                    }
+                }
+
                 Point mousePos = MuGame.Instance.UiMouseState.Position;
                 bool leftPressed = MuGame.Instance.UiMouseState.LeftButton == ButtonState.Pressed;
                 bool leftJustPressed = leftPressed && MuGame.Instance.PrevUiMouseState.LeftButton == ButtonState.Released;
@@ -237,6 +282,29 @@ namespace Client.Main.Controls.UI.Game
                     Visible = false;
                     HandleVisibilityLost();
                     return;
+                }
+
+                // Handle repair buttons (only if repair shop)
+                if (_isRepairShop && leftJustPressed)
+                {
+                    if (_repairButtonHovered)
+                    {
+                        // Toggle repair mode
+                        ToggleRepairMode();
+                        SoundController.Instance.PlayBuffer("Sound/iButton.wav");
+                        return;
+                    }
+                    else if (_repairAllButtonHovered)
+                    {
+                        // Repair all items
+                        var svc = MuGame.Network?.GetCharacterService();
+                        if (svc != null)
+                        {
+                            _ = svc.SendRepairItemRequestAsync(0xFF, false); // 0xFF = repair all
+                            SoundController.Instance.PlayBuffer("Sound/iButton.wav");
+                        }
+                        return;
+                    }
                 }
 
                 // Handle window dragging
@@ -292,6 +360,20 @@ namespace Client.Main.Controls.UI.Game
         {
             var closeRect = Translate(_closeButtonRect);
             _closeHovered = closeRect.Contains(mousePos);
+
+            // Handle repair button hover (only show if repair shop)
+            if (_isRepairShop)
+            {
+                var repairRect = Translate(_repairButtonRect);
+                var repairAllRect = Translate(_repairAllButtonRect);
+                _repairButtonHovered = repairRect.Contains(mousePos);
+                _repairAllButtonHovered = repairAllRect.Contains(mousePos);
+            }
+            else
+            {
+                _repairButtonHovered = false;
+                _repairAllButtonHovered = false;
+            }
         }
 
         public override void Draw(GameTime gameTime)
@@ -322,6 +404,10 @@ namespace Client.Main.Controls.UI.Game
                                                       SHOP_SQUARE_WIDTH, SHOP_SQUARE_HEIGHT, Theme.SlotHover, Theme.Accent, Alpha);
                 DrawShopItems(spriteBatch);
                 DrawCloseButton(spriteBatch);
+                if (_isRepairShop)
+                {
+                    DrawRepairButtons(spriteBatch);
+                }
             }
             finally
             {
@@ -428,7 +514,7 @@ namespace Client.Main.Controls.UI.Game
             if (gd == null) return;
 
             _staticSurface?.Dispose();
-            _staticSurface = new RenderTarget2D(gd, WINDOW_WIDTH, WINDOW_HEIGHT, false, SurfaceFormat.Color, DepthFormat.None);
+            _staticSurface = new RenderTarget2D(gd, WINDOW_WIDTH, WindowHeight, false, SurfaceFormat.Color, DepthFormat.None);
 
             var previousTargets = gd.GetRenderTargets();
             gd.SetRenderTarget(_staticSurface);
@@ -451,10 +537,11 @@ namespace Client.Main.Controls.UI.Game
             var pixel = GraphicsManager.Instance.Pixel;
             if (pixel == null) return;
 
-            var fullRect = new Rectangle(0, 0, WINDOW_WIDTH, WINDOW_HEIGHT);
+            var fullRect = new Rectangle(0, 0, WINDOW_WIDTH, WindowHeight);
             DrawWindowBackground(spriteBatch, fullRect);
             DrawModernHeader(spriteBatch);
             DrawModernGridSection(spriteBatch);
+            DrawModernButtonArea(spriteBatch);
             DrawModernFooter(spriteBatch);
         }
 
@@ -526,6 +613,16 @@ namespace Client.Main.Controls.UI.Game
             spriteBatch.Draw(pixel, new Rectangle(_gridRect.Right - 1, _gridRect.Y, 1, _gridRect.Height), Theme.BorderHighlight * 0.15f);
         }
 
+        private void DrawModernButtonArea(SpriteBatch spriteBatch)
+        {
+            if (_buttonAreaRect.Height == 0) return;
+
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            DrawPanel(spriteBatch, _buttonAreaRect, Theme.BgMid);
+        }
+
         private void DrawModernFooter(SpriteBatch spriteBatch)
         {
             var pixel = GraphicsManager.Instance.Pixel;
@@ -541,10 +638,13 @@ namespace Client.Main.Controls.UI.Game
 
             if (_font != null)
             {
-                string hint = "Click item to buy";
+                string hint = _isRepairShop
+                    ? (_shopMode == ShopMode.Repair ? "Repair mode - Click items" : "Buy/Sell - Press 'L' to repair")
+                    : "Click item to buy";
                 float scale = 0.38f;
                 Vector2 size = _font.MeasureString(hint) * scale;
-                Vector2 pos = new(_footerRect.X + (_footerRect.Width - size.X) / 2,
+                int hintX = _footerRect.X;
+                Vector2 pos = new(hintX + ((_footerRect.Width - (hintX - _footerRect.X)) - size.X) / 2,
                                   _footerRect.Y + (_footerRect.Height - size.Y) / 2);
 
                 spriteBatch.DrawString(_font, hint, pos + Vector2.One, Color.Black * 0.5f,
@@ -552,6 +652,45 @@ namespace Client.Main.Controls.UI.Game
                 spriteBatch.DrawString(_font, hint, pos, Theme.TextGold,
                                        0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }
+        }
+
+        private void DrawRepairButtons(SpriteBatch spriteBatch)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null || _font == null) return;
+
+            // Draw Repair button
+            var repairRect = Translate(_repairButtonRect);
+            Color repairBg = _shopMode == ShopMode.Repair ? Theme.AccentDim : Theme.BgLight;
+            Color repairBorder = _repairButtonHovered ? Theme.Accent : Theme.BorderInner;
+            UiDrawHelper.DrawPanel(spriteBatch, repairRect, repairBg, repairBorder, Theme.BorderOuter);
+
+            // Draw "Repair item" text for Repair
+            string repairText = "Repair item";
+            float scale = 0.4f;
+            Vector2 textSize = _font.MeasureString(repairText) * scale;
+            Vector2 textPos = new(repairRect.X + (repairRect.Width - textSize.X) / 2,
+                                  repairRect.Y + (repairRect.Height - textSize.Y) / 2);
+            spriteBatch.DrawString(_font, repairText, textPos + Vector2.One, Color.Black * 0.6f,
+                                   0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            spriteBatch.DrawString(_font, repairText, textPos, Theme.TextWhite,
+                                   0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+
+            // Draw Repair All button
+            var repairAllRect = Translate(_repairAllButtonRect);
+            Color repairAllBorder = _repairAllButtonHovered ? Theme.Accent : Theme.BorderInner;
+            UiDrawHelper.DrawPanel(spriteBatch, repairAllRect, Theme.BgLight, repairAllBorder, Theme.BorderOuter);
+
+            // Draw "Repair all" text for Repair All
+            string allText = "Repair all";
+            scale = 0.4f;
+            textSize = _font.MeasureString(allText) * scale;
+            textPos = new(repairAllRect.X + (repairAllRect.Width - textSize.X) / 2,
+                          repairAllRect.Y + (repairAllRect.Height - textSize.Y) / 2);
+            spriteBatch.DrawString(_font, allText, textPos + Vector2.One, Color.Black * 0.6f,
+                                   0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            spriteBatch.DrawString(_font, allText, textPos, Theme.TextWhite,
+                                   0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -837,6 +976,9 @@ namespace Client.Main.Controls.UI.Game
             _hoveredSlot = new Point(-1, -1);
             _isDragging = false;
             _pendingShow = false;
+
+            // Reset repair mode when closing shop
+            _shopMode = ShopMode.BuyAndSell;
             _warmupComplete = false;
         }
 
@@ -887,9 +1029,13 @@ namespace Client.Main.Controls.UI.Game
             _bmdPreviewCache.Clear();
 
             var shopItems = _characterState.GetShopItems();
+            int maxSlots = SHOP_COLUMNS * SHOP_ROWS;
             foreach (var kv in shopItems)
             {
                 byte slot = kv.Key;
+                if (slot >= maxSlots)
+                    continue;
+
                 byte[] data = kv.Value;
 
                 int gridX = slot % SHOP_COLUMNS;
@@ -1001,6 +1147,48 @@ namespace Client.Main.Controls.UI.Game
                 return preview;
             }
             catch { return null; }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // REPAIR MODE
+        // ═══════════════════════════════════════════════════════════════
+
+        public ShopMode GetShopMode() => _shopMode;
+        public bool IsRepairShop => _isRepairShop;
+        public bool IsRepairMode => _shopMode == ShopMode.Repair;
+
+        public void SetRepairShop(bool canRepair)
+        {
+            _isRepairShop = canRepair;
+            if (!canRepair && _shopMode == ShopMode.Repair)
+            {
+                // If NPC can't repair, reset to buy/sell mode
+                _shopMode = ShopMode.BuyAndSell;
+            }
+            BuildLayoutMetrics();
+            var newSize = new Point(WINDOW_WIDTH, WindowHeight);
+            ControlSize = newSize;
+            ViewSize = newSize;              // <-- KLUCZ: utrzymuj ViewSize = ControlSize gdy AutoViewSize=false
+            InvalidateStaticSurface();
+        }
+
+        public void ToggleRepairMode()
+        {
+            if (!_isRepairShop) return;
+
+            if (_shopMode == ShopMode.BuyAndSell)
+            {
+                _shopMode = ShopMode.Repair;
+            }
+            else
+            {
+                _shopMode = ShopMode.BuyAndSell;
+            }
+
+            InvalidateStaticSurface();
+
+            // TODO: Notify inventory control of mode change
+            // InventoryControl.Instance?.SetRepairMode(_shopMode == ShopMode.Repair);
         }
 
     }

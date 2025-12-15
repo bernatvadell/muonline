@@ -853,6 +853,7 @@ namespace Client.Main.Networking.Services
 
             // Ensure masked id (server expects 0x7FFF range)
             ushort masked = (ushort)(npcNetworkId & 0x7FFF);
+
             _logger.LogInformation("Sending TalkToNpcRequest for NPC {NpcId:X4}...", masked);
             try
             {
@@ -1180,6 +1181,38 @@ namespace Client.Main.Networking.Services
             await SendCloseNpcRequestAsync();
 
             _logger.LogInformation("Elf Soldier buff sequence completed for NPC ID {NpcId}.", npcId);
+        }
+
+        /// <summary>
+        /// Sends a repair item request to the server (C1 34).
+        /// </summary>
+        /// <param name="inventorySlot">The inventory slot of the item to repair. Use 0xFF for "repair all".</param>
+        /// <param name="isSelfRepair">True if repairing from inventory (costs 2.5x more), false if using NPC shop.</param>
+        public async Task SendRepairItemRequestAsync(byte inventorySlot, bool isSelfRepair)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send repair item request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending RepairItemRequest for slot {Slot}, selfRepair={SelfRepair}...", inventorySlot, isSelfRepair);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var len = RepairItemRequest.Length;
+                    var packet = new RepairItemRequest(_connectionManager.Connection.Output.GetMemory(len).Slice(0, len));
+                    packet.ItemSlot = inventorySlot;
+                    packet.IsSelfRepair = isSelfRepair;
+                    return len;
+                });
+                _logger.LogInformation("RepairItemRequest sent for slot {Slot}.", inventorySlot);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending RepairItemRequest for slot {Slot}.", inventorySlot);
+            }
         }
     }
 }

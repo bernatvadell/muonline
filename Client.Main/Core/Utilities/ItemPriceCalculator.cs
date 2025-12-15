@@ -31,11 +31,54 @@ namespace Client.Main.Core.Utilities
         public static int CalculateRepairPrice(InventoryItem item, bool npcDiscount = true)
         {
             if (item == null) return 0;
+            if (!IsRepairable(item)) return 0;
             return (int)CalculateRepairPriceInternal(item, npcDiscount);
         }
 
         /// <summary>
-        /// Calculates repair price using OpenMU's square root formula
+        /// Checks if an item can be repaired based on Season 6 repair ban list from ZzzInventory.cpp RepairAllGold()
+        /// </summary>
+        public static bool IsRepairable(InventoryItem item)
+        {
+            if (item == null) return false;
+
+            var def = item.Definition;
+            if (def == null) return false;
+
+            // Items with no durability cannot be repaired
+            if (def.BaseDurability == 0) return false;
+
+            byte group = (byte)def.Group;
+            short id = (short)def.Id;
+
+            // Group 13 (Helpers/Pets/Misc) - most banned except Dark Horse/Raven
+            if (group == 13)
+            {
+                // Dark Horse (4), Dark Raven (5), Horn of Fenrir (37) can be repaired
+                if (id == 4 || id == 5) return true;
+                // Everything else in group 13 is banned
+                return false;
+            }
+
+            // Group 14 (Potions/Scrolls) - all banned
+            if (group == 14) return false;
+
+            // Bolts and Arrows
+            if (group == 4 && (id == 7 || id == 15)) return false;
+
+            // Orbs (group 12, id 7-11 roughly, need exact mapping)
+            // Simplified: ban group 12 id 7-20 (orbs and some other banned items)
+            if (group == 12 && id >= 7 && id <= 20) return false;
+
+            // Wings 130-135 (season items)
+            if (group == 12 && id >= 130 && id <= 135) return false;
+
+            // If not in banned list, item can be repaired
+            return true;
+        }
+
+        /// <summary>
+        /// Calculates repair price using Season 6 formula from ZzzInventory.cpp
         /// </summary>
         private static long CalculateRepairPriceInternal(InventoryItem item, bool npcDiscount)
         {
@@ -56,11 +99,11 @@ namespace Client.Main.Core.Utilities
             var basePrice = Math.Min(CalculatePrice(item, PriceMode.Buy) / (isPet ? 1 : 3), maximumBasePrice);
             basePrice = RoundPrice(basePrice);
 
-            // OpenMU formula: 3.0 * sqrt(basePrice) * sqrt(sqrt(basePrice)) * missingDurabilityRatio + 1
+            // Season 6 formula: 3.5 * sqrt(basePrice) * sqrt(sqrt(basePrice)) * missingDurabilityRatio + 1
             float squareRootOfBasePrice = (float)Math.Sqrt(basePrice);
             float squareRootOfSquareRoot = (float)Math.Sqrt(squareRootOfBasePrice);
             float missingDurability = 1.0f - ((float)item.Durability / maxDur);
-            float repairPrice = (3.0f * squareRootOfBasePrice * squareRootOfSquareRoot * missingDurability) + 1.0f;
+            float repairPrice = (3.5f * squareRootOfBasePrice * squareRootOfSquareRoot * missingDurability) + 1.0f;
 
             // Penalty for destroyed items (durability = 0)
             if (item.Durability <= 0)

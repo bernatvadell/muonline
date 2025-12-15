@@ -7,6 +7,7 @@ using Client.Main.Content;
 using Microsoft.Xna.Framework;
 using Client.Main.Models;
 using System;
+using System.Reflection;
 
 namespace Client.Main.Objects
 {
@@ -15,6 +16,11 @@ namespace Client.Main.Objects
         protected new ILogger _logger;
         private DateTime _lastClickTime = DateTime.MinValue;
         private const double CLICK_COOLDOWN_SECONDS = 0.5; // Global debounce for all NPCs
+
+        /// <summary>
+        /// Indicates whether this NPC can repair items. Override in derived classes for NPCs that offer repair services.
+        /// </summary>
+        public virtual bool CanRepair => false;
 
         public PlayerMaskHelmObject HelmMask { get; private set; }
         public PlayerHelmObject Helm { get; private set; }
@@ -72,6 +78,20 @@ namespace Client.Main.Objects
             }
 
             _lastClickTime = now;
+
+            // Track the NPC type for repair mode detection
+            var characterState = MuGame.Network?.GetCharacterState();
+            if (characterState != null)
+            {
+                characterState.LastNpcNetworkId = NetworkId;
+                // Get TypeNumber from NpcInfoAttribute
+                var attr = GetType().GetCustomAttribute<NpcInfoAttribute>();
+                if (attr != null)
+                {
+                    characterState.LastNpcTypeNumber = attr.TypeId;
+                }
+            }
+
             HandleClick();
         }
         protected abstract void HandleClick();

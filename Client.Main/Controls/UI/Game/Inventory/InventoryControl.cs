@@ -1382,6 +1382,25 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     }
                     else if (_hoveredItem != null)
                     {
+                        // Check if NPC shop is in repair mode
+                        var npcShop = NpcShopControl.Instance;
+                        if (npcShop != null && npcShop.Visible && npcShop.IsRepairMode)
+                        {
+                            // Repair mode - send repair request instead of picking up item
+                            if (Core.Utilities.ItemPriceCalculator.IsRepairable(_hoveredItem))
+                            {
+                                byte itemSlot = (byte)(InventorySlotOffsetConstant + (_hoveredItem.GridPosition.Y * Columns) + _hoveredItem.GridPosition.X);
+                                var svc = _networkManager?.GetCharacterService();
+                                if (svc != null)
+                                {
+                                    _ = svc.SendRepairItemRequestAsync(itemSlot, false);
+                                    SoundController.Instance.PlayBuffer("Sound/iButton.wav");
+                                }
+                            }
+                            return;
+                        }
+
+                        // Normal mode - pick up item
                         _pickedItemRenderer.PickUpItem(_hoveredItem);
                         _pickedItemOriginalGrid = _hoveredItem.GridPosition;
                         _pickedAtMousePos = mousePos;
@@ -1447,6 +1466,25 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     {
                         if (_equippedItems.TryGetValue((byte)_hoveredEquipSlot, out var eqItem))
                         {
+                            // Check if NPC shop is in repair mode
+                            var npcShop = NpcShopControl.Instance;
+                            if (npcShop != null && npcShop.Visible && npcShop.IsRepairMode)
+                            {
+                                // Repair mode - send repair request for equipped item
+                                if (Core.Utilities.ItemPriceCalculator.IsRepairable(eqItem))
+                                {
+                                    byte equipSlot = (byte)_hoveredEquipSlot;
+                                    var svc = _networkManager?.GetCharacterService();
+                                    if (svc != null)
+                                    {
+                                        _ = svc.SendRepairItemRequestAsync(equipSlot, false);
+                                        SoundController.Instance.PlayBuffer("Sound/iButton.wav");
+                                    }
+                                }
+                                return;
+                            }
+
+                            // Normal mode - pick up equipped item
                             _pickedItemRenderer.PickUpItem(eqItem);
                             _equippedItems.Remove((byte)_hoveredEquipSlot);
                             _pickedFromEquipSlot = _hoveredEquipSlot;

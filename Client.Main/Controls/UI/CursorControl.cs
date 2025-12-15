@@ -1,4 +1,5 @@
 ﻿using Client.Main.Controls.UI;
+using Client.Main.Controls.UI.Game;
 using Client.Main.Graphics;
 using Client.Main.Objects.NPCS;
 using Client.Main.Objects.Monsters;
@@ -102,6 +103,11 @@ public class CursorControl : SpriteControl
 
         bool sitPlace = IsSitPlace(hoveredObject);
 
+        // Check if in repair mode (NPC shop visible and repair mode active)
+        bool isRepairMode = NpcShopControl.Instance != null &&
+                           NpcShopControl.Instance.Visible &&
+                           NpcShopControl.Instance.IsRepairMode;
+
         // If touches are available, we use them - standard input on Android
         if (MuGame.Instance.Touch.Count > 0)
         {
@@ -112,8 +118,21 @@ public class CursorControl : SpriteControl
             X = uiTouchPos.X;
             Y = uiTouchPos.Y;
 
+            // Repair mode cursor has priority when active
+            if (isRepairMode)
+            {
+                if (touch.State == TouchLocationState.Pressed || touch.State == TouchLocationState.Moved)
+                {
+                    // Hammer hitting animation - could rotate if we had rotation support
+                    SetCursorState("Interface/CursorRepair.ozt", DefaultAnimation);
+                }
+                else
+                {
+                    SetCursorState("Interface/CursorRepair.ozt", DefaultAnimation);
+                }
+            }
             // If the touch is pressed or moved, simulate a click
-            if (touch.State == TouchLocationState.Pressed || touch.State == TouchLocationState.Moved)
+            else if (touch.State == TouchLocationState.Pressed || touch.State == TouchLocationState.Moved)
             {
                 SetCursorState("Interface/CursorPush.ozt", DefaultAnimation);
             }
@@ -149,7 +168,26 @@ public class CursorControl : SpriteControl
             X = uiMouse.X;
             Y = uiMouse.Y;
 
-            if (uiMouse.LeftButton == ButtonState.Pressed)
+            // Repair mode cursor has priority when active
+            if (isRepairMode)
+            {
+                if (uiMouse.LeftButton == ButtonState.Pressed)
+                {
+                    // Hammer hitting animation - could rotate if we had rotation support
+                    SetCursorState("Interface/CursorRepair.ozt", DefaultAnimation);
+                }
+                else
+                {
+                    SetCursorState("Interface/CursorRepair.ozt", DefaultAnimation);
+                }
+
+                // Still handle NPC clicks even in repair mode
+                if (uiMouse.LeftButton == ButtonState.Pressed && hoveredObject is NPCObject npc)
+                {
+                    npc.OnClick();
+                }
+            }
+            else if (uiMouse.LeftButton == ButtonState.Pressed)
             {
                 SetCursorState("Interface/CursorPush.ozt", DefaultAnimation);
 
