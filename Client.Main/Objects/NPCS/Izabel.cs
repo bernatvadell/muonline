@@ -11,6 +11,13 @@ namespace Client.Main.Objects.NPCS
             Model = await BMDLoader.Instance.Prepare("NPC/SnowWizard01.bmd");
             await base.Load();
         }
-        protected override void HandleClick() { }
+        protected override void HandleClick()
+        {
+            var svc = MuGame.Network?.GetCharacterService();
+            if (svc != null)
+            {
+                _ = svc.SendTalkToNpcRequestAsync(NetworkId);
+            }
+        }
     }
 }

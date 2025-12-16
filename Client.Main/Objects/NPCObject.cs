@@ -22,6 +22,25 @@ namespace Client.Main.Objects
         /// </summary>
         public virtual bool CanRepair => false;
 
+        /// <summary>
+        /// Gets the NPC's display name defined by <see cref="NpcInfoAttribute"/>.
+        /// </summary>
+        public override string DisplayName
+        {
+            get
+            {
+                var attrs = GetType().GetCustomAttributes(typeof(NpcInfoAttribute), inherit: false);
+                foreach (var a in attrs)
+                {
+                    if (a is NpcInfoAttribute attr)
+                    {
+                        return attr.DisplayName;
+                    }
+                }
+                return base.DisplayName;
+            }
+        }
+
         public PlayerMaskHelmObject HelmMask { get; private set; }
         public PlayerHelmObject Helm { get; private set; }
         public PlayerArmorObject Armor { get; private set; }

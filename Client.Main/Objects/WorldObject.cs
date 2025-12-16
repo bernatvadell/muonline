@@ -458,23 +458,37 @@ namespace Client.Main.Objects
                 return;
 
             // Apply render scale to font scale to maintain consistent size
-            const float baseScale = 0.5f;
+            const float baseScale = 0.4f; // 2x smaller than default
             float scale = baseScale * Constants.RENDER_SCALE;
             Vector2 size = _font.MeasureString(name) * scale;
             var sb = GraphicsManager.Instance.Sprite;
 
-            void draw() => sb.DrawString(_font, name,
-                new Vector2(screen.X - size.X * 0.5f, screen.Y - size.Y),
-                Color.White, 0f, Vector2.Zero, scale, SpriteEffects.None, screen.Z);
+            Vector2 textPos = new Vector2(screen.X - size.X * 0.5f, screen.Y - size.Y);
+            Color bgColor = new Color(30, 50, 70, 150); // Semi-transparent dark blue background
+            Color textColor = new Color(176, 224, 230, 255); // Pale sky blue text
 
-            if (!SpriteBatchScope.BatchIsBegun)
+            void draw()
             {
-                using (new SpriteBatchScope(sb, SpriteSortMode.BackToFront, BlendState.NonPremultiplied, SamplerState.PointClamp, DepthStencilState.DepthRead))
+                // Draw background rectangle directly (no border for hover names)
+                if (_whiteTexture == null)
                 {
-                    draw();
+                    _whiteTexture = new Texture2D(GraphicsDevice, 1, 1);
+                    _whiteTexture.SetData([Color.White]);
                 }
+                var bgRect = new Rectangle(
+                    (int)(textPos.X - 4),
+                    (int)(textPos.Y - 2),
+                    (int)(size.X + 8),
+                    (int)(size.Y + 4));
+                sb.Draw(_whiteTexture, bgRect, bgColor);
+
+                // Draw text on top
+                sb.DrawString(_font, name, textPos, textColor, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }
-            else
+
+            // Use SpriteBatchScope for proper nested batch handling, NonPremultiplied to avoid color darkening
+            // LinearClamp provides smooth text when scaled down (PointClamp causes jagged edges)
+            using (new SpriteBatchScope(sb, SpriteSortMode.Deferred, BlendState.NonPremultiplied, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone))
             {
                 draw();
             }
@@ -699,18 +713,20 @@ namespace Client.Main.Objects
         }
 
 
-        private void DrawTextBackground(SpriteBatch spriteBatch, Rectangle rect, Color color)
+        private void DrawTextBackground(SpriteBatch spriteBatch, Rectangle rect, Color color, float layerDepth = 0f)
         {
             if (_whiteTexture == null)
             {
                 _whiteTexture = new Texture2D(GraphicsDevice, 1, 1);
                 _whiteTexture.SetData([Color.White]);
             }
-            spriteBatch.Draw(_whiteTexture, rect, color);
-
+            // Draw border first (even deeper/earlier)
             var borderColor = Color.White * 0.3f;
             var borderRect = new Rectangle(rect.X - 1, rect.Y - 1, rect.Width + 2, rect.Height + 2);
-            spriteBatch.Draw(_whiteTexture, borderRect, borderColor);
+            spriteBatch.Draw(_whiteTexture, borderRect, null, borderColor, 0f, Vector2.Zero, SpriteEffects.None, layerDepth + 0.0001f);
+
+            // Draw background on top of border
+            spriteBatch.Draw(_whiteTexture, rect, null, color, 0f, Vector2.Zero, SpriteEffects.None, layerDepth);
         }
 
         private static bool TryBeginHoverCheck(bool isImportant)
