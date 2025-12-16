@@ -1905,7 +1905,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 name += $" +{item.Details.Level}";
             }
 
-            if (item.Definition?.BaseDurability == 0 && item.Durability > 1)
+            if (item.Definition?.BaseDurability == 0 && item.Definition.MagicDurability == 0 && item.Durability > 1)
             {
                 name += $" x{item.Durability}";
             }
@@ -2095,7 +2095,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 }
 
                 // Stack count
-                if (item.Definition.BaseDurability == 0 && item.Durability > 1)
+                if (item.Definition.BaseDurability == 0 && item.Definition.MagicDurability == 0 && item.Durability > 1)
                 {
                     ItemGridRenderHelper.DrawItemStackCount(spriteBatch, font, itemRect, item.Durability, Theme.TextGold, 1f);
                 }

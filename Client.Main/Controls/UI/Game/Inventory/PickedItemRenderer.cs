@@ -62,7 +62,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
         public override void Draw(GameTime gameTime)
         {
             if (!Visible || Item == null || GraphicsManager.Instance == null) return;
-            
+
             // This method should not be called directly - use Draw(SpriteBatch, GameTime) instead
         }
 
@@ -112,14 +112,14 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 spriteBatch.Draw(pixel, destRect, Color.DarkGoldenrod * 0.8f);
             }
 
-            // Draw quantity for stackable items (BaseDurability = 0 means it's stackable)
-            if (Item.Definition.BaseDurability == 0 && Item.Durability > 1 && _font != null)
+            // Draw quantity for stackable items (BaseDurability = 0 and MagicDurability = 0 means it's stackable)
+            if (Item.Definition.BaseDurability == 0 && Item.Definition.MagicDurability == 0 && Item.Durability > 1 && _font != null)
             {
                 string quantityText = Item.Durability.ToString();
                 Vector2 textSize = _font.MeasureString(quantityText);
                 float textScale = 0.4f; // Small text
                 Vector2 scaledTextSize = textSize * textScale;
-                
+
                 // Position in upper right corner of the item
                 Vector2 textPosition = new Vector2(
                     destRect.Right - scaledTextSize.X - 2, // 2px margin from right edge

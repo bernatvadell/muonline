@@ -1,4 +1,5 @@
 using Client.Main.Controls.UI.Game.Inventory;
+using Client.Main.Controls.UI.Game.Common;
 
 namespace Client.Main.Core.Utilities
 {
@@ -45,8 +46,12 @@ namespace Client.Main.Core.Utilities
             var def = item.Definition;
             if (def == null) return false;
 
+            bool isStaff = def.Group == 5;
+
             // Items with no durability cannot be repaired
-            if (def.BaseDurability == 0) return false;
+            // Staffs use MagicDurability, other items use BaseDurability
+            int maxDur = isStaff ? def.MagicDurability : def.BaseDurability;
+            if (maxDur == 0) return false;
 
             byte group = (byte)def.Group;
             short id = (short)def.Id;
@@ -85,7 +90,10 @@ namespace Client.Main.Core.Utilities
             var def = item.Definition;
             if (def == null) return 0;
 
-            int maxDur = def.BaseDurability;
+            bool isStaff = def.Group == 5;
+
+            // Calculate actual max durability with level/excellent/ancient bonuses
+            int maxDur = ItemUiHelper.CalculateMaxDurability(def, item.Details, isStaff);
             if (maxDur == 0) return 0;
 
             const long maximumBasePrice = 400_000_000;
@@ -155,17 +163,10 @@ namespace Client.Main.Core.Utilities
 
             long gold;
 
-            // 1) If ItemAttribute::iZen != 0 (Money or ItemValue in BMD)
+            // 1) If ItemAttribute::iZen != 0 (Money in BMD)
             if (def.Money > 0)
             {
                 gold = def.Money;
-                if (mode != PriceMode.Buy)
-                    gold /= 3;
-                return FinalRounding(gold, mode);
-            }
-            if (def.ItemValue > 0)
-            {
-                gold = def.ItemValue;
                 if (mode != PriceMode.Buy)
                     gold /= 3;
                 return FinalRounding(gold, mode);
@@ -181,7 +182,8 @@ namespace Client.Main.Core.Utilities
             if (details.IsExcellent)
                 level2 += 25;
 
-            // 3) Hardcoded prices
+            // 3) Hardcoded prices (check BEFORE ItemValue to match original code)
+            // In original C++, jewel prices are set before p->Value check
             if (TryGetHardcodedPrice(group, id, level, currentDur, maxDur, out long hardcoded))
             {
                 gold = hardcoded;
@@ -200,7 +202,8 @@ namespace Client.Main.Core.Utilities
                 return FinalRounding(gold, mode);
             }
 
-            // 4) p->Value branch (regular potions)
+            // 4) p->Value branch (regular potions and other items with ItemValue)
+            // Check regular potions first (they use special formula)
             if (def.ItemValue > 0 && IsRegularPotion(group, id))
             {
                 gold = def.ItemValue * def.ItemValue * 10 / 12;
@@ -232,7 +235,17 @@ namespace Client.Main.Core.Utilities
                 }
             }
 
-            // 5) Special wings/capes/misc (Type==12/13/15 with exclusions)
+            // 5) General ItemValue check for non-potion items
+            // (after hardcoded prices to avoid overriding jewel prices)
+            if (def.ItemValue > 0)
+            {
+                gold = def.ItemValue;
+                if (mode != PriceMode.Buy)
+                    gold /= 3;
+                return FinalRounding(gold, mode);
+            }
+
+            // 6) Special wings/capes/misc (Type==12/13/15 with exclusions)
             if (IsSpecialWingOrCape(group, id))
             {
                 gold = 100 + (long)Math.Pow(level2, 3);

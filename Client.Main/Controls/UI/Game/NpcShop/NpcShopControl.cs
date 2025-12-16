@@ -767,7 +767,7 @@ namespace Client.Main.Controls.UI.Game
                     ItemGridRenderHelper.DrawItemPlaceholder(spriteBatch, pixel, font, rect, item, Theme.BgLight, Theme.TextGray * 0.8f);
                 }
 
-                if (font != null && item.Definition.BaseDurability == 0 && item.Durability > 1)
+                if (font != null && item.Definition.BaseDurability == 0 && item.Definition.MagicDurability == 0 && item.Durability > 1)
                 {
                     ItemGridRenderHelper.DrawItemStackCount(spriteBatch, font, rect, item.Durability, Theme.TextGold, Alpha);
                 }

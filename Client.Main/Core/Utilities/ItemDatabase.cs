@@ -116,10 +116,13 @@ namespace Client.Main.Core.Utilities
                     {
                         DamageMin = item.DamageMin,
                         DamageMax = item.DamageMax,
+                        MagicPower = item.MagicPower,
                         AttackSpeed = item.AttackSpeed,
                         Defense = item.Defense,
                         DefenseRate = item.DefenseRate,
                         BaseDurability = item.Durability,
+                        MagicDurability = item.MagicDur,
+                        WalkSpeed = item.WalkSpeed,
                         DropLevel = item.DropLevel,
                         RequiredStrength = item.ReqStr,
                         RequiredDexterity = item.ReqDex,
