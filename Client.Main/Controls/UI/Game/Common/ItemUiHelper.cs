@@ -6,6 +6,7 @@ using Client.Main.Controls.UI.Game.Inventory;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Content;
+using Client.Main;
 
 namespace Client.Main.Controls.UI.Game.Common
 {
@@ -178,6 +179,8 @@ namespace Client.Main.Controls.UI.Game.Common
 
             var details = item.Details;
 
+            var characterState = MuGame.Network?.GetCharacterState();
+
             string name = details.IsExcellent ? $"Excellent {item.Definition.Name}"
                         : details.IsAncient ? $"Ancient {item.Definition.Name}"
                         : item.Definition.Name;
@@ -244,29 +247,43 @@ namespace Client.Main.Controls.UI.Game.Common
                 lines.Add(($"Durability : {item.Durability}/{maxDurability}", Color.Silver));
             }
 
-            if (def.RequiredLevel > 0) lines.Add(($"Required Level   : {def.RequiredLevel}", Color.LightGray));
+            if (def.RequiredLevel > 0)
+            {
+                Color color = (characterState != null && characterState.Level >= def.RequiredLevel) ? Color.LightGray : Color.Red;
+                lines.Add(($"Required Level   : {def.RequiredLevel}", color));
+            }
 
             // Requirements with level/excellent bonuses
             if (def.RequiredStrength > 0)
             {
                 int reqStr = CalculateRequirement(def.RequiredStrength, itemLevel, isExcellent, def.DropLevel);
-                lines.Add(($"Required Strength: {reqStr}", Color.LightGray));
+                Color color = (characterState != null && characterState.TotalStrength >= reqStr) ? Color.LightGray : Color.Red;
+                lines.Add(($"Required Strength: {reqStr}", color));
             }
             if (def.RequiredDexterity > 0)
             {
                 int reqDex = CalculateRequirement(def.RequiredDexterity, itemLevel, isExcellent, def.DropLevel);
-                lines.Add(($"Required Agility : {reqDex}", Color.LightGray));
+                Color color = (characterState != null && characterState.TotalAgility >= reqDex) ? Color.LightGray : Color.Red;
+                lines.Add(($"Required Agility : {reqDex}", color));
             }
             if (def.RequiredEnergy > 0)
             {
                 int reqEne = 20 + def.RequiredEnergy * (def.DropLevel + itemLevel * 3) * 4 / 10; // Energy uses different formula
-                lines.Add(($"Required Energy  : {reqEne}", Color.LightGray));
+                Color color = (characterState != null && characterState.TotalEnergy >= reqEne) ? Color.LightGray : Color.Red;
+                lines.Add(($"Required Energy  : {reqEne}", color));
             }
 
             if (def.AllowedClasses != null)
             {
                 foreach (var cls in def.AllowedClasses)
                     lines.Add(($"Can be equipped by {cls}", Color.LightGray));
+
+                bool canEquip = characterState != null && def.AllowedClasses.Contains(CharacterClassDatabase.GetClassName(characterState.Class));
+                if (!canEquip)
+                {
+                    var className = characterState != null ? CharacterClassDatabase.GetClassName(characterState.Class) : "Unknown";
+                    lines.Add(($"This item cannot be equipped by {className}", Color.Red));
+                }
             }
 
             if (details.OptionLevel > 0)
