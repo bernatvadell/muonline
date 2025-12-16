@@ -1,5 +1,6 @@
 ﻿using Client.Main.Controls.UI;
 using Client.Main.Controls.UI.Game;
+using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Graphics;
 using Client.Main.Objects.NPCS;
 using Client.Main.Objects.Monsters;
@@ -105,8 +106,13 @@ public class CursorControl : SpriteControl
 
         // Check if in repair mode (NPC shop visible and repair mode active)
         bool isRepairMode = NpcShopControl.Instance != null &&
-                           NpcShopControl.Instance.Visible &&
-                           NpcShopControl.Instance.IsRepairMode;
+                            NpcShopControl.Instance.Visible &&
+                            NpcShopControl.Instance.IsRepairMode;
+
+        // Check if in self repair mode (inventory visible and self repair mode active)
+        bool isSelfRepairMode = InventoryControl.Instance != null &&
+                                InventoryControl.Instance.Visible &&
+                                InventoryControl.Instance.IsSelfRepairMode;
 
         // If touches are available, we use them - standard input on Android
         if (MuGame.Instance.Touch.Count > 0)
@@ -119,7 +125,7 @@ public class CursorControl : SpriteControl
             Y = uiTouchPos.Y;
 
             // Repair mode cursor has priority when active
-            if (isRepairMode)
+            if (isRepairMode || isSelfRepairMode)
             {
                 if (touch.State == TouchLocationState.Pressed || touch.State == TouchLocationState.Moved)
                 {
@@ -169,7 +175,7 @@ public class CursorControl : SpriteControl
             Y = uiMouse.Y;
 
             // Repair mode cursor has priority when active
-            if (isRepairMode)
+            if (isRepairMode || isSelfRepairMode)
             {
                 if (uiMouse.LeftButton == ButtonState.Pressed)
                 {

@@ -245,6 +245,11 @@ namespace Client.Main.Controls.UI.Game.Inventory
         private bool _leftFooterHovered;
         private bool _rightFooterHovered;
 
+        private bool _isRepairMode;
+        private int _repairEnableLevel = 50;
+
+        public bool IsSelfRepairMode => _isRepairMode;
+
         public readonly PickedItemRenderer _pickedItemRenderer;
 
         private readonly List<LayoutInfo> _layoutInfos = new();
@@ -364,6 +369,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             _pickedItemRenderer.Visible = false;
 
+            // Reset repair mode when reopening inventory
+            _isRepairMode = false;
+
             InvalidateStaticSurface();
         }
 
@@ -448,6 +456,12 @@ namespace Client.Main.Controls.UI.Game.Inventory
             {
                 Hide();
                 return;
+            }
+
+            if (MuGame.Instance.Keyboard.IsKeyDown(Keys.L) &&
+                MuGame.Instance.PrevKeyboard.IsKeyUp(Keys.L))
+            {
+                ToggleRepairMode();
             }
 
             if (!Visible)
@@ -538,6 +552,17 @@ namespace Client.Main.Controls.UI.Game.Inventory
             }
 
             _pickedItemRenderer.Update(gameTime);
+        }
+
+        private void ToggleRepairMode()
+        {
+            var state = _networkManager?.GetCharacterState();
+            if (state == null || state.Level < _repairEnableLevel)
+            {
+                return;
+            }
+            _isRepairMode = !_isRepairMode;
+            SoundController.Instance.PlayBuffer("Sound/iButton.wav");
         }
 
         public override void Draw(GameTime gameTime)
@@ -1291,6 +1316,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             if (_rightFooterHovered)
             {
+                ToggleRepairMode();
                 return true;
             }
 
@@ -1400,6 +1426,23 @@ namespace Client.Main.Controls.UI.Game.Inventory
                             return;
                         }
 
+                        // Check if in self repair mode
+                        else if (_isRepairMode)
+                        {
+                            // Self repair mode - send repair request instead of picking up item
+                            if (Core.Utilities.ItemPriceCalculator.IsRepairable(_hoveredItem))
+                            {
+                                byte itemSlot = (byte)(InventorySlotOffsetConstant + (_hoveredItem.GridPosition.Y * Columns) + _hoveredItem.GridPosition.X);
+                                var svc = _networkManager?.GetCharacterService();
+                                if (svc != null)
+                                {
+                                    _ = svc.SendRepairItemRequestAsync(itemSlot, true);
+                                    SoundController.Instance.PlayBuffer("Sound/iButton.wav");
+                                }
+                            }
+                            return;
+                        }
+
                         // Normal mode - pick up item
                         _pickedItemRenderer.PickUpItem(_hoveredItem);
                         _pickedItemOriginalGrid = _hoveredItem.GridPosition;
@@ -1478,6 +1521,23 @@ namespace Client.Main.Controls.UI.Game.Inventory
                                     if (svc != null)
                                     {
                                         _ = svc.SendRepairItemRequestAsync(equipSlot, false);
+                                        SoundController.Instance.PlayBuffer("Sound/iButton.wav");
+                                    }
+                                }
+                                return;
+                            }
+
+                            // Check if in self repair mode
+                            else if (_isRepairMode)
+                            {
+                                // Self repair mode - send repair request for equipped item
+                                if (Core.Utilities.ItemPriceCalculator.IsRepairable(eqItem))
+                                {
+                                    byte equipSlot = (byte)_hoveredEquipSlot;
+                                    var svc = _networkManager?.GetCharacterService();
+                                    if (svc != null)
+                                    {
+                                        _ = svc.SendRepairItemRequestAsync(equipSlot, true);
                                         SoundController.Instance.PlayBuffer("Sound/iButton.wav");
                                     }
                                 }
@@ -2346,7 +2406,8 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
             DrawCloseButton(spriteBatch);
             DrawFooterButton(spriteBatch, _footerLeftButtonRect, "X", _leftFooterHovered);
-            DrawFooterButton(spriteBatch, _footerRightButtonRect, "+", _rightFooterHovered);
+            string buttonText = (_networkManager?.GetCharacterState()?.Level >= _repairEnableLevel) ? "R" : "+";
+            DrawFooterButton(spriteBatch, _footerRightButtonRect, buttonText, _rightFooterHovered);
         }
 
         private void DrawCloseButton(SpriteBatch spriteBatch)
@@ -2448,6 +2509,21 @@ namespace Client.Main.Controls.UI.Game.Inventory
                 if (sellPrice > 0)
                 {
                     lines.Add(($"Sell Price: {sellPrice} Zen", Theme.TextGold));
+                }
+            }
+            else if (_isRepairMode)
+            {
+                if (Core.Utilities.ItemPriceCalculator.IsRepairable(_hoveredItem))
+                {
+                    int repairCost = (int)(Core.Utilities.ItemPriceCalculator.CalculateRepairPrice(_hoveredItem, false) * 2.5);
+                    if (repairCost > 0)
+                    {
+                        lines.Add(($"Self Repair Cost: {repairCost} Zen", Theme.TextGold));
+                    }
+                }
+                else
+                {
+                    lines.Add(("Cannot be repaired", new Color(255, 100, 100)));
                 }
             }
             const float scale = 0.44f;
