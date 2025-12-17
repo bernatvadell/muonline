@@ -1463,11 +1463,11 @@ namespace Client.Main.Objects
             effect.Parameters["ShadowStrength"]?.SetValue(sunEnabled ? SunCycleManager.GetEffectiveShadowStrength() : 0f);
 
             effect.Parameters["Alpha"]?.SetValue(TotalAlpha);
-            effect.Parameters["UseVertexColorLighting"]?.SetValue(false);
-            effect.Parameters["TerrainLightingPass"]?.SetValue(false);
+            // Use objects technique instead of setting uniforms (better performance, no shader branches)
+            effect.CurrentTechnique = effect.Techniques["DynamicLighting"];
             effect.Parameters["TerrainDynamicIntensityScale"]?.SetValue(1.5f);
             effect.Parameters["AmbientLight"]?.SetValue(_ambientLightVector * SunCycleManager.AmbientMultiplier);
-            effect.Parameters["DebugLightingAreas"]?.SetValue(Constants.DEBUG_LIGHTING_AREAS);
+            effect.Parameters["DebugLightingAreas"]?.SetValue(Constants.DEBUG_LIGHTING_AREAS ? 1.0f : 0.0f);
 
             // Set terrain lighting (cached per draw pass)
             Vector3 worldTranslation = WorldPosition.Translation;

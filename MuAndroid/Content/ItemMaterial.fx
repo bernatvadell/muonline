@@ -54,7 +54,7 @@ float4x4 LightViewProjection;
 float2 ShadowMapTexelSize = float2(1.0 / 2048.0, 1.0 / 2048.0);
 float ShadowBias = 0.0015;
 float ShadowNormalBias = 0.0025;
-bool ShadowsEnabled = false;
+float ShadowsEnabled = 0.0; // OpenGL compatible: use 0.0/1.0 instead of bool
 float ShadowStrength = 0.5;
 
 struct VertexShaderInput
@@ -124,16 +124,15 @@ float3 HSVtoRGB(float3 hsv)
 
 float SampleShadow(float3 worldPos, float3 normal)
 {
-    if (!ShadowsEnabled)
-        return 1.0;
-
+    // Branchless shadow sampling for OpenGL compatibility
     float4 lightPos = mul(float4(worldPos, 1.0), LightViewProjection);
     float3 proj = lightPos.xyz / lightPos.w;
     float2 uv = proj.xy * 0.5 + 0.5;
     float depth = proj.z * 0.5 + 0.5;
 
-    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0)
-        return 1.0;
+    // Branchless bounds check
+    float2 uvClamped = saturate(uv);
+    float inBounds = step(abs(uv.x - uvClamped.x) + abs(uv.y - uvClamped.y), 0.0001);
 
     float ndotl = saturate(dot(normal, -LightDirection));
     float bias = ShadowBias + ShadowNormalBias * (1.0 - ndotl);
@@ -151,7 +150,8 @@ float SampleShadow(float3 worldPos, float3 normal)
         }
     }
 
-    return shadow / 9.0;
+    // Return 1.0 (no shadow) if shadows disabled or out of bounds
+    return lerp(1.0, shadow / 9.0, inBounds * ShadowsEnabled);
 }
 
 VertexShaderOutput MainVS(in VertexShaderInput input)

@@ -215,8 +215,6 @@ namespace Client.Main.Controls.Terrain
             shadowEffect.Parameters["ShadowMapTexelSize"]?.SetValue(new Vector2(1f / Constants.SHADOW_MAP_SIZE, 1f / Constants.SHADOW_MAP_SIZE));
             shadowEffect.Parameters["ShadowBias"]?.SetValue(Constants.SHADOW_BIAS);
             shadowEffect.Parameters["ShadowNormalBias"]?.SetValue(Constants.SHADOW_NORMAL_BIAS);
-            shadowEffect.Parameters["TerrainLightingPass"]?.SetValue(false);
-            shadowEffect.Parameters["UseVertexColorLighting"]?.SetValue(false);
             shadowEffect.Parameters["Alpha"]?.SetValue(1f);
 
             foreach (var block in _visibility.VisibleBlocks)
@@ -253,11 +251,11 @@ namespace Client.Main.Controls.Terrain
             effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
             effect.Parameters["WorldViewProjection"]?.SetValue(world * Camera.Instance.View * Camera.Instance.Projection);
             effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
-            effect.Parameters["UseVertexColorLighting"]?.SetValue(true);
-            effect.Parameters["TerrainLightingPass"]?.SetValue(true);
+            // Use terrain technique instead of setting uniforms (better performance, no shader branches)
+            effect.CurrentTechnique = effect.Techniques["DynamicLighting_Terrain"];
             effect.Parameters["TerrainDynamicIntensityScale"]?.SetValue(1.0f);
             effect.Parameters["Alpha"]?.SetValue(1f);
-            effect.Parameters["DebugLightingAreas"]?.SetValue(Constants.DEBUG_LIGHTING_AREAS);
+            effect.Parameters["DebugLightingAreas"]?.SetValue(Constants.DEBUG_LIGHTING_AREAS ? 1.0f : 0.0f);
 
             // Ambient and sun are ignored when using baked vertex lighting, but keep sane defaults.
             float ambientValue = AmbientLight * SunCycleManager.AmbientMultiplier;

@@ -199,7 +199,7 @@ namespace Client.Main.Graphics
                 return;
 
             bool enabled = IsReady && _shadowMap != null;
-            effect.Parameters["ShadowsEnabled"]?.SetValue(enabled);
+            effect.Parameters["ShadowsEnabled"]?.SetValue(enabled ? 1.0f : 0.0f);
             effect.Parameters["ShadowMap"]?.SetValue(enabled ? _shadowMap : null);
             effect.Parameters["LightViewProjection"]?.SetValue(LightViewProjection);
             effect.Parameters["ShadowMapTexelSize"]?.SetValue(_shadowMap != null
