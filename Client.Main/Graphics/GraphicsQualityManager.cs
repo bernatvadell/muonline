@@ -175,7 +175,7 @@ namespace Client.Main.Graphics
         private static GraphicsAdapterInfo GetAdapterInfo(GraphicsAdapter adapter)
         {
             string description = adapter?.Description ?? string.Empty;
-            string deviceName = adapter?.DeviceName ?? string.Empty;
+            string deviceName = TryGetAdapterString(adapter, "DeviceName");
 
             int? vendorId = TryGetAdapterInt(adapter, "VendorId");
             int? deviceId = TryGetAdapterInt(adapter, "DeviceId");
@@ -226,6 +226,25 @@ namespace Client.Main.Graphics
             catch
             {
                 return null;
+            }
+        }
+
+        private static string TryGetAdapterString(GraphicsAdapter adapter, string propertyName)
+        {
+            if (adapter == null)
+                return string.Empty;
+
+            try
+            {
+                var prop = adapter.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
+                if (prop == null || prop.PropertyType != typeof(string))
+                    return string.Empty;
+
+                return (string)prop.GetValue(adapter) ?? string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
             }
         }
     }
