@@ -341,6 +341,10 @@ namespace Client.Main.Objects
             // Don't allow movement if player is dead
             if (!this.IsAlive()) return;
 
+            _movementIntent = true;
+
+            UpdateFacingFromVector(targetLocation - Location);
+
             if (this is PlayerObject player)
             {
                 player.OnPlayerMoved();
@@ -367,10 +371,13 @@ namespace Client.Main.Objects
                     if (path == null || path.Count == 0)
                     {
                         _currentPath?.Clear();
+                        _movementIntent = false;
                         return;
                     }
 
                     _currentPath = new Queue<Vector2>(path);
+
+                    UpdateFacingFromVector(path[0] - Location);
 
                     if (sendToServer && IsMainWalker)
                     {
@@ -517,7 +524,11 @@ namespace Client.Main.Objects
             }
 
             Vector3 direction = TargetPosition - MoveTargetPosition;
-            direction.Normalize();
+            if (direction.LengthSquared() > 0.0001f)
+            {
+                UpdateFacingFromVector(new Vector2(direction.X, direction.Y));
+                direction.Normalize();
+            }
 
             float deltaTime = (float)time.ElapsedGameTime.TotalSeconds;
             Vector3 moveVector = direction * MoveSpeed * deltaTime;
@@ -525,7 +536,8 @@ namespace Client.Main.Objects
             if (moveVector.Length() >= (TargetPosition - MoveTargetPosition).Length())
             {
                 UpdateCameraPosition(TargetPosition);
-                _movementIntent = false;
+                if (_currentPath == null || _currentPath.Count == 0)
+                    _movementIntent = false;
             }
             else
                 UpdateCameraPosition(MoveTargetPosition + moveVector);
@@ -648,6 +660,14 @@ namespace Client.Main.Objects
             {
                 Angle = new Vector3(Angle.X, Angle.Y, angleZ);
             }
+        }
+
+        private void UpdateFacingFromVector(Vector2 direction, bool immediate = false)
+        {
+            if (direction.LengthSquared() <= 0.0001f) return;
+
+            float angleDeg = AngleUtils.CreateAngleDegrees(0f, 0f, direction.X, direction.Y);
+            SetFacingAngleZ(MathHelper.ToRadians(angleDeg), immediate);
         }
 
         protected bool _movementIntent;
