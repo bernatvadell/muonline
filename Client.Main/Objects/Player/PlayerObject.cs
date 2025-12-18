@@ -1595,6 +1595,39 @@ namespace Client.Main.Objects.Player
                 serverDir);
         }
 
+        public void Attack(PlayerObject target)
+        {
+            if (target == null || World == null) return;
+
+            if (IsDead) return;
+            if (target.IsDead) return;
+
+            float rangeTiles = GetAttackRangeTiles();
+            if (Vector2.Distance(Location, target.Location) > rangeTiles)
+            {
+                MoveTo(target.Location);
+                return;
+            }
+
+            _currentPath?.Clear();
+
+            int dx = (int)(target.Location.X - Location.X);
+            int dy = (int)(target.Location.Y - Location.Y);
+            if (dx != 0 || dy != 0)
+                Direction = DirectionExtensions.GetDirectionFromMovementDelta(dx, dy);
+
+            PlayAction((ushort)GetAttackAnimation());
+            PlayWeaponSwingSound();
+
+            byte clientDir = (byte)Direction;
+            byte serverDir = _networkManager?.GetDirectionMap()?.GetValueOrDefault(clientDir, clientDir) ?? clientDir;
+
+            _characterService?.SendHitRequestAsync(
+                target.NetworkId,
+                (byte)GetAttackAnimation(),
+                serverDir);
+        }
+
         public float GetAttackRangeTiles() => GetAttackRangeForAction(GetAttackAnimation());
 
         /// <summary>

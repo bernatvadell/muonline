@@ -28,6 +28,7 @@ using System.Reflection;
 using Client.Main.Content;
 using Client.Data.ATT;
 using Client.Main.Controls.UI.Game.Buffs;
+using Client.Main.Controls.UI.Game.Hud;
 using Client.Main.Objects.Effects;
 
 namespace Client.Main.Scenes
@@ -215,6 +216,11 @@ namespace Client.Main.Scenes
             _activeBuffsPanel = new ActiveBuffsPanel(MuGame.Network.GetCharacterState());
             Controls.Add(_activeBuffsPanel);
             _activeBuffsPanel.BringToFront();
+
+            // Duel HUD scoreboard (top center, visible only during duel)
+            var duelHud = new DuelHudControl(MuGame.Network.GetCharacterState());
+            Controls.Add(duelHud);
+            duelHud.BringToFront();
 
             _playerMenuHint = new LabelControl
             {
@@ -1207,6 +1213,24 @@ namespace Client.Main.Scenes
                 }
             }
 
+            // Handle attack clicks on duel opponent players (treat as monster during duel)
+            if (!IsMouseInputConsumedThisFrame &&
+                MouseHoverObject is PlayerObject targetPlayer &&
+                targetPlayer != _hero &&
+                IsDuelAttackTarget(targetPlayer) &&
+                MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
+                MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released) // Fresh press
+            {
+                if (Hero != null &&
+                    !Hero.IsDead &&
+                    !targetPlayer.IsDead &&
+                    targetPlayer.World == World)
+                {
+                    Hero.Attack(targetPlayer);
+                    SetMouseInputConsumed();
+                }
+            }
+
             // Handle skill usage with right-click
             if (!IsMouseInputConsumedThisFrame &&
                 !IsMouseOverUi() && // Don't use skills if mouse is over UI
@@ -1238,6 +1262,14 @@ namespace Client.Main.Scenes
                             {
                                 extraTargetId = skillTargetMonster.NetworkId;
                             }
+                            else if (MouseHoverObject is PlayerObject skillTargetPlayer &&
+                                skillTargetPlayer != Hero &&
+                                !skillTargetPlayer.IsDead &&
+                                skillTargetPlayer.World == World &&
+                                IsDuelAttackTarget(skillTargetPlayer))
+                            {
+                                extraTargetId = skillTargetPlayer.NetworkId;
+                            }
                             UseAreaSkill(skill, extraTargetId);
                         }
                         else
@@ -1248,6 +1280,14 @@ namespace Client.Main.Scenes
                                 skillTargetMonster.World == World)
                             {
                                 UseSkillOnTarget(skill, skillTargetMonster);
+                            }
+                            else if (MouseHoverObject is PlayerObject skillTargetPlayer &&
+                                skillTargetPlayer != Hero &&
+                                !skillTargetPlayer.IsDead &&
+                                skillTargetPlayer.World == World &&
+                                IsDuelAttackTarget(skillTargetPlayer))
+                            {
+                                UseSkillOnPlayerTarget(skill, skillTargetPlayer);
                             }
                         }
 
@@ -1417,6 +1457,11 @@ namespace Client.Main.Scenes
                 _chatLog.AddMessage("System", "Cannot send message while disconnected or changing maps.", MessageType.Error);
                 return;
             }
+
+            if (e.MessageType != MessageType.Whisper && TryHandleDuelChatCommand(e.Message))
+            {
+                return;
+            }
             if (e.MessageType == MessageType.Whisper)
             {
                 Task.Run(async () =>
@@ -1453,6 +1498,306 @@ namespace Client.Main.Scenes
                     }
                 });
             }
+        }
+
+        private bool TryHandleDuelChatCommand(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return false;
+            }
+
+            string command = message.Trim();
+            if (command.Length > 0 && (command[0] == '~' || command[0] == '@' || command[0] == '$'))
+            {
+                command = command.Substring(1).TrimStart();
+            }
+
+            if (command.StartsWith("/duelend", StringComparison.OrdinalIgnoreCase))
+            {
+                TrySendDuelStopRequest();
+                return true;
+            }
+
+            if (command.StartsWith("/duelstart", StringComparison.OrdinalIgnoreCase))
+            {
+                string[] parts = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                string targetName = parts.Length >= 2 ? parts[1] : null;
+                TrySendDuelStartRequest(targetName);
+                return true;
+            }
+
+            return false;
+        }
+
+        private void TrySendDuelStopRequest()
+        {
+            if (IsInChaosCastle())
+            {
+                _chatLog?.AddMessage("System", "You can't use duel commands in Chaos Castle.", MessageType.System);
+                return;
+            }
+
+            var state = MuGame.Network?.GetCharacterState();
+            if (state == null)
+            {
+                return;
+            }
+
+            if (!state.IsDuelActive)
+            {
+                return;
+            }
+
+            var characterService = MuGame.Network?.GetCharacterService();
+            if (characterService == null)
+            {
+                _chatLog?.AddMessage("System", "CharacterService not available.", MessageType.Error);
+                return;
+            }
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await characterService.SendDuelStopRequestAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Failed to send duel stop request.");
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        _chatLog?.AddMessage("System", "Failed to stop duel.", MessageType.Error);
+                    });
+                }
+            });
+        }
+
+        private void TrySendDuelStartRequest(string targetName = null)
+        {
+            if (Hero == null || World == null)
+            {
+                return;
+            }
+
+            if (IsInChaosCastle())
+            {
+                _chatLog?.AddMessage("System", "You can't use duel commands in Chaos Castle.", MessageType.System);
+                return;
+            }
+
+            var state = MuGame.Network?.GetCharacterState();
+            if (state == null)
+            {
+                return;
+            }
+
+            if (state.IsDuelActive)
+            {
+                _chatLog?.AddMessage("System", "You are already in a duel.", MessageType.System);
+                return;
+            }
+
+            if (state.Level < 30)
+            {
+                _chatLog?.AddMessage("System", "You must be at least level 30 to start a duel.", MessageType.Error);
+                return;
+            }
+
+            var targetPlayer = FindDuelTarget(targetName);
+            if (targetPlayer == null)
+            {
+                _chatLog?.AddMessage("System", "No valid duel target found nearby.", MessageType.Error);
+                return;
+            }
+
+            if (!CanRequestDuelWithTarget(targetPlayer, explicitTarget: !string.IsNullOrWhiteSpace(targetName), out string reason))
+            {
+                _chatLog?.AddMessage("System", reason, MessageType.Error);
+                return;
+            }
+
+            var characterService = MuGame.Network?.GetCharacterService();
+            if (characterService == null)
+            {
+                _chatLog?.AddMessage("System", "CharacterService not available.", MessageType.Error);
+                return;
+            }
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await characterService.SendDuelStartRequestAsync(targetPlayer.NetworkId, targetPlayer.Name);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Failed to send duel start request.");
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        _chatLog?.AddMessage("System", "Failed to send duel request.", MessageType.Error);
+                    });
+                }
+            });
+        }
+
+        private PlayerObject FindDuelTarget(string targetName)
+        {
+            if (Hero == null || World == null)
+            {
+                return null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(targetName))
+            {
+                var players = World.Players;
+                for (int i = 0; i < players.Count; i++)
+                {
+                    var p = players[i];
+                    if (p == null || p == Hero)
+                    {
+                        continue;
+                    }
+
+                    if (string.Equals(p.Name, targetName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (p.IsDead)
+                        {
+                            return null;
+                        }
+                        return p;
+                    }
+                }
+
+                return null;
+            }
+
+            // SourceMain5.2 fallback: find a nearby player in front (adjacent + opposite facing).
+            var heroTile = Hero.Location;
+            Client.Main.Models.Direction heroDir = Hero.Direction;
+            Client.Main.Models.Direction oppositeHeroDir = (Client.Main.Models.Direction)(((int)heroDir + 4) & 7);
+            var candidates = World.Players;
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                var p = candidates[i];
+                if (p == null || p == Hero)
+                {
+                    continue;
+                }
+
+                if (p.IsDead)
+                {
+                    continue;
+                }
+
+                if (Math.Abs(p.Location.X - heroTile.X) <= 1 && Math.Abs(p.Location.Y - heroTile.Y) <= 1)
+                {
+                    if (p.Direction == oppositeHeroDir)
+                    {
+                        return p;
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        private bool CanRequestDuelWithTarget(PlayerObject target, bool explicitTarget, out string reason)
+        {
+            reason = string.Empty;
+            if (Hero == null || target == null || target == Hero)
+            {
+                reason = "Invalid duel target.";
+                return false;
+            }
+
+            if (target.IsDead)
+            {
+                reason = "You can't duel a dead player.";
+                return false;
+            }
+
+            var state = MuGame.Network?.GetCharacterState();
+            if (state == null)
+            {
+                reason = "Character state not available.";
+                return false;
+            }
+
+            if (state.IsDuelActive)
+            {
+                reason = "You are already in a duel.";
+                return false;
+            }
+
+            if (state.Level < 30)
+            {
+                reason = "You must be at least level 30 to start a duel.";
+                return false;
+            }
+
+            if (Math.Abs(target.Location.X - Hero.Location.X) > 1 || Math.Abs(target.Location.Y - Hero.Location.Y) > 1)
+            {
+                reason = "You must be standing next to the target player to start a duel.";
+                return false;
+            }
+
+            // When the target is not explicitly specified (no selected target), SourceMain5.2 requires opposite facing.
+            if (!explicitTarget)
+            {
+                Client.Main.Models.Direction oppositeHeroDir = (Client.Main.Models.Direction)(((int)Hero.Direction + 4) & 7);
+                if (target.Direction != oppositeHeroDir)
+                {
+                    reason = "You need to face the target player to start a duel.";
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private bool IsInChaosCastle()
+        {
+            if (World == null)
+            {
+                return false;
+            }
+
+            int mapId = World.WorldIndex - 1;
+            if (mapId < 0)
+            {
+                return false;
+            }
+
+            // SourceMain5.2 blocks duel commands inside Chaos Castle.
+            if (mapId >= 18 && mapId <= 23)
+            {
+                return true;
+            }
+
+            if (mapId == 53 || mapId == 97)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        private bool IsDuelAttackTarget(PlayerObject targetPlayer)
+        {
+            var state = MuGame.Network?.GetCharacterState();
+            if (state == null || !state.IsDuelActive || targetPlayer == null)
+            {
+                return false;
+            }
+
+            ushort enemyId = state.GetDuelPlayerId(Client.Main.Core.Client.CharacterState.DuelPlayerType.Enemy);
+            if (enemyId == 0)
+            {
+                return false;
+            }
+
+            return targetPlayer.NetworkId == enemyId;
         }
 
         private async Task UpdatePingAsync()
@@ -1574,9 +1919,11 @@ namespace Client.Main.Scenes
                 _playerContextMenu = new PlayerContextMenu();
                 Controls.Add(_playerContextMenu);
                 _playerContextMenu.WhisperRequested += StartWhisperToPlayer;
+                _playerContextMenu.DuelRequested += OnDuelRequestedFromContextMenu;
             }
 
             _playerContextMenu.SetTarget(targetPlayer.NetworkId, targetPlayer.Name);
+            _playerContextMenu.SetDuelButtonEnabled(true);
             _playerContextMenu.ShowAt(mousePos.X, mousePos.Y);
             _playerContextMenu.BringToFront();
             _playerMenuHintCooldown = PlayerMenuHintCooldownSeconds;
@@ -1585,6 +1932,61 @@ namespace Client.Main.Scenes
             {
                 _playerMenuHint.Visible = false;
             }
+        }
+
+        private void OnDuelRequestedFromContextMenu(ushort targetPlayerId, string targetPlayerName)
+        {
+            if (World == null || Hero == null)
+            {
+                return;
+            }
+
+            PlayerObject targetPlayer = null;
+            var players = World.Players;
+            for (int i = 0; i < players.Count; i++)
+            {
+                var p = players[i];
+                if (p != null && p.NetworkId == targetPlayerId)
+                {
+                    targetPlayer = p;
+                    break;
+                }
+            }
+
+            if (targetPlayer == null)
+            {
+                _chatLog?.AddMessage("System", "Target player is no longer available.", MessageType.Error);
+                return;
+            }
+
+            if (!CanRequestDuelWithTarget(targetPlayer, explicitTarget: true, out string reason))
+            {
+                _chatLog?.AddMessage("System", reason, MessageType.Error);
+                return;
+            }
+
+            var characterService = MuGame.Network?.GetCharacterService();
+            if (characterService == null)
+            {
+                _chatLog?.AddMessage("System", "CharacterService not available.", MessageType.Error);
+                return;
+            }
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await characterService.SendDuelStartRequestAsync(targetPlayerId, targetPlayerName);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Failed to send duel request.");
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        _chatLog?.AddMessage("System", "Failed to send duel request.", MessageType.Error);
+                    });
+                }
+            });
         }
 
         private void UpdatePlayerMenuHint(GameTime gameTime, KeyboardState keyboardState, PlayerObject hoveredPlayer, Point mousePos)
@@ -1705,6 +2107,28 @@ namespace Client.Main.Scenes
 
             // Send targeted skill usage packet to server
             // Animation will be played when server confirms with SkillAnimation packet
+            _ = MuGame.Network.GetCharacterService().SendSkillRequestAsync(
+                skill.SkillId,
+                target.NetworkId);
+        }
+
+        /// <summary>
+        /// Uses the selected targeted skill on a player (duel opponent).
+        /// </summary>
+        private void UseSkillOnPlayerTarget(Core.Client.SkillEntryState skill, PlayerObject target)
+        {
+            if (skill == null || target == null || Hero == null)
+                return;
+
+            if (Hero.IsDead || target.IsDead)
+                return;
+
+            if (!IsDuelAttackTarget(target))
+                return;
+
+            _logger?.LogInformation("Using targeted skill {SkillId} (Level {Level}) on duel target player {TargetId}",
+                skill.SkillId, skill.SkillLevel, target.NetworkId);
+
             _ = MuGame.Network.GetCharacterService().SendSkillRequestAsync(
                 skill.SkillId,
                 target.NetworkId);

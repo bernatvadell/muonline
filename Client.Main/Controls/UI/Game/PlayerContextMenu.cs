@@ -25,6 +25,7 @@ namespace Client.Main.Controls.UI.Game
         private string _targetPlayerName;
 
         public event Action<string> WhisperRequested;
+        public event Action<ushort, string> DuelRequested;
 
         public PlayerContextMenu()
         {
@@ -67,6 +68,12 @@ namespace Client.Main.Controls.UI.Game
         }
 
         public ushort TargetPlayerId => _targetPlayerId;
+        public string TargetPlayerName => _targetPlayerName;
+
+        public void SetDuelButtonEnabled(bool enabled)
+        {
+            _duelButton.Enabled = enabled;
+        }
 
         /// <summary>
         /// Shows the context menu at the specified screen position.
@@ -126,19 +133,10 @@ namespace Client.Main.Controls.UI.Game
             Visible = false;
         }
 
-        private async void OnDuelRequestClicked(object sender, EventArgs e)
+        private void OnDuelRequestClicked(object sender, EventArgs e)
         {
-            _logger?.LogInformation($"Duel request sent to player: {_targetPlayerName} (ID: {_targetPlayerId})");
-
-            var characterService = MuGame.Network?.GetCharacterService();
-            if (characterService != null)
-            {
-                await characterService.SendDuelStartRequestAsync(_targetPlayerId, _targetPlayerName);
-            }
-            else
-            {
-                _logger?.LogWarning("CharacterService not available for duel request");
-            }
+            _logger?.LogInformation("Duel request clicked for player: {Name} (ID: {Id})", _targetPlayerName, _targetPlayerId);
+            DuelRequested?.Invoke(_targetPlayerId, _targetPlayerName);
 
             Visible = false;
         }

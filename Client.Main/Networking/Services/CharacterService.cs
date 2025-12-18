@@ -494,6 +494,88 @@ namespace Client.Main.Networking.Services
             }
         }
 
+        /// <summary>
+        /// Sends a request to stop the currently running duel.
+        /// </summary>
+        public async Task SendDuelStopRequestAsync()
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send duel stop request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending duel stop request...");
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new DuelStopRequest(_connectionManager.Connection.Output.GetMemory(DuelStopRequest.Length).Slice(0, DuelStopRequest.Length));
+                    return DuelStopRequest.Length;
+                });
+                _logger.LogInformation("Duel stop request sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending duel stop request.");
+            }
+        }
+
+        /// <summary>
+        /// Sends a request to join a duel channel as spectator.
+        /// </summary>
+        public async Task SendDuelChannelJoinRequestAsync(byte channelId)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send duel channel join request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending duel channel join request: ChannelId={ChannelId}", channelId);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new DuelChannelJoinRequest(_connectionManager.Connection.Output.GetMemory(DuelChannelJoinRequest.Length).Slice(0, DuelChannelJoinRequest.Length));
+                    packet.ChannelId = channelId;
+                    return DuelChannelJoinRequest.Length;
+                });
+                _logger.LogInformation("Duel channel join request sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending duel channel join request.");
+            }
+        }
+
+        /// <summary>
+        /// Sends a request to quit the duel channel spectator mode.
+        /// </summary>
+        public async Task SendDuelChannelQuitRequestAsync()
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send duel channel quit request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending duel channel quit request...");
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var packet = new DuelChannelQuitRequest(_connectionManager.Connection.Output.GetMemory(DuelChannelQuitRequest.Length).Slice(0, DuelChannelQuitRequest.Length));
+                    return DuelChannelQuitRequest.Length;
+                });
+                _logger.LogInformation("Duel channel quit request sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending duel channel quit request.");
+            }
+        }
+
         public async Task SendWarpCommandRequestAsync(ushort warpInfoIndex, uint commandKey = 0)
         {
             if (!_connectionManager.IsConnected)

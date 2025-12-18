@@ -4,6 +4,7 @@ using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Graphics;
 using Client.Main.Objects.NPCS;
 using Client.Main.Objects.Monsters;
+using Client.Main.Objects.Player;
 using Client.Main;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
@@ -85,6 +86,23 @@ public class CursorControl : SpriteControl
         }
     }
 
+    private static bool IsDuelAttackTarget(object hoveredObject)
+    {
+        if (hoveredObject is not PlayerObject player || player.IsDead)
+        {
+            return false;
+        }
+
+        var state = MuGame.Network?.GetCharacterState();
+        if (state == null || !state.IsDuelActive)
+        {
+            return false;
+        }
+
+        ushort enemyId = state.GetDuelPlayerId(Client.Main.Core.Client.CharacterState.DuelPlayerType.Enemy);
+        return enemyId != 0 && player.NetworkId == enemyId;
+    }
+
     public override void Update(GameTime gameTime)
     {
         if (Scene == null)
@@ -142,7 +160,7 @@ public class CursorControl : SpriteControl
             {
                 SetCursorState("Interface/CursorPush.ozt", DefaultAnimation);
             }
-            else if (hoveredObject is MonsterObject monster && !monster.IsDead)
+            else if ((hoveredObject is MonsterObject monster && !monster.IsDead) || IsDuelAttackTarget(hoveredObject))
             {
                 SetCursorState("Interface/CursorAttack.ozt", DefaultAnimation);
             }
@@ -202,7 +220,7 @@ public class CursorControl : SpriteControl
                     npc.OnClick();
                 }
             }
-            else if (hoveredObject is MonsterObject monster && !monster.IsDead)
+            else if ((hoveredObject is MonsterObject monster && !monster.IsDead) || IsDuelAttackTarget(hoveredObject))
             {
                 SetCursorState("Interface/CursorAttack.ozt", DefaultAnimation);
             }

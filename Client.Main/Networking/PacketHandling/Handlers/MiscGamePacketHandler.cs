@@ -8,6 +8,8 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Client.Main.Core.Client;
 using Client.Main.Controls.UI;
+using Client.Main.Scenes;
+using Client.Main.Models;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
@@ -113,7 +115,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
-        [PacketHandler(0xAA, 0x01)] // DuelRequested (S2C) - Corrected from 0x02
+        [PacketHandler(0xAA, 0x02)] // DuelStartRequest (S2C)
         public Task HandleDuelStartRequestAsync(Memory<byte> packet)
         {
             try
@@ -122,6 +124,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 ushort requesterId = request.RequesterId;
                 string requesterName = request.RequesterName;
                 _logger.LogInformation("Received duel request from {Name} ({Id}).", requesterName, requesterId);
+
+                _characterState.SetDuelPlayer(CharacterState.DuelPlayerType.Enemy, requesterId, requesterName);
 
                 MuGame.ScheduleOnMainThread(() =>
                 {
@@ -145,6 +149,299 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 _logger.LogError(ex, "Error parsing DuelRequested packet.");
             }
             return Task.CompletedTask;
+        }
+
+        [PacketHandler(0xAA, 0x01)] // DuelStartResult (S2C)
+        public Task HandleDuelStartResultAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var resultPacket = new DuelStartResult(packet);
+                var result = resultPacket.Result;
+                ushort opponentId = resultPacket.OpponentId;
+                string opponentName = resultPacket.OpponentName;
+
+                _logger.LogInformation("Received DuelStartResult: {Result} vs {Opponent} ({OpponentId})", result, opponentName, opponentId);
+
+                if (result == DuelStartResult.DuelStartResultType.Success)
+                {
+                    _characterState.EnableDuel(true);
+                    _characterState.SetHeroAsDuelPlayer(CharacterState.DuelPlayerType.Hero);
+                    _characterState.SetDuelPlayer(CharacterState.DuelPlayerType.Enemy, opponentId, opponentName);
+
+                    ShowSystemMessage($"Duel started with {opponentName}.", MessageType.System);
+                }
+                else
+                {
+                    // Mirror SourceMain5.2 behavior: store enemy and show an error/system message.
+                    _characterState.SetDuelPlayer(CharacterState.DuelPlayerType.Enemy, opponentId, opponentName);
+
+                    string msg = result switch
+                    {
+                        DuelStartResult.DuelStartResultType.FailedByTooLowLevel => "Duel failed: minimum level is 30.",
+                        DuelStartResult.DuelStartResultType.Refused => $"{opponentName} refused your duel request.",
+                        DuelStartResult.DuelStartResultType.FailedByNoFreeRoom => "Duel failed: no free duel room.",
+                        DuelStartResult.DuelStartResultType.FailedByNotEnoughMoney => "Duel failed: not enough money.",
+                        DuelStartResult.DuelStartResultType.FailedByError => "Duel failed due to an error.",
+                        _ => $"Duel failed: {result}.",
+                    };
+
+                    ShowSystemMessage(msg, MessageType.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing DuelStartResult packet.");
+            }
+
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0xAA, 0x03)] // DuelEnd (S2C)
+        public Task HandleDuelEndAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var duelEnd = new DuelEnd(packet);
+                _logger.LogInformation("Received DuelEnd: Result={Result}, Opponent={OpponentName} ({OpponentId})", duelEnd.Result, duelEnd.OpponentName, duelEnd.OpponentId);
+
+                if (duelEnd.Result == 0)
+                {
+                    _characterState.EnableDuel(false);
+                    _characterState.EnablePetDuel(false);
+                    ShowSystemMessage("Duel ended.", MessageType.System);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing DuelEnd packet.");
+            }
+
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0xAA, 0x04)] // DuelScore (S2C)
+        public Task HandleDuelScoreAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var score = new DuelScore(packet);
+
+                if (_characterState.IsDuelPlayer(score.Player1Id, CharacterState.DuelPlayerType.Hero))
+                {
+                    _characterState.SetDuelScore(CharacterState.DuelPlayerType.Hero, score.Player1Score);
+                    _characterState.SetDuelScore(CharacterState.DuelPlayerType.Enemy, score.Player2Score);
+                }
+                else if (_characterState.IsDuelPlayer(score.Player2Id, CharacterState.DuelPlayerType.Hero))
+                {
+                    _characterState.SetDuelScore(CharacterState.DuelPlayerType.Hero, score.Player2Score);
+                    _characterState.SetDuelScore(CharacterState.DuelPlayerType.Enemy, score.Player1Score);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing DuelScore packet.");
+            }
+
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0xAA, 0x05)] // DuelHealthUpdate (S2C)
+        public Task HandleDuelHealthUpdateAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var update = new DuelHealthUpdate(packet);
+
+                if (_characterState.IsDuelPlayer(update.Player1Id, CharacterState.DuelPlayerType.Hero))
+                {
+                    _characterState.SetDuelHp(CharacterState.DuelPlayerType.Hero, update.Player1HealthPercentage);
+                    _characterState.SetDuelHp(CharacterState.DuelPlayerType.Enemy, update.Player2HealthPercentage);
+                    _characterState.SetDuelSd(CharacterState.DuelPlayerType.Hero, update.Player1ShieldPercentage);
+                    _characterState.SetDuelSd(CharacterState.DuelPlayerType.Enemy, update.Player2ShieldPercentage);
+                }
+                else if (_characterState.IsDuelPlayer(update.Player2Id, CharacterState.DuelPlayerType.Hero))
+                {
+                    _characterState.SetDuelHp(CharacterState.DuelPlayerType.Hero, update.Player2HealthPercentage);
+                    _characterState.SetDuelHp(CharacterState.DuelPlayerType.Enemy, update.Player1HealthPercentage);
+                    _characterState.SetDuelSd(CharacterState.DuelPlayerType.Hero, update.Player2ShieldPercentage);
+                    _characterState.SetDuelSd(CharacterState.DuelPlayerType.Enemy, update.Player1ShieldPercentage);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing DuelHealthUpdate packet.");
+            }
+
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0xAA, 0x06)] // DuelStatus / DuelChannelList (S2C)
+        public Task HandleDuelStatusAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var status = new DuelStatus(packet);
+                for (int i = 0; i < 4; i++)
+                {
+                    var channel = status[i];
+                    _characterState.SetDuelChannel(i, channel.DuelRunning, channel.DuelOpen, channel.Player1Name, channel.Player2Name);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing DuelStatus packet.");
+            }
+
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0xAA, 0x07)] // DuelInit / DuelWatchRequestReply (S2C)
+        public Task HandleDuelInitAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var init = new DuelInit(packet);
+                _logger.LogInformation("Received DuelInit: Result={Result}, RoomIndex={RoomIndex}, P1={P1} ({P1Id}), P2={P2} ({P2Id})",
+                    init.Result, init.RoomIndex, init.Player1Name, init.Player1Id, init.Player2Name, init.Player2Id);
+
+                if (init.Result == 0)
+                {
+                    _characterState.SetCurrentDuelChannel(init.RoomIndex);
+                    _characterState.SetDuelPlayer(CharacterState.DuelPlayerType.Hero, init.Player1Id, init.Player1Name);
+                    _characterState.SetDuelPlayer(CharacterState.DuelPlayerType.Enemy, init.Player2Id, init.Player2Name);
+                }
+                else
+                {
+                    ShowSystemMessage($"Failed to join duel channel (Result={init.Result}).", MessageType.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing DuelInit packet.");
+            }
+
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0xAA, 0x08)] // DuelSpectatorAdded (S2C)
+        public Task HandleDuelSpectatorAddedAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var added = new DuelSpectatorAdded(packet);
+                _characterState.AddDuelWatchUser(added.Name);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing DuelSpectatorAdded packet.");
+            }
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0xAA, 0x09)] // DuelWatchEnd / Spectator quit reply (S2C)
+        public Task HandleDuelWatchEndAsync(Memory<byte> packet)
+        {
+            try
+            {
+                // SourceMain5.2: if nResult == 0 => clear watcher list
+                if (packet.Length >= 5 && packet.Span[4] == 0)
+                {
+                    _characterState.RemoveAllDuelWatchUsers();
+                    _characterState.SetCurrentDuelChannel(-1);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling DuelWatchEnd packet.");
+            }
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0xAA, 0x0A)] // DuelSpectatorRemoved (S2C)
+        public Task HandleDuelSpectatorRemovedAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var removed = new DuelSpectatorRemoved(packet);
+                _characterState.RemoveDuelWatchUser(removed.Name);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing DuelSpectatorRemoved packet.");
+            }
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0xAA, 0x0B)] // DuelSpectatorList (S2C)
+        public Task HandleDuelSpectatorListAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var list = new DuelSpectatorList(packet);
+                _characterState.RemoveAllDuelWatchUsers();
+                int count = Math.Min((int)list.Count, 10);
+                for (int i = 0; i < count; i++)
+                {
+                    _characterState.AddDuelWatchUser(list[i].Name);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing DuelSpectatorList packet.");
+            }
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0xAA, 0x0C)] // DuelFinished / DuelResult (S2C)
+        public Task HandleDuelFinishedAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var finished = new DuelFinished(packet);
+                ShowSystemMessage($"Duel finished: {finished.Winner} defeated {finished.Loser}.", MessageType.System);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing DuelFinished packet.");
+            }
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0xAA, 0x0D)] // DuelRoundStart / HealthBarInit (S2C) - SourceMain5.2 resets HP/SD on flag 0
+        public Task HandleDuelRoundStartAsync(Memory<byte> packet)
+        {
+            try
+            {
+                byte flag = 0;
+                if (packet.Length >= 5)
+                {
+                    flag = packet.Span[4];
+                }
+
+                if (flag == 0)
+                {
+                    _characterState.SetDuelHp(CharacterState.DuelPlayerType.Hero, 100);
+                    _characterState.SetDuelHp(CharacterState.DuelPlayerType.Enemy, 100);
+                    _characterState.SetDuelSd(CharacterState.DuelPlayerType.Hero, 100);
+                    _characterState.SetDuelSd(CharacterState.DuelPlayerType.Enemy, 100);
+                    _characterState.SetDuelFightersRegenerated(true);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error handling DuelRoundStart packet.");
+            }
+            return Task.CompletedTask;
+        }
+
+        private void ShowSystemMessage(string message, MessageType type)
+        {
+            MuGame.ScheduleOnMainThread(() =>
+            {
+                var gameScene = MuGame.Instance?.ActiveScene as GameScene;
+                gameScene?.ChatLog?.AddMessage("System", message, type);
+            });
         }
 
         [PacketHandler(0xF1, 0x00)]  // GameServerEntered

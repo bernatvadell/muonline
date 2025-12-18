@@ -161,6 +161,43 @@ namespace Client.Main.Core.Client
         public event Action TradeMoneyChanged;
         public event Action TradeButtonStateChanged;
 
+        // Duel State
+        public enum DuelPlayerType
+        {
+            Hero = 0,
+            Enemy = 1,
+        }
+
+        private sealed class DuelPlayerInfo
+        {
+            public ushort Id;
+            public string Name = string.Empty;
+            public int Score;
+            public float HpRate;
+            public float SdRate;
+        }
+
+        private sealed class DuelChannelInfo
+        {
+            public bool Enabled;
+            public bool Joinable;
+            public string Player1Name = string.Empty;
+            public string Player2Name = string.Empty;
+        }
+
+        private readonly object _duelLock = new();
+        private bool _isDuelActive;
+        private bool _isPetDuelActive;
+        private readonly DuelPlayerInfo[] _duelPlayers = new DuelPlayerInfo[] { new DuelPlayerInfo(), new DuelPlayerInfo() };
+        private readonly DuelChannelInfo[] _duelChannels = new DuelChannelInfo[] { new DuelChannelInfo(), new DuelChannelInfo(), new DuelChannelInfo(), new DuelChannelInfo() };
+        private int _currentDuelChannel = -1;
+        private bool _duelFightersRegenerated;
+        private readonly List<string> _duelWatchUserList = new();
+
+        public event Action DuelStateChanged;
+        public event Action DuelChannelsChanged;
+        public event Action DuelWatchUsersChanged;
+
         // Constants for Item Data Parsing (based on ItemSerializer.cs, Season 6 assumed)
         private const byte LuckFlagBit = 4;
         private const byte SkillFlagBit = 128;
@@ -639,6 +676,291 @@ namespace Client.Main.Core.Client
         {
             return new ReadOnlyDictionary<byte, byte[]>(_myTradeItems.ToDictionary(k => k.Key, v => v.Value));
         }
+
+        /// <summary>
+        /// Duel state API (mirrors SourceMain5.2 DuelMgr).
+        /// </summary>
+        public bool IsDuelActive
+        {
+            get
+            {
+                lock (_duelLock)
+                {
+                    return _isDuelActive;
+                }
+            }
+        }
+
+        public bool IsPetDuelActive
+        {
+            get
+            {
+                lock (_duelLock)
+                {
+                    return _isPetDuelActive;
+                }
+            }
+        }
+
+        public int CurrentDuelChannel
+        {
+            get
+            {
+                lock (_duelLock)
+                {
+                    return _currentDuelChannel;
+                }
+            }
+        }
+
+        public void EnableDuel(bool enabled)
+        {
+            bool changed;
+            lock (_duelLock)
+            {
+                changed = _isDuelActive != enabled;
+                _isDuelActive = enabled;
+                if (!enabled)
+                {
+                    ResetDuel_NoEvent();
+                }
+                else
+                {
+                    // Start with full bars until server sends the first updates.
+                    _duelPlayers[(int)DuelPlayerType.Hero].HpRate = 1f;
+                    _duelPlayers[(int)DuelPlayerType.Hero].SdRate = 1f;
+                    _duelPlayers[(int)DuelPlayerType.Enemy].HpRate = 1f;
+                    _duelPlayers[(int)DuelPlayerType.Enemy].SdRate = 1f;
+                }
+            }
+
+            if (changed || !enabled)
+            {
+                DuelStateChanged?.Invoke();
+                DuelChannelsChanged?.Invoke();
+                DuelWatchUsersChanged?.Invoke();
+            }
+        }
+
+        public void EnablePetDuel(bool enabled)
+        {
+            bool changed;
+            lock (_duelLock)
+            {
+                changed = _isPetDuelActive != enabled;
+                _isPetDuelActive = enabled;
+            }
+
+            if (changed)
+            {
+                DuelStateChanged?.Invoke();
+            }
+        }
+
+        public void SetHeroAsDuelPlayer(DuelPlayerType playerType)
+        {
+            SetDuelPlayer(playerType, Id, Name);
+        }
+
+        public void SetDuelPlayer(DuelPlayerType playerType, ushort id, string name)
+        {
+            lock (_duelLock)
+            {
+                var info = _duelPlayers[(int)playerType];
+                info.Id = NormalizeDuelObjectId(id);
+                info.Name = name ?? string.Empty;
+            }
+            DuelStateChanged?.Invoke();
+        }
+
+        public void SetDuelScore(DuelPlayerType playerType, int score)
+        {
+            lock (_duelLock)
+            {
+                _duelPlayers[(int)playerType].Score = score;
+            }
+            DuelStateChanged?.Invoke();
+        }
+
+        public void SetDuelHp(DuelPlayerType playerType, int percentage)
+        {
+            lock (_duelLock)
+            {
+                _duelPlayers[(int)playerType].HpRate = percentage * 0.01f;
+            }
+            DuelStateChanged?.Invoke();
+        }
+
+        public void SetDuelSd(DuelPlayerType playerType, int percentage)
+        {
+            lock (_duelLock)
+            {
+                _duelPlayers[(int)playerType].SdRate = percentage * 0.01f;
+            }
+            DuelStateChanged?.Invoke();
+        }
+
+        public ushort GetDuelPlayerId(DuelPlayerType playerType)
+        {
+            lock (_duelLock)
+            {
+                return _duelPlayers[(int)playerType].Id;
+            }
+        }
+
+        public string GetDuelPlayerName(DuelPlayerType playerType)
+        {
+            lock (_duelLock)
+            {
+                return _duelPlayers[(int)playerType].Name;
+            }
+        }
+
+        public int GetDuelScore(DuelPlayerType playerType)
+        {
+            lock (_duelLock)
+            {
+                return _duelPlayers[(int)playerType].Score;
+            }
+        }
+
+        public float GetDuelHpRate(DuelPlayerType playerType)
+        {
+            lock (_duelLock)
+            {
+                return _duelPlayers[(int)playerType].HpRate;
+            }
+        }
+
+        public float GetDuelSdRate(DuelPlayerType playerType)
+        {
+            lock (_duelLock)
+            {
+                return _duelPlayers[(int)playerType].SdRate;
+            }
+        }
+
+        public bool IsDuelPlayer(ushort id, DuelPlayerType playerType)
+        {
+            lock (_duelLock)
+            {
+                return _duelPlayers[(int)playerType].Id == NormalizeDuelObjectId(id);
+            }
+        }
+
+        public void SetDuelChannel(int channelIndex, bool enabled, bool joinable, string player1Name, string player2Name)
+        {
+            if (channelIndex < 0 || channelIndex >= _duelChannels.Length)
+            {
+                return;
+            }
+
+            lock (_duelLock)
+            {
+                var channel = _duelChannels[channelIndex];
+                channel.Enabled = enabled;
+                channel.Joinable = joinable;
+                channel.Player1Name = player1Name ?? string.Empty;
+                channel.Player2Name = player2Name ?? string.Empty;
+            }
+
+            DuelChannelsChanged?.Invoke();
+        }
+
+        public void SetCurrentDuelChannel(int channelIndex)
+        {
+            lock (_duelLock)
+            {
+                _currentDuelChannel = channelIndex;
+            }
+            DuelChannelsChanged?.Invoke();
+        }
+
+        public void RemoveAllDuelWatchUsers()
+        {
+            lock (_duelLock)
+            {
+                _duelWatchUserList.Clear();
+            }
+            DuelWatchUsersChanged?.Invoke();
+        }
+
+        public void AddDuelWatchUser(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return;
+            }
+
+            lock (_duelLock)
+            {
+                if (!_duelWatchUserList.Contains(name))
+                {
+                    _duelWatchUserList.Add(name);
+                }
+            }
+            DuelWatchUsersChanged?.Invoke();
+        }
+
+        public void RemoveDuelWatchUser(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return;
+            }
+
+            lock (_duelLock)
+            {
+                _duelWatchUserList.Remove(name);
+            }
+            DuelWatchUsersChanged?.Invoke();
+        }
+
+        public IReadOnlyList<string> GetDuelWatchUsers()
+        {
+            lock (_duelLock)
+            {
+                return _duelWatchUserList.ToArray();
+            }
+        }
+
+        public void SetDuelFightersRegenerated(bool regenerated)
+        {
+            lock (_duelLock)
+            {
+                _duelFightersRegenerated = regenerated;
+            }
+            DuelStateChanged?.Invoke();
+        }
+
+        private void ResetDuel_NoEvent()
+        {
+            _isDuelActive = false;
+            _isPetDuelActive = false;
+            _currentDuelChannel = -1;
+            _duelFightersRegenerated = false;
+
+            for (int i = 0; i < _duelPlayers.Length; i++)
+            {
+                _duelPlayers[i].Id = 0;
+                _duelPlayers[i].Name = string.Empty;
+                _duelPlayers[i].Score = 0;
+                _duelPlayers[i].HpRate = 0;
+                _duelPlayers[i].SdRate = 0;
+            }
+
+            for (int i = 0; i < _duelChannels.Length; i++)
+            {
+                _duelChannels[i].Enabled = false;
+                _duelChannels[i].Joinable = false;
+                _duelChannels[i].Player1Name = string.Empty;
+                _duelChannels[i].Player2Name = string.Empty;
+            }
+
+            _duelWatchUserList.Clear();
+        }
+
+        private static ushort NormalizeDuelObjectId(ushort id) => (ushort)(id & 0x7FFF);
 
         /// <summary>
         /// Checks if an item exists at the given slot in the current state.
