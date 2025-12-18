@@ -2329,6 +2329,13 @@ namespace Client.Main.Objects
                 // For static objects (single frame) or first-time setup, always update
                 bool forceUpdate = action.NumAnimationKeys <= 1 || !_animationStateValid;
 
+                // Allow derived objects to apply procedural bone post-processing (e.g., head look-at).
+                // Must run on the temp array so the result also propagates to children using LinkParentAnimation.
+                if (PostProcessBoneTransforms(bones, tempBoneTransforms))
+                {
+                    anyBoneChanged = true;
+                }
+
                 // Only update final transforms and invalidate if something actually changed OR force update
                 if (anyBoneChanged || forceUpdate)
                 {
@@ -2375,6 +2382,15 @@ namespace Client.Main.Objects
                 Interlocked.Increment(ref _poolReturnCount);
 #endif
             }
+        }
+
+        /// <summary>
+        /// Allows derived objects to procedurally adjust the computed bone transforms (in-place).
+        /// Return true if any bone was modified.
+        /// </summary>
+        protected virtual bool PostProcessBoneTransforms(BMDTextureBone[] bones, Matrix[] boneTransforms)
+        {
+            return false;
         }
 
         private static Quaternion Nlerp(in Quaternion q1, in Quaternion q2, float t)

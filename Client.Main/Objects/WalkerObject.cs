@@ -199,6 +199,7 @@ namespace Client.Main.Objects
             if (IsMainWalker)
                 HandleMouseInput();
 
+            BeforeUpdatePosition(gameTime);
             UpdatePosition(gameTime);
 
             // Animation handled centrally to preserve cross-action blending
@@ -624,6 +625,28 @@ namespace Client.Main.Objects
                 }
                 _isRotating = false;
                 _wasRotating = false;
+            }
+        }
+
+        /// <summary>
+        /// Hook for derived walkers to run logic after input but before position/rotation updates.
+        /// </summary>
+        protected virtual void BeforeUpdatePosition(GameTime gameTime)
+        {
+        }
+
+        /// <summary>
+        /// Sets a continuous facing angle (Z, in radians) without changing <see cref="Direction"/>.
+        /// Useful for MU-like stand rotation behaviors which are not limited to 8 directions.
+        /// </summary>
+        protected void SetFacingAngleZ(float angleZ, bool immediate = false)
+        {
+            angleZ = MathHelper.WrapAngle(angleZ);
+            _targetAngle = new Vector3(_targetAngle.X, _targetAngle.Y, angleZ);
+
+            if (immediate)
+            {
+                Angle = new Vector3(Angle.X, Angle.Y, angleZ);
             }
         }
 

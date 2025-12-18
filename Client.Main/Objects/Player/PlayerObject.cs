@@ -22,6 +22,8 @@ using Client.Main.Graphics;
 using Client.Main.Helpers;
 using Client.Main.Objects.Vehicle;
 using Client.Main.Controls.UI.Game.Inventory;
+using Client.Main.Scenes;
+using GameDirection = Client.Main.Models.Direction;
 
 namespace Client.Main.Objects.Player
 {
@@ -81,6 +83,17 @@ namespace Client.Main.Objects.Player
 
         // Timer for footstep sound playback
         private float _footstepTimer;
+
+        // ────────────────────────────── CURSOR LOOK / STAND ROTATION ──────────────────────────────
+        private float _headYaw;
+        private float _headPitch;
+        private float _headTargetYaw;
+        private float _headTargetPitch;
+        private bool _isLookingAtCursor;
+        private int _headBoneIndex = -1;
+        private int[] _headBoneSubtreeIndices;
+
+        private int _standFrames;
 
         private readonly object _inventoryAppearanceUpdateSync = new();
         private bool _inventoryAppearanceUpdateRunning;
@@ -185,6 +198,7 @@ namespace Client.Main.Objects.Player
         public override async Task Load()
         {
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
+            CacheHeadBoneHierarchy();
 
             if (IsMainWalker)
             {
@@ -222,6 +236,7 @@ namespace Client.Main.Objects.Player
         public async Task Load(PlayerClass playerClass)
         {
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
+            CacheHeadBoneHierarchy();
 
             if (IsMainWalker)
             {
@@ -252,6 +267,231 @@ namespace Client.Main.Objects.Player
             SetActionSpeed(PlayerAction.PlayerFenrirStand, 2.0f);
 
             UpdateWorldBoundingBox();
+        }
+
+        protected override void BeforeUpdatePosition(GameTime gameTime)
+        {
+        }
+
+        private static bool IsMouseOverWorld(BaseScene scene)
+        {
+            return scene?.World != null && scene.MouseHoverControl == scene.World;
+        }
+
+        private bool ShouldLookAtCursor(BaseScene scene)
+        {
+            if (scene == null) return false;
+            if (!IsMouseOverWorld(scene)) return false;
+
+            if (!this.IsAlive()) return false;
+            if (IsMoving || MovementIntent) return false;
+            if (IsOneShotPlaying) return false;
+            if (IsResting || IsSitting) return false;
+
+            return CurrentAction is
+                PlayerAction.PlayerStopMale or
+                PlayerAction.PlayerStopFemale or
+                PlayerAction.PlayerStopFly or
+                PlayerAction.PlayerFenrirStand;
+        }
+
+        private void UpdateHeadRotationTowardsCursor()
+        {
+            var scene = MuGame.Instance.ActiveScene as BaseScene;
+            bool lookAt = ShouldLookAtCursor(scene);
+            _isLookingAtCursor = lookAt;
+
+            if (!lookAt)
+            {
+                _headTargetYaw = 0f;
+                _headTargetPitch = 0f;
+            }
+            else
+            {
+                var mouse = MuGame.Instance.UiMouseState.Position;
+
+                float heroX = UiScaler.VirtualSize.X * 0.5f;
+                float heroY = UiScaler.VirtualSize.Y * (180f / 480f);
+
+                float bodyDeg = AngleUtils.NormalizeDegrees360(MathHelper.ToDegrees(Angle.Z));
+                float cursorDeg = AngleUtils.CreateAngleDegrees(heroX, heroY, mouse.X, mouse.Y);
+
+                float angleDeg = bodyDeg + cursorDeg + 360f - 45f;
+                angleDeg = AngleUtils.NormalizeDegrees360(angleDeg);
+                angleDeg = Math.Clamp(angleDeg, 120f, 240f);
+
+                float yawDeg = angleDeg - 180f; // [-60..60] degrees
+                float clampedMouseY = Math.Min(mouse.Y, UiScaler.VirtualSize.Y);
+                float pitchDeg = (heroY - clampedMouseY) * 0.05f;
+
+                _headTargetYaw = MathHelper.ToRadians(-yawDeg);
+                _headTargetPitch = MathHelper.ToRadians(pitchDeg);
+            }
+
+            const float smooth = 0.2f;
+            _headYaw = MathHelper.WrapAngle(_headYaw + MathHelper.WrapAngle(_headTargetYaw - _headYaw) * smooth);
+            _headPitch += (_headTargetPitch - _headPitch) * smooth;
+        }
+
+        private void UpdateStandingDirectionTowardsCursor(GameTime gameTime)
+        {
+            var scene = MuGame.Instance.ActiveScene as BaseScene;
+
+            bool canStandRotate =
+                scene != null &&
+                IsMouseOverWorld(scene) &&
+                this.IsAlive() &&
+                !IsMoving &&
+                !MovementIntent &&
+                !IsOneShotPlaying &&
+                !IsResting &&
+                !IsSitting &&
+                _isLookingAtCursor;
+
+            if (!canStandRotate)
+            {
+                _standFrames = 0;
+                return;
+            }
+
+            _standFrames++;
+            if (_standFrames < 40)
+                return;
+
+            _standFrames = 0;
+
+            var mouse = MuGame.Instance.UiMouseState.Position;
+            float heroX = UiScaler.VirtualSize.X * 0.5f;
+            float heroY = UiScaler.VirtualSize.Y * (180f / 480f);
+
+            float heroAngleDeg = -AngleUtils.CreateAngleDegrees(mouse.X, mouse.Y, heroX, heroY) + 360f + 45f;
+            heroAngleDeg = AngleUtils.NormalizeDegrees360(heroAngleDeg);
+
+            float currentDeg = AngleUtils.NormalizeDegrees360(MathHelper.ToDegrees(Angle.Z));
+            GameDirection currentDir = QuantizeDirectionFromAngleDegrees(currentDeg);
+            GameDirection desiredDir = QuantizeDirectionFromAngleDegrees(heroAngleDeg);
+
+            if (currentDir != desiredDir)
+            {
+                if (CurrentAction != PlayerAction.PlayerAttackSkillSword2)
+                {
+                    SetFacingAngleZ(MathHelper.ToRadians(heroAngleDeg), immediate: true);
+                }
+
+                SendActionToServer(ServerPlayerActionType.Stand1, desiredDir);
+            }
+        }
+
+        private static GameDirection QuantizeDirectionFromAngleDegrees(float angleDeg)
+        {
+            angleDeg = AngleUtils.NormalizeDegrees360(angleDeg);
+            int sector = ((int)((angleDeg + 22.5f) / 360f * 8f + 1f)) % 8;
+            return (GameDirection)sector;
+        }
+
+        private void CacheHeadBoneHierarchy()
+        {
+            _headBoneIndex = ResolveHeadBoneIndex();
+            _headBoneSubtreeIndices = null;
+
+            var bones = Model?.Bones;
+            if (bones == null || bones.Length == 0)
+                return;
+
+            if (_headBoneIndex < 0 || _headBoneIndex >= bones.Length)
+                return;
+
+            var indices = new List<int>(bones.Length);
+            for (int i = 0; i < bones.Length; i++)
+            {
+                int p = i;
+                while (p >= 0 && p < bones.Length && p != _headBoneIndex)
+                {
+                    p = bones[p].Parent;
+                }
+
+                if (p == _headBoneIndex)
+                {
+                    indices.Add(i);
+                }
+            }
+
+            _headBoneSubtreeIndices = indices.ToArray();
+        }
+
+        private int ResolveHeadBoneIndex()
+        {
+            var bones = Model?.Bones;
+            if (bones == null || bones.Length == 0)
+                return -1;
+
+            int exact = Array.FindIndex(bones, b => string.Equals(b.Name, "Bip01 Head", StringComparison.OrdinalIgnoreCase));
+            if (exact >= 0)
+                return exact;
+
+            int contains = Array.FindIndex(bones, b => b.Name?.Contains("Head", StringComparison.OrdinalIgnoreCase) == true);
+            if (contains >= 0)
+                return contains;
+
+            if (bones.Length > 20)
+                return 20;
+
+            if (bones.Length > 7)
+                return 7;
+
+            return -1;
+        }
+
+        protected override bool PostProcessBoneTransforms(BMDTextureBone[] bones, Matrix[] boneTransforms)
+        {
+            if (!IsMainWalker)
+                return false;
+
+            if (_headBoneSubtreeIndices == null || _headBoneSubtreeIndices.Length == 0)
+                return false;
+
+            if (_headYaw == 0f && _headPitch == 0f)
+                return false;
+
+            int headIndex = _headBoneIndex;
+            if ((uint)headIndex >= (uint)boneTransforms.Length)
+                return false;
+
+            Matrix head = boneTransforms[headIndex];
+            Vector3 headPos = head.Translation;
+
+            // BMD uses a different axis convention than the world (matches SourceMain5.2 head logic):
+            // Head yaw is applied to Euler component [0] and pitch to [2], so we rotate around the head bone's
+            // local X axis (row 1) for yaw and local Z axis (row 3) for pitch.
+            Vector3 axisYaw = new Vector3(head.M11, head.M12, head.M13);
+            Vector3 axisPitchBase = new Vector3(head.M31, head.M32, head.M33);
+
+            const float minAxisLenSq = 1e-6f;
+            if (axisYaw.LengthSquared() < minAxisLenSq) axisYaw = Vector3.UnitZ;
+            if (axisPitchBase.LengthSquared() < minAxisLenSq) axisPitchBase = Vector3.UnitX;
+            axisYaw.Normalize();
+            axisPitchBase.Normalize();
+
+            Matrix yaw = Matrix.CreateFromAxisAngle(axisYaw, _headYaw);
+            Vector3 pitchAxis = _headYaw == 0f ? axisPitchBase : Vector3.TransformNormal(axisPitchBase, yaw);
+            if (pitchAxis.LengthSquared() < minAxisLenSq) pitchAxis = axisPitchBase;
+            pitchAxis.Normalize();
+
+            Matrix pitch = Matrix.CreateFromAxisAngle(pitchAxis, _headPitch);
+            Matrix rot = yaw * pitch;
+
+            Matrix delta = Matrix.CreateTranslation(-headPos) * rot * Matrix.CreateTranslation(headPos);
+
+            for (int i = 0; i < _headBoneSubtreeIndices.Length; i++)
+            {
+                int idx = _headBoneSubtreeIndices[i];
+                if ((uint)idx >= (uint)boneTransforms.Length)
+                    continue;
+
+                boneTransforms[idx] = boneTransforms[idx] * delta;
+            }
+
+            return true;
         }
 
 
@@ -875,6 +1115,17 @@ namespace Client.Main.Objects.Player
         // ───────────────────────────────── UPDATE LOOP ─────────────────────────────────
         public override void Update(GameTime gameTime)
         {
+            if (IsMainWalker)
+            {
+                var scene = MuGame.Instance.ActiveScene as BaseScene;
+                _isLookingAtCursor = ShouldLookAtCursor(scene);
+
+                // Rotate body first (if needed), then compute head target from the updated body angle.
+                // This removes the 1-frame mismatch that caused a visible "head shake" on stand turns.
+                UpdateStandingDirectionTowardsCursor(gameTime);
+                UpdateHeadRotationTowardsCursor();
+            }
+
             base.Update(gameTime); // movement, camera for main walker, etc.
 
             UpdateEquipmentAnimationStride();
@@ -1866,12 +2117,11 @@ namespace Client.Main.Objects.Player
         }
 
         // ────────────────────────────── SERVER COMMUNICATION ──────────────────────────────
-        private void SendActionToServer(ServerPlayerActionType serverAction)
+        private void SendActionToServer(ServerPlayerActionType serverAction, GameDirection? directionOverride = null)
         {
             if (_characterService == null || !_networkManager.IsConnected) return;
 
-            float angleDegrees = MathHelper.ToDegrees(Angle.Z);
-            byte clientDirEnum = (byte)Direction;
+            byte clientDirEnum = (byte)(directionOverride ?? Direction);
             byte serverDirection = _networkManager.GetDirectionMap()
                                         ?.GetValueOrDefault(clientDirEnum, clientDirEnum) ?? clientDirEnum;
 
