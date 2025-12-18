@@ -61,6 +61,7 @@ namespace Client.Main
 
         // Rendering
         public static bool MSAA_ENABLED;
+        public static bool ENABLE_DYNAMIC_LIGHTS;
         public static bool ENABLE_DYNAMIC_LIGHTING_SHADER;
         public static bool ENABLE_TERRAIN_GPU_LIGHTING;
         public static bool OPTIMIZE_FOR_INTEGRATED_GPU;
@@ -205,6 +206,7 @@ namespace Client.Main
             ENABLE_LOW_QUALITY_IN_LOGIN_SCENE = false;
 
             MSAA_ENABLED = false;
+            ENABLE_DYNAMIC_LIGHTS = true;
             ENABLE_DYNAMIC_LIGHTING_SHADER = true;
             ENABLE_TERRAIN_GPU_LIGHTING = true;
             OPTIMIZE_FOR_INTEGRATED_GPU = false;
@@ -249,6 +251,7 @@ namespace Client.Main
         private static void ApplyAndroidDefaults()
         {
             DRAW_GRASS = false;
+            ENABLE_DYNAMIC_LIGHTS = false;
             ENABLE_DYNAMIC_LIGHTING_SHADER = true;
             ENABLE_TERRAIN_GPU_LIGHTING = false;
             OPTIMIZE_FOR_INTEGRATED_GPU = true;

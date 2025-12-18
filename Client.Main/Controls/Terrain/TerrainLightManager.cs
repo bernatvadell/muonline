@@ -131,6 +131,18 @@ namespace Client.Main.Controls.Terrain
                 _lightUpdateTimer = 0f;
             }
 
+            if (!Constants.ENABLE_DYNAMIC_LIGHTS)
+            {
+                if (_activeLights.Count > 0 || _precomputedActiveLights.Count > 0)
+                {
+                    _activeLightsVersion++;
+                    _activeLights.Clear();
+                    ClearLightGridState();
+                    InvalidateLightCache();
+                }
+                return;
+            }
+
             _activeLightsVersion++;
 
             _activeLights.Clear();
@@ -185,6 +197,9 @@ namespace Client.Main.Controls.Terrain
 
         public Vector3 EvaluateDynamicLight(Vector2 position)
         {
+            if (!Constants.ENABLE_DYNAMIC_LIGHTS)
+                return Vector3.Zero;
+
             if (_precomputedActiveLights.Count == 0)
                 return Vector3.Zero;
 

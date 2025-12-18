@@ -358,6 +358,8 @@ namespace Client.Main
             IsMouseVisible = false; // Keep this if you want a custom cursor
 
             ApplyGraphicsConfiguration(AppSettings.Graphics);
+            GraphicsQualityManager.ApplyFromSettings(AppSettings.Graphics, GraphicsDevice?.Adapter ?? GraphicsAdapter.DefaultAdapter, _logger);
+            ApplyGraphicsOptions();
 
             // Configure screen size for mobile platforms AFTER graphics device is ready
 #if ANDROID
@@ -982,6 +984,38 @@ namespace Client.Main
             catch (Exception ex)
             {
                 logger?.LogWarning(ex, "Failed to persist connect server settings to disk.");
+            }
+        }
+
+        public static void PersistGraphicsPreset(GraphicsQualityPreset preset)
+        {
+            var logger = AppLoggerFactory?.CreateLogger<MuGame>();
+            try
+            {
+                Directory.CreateDirectory(ConfigDirectory ?? AppContext.BaseDirectory);
+
+                JsonObject root = LoadLocalSettings(logger);
+                if (root["MuOnlineSettings"] is not JsonObject muSettings)
+                {
+                    muSettings = new JsonObject();
+                    root["MuOnlineSettings"] = muSettings;
+                }
+
+                if (muSettings["Graphics"] is not JsonObject graphics)
+                {
+                    graphics = new JsonObject();
+                    muSettings["Graphics"] = graphics;
+                }
+
+                graphics["QualityPreset"] = preset.ToString();
+
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                File.WriteAllText(LocalSettingsPath, root.ToJsonString(options));
+                logger?.LogInformation("Saved graphics preset to {Path}", LocalSettingsPath);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to persist graphics preset to disk.");
             }
         }
 

@@ -277,6 +277,15 @@ namespace Client.Main.Objects
             return false;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private bool IsTransparentMesh(int mesh, bool isBlendMesh)
+        {
+            if (isBlendMesh)
+                return true;
+
+            return _meshIsRGBA != null && (uint)mesh < (uint)_meshIsRGBA.Length && _meshIsRGBA[mesh];
+        }
+
         private int _blendFromAction = -1;
         private double _blendFromTime = 0.0;
         private Matrix[] _blendFromBones = null;
@@ -813,14 +822,37 @@ namespace Client.Main.Objects
                     if (highlightAllowed)
                         DrawMeshesHighlight(meshIndices, highlightMatrix, highlightColor);
 
+                    // Shadow/highlight passes change the active shader; reapply the main effect before fast draws.
+                    if (effect != null)
+                    {
+                        var passes = effect.CurrentTechnique.Passes;
+                        for (int p = 0; p < passes.Count; p++)
+                            passes[p].Apply();
+                    }
+
                     // Draw all meshes in this state group
+                    bool forcePerMeshTransparency = !Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
+                                                    stateKey.BlendState != BlendState.Opaque;
                     for (int n = 0; n < meshIndices.Count; n++)
                     {
                         int mi = meshIndices[n];
-                        if (NeedsSpecialShaderForMesh(mi))
+                        if (NeedsSpecialShaderForMesh(mi) || forcePerMeshTransparency)
+                        {
                             DrawMesh(mi); // Falls back to full per-mesh path for special shaders
+
+                            // Per-mesh draws can change the active shader; reapply the group effect
+                            // before any fast draws that follow.
+                            if (!forcePerMeshTransparency && effect != null)
+                            {
+                                var passes = effect.CurrentTechnique.Passes;
+                                for (int p = 0; p < passes.Count; p++)
+                                    passes[p].Apply();
+                            }
+                        }
                         else
+                        {
                             DrawMeshFastAlpha(mi); // Fast path: VB/IB bind + draw only
+                        }
                     }
                 }
             }
@@ -1060,10 +1092,15 @@ namespace Client.Main.Objects
                         return;
                     }
 
-                    var effect = GraphicsManager.Instance.AlphaTestEffect3D;
+                    var alphaEffect = GraphicsManager.Instance.AlphaTestEffect3D;
+                    var basicEffect = GraphicsManager.Instance.BasicEffect3D;
 
                     // Cache frequently used values
                     bool isBlendMesh = IsBlendMesh(mesh);
+                    BlendState blendState = GetMeshBlendState(mesh, isBlendMesh);
+                    bool useBasicEffect = !Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
+                                          blendState != BlendState.Opaque &&
+                                          basicEffect != null;
                     var vertexBuffer = _boneVertexBuffers[mesh];
                     var indexBuffer = _boneIndexBuffers[mesh];
                     var texture = _boneTextures[mesh];
@@ -1071,11 +1108,10 @@ namespace Client.Main.Objects
                     // Batch state changes - save current states
                     var originalRasterizer = gd.RasterizerState;
                     var prevBlend = gd.BlendState;
-                    float prevAlpha = effect.Alpha;
+                    float prevAlpha = useBasicEffect ? basicEffect.Alpha : (alphaEffect?.Alpha ?? 1f);
 
                     // Get mesh rendering states using helper methods
                     bool isTwoSided = IsMeshTwoSided(mesh, isBlendMesh);
-                    BlendState blendState = GetMeshBlendState(mesh, isBlendMesh);
 
                     // Apply final rasterizer state (considering depth bias and culling)
                     if (depthBias != 0f)
@@ -1097,10 +1133,6 @@ namespace Client.Main.Objects
 
                     gd.BlendState = blendState;
 
-                    // Set effect properties
-                    effect.Texture = texture;
-                    effect.Alpha = TotalAlpha;
-
                     // Set buffers once
                     gd.SetVertexBuffer(vertexBuffer);
                     gd.Indices = indexBuffer;
@@ -1108,19 +1140,53 @@ namespace Client.Main.Objects
                     // Draw with optimized primitive count calculation
                     int primitiveCount = indexBuffer.IndexCount / 3;
 
-                    // Single pass application with minimal overhead
-                    var technique = effect.CurrentTechnique;
-                    var passes = technique.Passes;
-                    int passCount = passes.Count;
-
-                    for (int p = 0; p < passCount; p++)
+                    if (useBasicEffect)
                     {
-                        passes[p].Apply();
-                        gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+                        var prevWorld = basicEffect.World;
+                        var prevView = basicEffect.View;
+                        var prevProjection = basicEffect.Projection;
+                        var prevTexture = basicEffect.Texture;
+
+                        basicEffect.World = WorldPosition;
+                        basicEffect.View = Camera.Instance.View;
+                        basicEffect.Projection = Camera.Instance.Projection;
+                        basicEffect.Texture = texture;
+                        basicEffect.Alpha = TotalAlpha;
+
+                        var passes = basicEffect.CurrentTechnique.Passes;
+                        for (int p = 0; p < passes.Count; p++)
+                        {
+                            passes[p].Apply();
+                            gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+                        }
+
+                        basicEffect.Alpha = prevAlpha;
+                        basicEffect.World = prevWorld;
+                        basicEffect.View = prevView;
+                        basicEffect.Projection = prevProjection;
+                        basicEffect.Texture = prevTexture;
+                    }
+                    else
+                    {
+                        if (alphaEffect != null)
+                        {
+                            alphaEffect.Texture = texture;
+                            alphaEffect.Alpha = TotalAlpha;
+
+                            var technique = alphaEffect.CurrentTechnique;
+                            var passes = technique.Passes;
+                            int passCount = passes.Count;
+
+                            for (int p = 0; p < passCount; p++)
+                            {
+                                passes[p].Apply();
+                                gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
+                            }
+
+                            alphaEffect.Alpha = prevAlpha;
+                        }
                     }
 
-                    // Restore states in batch
-                    effect.Alpha = prevAlpha;
                     gd.BlendState = prevBlend;
                     gd.RasterizerState = originalRasterizer;
                 }
@@ -1478,6 +1544,13 @@ namespace Client.Main.Objects
             effect.Parameters["TerrainLight"]?.SetValue(terrainLight);
 
             // Select dynamic lights (cached per object, updated on throttled light version changes)
+            if (!Constants.ENABLE_DYNAMIC_LIGHTS)
+            {
+                effect.Parameters["ActiveLightCount"]?.SetValue(0);
+                effect.Parameters["MaxLightsToProcess"]?.SetValue(0);
+                return;
+            }
+
             int maxLights = Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16;
             int lightCount = 0;
             var terrain = World?.Terrain;

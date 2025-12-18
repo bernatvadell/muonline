@@ -14,6 +14,7 @@ using Client.Main.Controls.UI.Game;
 using Client.Main.Graphics;
 using Client.Main.Helpers;
 using MUnique.OpenMU.Network.Packets; // LogOutType
+using Microsoft.Xna.Framework.Graphics;
 
 namespace Client.Main.Controls.UI.Game.PauseMenu
 {
@@ -472,6 +473,39 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
             MuGame.ScheduleOnMainThread(() => MuGame.Instance?.ApplyGraphicsOptions());
         }
 
+        private void ApplyQualityPreset(GraphicsQualityPreset preset)
+        {
+            MuGame.ScheduleOnMainThread(() =>
+            {
+                var adapter = GraphicsManager.Instance?.GraphicsDevice?.Adapter ?? GraphicsAdapter.DefaultAdapter;
+                GraphicsQualityManager.ApplyPreset(preset, adapter, _logger);
+                MuGame.Instance?.ApplyGraphicsOptions();
+                GraphicsManager.Instance?.UpdateRenderScale();
+            });
+
+            if (MuGame.AppSettings?.Graphics != null)
+            {
+                MuGame.AppSettings.Graphics.QualityPreset = preset.ToString();
+            }
+            MuGame.PersistGraphicsPreset(preset);
+        }
+
+        private void SetVSync(bool enabled)
+        {
+            Constants.DISABLE_VSYNC = !enabled;
+            if (enabled)
+                Constants.UNLIMITED_FPS = false;
+            ApplyGraphicsSettings();
+        }
+
+        private void SetUnlimitedFps(bool enabled)
+        {
+            Constants.UNLIMITED_FPS = enabled;
+            if (enabled)
+                Constants.DISABLE_VSYNC = true;
+            ApplyGraphicsSettings();
+        }
+
         private void ApplyBackgroundMusicVolume()
         {
             if (!Constants.BACKGROUND_MUSIC)
@@ -592,6 +626,8 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
 
                 AddCategoryButton("Audio", () => BuildAudioCategory(), categoryStartY,
                     ref categoryX, categoryWidth, categoryHeight, categorySpacing, categoriesPerRow, ref categoryIndex);
+                AddCategoryButton("Quality Preset", () => BuildQualityPresetCategory(), categoryStartY,
+                    ref categoryX, categoryWidth, categoryHeight, categorySpacing, categoriesPerRow, ref categoryIndex);
                 AddCategoryButton("World & Visibility", () => BuildWorldCategory(), categoryStartY,
                     ref categoryX, categoryWidth, categoryHeight, categorySpacing, categoriesPerRow, ref categoryIndex);
                 AddCategoryButton("Render Scale", () => BuildRenderScaleCategory(), categoryStartY,
@@ -689,6 +725,29 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                 });
             }
 
+            private void BuildQualityPresetCategory()
+            {
+                BuildCategory("Quality Preset", (ref int currentY) =>
+                {
+                    AddOption("Auto (Detect)", () => GraphicsQualityManager.UserPreset == GraphicsQualityPreset.Auto, value =>
+                    {
+                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.Auto);
+                    }, ref currentY, OptionRowHeight, RefreshOptions);
+                    AddOption("Low (0.75x)", () => GraphicsQualityManager.UserPreset == GraphicsQualityPreset.Low, value =>
+                    {
+                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.Low);
+                    }, ref currentY, OptionRowHeight, RefreshOptions);
+                    AddOption("Medium (1.0x)", () => GraphicsQualityManager.UserPreset == GraphicsQualityPreset.Medium, value =>
+                    {
+                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.Medium);
+                    }, ref currentY, OptionRowHeight, RefreshOptions);
+                    AddOption("High (2.0x)", () => GraphicsQualityManager.UserPreset == GraphicsQualityPreset.High, value =>
+                    {
+                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.High);
+                    }, ref currentY, OptionRowHeight, RefreshOptions);
+                });
+            }
+
             private void BuildRenderScaleCategory()
             {
                 BuildCategory("Render Scale", (ref int currentY) =>
@@ -737,11 +796,10 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                 BuildCategory("Graphics", (ref int currentY) =>
                 {
                     AddOption("High Quality Textures", () => Constants.HIGH_QUALITY_TEXTURES, value => Constants.HIGH_QUALITY_TEXTURES = value, ref currentY, OptionRowHeight);
-                    AddOption("Disable V-Sync (Higher FPS)", () => Constants.DISABLE_VSYNC, value =>
+                    AddOption("V-Sync", () => !Constants.DISABLE_VSYNC, value =>
                     {
-                        Constants.DISABLE_VSYNC = value;
-                        _owner.ApplyGraphicsSettings(); // Apply V-Sync changes
-                    }, ref currentY, OptionRowHeight);
+                        _owner.SetVSync(value);
+                    }, ref currentY, OptionRowHeight, RefreshOptions);
                 });
             }
 
@@ -773,7 +831,16 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                         Constants.SUN_SHADOW_STRENGTH = MathHelper.Clamp(value, 0f, 100f) / 100f;
                     }, ref currentY, OptionRowHeight, 0f, 100f, 5f);
                     AddOption("Terrain GPU Lighting", () => Constants.ENABLE_TERRAIN_GPU_LIGHTING, value => Constants.ENABLE_TERRAIN_GPU_LIGHTING = value, ref currentY, OptionRowHeight);
-                    AddOption("Dynamic Lighting Shader", () => Constants.ENABLE_DYNAMIC_LIGHTING_SHADER, value => Constants.ENABLE_DYNAMIC_LIGHTING_SHADER = value, ref currentY, OptionRowHeight);
+                    AddOption("Dynamic Lights", () => Constants.ENABLE_DYNAMIC_LIGHTS, value =>
+                    {
+                        Constants.ENABLE_DYNAMIC_LIGHTS = value;
+                    }, ref currentY, OptionRowHeight, RefreshOptions);
+                    AddOption("Dynamic Lighting Shader (GPU)", () => Constants.ENABLE_DYNAMIC_LIGHTING_SHADER, value =>
+                    {
+                        Constants.ENABLE_DYNAMIC_LIGHTING_SHADER = value;
+                        if (!value)
+                            Constants.ENABLE_TERRAIN_GPU_LIGHTING = false;
+                    }, ref currentY, OptionRowHeight, RefreshOptions);
                     AddOption("Optimize for Integrated GPU", () => Constants.OPTIMIZE_FOR_INTEGRATED_GPU, value => Constants.OPTIMIZE_FOR_INTEGRATED_GPU = value, ref currentY, OptionRowHeight);
                     AddOption("Debug Lighting Areas", () => Constants.DEBUG_LIGHTING_AREAS, value => Constants.DEBUG_LIGHTING_AREAS = value, ref currentY, OptionRowHeight);
                     AddOption("Item Material Shader", () => Constants.ENABLE_ITEM_MATERIAL_SHADER, value => Constants.ENABLE_ITEM_MATERIAL_SHADER = value, ref currentY, OptionRowHeight);
@@ -840,7 +907,7 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
             {
                 BuildCategory("Performance & Debug", (ref int currentY) =>
                 {
-                    AddOption("Unlimited FPS", () => Constants.UNLIMITED_FPS, value => Constants.UNLIMITED_FPS = value, ref currentY, OptionRowHeight, _owner.ApplyGraphicsSettings);
+                    AddOption("Unlimited FPS", () => Constants.UNLIMITED_FPS, value => _owner.SetUnlimitedFps(value), ref currentY, OptionRowHeight, RefreshOptions);
                     AddOption("Dynamic Buffer Pool", () => Constants.ENABLE_DYNAMIC_BUFFER_POOL, value =>
                     {
                         DynamicBufferPool.SetEnabled(value);

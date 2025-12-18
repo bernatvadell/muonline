@@ -16,6 +16,7 @@ namespace Client.Main.Configuration
         public bool IsFullScreen { get; set; }
         public int UiVirtualWidth { get; set; } = 1280;
         public int UiVirtualHeight { get; set; } = 720;
+        public string QualityPreset { get; set; } = "Auto";
     }
 
     public abstract class LeafEffectSettingsBase

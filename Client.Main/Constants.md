@@ -14,6 +14,7 @@ Key performance-related switches
 - Render scale: `RENDER_SCALE` (base 1.0, Android 0.75). Lower = fewer pixels rendered (biggest FPS lever). Not loaded from config; change via code or pause menu.
 - Texture filtering: `HIGH_QUALITY_TEXTURES` (base true, Android false). Turning off removes anisotropic filtering, saves GPU time.
 - Grass: `DRAW_GRASS` (base true, Android false). Disable to reduce overdraw.
+- Dynamic lights: `ENABLE_DYNAMIC_LIGHTS` (base true, Android false). Disabling removes dynamic lights from terrain/objects.
 - Lighting shaders: `ENABLE_DYNAMIC_LIGHTING_SHADER`, `ENABLE_TERRAIN_GPU_LIGHTING` (base true, Android false). Disabling swaps to simpler lighting.
 - Material shaders: `ENABLE_ITEM_MATERIAL_SHADER`, `ENABLE_MONSTER_MATERIAL_SHADER` (base true, Android false). Disabling removes special item/monster effects.
 - Trails: `ENABLE_WEAPON_TRAIL` (base true, Android false). Cosmetic; disable to save fill-rate.

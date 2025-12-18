@@ -280,6 +280,13 @@ namespace Client.Main.Controls.Terrain
 
         private void UploadDynamicLights(Effect effect)
         {
+            if (!Constants.ENABLE_DYNAMIC_LIGHTS)
+            {
+                effect.Parameters["ActiveLightCount"]?.SetValue(0);
+                effect.Parameters["MaxLightsToProcess"]?.SetValue(0);
+                return;
+            }
+
             var activeLights = _lightManager.ActiveLights;
             int maxLights = Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16;
             int count = 0;
