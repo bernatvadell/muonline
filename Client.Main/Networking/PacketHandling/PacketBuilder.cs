@@ -2,6 +2,7 @@ using System;
 using System.Buffers;
 using System.Text;
 using Client.Main.Core.Client;
+using Client.Main.Networking.Packets;
 using MUnique.OpenMU.Network.Packets;
 using MUnique.OpenMU.Network.Packets.ClientToServer;
 using MUnique.OpenMU.Network.Packets.ConnectServer;
@@ -402,6 +403,67 @@ namespace Client.Main.Networking.PacketHandling
             var packet = new IncreaseCharacterStatPoint(memory);
 
             packet.StatType = attribute;
+
+            return length;
+        }
+        /// <summary>
+        /// Builds a packet to create a new character.
+        /// C1 F3 01 - CreateCharacter (by client)
+        /// </summary>
+        /// <param name="writer">The buffer writer to write the packet to.</param>
+        /// <param name="characterName">The name of the new character (max 10 characters).</param>
+        /// <param name="characterClass">The class of the new character.</param>
+        /// <returns>The length of the built packet.</returns>
+        public static int BuildCreateCharacterPacket(
+            IBufferWriter<byte> writer,
+            string characterName,
+            CharacterClassNumber characterClass)
+        {
+            int length = CreateCharacterRequest.Length;
+            var memory = writer.GetMemory(length).Slice(0, length);
+            var packet = new CreateCharacterRequest(memory.Span);
+
+            packet.Name = characterName;
+            packet.CharacterClass = characterClass;
+
+#if DEBUG
+            // Log packet bytes for debugging
+            var span = memory.Span.Slice(0, length);
+            var hexBytes = BitConverter.ToString(span.ToArray()).Replace("-", " ");
+            System.Diagnostics.Debug.WriteLine($"[CreateCharacter] Packet bytes: {hexBytes}");
+            System.Diagnostics.Debug.WriteLine($"[CreateCharacter] Name: '{characterName}', Class: {characterClass} ({(byte)characterClass}), ClassByte: 0x{span[14]:X2}");
+#endif
+
+            return length;
+        }
+
+        /// <summary>
+        /// Builds a packet to delete a character.
+        /// C1 F3 02 - DeleteCharacter (by client)
+        /// </summary>
+        /// <param name="writer">The buffer writer to write the packet to.</param>
+        /// <param name="characterName">The name of the character to delete (max 10 characters).</param>
+        /// <param name="securityCode">The security code (max 10 characters, default empty for no security).</param>
+        /// <returns>The length of the built packet.</returns>
+        public static int BuildDeleteCharacterPacket(
+            IBufferWriter<byte> writer,
+            string characterName,
+            string securityCode = "")
+        {
+            int length = DeleteCharacterRequest.Length;
+            var memory = writer.GetMemory(length).Slice(0, length);
+            var packet = new DeleteCharacterRequest(memory.Span);
+
+            packet.Name = characterName;
+            packet.SecurityCode = securityCode;
+
+#if DEBUG
+            // Log packet bytes for debugging
+            var span = memory.Span.Slice(0, length);
+            var hexBytes = BitConverter.ToString(span.ToArray()).Replace("-", " ");
+            System.Diagnostics.Debug.WriteLine($"[DeleteCharacter] Packet bytes: {hexBytes}");
+            System.Diagnostics.Debug.WriteLine($"[DeleteCharacter] Name: '{characterName}', SecurityCode: '{securityCode}'");
+#endif
 
             return length;
         }

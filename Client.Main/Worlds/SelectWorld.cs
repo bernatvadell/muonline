@@ -33,6 +33,14 @@ namespace Client.Main.Worlds
 
         // Random animation system for character selection
         private readonly Random _animationRandom = new Random();
+        
+        // Double-click detection
+        private DateTime _lastClickTime = DateTime.MinValue;
+        private string _lastClickedCharacter = null;
+        private const double DoubleClickThresholdMs = 500;
+        
+        // Callback for character selection events
+        public event EventHandler<string> CharacterClicked;
 
         public SelectWorld() : base(worldIndex: 94)
         {
@@ -345,25 +353,49 @@ namespace Client.Main.Worlds
 
         private void PlayerObject_Click(object sender, EventArgs e)
         {
-            if (sender is PlayerObject clickedPlayer && Scene is SelectCharacterScene selectScene)
+            PlayerObject clickedPlayer = null;
+            
+            if (sender is PlayerObject player)
             {
-                if (_currentCharacterIndex < 0 || _characterObjects[_currentCharacterIndex] != clickedPlayer)
-                {
-                    _logger.LogDebug("Ignoring click on inactive character '{Name}'.", clickedPlayer.Name);
-                    return;
-                }
-                _logger.LogInformation("PlayerObject '{Name}' clicked.", clickedPlayer.Name);
-                selectScene.CharacterSelected(clickedPlayer.Name);
+                clickedPlayer = player;
             }
-            else if (sender is ModelObject bodyPart && bodyPart.Parent is PlayerObject parentPlayer && Scene is SelectCharacterScene parentScene)
+            else if (sender is ModelObject bodyPart && bodyPart.Parent is PlayerObject parentPlayer)
             {
-                if (_currentCharacterIndex < 0 || _characterObjects[_currentCharacterIndex] != parentPlayer)
+                clickedPlayer = parentPlayer;
+            }
+            
+            if (clickedPlayer == null)
+                return;
+                
+            if (_currentCharacterIndex < 0 || _characterObjects[_currentCharacterIndex] != clickedPlayer)
+            {
+                _logger.LogDebug("Ignoring click on inactive character '{Name}'.", clickedPlayer.Name);
+                return;
+            }
+            
+            // Check for double-click
+            DateTime now = DateTime.UtcNow;
+            double timeSinceLastClick = (now - _lastClickTime).TotalMilliseconds;
+            bool isDoubleClick = timeSinceLastClick < DoubleClickThresholdMs && 
+                                _lastClickedCharacter == clickedPlayer.Name;
+            
+            _lastClickTime = now;
+            _lastClickedCharacter = clickedPlayer.Name;
+            
+            if (isDoubleClick)
+            {
+                // Double-click: join game
+                _logger.LogInformation("Character '{Name}' double-clicked - joining game.", clickedPlayer.Name);
+                if (Scene is SelectCharacterScene selectScene)
                 {
-                    _logger.LogDebug("Ignoring click on inactive body part of '{Name}'.", parentPlayer.Name);
-                    return;
+                    selectScene.CharacterSelected(clickedPlayer.Name);
                 }
-                _logger.LogInformation("Body part of '{Name}' clicked.", parentPlayer.Name);
-                parentScene.CharacterSelected(parentPlayer.Name);
+            }
+            else
+            {
+                // Single click: notify scene (for selection visual feedback and delete button)
+                _logger.LogInformation("Character '{Name}' clicked.", clickedPlayer.Name);
+                CharacterClicked?.Invoke(this, clickedPlayer.Name);
             }
         }
 

@@ -17,6 +17,12 @@ namespace Client.Main.Networking.Services
     {
         private readonly ConnectionManager _connectionManager;
         private readonly ILogger<CharacterService> _logger;
+        
+        /// <summary>
+        /// Tracks the last character name that was requested for deletion.
+        /// Used to update the cached character list after successful deletion.
+        /// </summary>
+        public string LastDeletedCharacterName { get; internal set; }
 
         public CharacterService(
             ConnectionManager connectionManager,
@@ -74,6 +80,63 @@ namespace Client.Main.Networking.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending character list request.");
+            }
+        }
+
+        /// <summary>
+        /// Sends a request to create a new character.
+        /// </summary>
+        /// <param name="characterName">The name of the new character.</param>
+        /// <param name="characterClass">The class of the new character.</param>
+        public async Task SendCreateCharacterRequestAsync(string characterName, CharacterClassNumber characterClass)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot create character.");
+                return;
+            }
+
+            _logger.LogInformation("Sending create character request: Name={Name}, Class={Class}...", 
+                characterName, characterClass);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                    PacketBuilder.BuildCreateCharacterPacket(_connectionManager.Connection.Output, characterName, characterClass));
+                _logger.LogInformation("Create character request sent: Name={Name}, Class={Class}.", 
+                    characterName, characterClass);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending create character request for {Name}.", characterName);
+            }
+        }
+
+        /// <summary>
+        /// Sends a request to delete a character.
+        /// </summary>
+        /// <param name="characterName">The name of the character to delete.</param>
+        /// <param name="securityCode">The security code (default empty string for no security).</param>
+        public async Task SendDeleteCharacterRequestAsync(string characterName, string securityCode = "")
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot delete character.");
+                return;
+            }
+
+            // Track the character name for use in the response handler
+            LastDeletedCharacterName = characterName;
+            
+            _logger.LogInformation("Sending delete character request: Name={Name}...", characterName);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                    PacketBuilder.BuildDeleteCharacterPacket(_connectionManager.Connection.Output, characterName, securityCode));
+                _logger.LogInformation("Delete character request sent: Name={Name}.", characterName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending delete character request for {Name}.", characterName);
             }
         }
 

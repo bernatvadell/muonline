@@ -101,5 +101,31 @@ namespace Client.Main.Controls.UI.Common
                 }
             }
         }
+
+        /// <summary>
+        /// Gets a 1x1 white pixel texture for drawing primitives.
+        /// </summary>
+        public static Texture2D GetPixelTexture(GraphicsDevice device)
+        {
+            return GraphicsManager.Instance.Pixel;
+        }
+
+        /// <summary>
+        /// Draws a border around a rectangle.
+        /// </summary>
+        public static void DrawBorder(SpriteBatch spriteBatch, Rectangle rect, Color color, int thickness = 1)
+        {
+            var pixel = GraphicsManager.Instance.Pixel;
+            if (pixel == null) return;
+
+            // Top
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, rect.Width, thickness), color);
+            // Bottom
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Bottom - thickness, rect.Width, thickness), color);
+            // Left
+            spriteBatch.Draw(pixel, new Rectangle(rect.X, rect.Y, thickness, rect.Height), color);
+            // Right
+            spriteBatch.Draw(pixel, new Rectangle(rect.Right - thickness, rect.Y, thickness, rect.Height), color);
+        }
     }
 }
