@@ -1618,6 +1618,43 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     ReleasePickedItem();
                 }
             }
+            else if (Client.Main.Controls.UI.Game.ChaosMixControl.Instance is { } chaos &&
+                     chaos.Visible &&
+                     chaos.DisplayRectangle.Contains(MuGame.Instance.UiMouseState.Position) &&
+                     _network_manager_exists())
+            {
+                var drop = chaos.GetSlotAtScreenPosition(MuGame.Instance.UiMouseState.Position);
+                if (drop.X >= 0 && chaos.CanPlaceAt(drop, item))
+                {
+                    byte toSlot = (byte)(drop.Y * Client.Main.Controls.UI.Game.ChaosMixControl.Columns + drop.X);
+                    var svc = _networkManager.GetCharacterService();
+                    var raw = item.RawData ?? Array.Empty<byte>();
+                    var state = _networkManager.GetCharacterState();
+                    state.StashPendingInventoryMove(slotIndex, slotIndex);
+
+                    _ = Task.Run(async () =>
+                    {
+                        await svc.SendStorageItemMoveAsync(ItemStorageKind.Inventory, slotIndex, ItemStorageKind.ChaosMachine, toSlot, _networkManager.TargetVersion, raw);
+                        await Task.Delay(1200);
+                        if (_networkManager != null && state.IsInventoryMovePending(slotIndex, slotIndex))
+                        {
+                            MuGame.ScheduleOnMainThread(() =>
+                            {
+                                state.RaiseInventoryChanged();
+                                state.RaiseChaosMachineItemsChanged();
+                            });
+                        }
+                    });
+
+                    ReleasePickedItem();
+                }
+                else
+                {
+                    AddItem(item);
+                    _networkManager?.GetCharacterState()?.RaiseInventoryChanged();
+                    ReleasePickedItem();
+                }
+            }
             else if (Client.Main.Controls.UI.Game.Trade.TradeControl.Instance is { } trade &&
                      trade.Visible &&
                      trade.DisplayRectangle.Contains(MuGame.Instance.UiMouseState.Position) &&

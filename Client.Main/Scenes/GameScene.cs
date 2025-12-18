@@ -134,6 +134,7 @@ namespace Client.Main.Scenes
             Controls.Add(_main);
             Controls.Add(NpcShopControl.Instance);
             Controls.Add(VaultControl.Instance);
+            Controls.Add(ChaosMixControl.Instance);
             Controls.Add(TradeControl.Instance);
 
             _mapListControl = new MapListControl { Visible = false };
@@ -533,6 +534,17 @@ namespace Client.Main.Scenes
                 }
             }
 
+            // Close Chaos Mix similarly and hide Inventory if it was open together with it
+            if (ChaosMixControl.Instance.Visible)
+            {
+                _logger?.LogInformation("Hero moved, closing Chaos Mix window.");
+                bool closed = ChaosMixControl.Instance.CloseWindow();
+                if (closed && _inventoryControl?.Visible == true)
+                {
+                    _inventoryControl.Hide();
+                }
+            }
+
             // Close trade window if hero moves
             if (TradeControl.Instance.Visible)
             {
@@ -572,6 +584,17 @@ namespace Client.Main.Scenes
                             _logger?.LogError(ex, "Failed to send close NPC request");
                         }
                     });
+                }
+            }
+
+            // Close Chaos Mix similarly when taking damage
+            if (ChaosMixControl.Instance.Visible)
+            {
+                _logger?.LogInformation("Hero took damage, closing Chaos Mix window.");
+                bool closed = ChaosMixControl.Instance.CloseWindow();
+                if (closed && _inventoryControl?.Visible == true)
+                {
+                    _inventoryControl.Hide();
                 }
             }
 
@@ -1335,6 +1358,7 @@ namespace Client.Main.Scenes
                 var sprite = GraphicsManager.Instance.Sprite;
                 _inventoryControl?._pickedItemRenderer?.Draw(sprite, gameTime);
                 Client.Main.Controls.UI.Game.VaultControl.Instance?.DrawPickedPreview(sprite, gameTime);
+                Client.Main.Controls.UI.Game.ChaosMixControl.Instance?.DrawPickedPreview(sprite, gameTime);
                 Client.Main.Controls.UI.Game.Trade.TradeControl.Instance?.DrawPickedPreview(sprite, gameTime);
             }
             _characterInfoWindow?.BringToFront();

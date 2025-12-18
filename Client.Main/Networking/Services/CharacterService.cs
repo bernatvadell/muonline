@@ -901,6 +901,62 @@ namespace Client.Main.Networking.Services
         }
 
         /// <summary>
+        /// Sends a chaos machine mix request (C1 86) with a mix type id.
+        /// </summary>
+        public async Task SendChaosMachineMixRequestAsync(int mixType, byte socketSlot)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send chaos machine mix request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending ChaosMachineMixRequest: MixType={MixType}, SocketSlot={SocketSlot}", mixType, socketSlot);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var len = ChaosMachineMixRequest.Length;
+                    var packet = new ChaosMachineMixRequest(_connectionManager.Connection.Output.GetMemory(len).Slice(0, len));
+                    packet.MixType = (ChaosMachineMixRequest.ChaosMachineMixType)mixType;
+                    packet.SocketSlot = socketSlot;
+                    return len;
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending ChaosMachineMixRequest.");
+            }
+        }
+
+        /// <summary>
+        /// Sends CraftingDialogCloseRequest (C1 87) to notify server that the crafting dialog was closed.
+        /// </summary>
+        public async Task SendCraftingDialogCloseRequestAsync()
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send crafting dialog close request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending CraftingDialogCloseRequest (0x87) ...");
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var len = CraftingDialogCloseRequest.Length;
+                    _ = new CraftingDialogCloseRequest(_connectionManager.Connection.Output.GetMemory(len).Slice(0, len));
+                    return len;
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending CraftingDialogCloseRequest.");
+            }
+        }
+
+        /// <summary>
         /// Requests to move money between inventory and vault storage.
         /// </summary>
         public async Task SendVaultMoveMoneyAsync(VaultMoveMoneyRequest.VaultMoneyMoveDirection direction, uint amount)
@@ -1063,7 +1119,12 @@ namespace Client.Main.Networking.Services
                 switch (version)
                 {
                     case TargetProtocolVersion.Season6:
-                        if (itemData == null || itemData.Length < 12)
+                        bool hasItemData = itemData != null && itemData.Length >= 12;
+                        _logger.LogDebug("Storage move (S6) using {PacketType}: {FromStore}[{From}] -> {ToStore}[{To}]",
+                            hasItemData ? "ItemMoveRequest" : "ItemMoveRequestExtended",
+                            fromStorage, fromSlot, toStorage, toSlot);
+
+                        if (!hasItemData)
                         {
                             await _connectionManager.Connection.SendAsync(() =>
                                 PacketBuilder.BuildItemMoveRequestExtendedPacket(

@@ -340,6 +340,20 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             gameScene?.ChatLog?.AddMessage("System", "Moving the item failed.", Client.Main.Models.MessageType.Error);
                         });
                     }
+                    // Chaos machine storage move failed
+                    else if (_characterState.TryConsumePendingChaosMachineMove(out var cFrom, out var cTo))
+                    {
+                        _characterState.AddOrUpdateChaosMachineItem(cFrom, itemData);
+                        _characterState.RaiseChaosMachineItemsChanged();
+                        _logger.LogWarning("Chaos machine move failed. Restored item at slot {From}", cFrom);
+
+                        MuGame.ScheduleOnMainThread(() =>
+                        {
+                            _characterState.RaiseInventoryChanged();
+                            var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
+                            gameScene?.ChatLog?.AddMessage("System", "Moving the item failed.", Client.Main.Models.MessageType.Error);
+                        });
+                    }
                     else
                     {
                         _logger.LogWarning("Item move failed, but no pending move was stashed by client.");
@@ -377,6 +391,27 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         _characterState.RaiseVaultItemsChanged();
                         _logger.LogInformation("Vault item moved to slot {To}.", toSlot);
                     }
+                    else if (targetStore == ItemStorageKind.ChaosMachine)
+                    {
+                        // Clear any pending chaos machine move information (for chaos->chaos moves)
+                        if (_characterState.TryConsumePendingChaosMachineMove(out var from, out var to))
+                        {
+                            if (from != to)
+                            {
+                                _characterState.RemoveChaosMachineItem(from);
+                            }
+                        }
+
+                        // If the move originated from Inventory -> ChaosMachine, remove the source inventory slot now.
+                        if (_characterState.TryConsumePendingInventoryMove(out var invFrom, out var _))
+                        {
+                            _characterState.RemoveInventoryItem(invFrom);
+                        }
+
+                        _characterState.AddOrUpdateChaosMachineItem(toSlot, itemData);
+                        _characterState.RaiseChaosMachineItemsChanged();
+                        _logger.LogInformation("Chaos machine item moved to slot {To}.", toSlot);
+                    }
                     else // Inventory or others -> inventory fallback
                     {
                         // If we had a pending vault->inventory move, remove from vault
@@ -384,6 +419,12 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         {
                             _characterState.RemoveVaultItem(vf);
                             _characterState.RaiseVaultItemsChanged();
+                        }
+                        // If we had a pending chaos machine->inventory move, remove from chaos machine
+                        if (_characterState.TryConsumePendingChaosMachineMove(out var cf, out var ct))
+                        {
+                            _characterState.RemoveChaosMachineItem(cf);
+                            _characterState.RaiseChaosMachineItemsChanged();
                         }
                         if (_characterState.TryConsumePendingInventoryMove(out var fromSlot, out var pendingTo))
                         {
@@ -400,6 +441,9 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             _characterState.AddOrUpdateInventoryItem(toSlot, itemData);
                             _logger.LogInformation("Item moved to slot {To}, no pending move available.", toSlot);
                         }
+
+                        // Ensure inventory UI refreshes (e.g. when moving items from vault/chaos machine into inventory).
+                        _characterState.RaiseInventoryChanged();
                     }
                 }
             }

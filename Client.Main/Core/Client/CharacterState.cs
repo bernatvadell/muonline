@@ -127,16 +127,20 @@ namespace Client.Main.Core.Client
         private byte? _pendingSellSlot;
         private byte? _pendingVaultMoveFrom;
         private byte? _pendingVaultMoveTo;
+        private byte? _pendingChaosMachineMoveFrom;
+        private byte? _pendingChaosMachineMoveTo;
 
         // NPC Shop items
         private readonly ConcurrentDictionary<byte, byte[]> _shopItems = new();
         public event Action ShopItemsChanged;
         private readonly ConcurrentDictionary<byte, byte[]> _vaultItems = new();
+        private readonly ConcurrentDictionary<byte, byte[]> _chaosMachineItems = new();
 
         // Last interacted NPC (for repair mode detection)
         public ushort LastNpcNetworkId { get; set; } = 0;
         public ushort LastNpcTypeNumber { get; set; } = 0;
         public event Action VaultItemsChanged;
+        public event Action ChaosMachineItemsChanged;
 
         // Trade State
         private bool _isTradeActive;
@@ -403,6 +407,38 @@ namespace Client.Main.Core.Client
                ((_pendingVaultMoveTo.HasValue ? _pendingVaultMoveTo.Value : (byte)0xFF) == toSlot);
 
         /// <summary>
+        /// Stashes a pending chaos machine move (from-&gt;to). 'to' may be 0xFF when moving out to inventory.
+        /// </summary>
+        public void StashPendingChaosMachineMove(byte fromSlot, byte toSlot)
+        {
+            _pendingChaosMachineMoveFrom = fromSlot;
+            _pendingChaosMachineMoveTo = toSlot;
+            _logger.LogTrace("Stashed pending chaos machine move: {From} -> {To}", fromSlot, toSlot);
+        }
+
+        public bool TryConsumePendingChaosMachineMove(out byte fromSlot, out byte toSlot)
+        {
+            if (_pendingChaosMachineMoveFrom.HasValue)
+            {
+                fromSlot = _pendingChaosMachineMoveFrom.Value;
+                toSlot = _pendingChaosMachineMoveTo ?? (byte)0xFF;
+                _pendingChaosMachineMoveFrom = null;
+                _pendingChaosMachineMoveTo = null;
+                _logger.LogTrace("Consumed pending chaos machine move: {From} -> {To}", fromSlot, toSlot);
+                return true;
+            }
+
+            fromSlot = 0;
+            toSlot = 0xFF;
+            return false;
+        }
+
+        public bool IsChaosMachineMovePending(byte fromSlot, byte toSlot)
+            => _pendingChaosMachineMoveFrom.HasValue &&
+               _pendingChaosMachineMoveFrom.Value == fromSlot &&
+               ((_pendingChaosMachineMoveTo.HasValue ? _pendingChaosMachineMoveTo.Value : (byte)0xFF) == toSlot);
+
+        /// <summary>
         /// Clears the current NPC shop items and notifies listeners.
         /// </summary>
         public void ClearShopItems()
@@ -466,6 +502,37 @@ namespace Client.Main.Core.Client
         public IReadOnlyDictionary<byte, byte[]> GetVaultItems()
         {
             return new ReadOnlyDictionary<byte, byte[]>(_vaultItems.ToDictionary(k => k.Key, v => v.Value));
+        }
+
+        /// <summary>
+        /// Chaos machine items API.
+        /// </summary>
+        public void ClearChaosMachineItems()
+        {
+            _chaosMachineItems.Clear();
+            ChaosMachineItemsChanged?.Invoke();
+            _logger.LogTrace("ChaosMachineItemsChanged raised after ClearChaosMachineItems.");
+        }
+
+        public void AddOrUpdateChaosMachineItem(byte slot, byte[] itemData)
+        {
+            _chaosMachineItems[slot] = itemData;
+        }
+
+        public void RemoveChaosMachineItem(byte slot)
+        {
+            _chaosMachineItems.TryRemove(slot, out _);
+        }
+
+        public void RaiseChaosMachineItemsChanged()
+        {
+            ChaosMachineItemsChanged?.Invoke();
+            _logger.LogTrace("ChaosMachineItemsChanged event raised.");
+        }
+
+        public IReadOnlyDictionary<byte, byte[]> GetChaosMachineItems()
+        {
+            return new ReadOnlyDictionary<byte, byte[]>(_chaosMachineItems.ToDictionary(k => k.Key, v => v.Value));
         }
 
         /// <summary>

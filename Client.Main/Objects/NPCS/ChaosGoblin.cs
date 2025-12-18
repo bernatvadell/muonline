@@ -13,6 +13,11 @@ namespace Client.Main.Objects.NPCS
         }
         protected override void HandleClick()
         {
+            var svc = MuGame.Network?.GetCharacterService();
+            if (svc != null)
+            {
+                _ = svc.SendTalkToNpcRequestAsync(NetworkId);
+            }
         }
     }
 }

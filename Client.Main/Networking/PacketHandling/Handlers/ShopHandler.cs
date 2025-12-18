@@ -83,6 +83,18 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         scene?.InventoryControl?.Show();
                     });
                 }
+                else if (resp.Window == NpcWindowResponse.NpcWindow.ChaosMachine)
+                {
+                    _characterState.ClearChaosMachineItems();
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        var chaos = ChaosMixControl.Instance;
+                        chaos.Show();
+
+                        var scene = MuGame.Instance?.ActiveScene as GameScene;
+                        scene?.InventoryControl?.Show();
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -119,9 +131,14 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                 _logger.LogInformation("StoreItemList received: Type={Type}, Count={Count}, DataSize={Size}", list.Type, count, dataSize);
 
-                bool toVault = _lastWindow == NpcWindowResponse.NpcWindow.VaultStorage;
+                bool toChaosMachine = _lastWindow == NpcWindowResponse.NpcWindow.ChaosMachine || list.Type == StoreItemList.ItemWindow.ChaosMachine;
+                bool toVault = !toChaosMachine && _lastWindow == NpcWindowResponse.NpcWindow.VaultStorage;
 
-                if (toVault)
+                if (toChaosMachine)
+                {
+                    _characterState.ClearChaosMachineItems();
+                }
+                else if (toVault)
                 {
                     _characterState.ClearVaultItems();
                 }
@@ -142,17 +159,57 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         _logger.LogWarning("Shop item index {Index} has unexpected data length {Len} (expected {Exp}).", i, data.Length, dataSize);
                     }
 
-                    if (toVault) _characterState.AddOrUpdateVaultItem(slot, data);
+                    if (toChaosMachine) _characterState.AddOrUpdateChaosMachineItem(slot, data);
+                    else if (toVault) _characterState.AddOrUpdateVaultItem(slot, data);
                     else _characterState.AddOrUpdateShopItem(slot, data);
                 }
 
-                if (toVault) _characterState.RaiseVaultItemsChanged();
+                if (toChaosMachine) _characterState.RaiseChaosMachineItemsChanged();
+                else if (toVault) _characterState.RaiseVaultItemsChanged();
                 else _characterState.RaiseShopItemsChanged();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error parsing StoreItemList packet.");
             }
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0x86, PacketRouter.NoSubCode)] // ItemCraftingResult
+        public Task HandleItemCraftingResultAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var res = new ItemCraftingResult(packet);
+                _logger.LogInformation("ItemCraftingResult: Result={Result}", res.Result);
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    ChaosMixControl.Instance?.NotifyCraftingResult(res.Result);
+
+                    var scene = MuGame.Instance?.ActiveScene as GameScene;
+                    string msg = res.Result switch
+                    {
+                        ItemCraftingResult.CraftingResult.Success => "Mix succeeded.",
+                        ItemCraftingResult.CraftingResult.Failed => "Mix failed.",
+                        ItemCraftingResult.CraftingResult.NotEnoughMoney => "Not enough Zen.",
+                        ItemCraftingResult.CraftingResult.TooManyItems => "Too many items in mix box.",
+                        ItemCraftingResult.CraftingResult.CharacterLevelTooLow => "Character level too low.",
+                        ItemCraftingResult.CraftingResult.LackingMixItems => "Missing required items.",
+                        ItemCraftingResult.CraftingResult.IncorrectMixItems => "Incorrect mix items.",
+                        ItemCraftingResult.CraftingResult.InvalidItemLevel => "Invalid item level.",
+                        ItemCraftingResult.CraftingResult.CharacterClassTooLow => "Character class too low.",
+                        _ => $"Mix result: {res.Result}"
+                    };
+
+                    scene?.ChatLog?.AddMessage("System", msg, Client.Main.Models.MessageType.System);
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing ItemCraftingResult packet.");
+            }
+
             return Task.CompletedTask;
         }
 
