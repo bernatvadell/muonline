@@ -307,19 +307,51 @@ namespace Client.Main.Controllers
             PlayerAction.PlayerDie1 or PlayerAction.PlayerDie2 => AnimationType.Death,
             PlayerAction.PlayerPoseMale1 or PlayerAction.PlayerPoseFemale1 => AnimationType.Rest,
             PlayerAction.PlayerSit1 or PlayerAction.PlayerSitFemale1 => AnimationType.Sit,
-            PlayerAction.PlayerStopMale or PlayerAction.PlayerStopFemale or PlayerAction.PlayerStopFly
+            PlayerAction.PlayerStopMale or PlayerAction.PlayerStopFemale or PlayerAction.PlayerStopSummoner or
+            PlayerAction.PlayerStopSword or PlayerAction.PlayerStopTwoHandSword or PlayerAction.PlayerStopTwoHandSwordTwo or
+            PlayerAction.PlayerStopSpear or PlayerAction.PlayerStopScythe or PlayerAction.PlayerStopBow or
+            PlayerAction.PlayerStopCrossbow or PlayerAction.PlayerStopWand or
+            PlayerAction.PlayerStopFly or PlayerAction.PlayerStopFlyCrossbow or
+            PlayerAction.PlayerStopRide or PlayerAction.PlayerStopRideWeapon or PlayerAction.PlayerStopRideHorse or
+            PlayerAction.PlayerDarklordStand or
+            PlayerAction.PlayerFenrirStand or PlayerAction.PlayerFenrirStandTwoSword or
+            PlayerAction.PlayerFenrirStandOneRight or PlayerAction.PlayerFenrirStandOneLeft or
+            PlayerAction.PlayerRageFenrirStand or PlayerAction.PlayerRageFenrirStandTwoSword or
+            PlayerAction.PlayerRageFenrirStandOneRight or PlayerAction.PlayerRageFenrirStandOneLeft or
+            PlayerAction.PlayerStopRagefighter or PlayerAction.PlayerIdle1Darkhorse or PlayerAction.PlayerIdle2Darkhorse
                                                                                => AnimationType.Idle,
 
-            PlayerAction.PlayerWalkMale or PlayerAction.PlayerWalkFemale or
-            PlayerAction.PlayerRunSwim or PlayerAction.PlayerFly => AnimationType.Walk,
+            PlayerAction walkAction when walkAction >= PlayerAction.PlayerWalkMale && walkAction <= PlayerAction.PlayerWalkSwim
+                                                                               => AnimationType.Walk,
+            PlayerAction runAction when runAction >= PlayerAction.PlayerRun && runAction <= PlayerAction.PlayerRunSwim
+                                                                               => AnimationType.Walk,
+            PlayerAction.PlayerFly or PlayerAction.PlayerFlyCrossbow or
+            PlayerAction.PlayerRunRide or PlayerAction.PlayerRunRideWeapon or
+            PlayerAction.PlayerRunRideHorse or PlayerAction.PlayerDarklordWalk
+                                                                               => AnimationType.Walk,
+            PlayerAction fenrirRunAction when fenrirRunAction >= PlayerAction.PlayerFenrirRun && fenrirRunAction <= PlayerAction.PlayerFenrirRunOneLeftElf
+                                                                               => AnimationType.Walk,
+            PlayerAction fenrirWalkAction when fenrirWalkAction >= PlayerAction.PlayerFenrirWalk && fenrirWalkAction <= PlayerAction.PlayerFenrirWalkOneLeft
+                                                                               => AnimationType.Walk,
+            PlayerAction rageFenrirAction when rageFenrirAction >= PlayerAction.PlayerRageFenrirWalk && rageFenrirAction <= PlayerAction.PlayerRageFenrirRunOneLeft
+                                                                               => AnimationType.Walk,
+            PlayerAction.PlayerRageUniRun or PlayerAction.PlayerRageUniRunOneRight
+                                                                               => AnimationType.Walk,
 
             PlayerAction.PlayerShock => AnimationType.Emote,
-            PlayerAction.PlayerAttackFist or PlayerAction.PlayerAttackBow or
-            PlayerAction.PlayerAttackSwordRight1 or PlayerAction.PlayerAttackCrossbow or
-            PlayerAction.PlayerAttackScythe1 or PlayerAction.PlayerAttackScythe2 or
-            PlayerAction.PlayerAttackScythe3 or PlayerAction.PlayerAttackTwoHandSword1 or
-            PlayerAction.PlayerAttackTwoHandSword2 or PlayerAction.PlayerAttackTwoHandSword3 or
-            PlayerAction.PlayerAttackSpear1
+            PlayerAction attackAction when attackAction >= PlayerAction.PlayerAttackFist && attackAction <= PlayerAction.PlayerAttackRideCrossbow
+                                                                               => AnimationType.Attack,
+            PlayerAction attackUpAction when attackUpAction >= PlayerAction.PlayerAttackBowUp && attackUpAction <= PlayerAction.PlayerAttackStun
+                                                                               => AnimationType.Attack,
+            PlayerAction.PlayerAttackTwoHandSwordTwo or
+            PlayerAction.PlayerAttackStrike or PlayerAction.PlayerAttackTeleport or
+            PlayerAction.PlayerAttackRideStrike or PlayerAction.PlayerAttackRideTeleport or
+            PlayerAction.PlayerAttackRideHorseSword or PlayerAction.PlayerAttackRideAttackFlash or
+            PlayerAction.PlayerAttackRideAttackMagic or PlayerAction.PlayerAttackDarkhorse or
+            PlayerAction.PlayerRageUniAttack or PlayerAction.PlayerRageUniAttackOneRight or
+            PlayerAction.PlayerRageFenrirAttackRight
+                                                                               => AnimationType.Attack,
+            PlayerAction fenrirAttackAction when fenrirAttackAction >= PlayerAction.PlayerFenrirAttack && fenrirAttackAction <= PlayerAction.PlayerFenrirAttackBow
                                                                                => AnimationType.Attack,
 
             PlayerAction.PlayerSkillHell or PlayerAction.PlayerSkillHellBegin or

@@ -94,6 +94,7 @@ namespace Client.Main.Objects.Player
         private int[] _headBoneSubtreeIndices;
 
         private int _standFrames;
+        private int _attackSequence;
 
         private readonly object _inventoryAppearanceUpdateSync = new();
         private bool _inventoryAppearanceUpdateRunning;
@@ -1166,6 +1167,401 @@ namespace Client.Main.Objects.Player
         }
 
         // --------------- Helpers for correct animation selection ----------------
+        private enum WeaponKind
+        {
+            None,
+            Sword,
+            TwoHandSword,
+            TwoHandSwordTwo,
+            Spear,
+            Scythe,
+            Bow,
+            Crossbow,
+            StaffOneHand,
+            StaffTwoHand,
+            SummonerStick,
+            Book
+        }
+
+        private readonly struct WeaponContext
+        {
+            public WeaponContext(
+                ItemDefinition right,
+                ItemDefinition left,
+                byte rightGroup,
+                byte leftGroup,
+                WeaponKind rightKind,
+                WeaponKind leftKind,
+                bool rightIsAmmo,
+                bool leftIsAmmo)
+            {
+                Right = right;
+                Left = left;
+                RightGroup = rightGroup;
+                LeftGroup = leftGroup;
+                RightKind = rightKind;
+                LeftKind = leftKind;
+                RightIsAmmo = rightIsAmmo;
+                LeftIsAmmo = leftIsAmmo;
+            }
+
+            public ItemDefinition Right { get; }
+            public ItemDefinition Left { get; }
+            public byte RightGroup { get; }
+            public byte LeftGroup { get; }
+            public WeaponKind RightKind { get; }
+            public WeaponKind LeftKind { get; }
+            public bool RightIsAmmo { get; }
+            public bool LeftIsAmmo { get; }
+
+            public bool HasRightWeapon => !RightIsAmmo && RightKind != WeaponKind.None;
+            public bool HasLeftWeapon => !LeftIsAmmo && LeftKind != WeaponKind.None;
+            public bool HasAnyWeapon => HasRightWeapon || HasLeftWeapon;
+            public bool HasDualWeapons => HasRightWeapon && HasLeftWeapon;
+            public WeaponKind PrimaryKind => RightKind != WeaponKind.None ? RightKind : LeftKind;
+        }
+
+        private static bool IsSummonerClass(CharacterClassNumber cls) =>
+            cls == CharacterClassNumber.Summoner ||
+            cls == CharacterClassNumber.BloodySummoner ||
+            cls == CharacterClassNumber.DimensionMaster;
+
+        private static bool IsRageFighterClass(CharacterClassNumber cls) =>
+            cls == CharacterClassNumber.RageFighter ||
+            cls == CharacterClassNumber.FistMaster;
+
+        private static bool IsElfClass(CharacterClassNumber cls) =>
+            cls == CharacterClassNumber.FairyElf ||
+            cls == CharacterClassNumber.MuseElf ||
+            cls == CharacterClassNumber.HighElf;
+
+        private static bool IsDarkWizardClass(CharacterClassNumber cls) =>
+            cls == CharacterClassNumber.DarkWizard ||
+            cls == CharacterClassNumber.SoulMaster ||
+            cls == CharacterClassNumber.GrandMaster;
+
+        private static bool IsBloodCastleMap(short worldIndex) =>
+            (worldIndex >= 11 && worldIndex <= 17) || worldIndex == 52;
+
+        private static bool IsChaosCastleMap(short worldIndex) =>
+            (worldIndex >= 18 && worldIndex <= 23) || worldIndex == 53 || worldIndex == 97;
+
+        private static bool IsAmmo(ItemDefinition item)
+        {
+            if (item?.Name == null)
+                return false;
+
+            return string.Equals(item.Name, "Arrow", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(item.Name, "Bolt", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsSpecialTwoHandSwordTwo(ItemDefinition item)
+        {
+            if (item?.Name == null)
+                return false;
+
+            return item.Name.Contains("Dark Reign", StringComparison.OrdinalIgnoreCase) ||
+                   item.Name.Contains("Rune Blade", StringComparison.OrdinalIgnoreCase) ||
+                   item.Name.Contains("Explosion Blade", StringComparison.OrdinalIgnoreCase) ||
+                   item.Name.Contains("Sword Dancer", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsCrossbow(ItemDefinition item)
+        {
+            if (item?.Name == null)
+                return false;
+
+            return item.Name.Contains("Crossbow", StringComparison.OrdinalIgnoreCase) ||
+                   item.Name.Contains("Kusza", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsBook(ItemDefinition item)
+        {
+            if (item?.Name == null)
+                return false;
+
+            return item.Name.Contains("Book", StringComparison.OrdinalIgnoreCase) ||
+                   item.Name.Contains("Księga", StringComparison.OrdinalIgnoreCase) ||
+                   item.Name.Contains("Ksiega", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsSummonerStick(ItemDefinition item)
+        {
+            if (item?.Name == null)
+                return false;
+
+            return item.Name.Contains("Stick", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsScythe(ItemDefinition item)
+        {
+            if (item?.Name == null)
+                return false;
+
+            return item.Name.Contains("Scythe", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsSpear(ItemDefinition item)
+        {
+            if (item?.Name == null)
+                return false;
+
+            return item.Name.Contains("Spear", StringComparison.OrdinalIgnoreCase) ||
+                   item.Name.Contains("Lance", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static WeaponKind GetWeaponKind(ItemDefinition item, byte group)
+        {
+            if (item == null)
+                return WeaponKind.None;
+
+            switch (group)
+            {
+                case 0:
+                case 1:
+                case 2:
+                    if (IsSpecialTwoHandSwordTwo(item))
+                        return WeaponKind.TwoHandSwordTwo;
+                    return item.TwoHanded ? WeaponKind.TwoHandSword : WeaponKind.Sword;
+                case 3:
+                    if (IsScythe(item))
+                        return WeaponKind.Scythe;
+                    if (IsSpear(item))
+                        return WeaponKind.Spear;
+                    return item.TwoHanded ? WeaponKind.Scythe : WeaponKind.Spear;
+                case 4:
+                    return IsCrossbow(item) ? WeaponKind.Crossbow : WeaponKind.Bow;
+                case 5:
+                    if (IsBook(item))
+                        return WeaponKind.Book;
+                    if (IsSummonerStick(item))
+                        return WeaponKind.SummonerStick;
+                    return item.TwoHanded ? WeaponKind.StaffTwoHand : WeaponKind.StaffOneHand;
+                default:
+                    return WeaponKind.None;
+            }
+        }
+
+        private WeaponContext GetWeaponContext()
+        {
+            if (!IsMainWalker || _networkManager == null)
+            {
+                // Remote players: use class defaults to avoid incorrect local-inventory mapping.
+                var defaultWeapon = Equipment.GetDefaultWeaponTypeForClass(CharacterClass);
+                WeaponKind kind = defaultWeapon switch
+                {
+                    WeaponType.Sword => WeaponKind.Sword,
+                    WeaponType.TwoHandSword => WeaponKind.TwoHandSword,
+                    WeaponType.Spear => WeaponKind.Spear,
+                    WeaponType.Bow => WeaponKind.Bow,
+                    WeaponType.Crossbow => WeaponKind.Crossbow,
+                    WeaponType.Staff => WeaponKind.StaffTwoHand,
+                    WeaponType.Scythe => WeaponKind.Scythe,
+                    WeaponType.Book => WeaponKind.Book,
+                    _ => WeaponKind.None
+                };
+
+                return new WeaponContext(null, null, 0, 0, kind, WeaponKind.None, false, false);
+            }
+
+            var charState = _networkManager.GetCharacterState();
+            var inventory = charState.GetInventoryItems();
+
+            ItemDefinition left = null;
+            ItemDefinition right = null;
+            byte leftGroup = 0;
+            byte rightGroup = 0;
+
+            if (inventory.TryGetValue(InventoryConstants.LeftHandSlot, out var leftData))
+            {
+                left = ItemDatabase.GetItemDefinition(leftData);
+                leftGroup = ItemDatabase.GetItemGroup(leftData);
+            }
+
+            if (inventory.TryGetValue(InventoryConstants.RightHandSlot, out var rightData))
+            {
+                right = ItemDatabase.GetItemDefinition(rightData);
+                rightGroup = ItemDatabase.GetItemGroup(rightData);
+            }
+
+            bool leftIsAmmo = IsAmmo(left);
+            bool rightIsAmmo = IsAmmo(right);
+
+            var leftKind = leftIsAmmo ? WeaponKind.None : GetWeaponKind(left, leftGroup);
+            var rightKind = rightIsAmmo ? WeaponKind.None : GetWeaponKind(right, rightGroup);
+
+            return new WeaponContext(right, left, rightGroup, leftGroup, rightKind, leftKind, rightIsAmmo, leftIsAmmo);
+        }
+
+        private static bool IsTwoHandedWeaponKind(WeaponKind kind) =>
+            kind == WeaponKind.TwoHandSword ||
+            kind == WeaponKind.TwoHandSwordTwo ||
+            kind == WeaponKind.Scythe ||
+            kind == WeaponKind.StaffTwoHand;
+
+        private PlayerAction GetAttackAction(WeaponContext weapons, bool isInSafeZone)
+        {
+            if (_isRiding)
+            {
+                if (_currentVehicleIndex >= 11 && _currentVehicleIndex <= 18)
+                    return GetFenrirAttackAction(weapons);
+
+                if (_currentVehicleIndex == 0)
+                    return PlayerAction.PlayerAttackRideHorseSword;
+
+                if (_currentVehicleIndex == 7 || _currentVehicleIndex == 8)
+                    return GetRideAttackAction(weapons);
+            }
+
+            return GetGroundAttackAction(weapons, isInSafeZone);
+        }
+
+        private PlayerAction GetFenrirAttackAction(WeaponContext weapons)
+        {
+            PlayerAction action;
+            var primary = weapons.PrimaryKind;
+
+            if (primary == WeaponKind.Spear || primary == WeaponKind.Scythe)
+            {
+                action = PlayerAction.PlayerFenrirAttackSpear;
+            }
+            else if (primary == WeaponKind.Bow)
+            {
+                action = PlayerAction.PlayerFenrirAttackBow;
+            }
+            else if (primary == WeaponKind.Crossbow)
+            {
+                action = PlayerAction.PlayerFenrirAttackCrossbow;
+            }
+            else if (weapons.HasDualWeapons)
+            {
+                action = PlayerAction.PlayerFenrirAttackTwoSword;
+            }
+            else if (weapons.HasRightWeapon)
+            {
+                action = PlayerAction.PlayerFenrirAttackOneSword;
+            }
+            else if (!weapons.HasRightWeapon && weapons.HasLeftWeapon && IsRageFighterClass(CharacterClass))
+            {
+                action = PlayerAction.PlayerRageFenrirAttackRight;
+            }
+            else if (!weapons.HasRightWeapon && weapons.HasLeftWeapon)
+            {
+                action = PlayerAction.PlayerFenrirAttackOneSword;
+            }
+            else
+            {
+                action = PlayerAction.PlayerFenrirAttack;
+            }
+
+            if (IsDarkLordClass(CharacterClass))
+                action = PlayerAction.PlayerFenrirAttackDarklordSword;
+
+            return action;
+        }
+
+        private PlayerAction GetRideAttackAction(WeaponContext weapons)
+        {
+            var primary = weapons.PrimaryKind;
+
+            if (primary == WeaponKind.Spear)
+                return PlayerAction.PlayerAttackRideSpear;
+            if (primary == WeaponKind.Scythe)
+                return PlayerAction.PlayerAttackRideScythe;
+            if (primary == WeaponKind.Bow)
+                return PlayerAction.PlayerAttackRideBow;
+            if (primary == WeaponKind.Crossbow)
+                return PlayerAction.PlayerAttackRideCrossbow;
+
+            if (!weapons.HasAnyWeapon)
+            {
+                return IsRageFighterClass(CharacterClass)
+                    ? PlayerAction.PlayerRageUniAttack
+                    : PlayerAction.PlayerAttackRideSword;
+            }
+
+            bool rightTwoHand = IsTwoHandedWeaponKind(primary);
+
+            if (IsRageFighterClass(CharacterClass))
+            {
+                return rightTwoHand
+                    ? PlayerAction.PlayerRageUniAttackOneRight
+                    : PlayerAction.PlayerRageUniAttack;
+            }
+
+            return rightTwoHand
+                ? PlayerAction.PlayerAttackRideTwoHandSword
+                : PlayerAction.PlayerAttackRideSword;
+        }
+
+        private PlayerAction GetGroundAttackAction(WeaponContext weapons, bool isInSafeZone)
+        {
+            if (!weapons.HasAnyWeapon)
+                return PlayerAction.PlayerAttackFist;
+
+            var primary = weapons.PrimaryKind;
+
+            if (weapons.HasDualWeapons && weapons.RightKind == WeaponKind.Sword && weapons.LeftKind == WeaponKind.Sword)
+            {
+                return (_attackSequence % 4) switch
+                {
+                    0 => PlayerAction.PlayerAttackSwordRight1,
+                    1 => PlayerAction.PlayerAttackSwordLeft1,
+                    2 => PlayerAction.PlayerAttackSwordRight2,
+                    _ => PlayerAction.PlayerAttackSwordLeft2
+                };
+            }
+
+            if (primary == WeaponKind.Sword)
+            {
+                return (_attackSequence % 2) == 0
+                    ? PlayerAction.PlayerAttackSwordRight1
+                    : PlayerAction.PlayerAttackSwordRight2;
+            }
+
+            if (primary == WeaponKind.TwoHandSwordTwo)
+                return PlayerAction.PlayerAttackTwoHandSwordTwo;
+
+            if (primary == WeaponKind.TwoHandSword)
+                return (PlayerAction)((int)PlayerAction.PlayerAttackTwoHandSword1 + (_attackSequence % 3));
+
+            if (primary == WeaponKind.StaffOneHand)
+            {
+                return (_attackSequence % 2) == 0
+                    ? PlayerAction.PlayerAttackSwordRight1
+                    : PlayerAction.PlayerAttackSwordRight2;
+            }
+
+            if (primary == WeaponKind.StaffTwoHand)
+            {
+                return (_attackSequence % 2) == 0
+                    ? PlayerAction.PlayerSkillWeapon1
+                    : PlayerAction.PlayerSkillWeapon2;
+            }
+
+            if (primary == WeaponKind.Spear)
+                return PlayerAction.PlayerAttackSpear1;
+
+            if (primary == WeaponKind.Scythe)
+                return (PlayerAction)((int)PlayerAction.PlayerAttackScythe1 + (_attackSequence % 3));
+
+            if (primary == WeaponKind.Bow)
+            {
+                if (HasEquippedWings && !isInSafeZone)
+                    return PlayerAction.PlayerAttackFlyBow;
+                return PlayerAction.PlayerAttackBow;
+            }
+
+            if (primary == WeaponKind.Crossbow)
+            {
+                if (HasEquippedWings && !isInSafeZone)
+                    return PlayerAction.PlayerAttackFlyCrossbow;
+                return PlayerAction.PlayerAttackCrossbow;
+            }
+
+            return PlayerAction.PlayerAttackFist;
+        }
+
         private MovementMode GetCurrentMovementMode(WalkableWorldControl world, TWFlags? flagsOverride = null)
         {
             var flags = flagsOverride ?? world.Terrain.RequestTerrainFlag((int)Location.X, (int)Location.Y);
@@ -1189,59 +1585,106 @@ namespace Client.Main.Objects.Player
         }
 
         /// <summary>Action that should play while moving (gender already cached).</summary>
-        private PlayerAction GetMovementAction(MovementMode mode) =>
-            mode switch
+        private PlayerAction GetMovementAction(MovementMode mode, WeaponContext weapons, bool isInSafeZone)
+        {
+            return mode switch
             {
                 MovementMode.Swim => PlayerAction.PlayerRunSwim,
-                MovementMode.Fly => PlayerAction.PlayerFly,
-                _ => GetMovementActionForWeapon(GetEquippedWeaponType())
+                MovementMode.Fly => weapons.PrimaryKind == WeaponKind.Crossbow && !isInSafeZone
+                    ? PlayerAction.PlayerFlyCrossbow
+                    : PlayerAction.PlayerFly,
+                _ => GetMovementActionForWeapon(weapons)
             };
+        }
 
         /// <summary>
         /// Gets the appropriate movement action based on equipped weapon
         /// </summary>
-        private PlayerAction GetMovementActionForWeapon(WeaponType weaponType)
+        private PlayerAction GetMovementActionForWeapon(WeaponContext weapons)
         {
-            return weaponType switch
+            if (!weapons.HasAnyWeapon)
+                return GetClassWalkAction(isInChaosCastle: World is WalkableWorldControl w && IsChaosCastleMap(w.WorldIndex));
+
+            return weapons.PrimaryKind switch
             {
-                WeaponType.Sword => PlayerAction.PlayerWalkSword,
-                WeaponType.TwoHandSword => PlayerAction.PlayerWalkTwoHandSword,
-                WeaponType.Spear => PlayerAction.PlayerWalkSpear,
-                WeaponType.Bow => PlayerAction.PlayerWalkBow,
-                WeaponType.Crossbow => PlayerAction.PlayerWalkCrossbow,
-                WeaponType.Staff => PlayerAction.PlayerWalkWand,
-                WeaponType.Scythe => PlayerAction.PlayerWalkScythe,
-                _ => _isFemale ? PlayerAction.PlayerWalkFemale : PlayerAction.PlayerWalkMale
+                WeaponKind.Sword => PlayerAction.PlayerWalkSword,
+                WeaponKind.TwoHandSword => PlayerAction.PlayerWalkTwoHandSword,
+                WeaponKind.TwoHandSwordTwo => PlayerAction.PlayerWalkTwoHandSwordTwo,
+                WeaponKind.Spear => PlayerAction.PlayerWalkSpear,
+                WeaponKind.Scythe => PlayerAction.PlayerWalkScythe,
+                WeaponKind.Bow => PlayerAction.PlayerWalkBow,
+                WeaponKind.Crossbow => PlayerAction.PlayerWalkCrossbow,
+                WeaponKind.SummonerStick => PlayerAction.PlayerWalkWand,
+                WeaponKind.StaffOneHand => PlayerAction.PlayerWalkSword,
+                WeaponKind.StaffTwoHand => PlayerAction.PlayerWalkScythe,
+                _ => GetClassWalkAction(isInChaosCastle: World is WalkableWorldControl w && IsChaosCastleMap(w.WorldIndex))
             };
         }
 
         // Back-compat overload used in older call-sites
         private PlayerAction GetMovementAction(WalkableWorldControl world) =>
-            GetMovementAction(GetCurrentMovementMode(world));
+            GetMovementAction(GetCurrentMovementMode(world), GetWeaponContext(), world.Terrain.RequestTerrainFlag((int)Location.X, (int)Location.Y).HasFlag(TWFlags.SafeZone));
 
         /// <summary>Action that should play while standing (gender already cached).</summary>
-        private PlayerAction GetIdleAction(MovementMode mode) =>
-            mode switch
+        private PlayerAction GetIdleAction(MovementMode mode, WeaponContext weapons, bool isInSafeZone, bool isInChaosCastle)
+        {
+            if (mode == MovementMode.Fly)
             {
-                MovementMode.Fly or MovementMode.Swim => PlayerAction.PlayerStopFly,
-                _ => GetIdleActionForWeapon(GetEquippedWeaponType())
-            };
+                return weapons.PrimaryKind == WeaponKind.Crossbow && !isInSafeZone
+                    ? PlayerAction.PlayerStopFlyCrossbow
+                    : PlayerAction.PlayerStopFly;
+            }
+
+            return GetIdleActionForWeapon(weapons, isInChaosCastle);
+        }
 
         /// <summary>
         /// Gets the appropriate idle action based on equipped weapon
         /// </summary>
-        private PlayerAction GetIdleActionForWeapon(WeaponType weaponType)
+        private PlayerAction GetIdleActionForWeapon(WeaponContext weapons, bool isInChaosCastle)
         {
-            return weaponType switch
+            if (!weapons.HasAnyWeapon)
+                return GetClassIdleAction(isInChaosCastle);
+
+            return weapons.PrimaryKind switch
             {
-                WeaponType.TwoHandSword => PlayerAction.PlayerStopTwoHandSword,
-                WeaponType.Spear => PlayerAction.PlayerStopSpear,
-                WeaponType.Bow => PlayerAction.PlayerStopBow,
-                WeaponType.Crossbow => PlayerAction.PlayerStopCrossbow,
-                WeaponType.Staff => PlayerAction.PlayerStopWand,
-                WeaponType.Scythe => PlayerAction.PlayerStopScythe,
-                _ => _isFemale ? PlayerAction.PlayerStopFemale : PlayerAction.PlayerStopMale
+                WeaponKind.TwoHandSword => PlayerAction.PlayerStopTwoHandSword,
+                WeaponKind.TwoHandSwordTwo => PlayerAction.PlayerStopTwoHandSwordTwo,
+                WeaponKind.Spear => PlayerAction.PlayerStopSpear,
+                WeaponKind.Scythe => PlayerAction.PlayerStopScythe,
+                WeaponKind.Bow => PlayerAction.PlayerStopBow,
+                WeaponKind.Crossbow => PlayerAction.PlayerStopCrossbow,
+                WeaponKind.SummonerStick => PlayerAction.PlayerStopWand,
+                WeaponKind.StaffOneHand => PlayerAction.PlayerStopSword,
+                WeaponKind.StaffTwoHand => PlayerAction.PlayerStopScythe,
+                WeaponKind.Sword => PlayerAction.PlayerStopSword,
+                _ => GetClassIdleAction(isInChaosCastle)
             };
+        }
+
+        private PlayerAction GetClassIdleAction(bool isInChaosCastle)
+        {
+            if (_isFemale)
+                return PlayerAction.PlayerStopFemale;
+
+            if (IsSummonerClass(CharacterClass) && !isInChaosCastle)
+                return PlayerAction.PlayerStopSummoner;
+
+            if (IsRageFighterClass(CharacterClass))
+                return PlayerAction.PlayerStopRagefighter;
+
+            return PlayerAction.PlayerStopMale;
+        }
+
+        private PlayerAction GetClassWalkAction(bool isInChaosCastle)
+        {
+            if (!_isFemale)
+                return PlayerAction.PlayerWalkMale;
+
+            if (IsSummonerClass(CharacterClass) && isInChaosCastle)
+                return PlayerAction.PlayerWalkMale;
+
+            return PlayerAction.PlayerWalkFemale;
         }
 
         private PlayerAction GetRelaxedIdleAction() => _isFemale ? PlayerAction.PlayerStopFemale : PlayerAction.PlayerStopMale;
@@ -1416,15 +1859,25 @@ namespace Client.Main.Objects.Player
         /// <summary>
         /// Gets the appropriate movement action when riding a mount.
         /// </summary>
-        private PlayerAction GetRidingMovementAction()
+        private PlayerAction GetRidingMovementAction(WeaponContext weapons)
         {
             // Fenrir variants have special running animation
             if (_currentVehicleIndex >= 11 && _currentVehicleIndex <= 18) // All Fenrir variants
-                return PlayerAction.PlayerFenrirRun;
+                return GetFenrirRunAction(weapons);
 
             // Dark Horse has a specific animation
             if (_currentVehicleIndex == 0) // Dark Horse
                 return PlayerAction.PlayerRunRideHorse;
+
+            if (_currentVehicleIndex == 7 || _currentVehicleIndex == 8) // Uniria/Dinorant
+            {
+                if (IsRageFighterClass(CharacterClass))
+                {
+                    return weapons.HasAnyWeapon ? PlayerAction.PlayerRageUniRunOneRight : PlayerAction.PlayerRageUniRun;
+                }
+
+                return weapons.HasAnyWeapon ? PlayerAction.PlayerRunRideWeapon : PlayerAction.PlayerRunRide;
+            }
 
             // Default riding animation for Dinorant, Uniria, etc.
             return PlayerAction.PlayerRunRide;
@@ -1433,14 +1886,97 @@ namespace Client.Main.Objects.Player
         /// <summary>
         /// Gets the appropriate idle action when riding a mount.
         /// </summary>
-        private PlayerAction GetRidingIdleAction()
+        private PlayerAction GetRidingIdleAction(WeaponContext weapons)
         {
             // Fenrir variants have special standing animation
             if (_currentVehicleIndex >= 11 && _currentVehicleIndex <= 18) // All Fenrir variants
-                return PlayerAction.PlayerFenrirStand;
+                return GetFenrirStandAction(weapons);
 
-            // All other mounts use the same riding idle animation
+            if (_currentVehicleIndex == 0) // Dark Horse
+                return PlayerAction.PlayerStopRideHorse;
+
+            if (_currentVehicleIndex == 7 || _currentVehicleIndex == 8) // Uniria/Dinorant
+            {
+                if (!weapons.HasAnyWeapon)
+                    return PlayerAction.PlayerStopRide;
+
+                return IsRageFighterClass(CharacterClass)
+                    ? PlayerAction.PlayerRageUniStopOneRight
+                    : PlayerAction.PlayerStopRideWeapon;
+            }
+
             return PlayerAction.PlayerStopRide;
+        }
+
+        private PlayerAction GetFenrirStandAction(WeaponContext weapons)
+        {
+            if (IsRageFighterClass(CharacterClass))
+            {
+                if (weapons.HasDualWeapons)
+                    return PlayerAction.PlayerRageFenrirStandTwoSword;
+                if (weapons.HasRightWeapon)
+                    return PlayerAction.PlayerRageFenrirStandOneRight;
+                if (weapons.HasLeftWeapon)
+                    return PlayerAction.PlayerRageFenrirStandOneLeft;
+                return PlayerAction.PlayerRageFenrirStand;
+            }
+
+            if (weapons.HasDualWeapons)
+                return PlayerAction.PlayerFenrirStandTwoSword;
+            if (weapons.HasRightWeapon)
+                return PlayerAction.PlayerFenrirStandOneRight;
+            if (weapons.HasLeftWeapon)
+                return PlayerAction.PlayerFenrirStandOneLeft;
+            return PlayerAction.PlayerFenrirStand;
+        }
+
+        private PlayerAction GetFenrirRunAction(WeaponContext weapons)
+        {
+            bool isElf = IsElfClass(CharacterClass);
+            bool isDarkWizard = IsDarkWizardClass(CharacterClass);
+            bool isRageFighter = IsRageFighterClass(CharacterClass);
+
+            if (weapons.HasDualWeapons)
+            {
+                if (isElf)
+                    return PlayerAction.PlayerFenrirRunTwoSwordElf;
+                if (isDarkWizard)
+                    return PlayerAction.PlayerFenrirRunTwoSwordMagom;
+                if (isRageFighter)
+                    return PlayerAction.PlayerRageFenrirRunTwoSword;
+                return PlayerAction.PlayerFenrirRunTwoSword;
+            }
+
+            if (weapons.HasRightWeapon)
+            {
+                if (isElf)
+                    return PlayerAction.PlayerFenrirRunOneRightElf;
+                if (isDarkWizard)
+                    return PlayerAction.PlayerFenrirRunOneRightMagom;
+                if (isRageFighter)
+                    return PlayerAction.PlayerRageFenrirRunOneRight;
+                return PlayerAction.PlayerFenrirRunOneRight;
+            }
+
+            if (weapons.HasLeftWeapon)
+            {
+                if (isElf)
+                    return PlayerAction.PlayerFenrirRunOneLeftElf;
+                if (isDarkWizard)
+                    return PlayerAction.PlayerFenrirRunOneLeftMagom;
+                if (isRageFighter)
+                    return PlayerAction.PlayerRageFenrirRunOneLeft;
+                return PlayerAction.PlayerFenrirRunOneLeft;
+            }
+
+            if (isElf)
+                return PlayerAction.PlayerFenrirRunElf;
+            if (isDarkWizard)
+                return PlayerAction.PlayerFenrirRunMagom;
+            if (isRageFighter)
+                return PlayerAction.PlayerRageFenrirRun;
+
+            return PlayerAction.PlayerFenrirRun;
         }
 
         /// <summary>
@@ -1534,12 +2070,17 @@ namespace Client.Main.Objects.Player
         private MovementMode GetModeFromCurrentAction() =>
             CurrentAction switch
             {
-                PlayerAction.PlayerFly or PlayerAction.PlayerStopFly or PlayerAction.PlayerPoseMale1
+                PlayerAction.PlayerFly or PlayerAction.PlayerFlyCrossbow or
+                PlayerAction.PlayerStopFly or PlayerAction.PlayerStopFlyCrossbow or
+                PlayerAction.PlayerPoseMale1
                     => MovementMode.Fly,
-                PlayerAction.PlayerRunSwim
+                PlayerAction.PlayerRunSwim or PlayerAction.PlayerWalkSwim
                     => MovementMode.Swim,
                 _ => MovementMode.Walk
             };
+
+        private bool IsRelaxedSafeZone(WalkableWorldControl world, TWFlags flags) =>
+            flags.HasFlag(TWFlags.SafeZone) && !IsBloodCastleMap(world.WorldIndex);
 
         private PlayerAction GetIdleAction(WalkableWorldControl world)
         {
@@ -1549,10 +2090,13 @@ namespace Client.Main.Objects.Player
 
         private PlayerAction GetIdleAction(WalkableWorldControl world, TWFlags flags)
         {
-            if (flags.HasFlag(TWFlags.SafeZone))
+            bool relaxedSafeZone = IsRelaxedSafeZone(world, flags);
+            if (relaxedSafeZone)
                 return GetRelaxedIdleAction();
 
-            return GetIdleAction(GetCurrentMovementMode(world, flags));
+            var weapons = GetWeaponContext();
+            bool isInChaosCastle = IsChaosCastleMap(world.WorldIndex);
+            return GetIdleAction(GetCurrentMovementMode(world, flags), weapons, flags.HasFlag(TWFlags.SafeZone), isInChaosCastle);
         }
 
         // --------------- LOCAL PLAYER (the one we control) ----------------
@@ -1564,6 +2108,9 @@ namespace Client.Main.Objects.Player
 
             var flags = world.Terrain.RequestTerrainFlag((int)Location.X, (int)Location.Y);
             bool isInSafeZone = flags.HasFlag(TWFlags.SafeZone);
+            bool relaxedSafeZone = IsRelaxedSafeZone(world, flags);
+            var weapons = GetWeaponContext();
+            bool isInChaosCastle = IsChaosCastleMap(world.WorldIndex);
             UpdateWeaponHolsterState(isInSafeZone);
             UpdateVehicleState(isInSafeZone);
 
@@ -1579,22 +2126,20 @@ namespace Client.Main.Objects.Player
                 ResetRestSitStates();
 
                 PlayerAction desired;
-                if (isInSafeZone)
+                if (relaxedSafeZone)
                 {
                     desired = GetRelaxedWalkAction();
                 }
                 else if (_isRiding)
                 {
                     // Use riding animation when mounted
-                    desired = GetRidingMovementAction();
+                    desired = GetRidingMovementAction(weapons);
                     // Sync vehicle animation
                     Vehicle?.SetRiderAnimation(isMoving: true);
                 }
                 else
                 {
-                    desired = (HasEquippedWings && mode == MovementMode.Fly)
-                        ? PlayerAction.PlayerFly
-                        : GetMovementAction(mode);
+                    desired = GetMovementAction(mode, weapons, isInSafeZone);
                 }
 
                 if (!IsOneShotPlaying && CurrentAction != desired)
@@ -1604,20 +2149,20 @@ namespace Client.Main.Objects.Player
             else if (!IsOneShotPlaying)
             {
                 PlayerAction idleAction;
-                if (isInSafeZone)
+                if (relaxedSafeZone)
                 {
                     idleAction = GetRelaxedIdleAction();
                 }
                 else if (_isRiding)
                 {
                     // Use riding idle animation when mounted
-                    idleAction = GetRidingIdleAction();
+                    idleAction = GetRidingIdleAction(weapons);
                     // Sync vehicle animation
                     Vehicle?.SetRiderAnimation(isMoving: false);
                 }
                 else
                 {
-                    idleAction = GetIdleAction(mode);
+                    idleAction = GetIdleAction(mode, weapons, isInSafeZone, isInChaosCastle);
                 }
 
                 if (CurrentAction != idleAction)
@@ -1633,6 +2178,9 @@ namespace Client.Main.Objects.Player
 
             var flags = world.Terrain.RequestTerrainFlag((int)Location.X, (int)Location.Y);
             bool isInSafeZone = flags.HasFlag(TWFlags.SafeZone);
+            bool relaxedSafeZone = IsRelaxedSafeZone(world, flags);
+            var weapons = GetWeaponContext();
+            bool isInChaosCastle = IsChaosCastleMap(world.WorldIndex);
             UpdateWeaponHolsterState(isInSafeZone);
             UpdateVehicleStateFromAppearance(isInSafeZone);
 
@@ -1644,22 +2192,20 @@ namespace Client.Main.Objects.Player
             {
                 ResetRestSitStates();
                 PlayerAction desired;
-                if (isInSafeZone)
+                if (relaxedSafeZone)
                 {
                     desired = GetRelaxedWalkAction();
                 }
                 else if (_isRiding)
                 {
                     // Use riding animation when mounted
-                    desired = GetRidingMovementAction();
+                    desired = GetRidingMovementAction(weapons);
                     // Sync vehicle animation
                     Vehicle?.SetRiderAnimation(isMoving: true);
                 }
                 else
                 {
-                    desired = (HasEquippedWings && mode == MovementMode.Fly)
-                        ? PlayerAction.PlayerFly
-                        : GetMovementAction(mode);
+                    desired = GetMovementAction(mode, weapons, isInSafeZone);
                 }
 
                 if (!IsOneShotPlaying && CurrentAction != desired)
@@ -1669,20 +2215,20 @@ namespace Client.Main.Objects.Player
             else if (!IsOneShotPlaying)
             {
                 PlayerAction idleAction;
-                if (isInSafeZone)
+                if (relaxedSafeZone)
                 {
                     idleAction = GetRelaxedIdleAction();
                 }
                 else if (_isRiding)
                 {
                     // Use riding idle animation when mounted
-                    idleAction = GetRidingIdleAction();
+                    idleAction = GetRidingIdleAction(weapons);
                     // Sync vehicle animation
                     Vehicle?.SetRiderAnimation(isMoving: false);
                 }
                 else
                 {
-                    idleAction = GetIdleAction(mode);
+                    idleAction = GetIdleAction(mode, weapons, isInSafeZone, isInChaosCastle);
                 }
 
                 if (CurrentAction != idleAction)
@@ -1788,22 +2334,18 @@ namespace Client.Main.Objects.Player
         // ────────────────────────────── ATTACKS (unchanged) ──────────────────────────────
         public PlayerAction GetAttackAnimation()
         {
-            // Get actual equipped weapon type
-            WeaponType weapon = GetEquippedWeaponType();
-            return weapon switch
+            var weapons = GetWeaponContext();
+            bool isInSafeZone = false;
+
+            if (World is WalkableWorldControl world)
             {
-                WeaponType.Sword => PlayerAction.PlayerAttackSwordRight1,
-                WeaponType.TwoHandSword => PlayerAction.PlayerAttackTwoHandSword1,
-                WeaponType.Spear => PlayerAction.PlayerAttackSpear1,
-                WeaponType.Bow => PlayerAction.PlayerAttackBow,
-                WeaponType.Crossbow => PlayerAction.PlayerAttackCrossbow,
-                WeaponType.Staff => PlayerAction.PlayerAttackSwordRight1,
-                WeaponType.Scepter => PlayerAction.PlayerAttackSwordRight1,
-                WeaponType.Scythe => PlayerAction.PlayerAttackScythe1,
-                WeaponType.Book => PlayerAction.PlayerAttackFist,
-                WeaponType.Fist or WeaponType.None => PlayerAction.PlayerAttackFist,
-                _ => PlayerAction.PlayerAttackFist
-            };
+                var flags = world.Terrain.RequestTerrainFlag((int)Location.X, (int)Location.Y);
+                isInSafeZone = flags.HasFlag(TWFlags.SafeZone);
+            }
+
+            PlayerAction action = GetAttackAction(weapons, isInSafeZone);
+            _attackSequence++;
+            return action;
         }
 
         public void Attack(MonsterObject target)
@@ -1886,27 +2428,22 @@ namespace Client.Main.Objects.Player
         /// </summary>
         private WeaponType GetEquippedWeaponType()
         {
-            if (_networkManager == null)
-                return Equipment.GetDefaultWeaponTypeForClass(CharacterClass);
+            var weapons = GetWeaponContext();
+            var kind = weapons.RightKind != WeaponKind.None ? weapons.RightKind : weapons.LeftKind;
 
-            var charState = _networkManager.GetCharacterState();
-            var inventory = charState.GetInventoryItems();
-
-            // Get item definitions for both hands
-            var leftHandItem = inventory.TryGetValue(InventoryConstants.LeftHandSlot, out var leftData)
-                ? ItemDatabase.GetItemDefinition(leftData)
-                : null;
-            var rightHandItem = inventory.TryGetValue(InventoryConstants.RightHandSlot, out var rightData)
-                ? ItemDatabase.GetItemDefinition(rightData)
-                : null;
-
-            // Use equipment system to determine weapon type
-            var equippedWeapon = Equipment.GetEquippedWeaponType(leftHandItem, rightHandItem, ItemDatabase.GetItemGroup(leftData), ItemDatabase.GetItemGroup(rightData));
-
-            // Fall back to class default if no weapon equipped
-            return equippedWeapon != WeaponType.None
-                ? equippedWeapon
-                : Equipment.GetDefaultWeaponTypeForClass(CharacterClass);
+            return kind switch
+            {
+                WeaponKind.Sword => WeaponType.Sword,
+                WeaponKind.TwoHandSword or WeaponKind.TwoHandSwordTwo => WeaponType.TwoHandSword,
+                WeaponKind.Spear => WeaponType.Spear,
+                WeaponKind.Scythe => WeaponType.Scythe,
+                WeaponKind.Bow => WeaponType.Bow,
+                WeaponKind.Crossbow => WeaponType.Crossbow,
+                WeaponKind.SummonerStick => WeaponType.Staff,
+                WeaponKind.StaffOneHand or WeaponKind.StaffTwoHand => WeaponType.Staff,
+                WeaponKind.Book => WeaponType.Book,
+                _ => Equipment.GetDefaultWeaponTypeForClass(CharacterClass)
+            };
         }
 
         /// <summary>
@@ -1915,12 +2452,13 @@ namespace Client.Main.Objects.Player
         /// </summary>
         private void PlayWeaponSwingSound()
         {
-            var weaponType = GetEquippedWeaponType();
-            string soundPath = weaponType switch
+            var weapons = GetWeaponContext();
+            var kind = weapons.RightKind != WeaponKind.None ? weapons.RightKind : weapons.LeftKind;
+            string soundPath = kind switch
             {
-                WeaponType.Bow => "Sound/eBow.wav",
-                WeaponType.Crossbow => GetCrossbowSound(),
-                WeaponType.Spear => "Sound/eSwingLightSword.wav",
+                WeaponKind.Bow => "Sound/eBow.wav",
+                WeaponKind.Crossbow => GetCrossbowSound(),
+                WeaponKind.Spear => "Sound/eSwingLightSword.wav",
                 _ => GetRandomMeleeSwingSound() // Swords, axes, maces, etc.
             };
 
@@ -1968,6 +2506,10 @@ namespace Client.Main.Objects.Player
             PlayerAction.PlayerAttackCrossbow => 8f,
             PlayerAction.PlayerAttackFlyBow => 8f,
             PlayerAction.PlayerAttackFlyCrossbow => 8f,
+            PlayerAction.PlayerAttackRideBow => 8f,
+            PlayerAction.PlayerAttackRideCrossbow => 8f,
+            PlayerAction.PlayerFenrirAttackBow => 8f,
+            PlayerAction.PlayerFenrirAttackCrossbow => 8f,
             PlayerAction.PlayerAttackSpear1 => 3f,
             PlayerAction.PlayerAttackSkillSword1 => 6f,
             PlayerAction.PlayerAttackSkillSpear => 6f,
