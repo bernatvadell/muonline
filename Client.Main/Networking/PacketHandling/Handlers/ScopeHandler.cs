@@ -26,6 +26,12 @@ namespace Client.Main.Networking.PacketHandling.Handlers
     /// </summary>
     public class ScopeHandler : IGamePacketHandler
     {
+        private static readonly string[] _recentHitPackets = new string[12];
+        private static int _recentHitPacketIndex = -1;
+
+        internal static string[] RecentHitPackets => _recentHitPackets;
+        internal static int RecentHitPacketIndex => System.Threading.Volatile.Read(ref _recentHitPacketIndex);
+
         // ─────────────────────────── Fields ───────────────────────────
         private readonly ILogger<ScopeHandler> _logger;
         private readonly ScopeManager _scopeManager;
@@ -60,6 +66,21 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             _targetVersion = targetVersion;
             _loggerFactory = loggerFactory;
             _activeInstance = this;
+        }
+
+        private static void RecordHitPacket(ReadOnlySpan<byte> packetSpan)
+        {
+            try
+            {
+                var hex = BitConverter.ToString(packetSpan.ToArray()).Replace("-", " ");
+                var entry = $"Len={packetSpan.Length} Data={hex}";
+                var index = Interlocked.Increment(ref _recentHitPacketIndex);
+                _recentHitPackets[index % _recentHitPackets.Length] = entry;
+            }
+            catch
+            {
+                // Diagnostic helper should never throw into caller.
+            }
         }
 
         // ───────────────────── Internal API ────────────────────────
@@ -759,23 +780,63 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         {
             try
             {
-                if (packet.Length < ObjectHit.Length)
+                RecordHitPacket(packet.Span);
+
+                bool isExtendedPacket = packet.Length >= ObjectHitExtended.Length;
+                ushort rawId;
+                uint healthDmg;
+                uint shieldDmg;
+                DamageKind damageKind;
+                bool isDoubleDamage;
+                bool isTripleDamage;
+                byte? healthStatus = null;
+                byte? shieldStatus = null;
+
+                if (isExtendedPacket)
                 {
-                    _logger.LogWarning("ObjectHit packet (0x11) too short: {Length}", packet.Length);
-                    return Task.CompletedTask;
+                    var extended = new ObjectHitExtended(packet);
+                    rawId = extended.ObjectId;
+                    healthDmg = extended.HealthDamage;
+                    shieldDmg = extended.ShieldDamage;
+                    damageKind = extended.Kind;
+                    isDoubleDamage = extended.IsDoubleDamage;
+                    isTripleDamage = extended.IsTripleDamage;
+                    healthStatus = extended.HealthStatus;
+                    shieldStatus = extended.ShieldStatus;
+                }
+                else
+                {
+                    if (packet.Length < ObjectHit.Length)
+                    {
+                        _logger.LogWarning("ObjectHit packet (0x11) too short: {Length}", packet.Length);
+                        return Task.CompletedTask;
+                    }
+
+                    var hitInfo = new ObjectHit(packet);
+                    rawId = hitInfo.ObjectId;
+                    healthDmg = hitInfo.HealthDamage;
+                    shieldDmg = hitInfo.ShieldDamage;
+                    damageKind = hitInfo.Kind;
+                    isDoubleDamage = hitInfo.IsDoubleDamage;
+                    isTripleDamage = hitInfo.IsTripleDamage;
                 }
 
-                var hitInfo = new ObjectHit(packet);
-                ushort rawId = hitInfo.ObjectId;
                 ushort maskedId = (ushort)(rawId & 0x7FFF);
-                uint healthDmg = hitInfo.HealthDamage;
-                uint shieldDmg = hitInfo.ShieldDamage;
                 uint totalDmg = healthDmg + shieldDmg;
 
-                // Get damage type information from server
-                var damageKind = hitInfo.Kind;
-                bool isDoubleDamage = hitInfo.IsDoubleDamage;
-                bool isTripleDamage = hitInfo.IsTripleDamage;
+                float? healthFraction = null;
+                float? shieldFraction = null;
+                const float statusScale = 1f / 250f;
+
+                if (healthStatus is { } hs && hs != byte.MaxValue)
+                {
+                    healthFraction = Math.Clamp(hs * statusScale, 0f, 1f);
+                }
+
+                if (shieldStatus is { } ss && ss != byte.MaxValue)
+                {
+                    shieldFraction = Math.Clamp(ss * statusScale, 0f, 1f);
+                }
 
                 // Log damage event with type information
                 string objectName = _scopeManager.TryGetScopeObjectName(maskedId, out var nm) ? (nm ?? "Object") : "Object";
@@ -811,6 +872,11 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                     var headPos = target.WorldPosition.Translation
                                 + Vector3.UnitZ * (target.BoundingBoxWorld.Max.Z - target.WorldPosition.Translation.Z + 30f);
+
+                    if (target is MonsterObject monster)
+                    {
+                        monster.UpdateHealthFractions(healthFraction, shieldFraction, healthDmg, shieldDmg);
+                    }
 
                     // Use server-provided damage type for authentic MU Online colors
                     Color dmgColor;

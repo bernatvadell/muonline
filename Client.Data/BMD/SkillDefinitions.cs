@@ -53,11 +53,11 @@ namespace Client.Data.BMD
             { 34, SkillType.Self },    // Summon Dark Knight
             { 35, SkillType.Self },    // Summon Bali
             { 36, SkillType.Self },    // Summon Soldier
-            { 38, SkillType.Target },  // Decay
+            { 38, SkillType.Area },    // Decay
             { 39, SkillType.Area },    // Ice Storm
             { 40, SkillType.Target },  // Nova
             { 41, SkillType.Area },    // Twisting Slash
-            { 42, SkillType.Target },  // Rageful Blow
+            { 42, SkillType.Area },    // Rageful Blow
             { 43, SkillType.Target },  // Death Stab
             { 44, SkillType.Target },  // Crescent Moon Slash
             { 45, SkillType.Target },  // Lance
@@ -115,7 +115,7 @@ namespace Client.Data.BMD
 
             // ID 230-270: Dark Lord/Rage Fighter Skills
             { 230, SkillType.Area },   // Lightning Shock
-            { 232, SkillType.Target }, // Strike of Destruction
+            { 232, SkillType.Area },   // Strike of Destruction
             { 233, SkillType.Self },   // Expansion of Wizardry
             { 234, SkillType.Self },   // Recovery
             { 235, SkillType.Area },   // Multi-Shot

@@ -1250,17 +1250,27 @@ namespace Client.Main.Scenes
                     else
                     {
                         var skill = _skillQuickSlot.SelectedSkill;
+                        uint allowedRange = Core.Utilities.SkillDatabase.GetSkillRange(skill.SkillId);
 
                         // Check if skill is area/buff type
                         if (IsAreaSkill(skill.SkillId))
                         {
                             // Area/buff skill - can be used with or without target
+                            bool targetInRange = true;
                             ushort extraTargetId = 0;
                             if (MouseHoverObject is MonsterObject skillTargetMonster &&
                                 !skillTargetMonster.IsDead &&
                                 skillTargetMonster.World == World)
                             {
-                                extraTargetId = skillTargetMonster.NetworkId;
+                                if (allowedRange != 0 &&
+                                    Vector2.Distance(Hero.Location, skillTargetMonster.Location) > allowedRange)
+                                {
+                                    targetInRange = false;
+                                }
+                                else
+                                {
+                                    extraTargetId = skillTargetMonster.NetworkId;
+                                }
                             }
                             else if (MouseHoverObject is PlayerObject skillTargetPlayer &&
                                 skillTargetPlayer != Hero &&
@@ -1268,9 +1278,20 @@ namespace Client.Main.Scenes
                                 skillTargetPlayer.World == World &&
                                 IsDuelAttackTarget(skillTargetPlayer))
                             {
-                                extraTargetId = skillTargetPlayer.NetworkId;
+                                if (allowedRange != 0 &&
+                                    Vector2.Distance(Hero.Location, skillTargetPlayer.Location) > allowedRange)
+                                {
+                                    targetInRange = false;
+                                }
+                                else
+                                {
+                                    extraTargetId = skillTargetPlayer.NetworkId;
+                                }
                             }
-                            UseAreaSkill(skill, extraTargetId);
+                            if (targetInRange)
+                            {
+                                UseAreaSkill(skill, extraTargetId);
+                            }
                         }
                         else
                         {
@@ -1279,7 +1300,11 @@ namespace Client.Main.Scenes
                                 !skillTargetMonster.IsDead &&
                                 skillTargetMonster.World == World)
                             {
-                                UseSkillOnTarget(skill, skillTargetMonster);
+                                if (allowedRange == 0 ||
+                                    Vector2.Distance(Hero.Location, skillTargetMonster.Location) <= allowedRange)
+                                {
+                                    UseSkillOnTarget(skill, skillTargetMonster);
+                                }
                             }
                             else if (MouseHoverObject is PlayerObject skillTargetPlayer &&
                                 skillTargetPlayer != Hero &&
@@ -1287,7 +1312,11 @@ namespace Client.Main.Scenes
                                 skillTargetPlayer.World == World &&
                                 IsDuelAttackTarget(skillTargetPlayer))
                             {
-                                UseSkillOnPlayerTarget(skill, skillTargetPlayer);
+                                if (allowedRange == 0 ||
+                                    Vector2.Distance(Hero.Location, skillTargetPlayer.Location) <= allowedRange)
+                                {
+                                    UseSkillOnPlayerTarget(skill, skillTargetPlayer);
+                                }
                             }
                         }
 

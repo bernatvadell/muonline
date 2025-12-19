@@ -495,8 +495,6 @@ namespace Client.Main.Objects.Player
             return true;
         }
 
-
-
         private void HookInventoryEvents()
         {
             if (_networkManager != null)
@@ -727,9 +725,6 @@ namespace Client.Main.Objects.Player
         {
             if (Appearance.RawData.IsEmpty) return; // No appearance data to process
 
-            // Update CharacterClass based on appearance data
-            //CharacterClass = Appearance.CharacterClass; // TODO: Wrong character class?
-
             static bool HasEquippedAppearanceItem(short index)
                 => index != 0xFF && index != 0x1FF;
 
@@ -904,11 +899,6 @@ namespace Client.Main.Objects.Player
         public async Task UpdateEquipmentAppearanceFromConfig(AppearanceConfig appearanceConfig)
         {
             if (appearanceConfig == null) return; // No appearance data to process
-
-            // Update CharacterClass based on appearance data
-            //CharacterClass = Appearance.CharacterClass; // TODO: Wrong character class?
-            // Update player class
-            // await UpdateBodyPartClassesAsync(appearanceConfig.PlayerClass);
 
             // Helm
             if (appearanceConfig.HelmItemIndex != 0XFFFF)
@@ -1271,8 +1261,7 @@ namespace Client.Main.Objects.Player
             if (item?.Name == null)
                 return false;
 
-            return item.Name.Contains("Crossbow", StringComparison.OrdinalIgnoreCase) ||
-                   item.Name.Contains("Kusza", StringComparison.OrdinalIgnoreCase);
+            return item.Name.Contains("Crossbow", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsBook(ItemDefinition item)
@@ -1280,9 +1269,7 @@ namespace Client.Main.Objects.Player
             if (item?.Name == null)
                 return false;
 
-            return item.Name.Contains("Book", StringComparison.OrdinalIgnoreCase) ||
-                   item.Name.Contains("Księga", StringComparison.OrdinalIgnoreCase) ||
-                   item.Name.Contains("Ksiega", StringComparison.OrdinalIgnoreCase);
+            return item.Name.Contains("Book", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsSummonerStick(ItemDefinition item)
@@ -1620,10 +1607,6 @@ namespace Client.Main.Objects.Player
                 _ => GetClassWalkAction(isInChaosCastle: World is WalkableWorldControl w && IsChaosCastleMap(w.WorldIndex))
             };
         }
-
-        // Back-compat overload used in older call-sites
-        private PlayerAction GetMovementAction(WalkableWorldControl world) =>
-            GetMovementAction(GetCurrentMovementMode(world), GetWeaponContext(), world.Terrain.RequestTerrainFlag((int)Location.X, (int)Location.Y).HasFlag(TWFlags.SafeZone));
 
         /// <summary>Action that should play while standing (gender already cached).</summary>
         private PlayerAction GetIdleAction(MovementMode mode, WeaponContext weapons, bool isInSafeZone, bool isInChaosCastle)
@@ -2322,13 +2305,6 @@ namespace Client.Main.Objects.Player
                 return (ushort)(_isFemale ? PlayerAction.PlayerStopFemale : PlayerAction.PlayerStopMale);
 
             return (ushort)GetIdleAction(world);
-        }
-
-        private bool IsMovementAnimation(ushort action)
-        {
-            var a = (PlayerAction)action;
-            return a is PlayerAction.PlayerWalkMale or PlayerAction.PlayerWalkFemale
-                       or PlayerAction.PlayerRunSwim or PlayerAction.PlayerFly;
         }
 
         // ────────────────────────────── ATTACKS (unchanged) ──────────────────────────────

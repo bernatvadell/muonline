@@ -203,6 +203,31 @@ namespace Client.Main.Objects
         }
 
         /// <summary>
+        /// Minimal health/shield update shim to accept server-provided fractions.
+        /// Triggers damage reactions and death fade when health reaches zero.
+        /// </summary>
+        public void UpdateHealthFractions(float? healthFraction, float? shieldFraction, uint? healthDamage = null, uint? shieldDamage = null)
+        {
+            if (healthFraction.HasValue)
+            {
+                float hf = MathHelper.Clamp(healthFraction.Value, 0f, 1f);
+                if (hf <= 0f)
+                {
+                    StartDeathFade();
+                }
+                else
+                {
+                    OnReceiveDamage();
+                }
+            }
+
+            if (shieldFraction.HasValue)
+            {
+                OnReceiveDamage();
+            }
+        }
+
+        /// <summary>
         /// Called when the monster’s death animation starts.
         /// </summary>
         public virtual void OnDeathAnimationStart()
