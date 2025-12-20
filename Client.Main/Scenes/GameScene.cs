@@ -73,6 +73,11 @@ namespace Client.Main.Scenes
         private BlendingEditorControl _blendingEditor;
         private ObjectSelectionDialog _blendingObjectSelectionDialog;
         private ObjectSelectionDialog _deletionObjectSelectionDialog;
+        private Core.Client.SkillEntryState? _pendingSkill;
+        private ushort _pendingSkillTargetId;
+        private uint _pendingSkillRange;
+        private bool _pendingSkillIsArea;
+        private bool _pendingSkillTargetIsPlayer;
 
         // Cache expensive enum values to avoid allocations
         private static readonly Keys[] _allKeys = (Keys[])System.Enum.GetValues(typeof(Keys));
@@ -1154,6 +1159,7 @@ namespace Client.Main.Scenes
                 _playerMenuHoverId = null;
                 _playerMenuHintCooldown = 0;
                 _playerMenuHintAlpha = 0;
+                ClearPendingSkill();
                 _previousKeyboardState = currentKeyboardState;
                 return;
             }
@@ -1195,6 +1201,7 @@ namespace Client.Main.Scenes
             }
 
             UpdatePlayerMenuHint(gameTime, currentKeyboardState, MouseHoverObject as PlayerObject, uiMouse.Position);
+            UpdatePendingSkill();
 
             // Handle attack clicks on monsters with proper validation
             if (!IsMouseInputConsumedThisFrame &&
@@ -1249,6 +1256,7 @@ namespace Client.Main.Scenes
                     }
                     else
                     {
+                        ClearPendingSkill();
                         var skill = _skillQuickSlot.SelectedSkill;
                         uint allowedRange = Core.Utilities.SkillDatabase.GetSkillRange(skill.SkillId);
 
@@ -1256,21 +1264,12 @@ namespace Client.Main.Scenes
                         if (IsAreaSkill(skill.SkillId))
                         {
                             // Area/buff skill - can be used with or without target
-                            bool targetInRange = true;
-                            ushort extraTargetId = 0;
+                            WalkerObject skillTarget = null;
                             if (MouseHoverObject is MonsterObject skillTargetMonster &&
                                 !skillTargetMonster.IsDead &&
                                 skillTargetMonster.World == World)
                             {
-                                if (allowedRange != 0 &&
-                                    Vector2.Distance(Hero.Location, skillTargetMonster.Location) > allowedRange)
-                                {
-                                    targetInRange = false;
-                                }
-                                else
-                                {
-                                    extraTargetId = skillTargetMonster.NetworkId;
-                                }
+                                skillTarget = skillTargetMonster;
                             }
                             else if (MouseHoverObject is PlayerObject skillTargetPlayer &&
                                 skillTargetPlayer != Hero &&
@@ -1278,19 +1277,19 @@ namespace Client.Main.Scenes
                                 skillTargetPlayer.World == World &&
                                 IsDuelAttackTarget(skillTargetPlayer))
                             {
-                                if (allowedRange != 0 &&
-                                    Vector2.Distance(Hero.Location, skillTargetPlayer.Location) > allowedRange)
-                                {
-                                    targetInRange = false;
-                                }
-                                else
-                                {
-                                    extraTargetId = skillTargetPlayer.NetworkId;
-                                }
+                                skillTarget = skillTargetPlayer;
                             }
-                            if (targetInRange)
+                            if (skillTarget == null)
                             {
-                                UseAreaSkill(skill, extraTargetId);
+                                UseAreaSkill(skill, 0);
+                            }
+                            else if (IsInSkillRange(skillTarget.Location, allowedRange))
+                            {
+                                UseAreaSkill(skill, skillTarget.NetworkId);
+                            }
+                            else
+                            {
+                                QueueSkillCast(skill, skillTarget, allowedRange, isAreaSkill: true);
                             }
                         }
                         else
@@ -1300,11 +1299,10 @@ namespace Client.Main.Scenes
                                 !skillTargetMonster.IsDead &&
                                 skillTargetMonster.World == World)
                             {
-                                if (allowedRange == 0 ||
-                                    Vector2.Distance(Hero.Location, skillTargetMonster.Location) <= allowedRange)
-                                {
+                                if (IsInSkillRange(skillTargetMonster.Location, allowedRange))
                                     UseSkillOnTarget(skill, skillTargetMonster);
-                                }
+                                else
+                                    QueueSkillCast(skill, skillTargetMonster, allowedRange, isAreaSkill: false);
                             }
                             else if (MouseHoverObject is PlayerObject skillTargetPlayer &&
                                 skillTargetPlayer != Hero &&
@@ -1312,11 +1310,10 @@ namespace Client.Main.Scenes
                                 skillTargetPlayer.World == World &&
                                 IsDuelAttackTarget(skillTargetPlayer))
                             {
-                                if (allowedRange == 0 ||
-                                    Vector2.Distance(Hero.Location, skillTargetPlayer.Location) <= allowedRange)
-                                {
+                                if (IsInSkillRange(skillTargetPlayer.Location, allowedRange))
                                     UseSkillOnPlayerTarget(skill, skillTargetPlayer);
-                                }
+                                else
+                                    QueueSkillCast(skill, skillTargetPlayer, allowedRange, isAreaSkill: false);
                             }
                         }
 
@@ -2117,6 +2114,125 @@ namespace Client.Main.Scenes
         private bool IsAreaSkill(ushort skillId)
         {
             return Core.Utilities.SkillDatabase.IsAreaSkill(skillId);
+        }
+
+        private bool IsInSkillRange(Vector2 targetLocation, uint allowedRange)
+        {
+            if (Hero == null)
+                return false;
+
+            return allowedRange == 0 || Vector2.Distance(Hero.Location, targetLocation) <= allowedRange;
+        }
+
+        private void QueueSkillCast(Core.Client.SkillEntryState skill, WalkerObject target, uint allowedRange, bool isAreaSkill)
+        {
+            if (skill == null || target == null || Hero == null)
+                return;
+
+            _pendingSkill = skill;
+            _pendingSkillTargetId = target.NetworkId;
+            _pendingSkillRange = allowedRange;
+            _pendingSkillIsArea = isAreaSkill;
+            _pendingSkillTargetIsPlayer = target is PlayerObject;
+
+            MoveHeroTowardsTarget(target.Location, force: true);
+        }
+
+        private void UpdatePendingSkill()
+        {
+            if (_pendingSkill == null || _pendingSkillTargetId == 0 || Hero == null || Hero.IsDead)
+            {
+                ClearPendingSkill();
+                return;
+            }
+
+            if (_skillQuickSlot?.SelectedSkill == null || _skillQuickSlot.SelectedSkill.SkillId != _pendingSkill.SkillId)
+            {
+                ClearPendingSkill();
+                return;
+            }
+
+            if (World is not WalkableWorldControl walkableWorld)
+            {
+                ClearPendingSkill();
+                return;
+            }
+
+            var terrainFlags = walkableWorld.Terrain.RequestTerrainFlag((int)Hero.Location.X, (int)Hero.Location.Y);
+            if (terrainFlags.HasFlag(TWFlags.SafeZone))
+            {
+                ClearPendingSkill();
+                return;
+            }
+
+            if (!walkableWorld.WalkerObjectsById.TryGetValue(_pendingSkillTargetId, out var walker))
+            {
+                ClearPendingSkill();
+                return;
+            }
+
+            if (_pendingSkillTargetIsPlayer)
+            {
+                if (walker is not PlayerObject targetPlayer || targetPlayer.IsDead || !IsDuelAttackTarget(targetPlayer))
+                {
+                    ClearPendingSkill();
+                    return;
+                }
+
+                if (IsInSkillRange(targetPlayer.Location, _pendingSkillRange))
+                {
+                    if (_pendingSkillIsArea)
+                        UseAreaSkill(_pendingSkill, targetPlayer.NetworkId);
+                    else
+                        UseSkillOnPlayerTarget(_pendingSkill, targetPlayer);
+                    ClearPendingSkill();
+                }
+                else
+                {
+                    MoveHeroTowardsTarget(targetPlayer.Location, force: false);
+                }
+                return;
+            }
+
+            if (walker is not MonsterObject targetMonster || targetMonster.IsDead || targetMonster.World != World)
+            {
+                ClearPendingSkill();
+                return;
+            }
+
+            if (IsInSkillRange(targetMonster.Location, _pendingSkillRange))
+            {
+                if (_pendingSkillIsArea)
+                    UseAreaSkill(_pendingSkill, targetMonster.NetworkId);
+                else
+                    UseSkillOnTarget(_pendingSkill, targetMonster);
+                ClearPendingSkill();
+            }
+            else
+            {
+                MoveHeroTowardsTarget(targetMonster.Location, force: false);
+            }
+        }
+
+        private void ClearPendingSkill()
+        {
+            _pendingSkill = null;
+            _pendingSkillTargetId = 0;
+            _pendingSkillRange = 0;
+            _pendingSkillIsArea = false;
+            _pendingSkillTargetIsPlayer = false;
+        }
+
+        private void MoveHeroTowardsTarget(Vector2 targetLocation, bool force)
+        {
+            if (Hero == null)
+                return;
+
+            if (!force && (Hero.IsMoving || Hero.MovementIntent))
+                return;
+
+            bool usePathfinding = !Hero.IsAttackOrSkillAnimationPlaying();
+            Hero.MoveTo(targetLocation, sendToServer: true, usePathfinding: usePathfinding);
         }
 
         /// <summary>

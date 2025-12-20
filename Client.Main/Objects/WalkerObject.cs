@@ -106,6 +106,15 @@ namespace Client.Main.Objects
 
         public bool IsOneShotPlaying => _animationController?.IsOneShotPlaying ?? false;
 
+        public bool IsAttackOrSkillAnimationPlaying()
+        {
+            if (!IsOneShotPlaying)
+                return false;
+
+            var type = _animationController.GetAnimationType((ushort)CurrentAction);
+            return type == AnimationType.Attack || type == AnimationType.Skill;
+        }
+
         internal void NotifyOneShotAnimationCompleted()
         {
             _animationController.NotifyAnimationCompleted();
@@ -334,7 +343,7 @@ namespace Client.Main.Objects
             PlayAction(actionIndex, false);
         }
 
-        public virtual void MoveTo(Vector2 targetLocation, bool sendToServer = true)
+        public virtual void MoveTo(Vector2 targetLocation, bool sendToServer = true, bool usePathfinding = true)
         {
             if (World == null) return;
 
@@ -354,11 +363,13 @@ namespace Client.Main.Objects
             WorldControl currentWorld = World;
             _ = Task.Run(() =>
             {
-                List<Vector2> path = Pathfinding.FindPath(startPos, targetLocation, currentWorld);
+                List<Vector2> path = usePathfinding
+                    ? Pathfinding.FindPath(startPos, targetLocation, currentWorld)
+                    : Pathfinding.BuildDirectPath(startPos, targetLocation);
 
                 // If no path was found for a remote object, fall back to a simple
                 // straight-line path so that the character still moves visibly
-                if ((path == null || path.Count == 0) && !sendToServer)
+                if ((path == null || path.Count == 0) && !sendToServer && usePathfinding)
                 {
                     path = Pathfinding.BuildDirectPath(startPos, targetLocation);
                 }
