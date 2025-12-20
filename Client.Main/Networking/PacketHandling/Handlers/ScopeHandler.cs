@@ -1437,9 +1437,18 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     if (world.WorldIndex == 8) // Atlans
                     {
                         var flags = world.Terrain.RequestTerrainFlag(x, y);
-                        walkAction = flags.HasFlag(TWFlags.SafeZone)
-                            ? (isFemale ? PlayerAction.PlayerWalkFemale : PlayerAction.PlayerWalkMale)
-                            : PlayerAction.PlayerRunSwim;
+                        if (flags.HasFlag(TWFlags.SafeZone))
+                        {
+                            walkAction = isFemale ? PlayerAction.PlayerWalkFemale : PlayerAction.PlayerWalkMale;
+                        }
+                        else if (player.HasEquippedWings)
+                        {
+                            walkAction = PlayerAction.PlayerFly;
+                        }
+                        else
+                        {
+                            walkAction = PlayerAction.PlayerRunSwim;
+                        }
                     }
                     else if (world.WorldIndex == 11 || (world.WorldIndex == 1 && player.HasEquippedWings && !world.Terrain.RequestTerrainFlag(x, y).HasFlag(TWFlags.SafeZone)))
                     {

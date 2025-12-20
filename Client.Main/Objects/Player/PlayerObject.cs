@@ -57,6 +57,8 @@ namespace Client.Main.Objects.Player
         internal const int LeftHandBoneIndex = 33;
         internal const int RightHandBoneIndex = 42;
         private const int BackWeaponBoneIndex = 47; // Same anchor used by wings
+        private const short WingOfStormIndex = 36;
+        private const short WingOfRuinIndex = 39;
         private string _helmModelPath;
 
         // Safe-zone weapon placement (editable XYZ values for clarity)
@@ -80,6 +82,7 @@ namespace Client.Main.Objects.Player
         private float _currentRiderHeightOffset = 0f;
 
         private int _lastEquipmentAnimationStride = -1;
+        private float _lastWingAnimationSpeed = -1f;
 
         // Timer for footstep sound playback
         private float _footstepTimer;
@@ -1128,6 +1131,8 @@ namespace Client.Main.Objects.Player
                 UpdateLocalPlayer(world, gameTime);
             else
                 UpdateRemotePlayer(world, gameTime);
+
+            UpdateWingAnimationSpeed();
         }
 
         private void UpdateEquipmentAnimationStride()
@@ -1154,6 +1159,47 @@ namespace Client.Main.Objects.Player
             EquippedWings?.SetAnimationUpdateStride(desiredStride);
 
             _lastEquipmentAnimationStride = desiredStride;
+        }
+
+        private void UpdateWingAnimationSpeed()
+        {
+            if (EquippedWings == null || EquippedWings.Hidden)
+                return;
+
+            short wingIndex = GetEquippedWingIndex();
+            if (wingIndex < 0)
+                return;
+
+            bool isFlyingAction = CurrentAction == PlayerAction.PlayerFly ||
+                                  CurrentAction == PlayerAction.PlayerFlyCrossbow;
+
+            float desiredSpeed = 0.25f;
+
+            if (wingIndex == WingOfRuinIndex)
+            {
+                desiredSpeed = 0.15f;
+            }
+            else if (isFlyingAction)
+            {
+                desiredSpeed = wingIndex == WingOfStormIndex ? 0.5f : 1f;
+            }
+
+            if (Math.Abs(desiredSpeed - _lastWingAnimationSpeed) > 0.0001f)
+            {
+                EquippedWings.AnimationSpeed = desiredSpeed;
+                _lastWingAnimationSpeed = desiredSpeed;
+            }
+        }
+
+        private short GetEquippedWingIndex()
+        {
+            if (EquippedWings == null)
+                return -1;
+
+            if (EquippedWings.ItemIndex >= 0)
+                return EquippedWings.ItemIndex;
+
+            return EquippedWings.Type > 0 ? EquippedWings.Type : (short)-1;
         }
 
         // --------------- Helpers for correct animation selection ----------------
@@ -1552,9 +1598,14 @@ namespace Client.Main.Objects.Player
         private MovementMode GetCurrentMovementMode(WalkableWorldControl world, TWFlags? flagsOverride = null)
         {
             var flags = flagsOverride ?? world.Terrain.RequestTerrainFlag((int)Location.X, (int)Location.Y);
-            // Atlans (index 8) is the only place where flying is forbidden.
+            // Atlans (index 8) uses swimming by default, but winged players still use fly animations.
             if (world.WorldIndex == 8)
             {
+
+                if (!flags.HasFlag(TWFlags.SafeZone) && HasEquippedWings)
+                {
+                    return MovementMode.Fly;
+                }
 
                 return flags.HasFlag(TWFlags.SafeZone) ? MovementMode.Walk : MovementMode.Swim;
             }
@@ -2077,6 +2128,14 @@ namespace Client.Main.Objects.Player
             if (relaxedSafeZone)
                 return GetRelaxedIdleAction();
 
+            if (world.WorldIndex == 8 && !flags.HasFlag(TWFlags.SafeZone))
+            {
+                var weaponContext = GetWeaponContext();
+                return weaponContext.PrimaryKind == WeaponKind.Crossbow
+                    ? PlayerAction.PlayerStopFlyCrossbow
+                    : PlayerAction.PlayerStopFly;
+            }
+
             var weapons = GetWeaponContext();
             bool isInChaosCastle = IsChaosCastleMap(world.WorldIndex);
             return GetIdleAction(GetCurrentMovementMode(world, flags), weapons, flags.HasFlag(TWFlags.SafeZone), isInChaosCastle);
@@ -2103,6 +2162,11 @@ namespace Client.Main.Objects.Player
             var mode = (!IsMoving && (pathQueued || MovementIntent))
                 ? GetModeFromCurrentAction()
                 : GetCurrentMovementMode(world, flags);
+
+            if (world.WorldIndex == 8 && !isInSafeZone && !HasEquippedWings)
+            {
+                mode = MovementMode.Swim;
+            }
 
             if (isAboutToMove)
             {
@@ -2142,6 +2206,12 @@ namespace Client.Main.Objects.Player
                     idleAction = GetRidingIdleAction(weapons);
                     // Sync vehicle animation
                     Vehicle?.SetRiderAnimation(isMoving: false);
+                }
+                else if (world.WorldIndex == 8 && !isInSafeZone)
+                {
+                    idleAction = weapons.PrimaryKind == WeaponKind.Crossbow
+                        ? PlayerAction.PlayerStopFlyCrossbow
+                        : PlayerAction.PlayerStopFly;
                 }
                 else
                 {
@@ -2171,6 +2241,11 @@ namespace Client.Main.Objects.Player
                 ? GetModeFromCurrentAction()
                 : GetCurrentMovementMode(world, flags);
 
+            if (world.WorldIndex == 8 && !isInSafeZone && !HasEquippedWings)
+            {
+                mode = MovementMode.Swim;
+            }
+
             if (isAboutToMove)
             {
                 ResetRestSitStates();
@@ -2208,6 +2283,12 @@ namespace Client.Main.Objects.Player
                     idleAction = GetRidingIdleAction(weapons);
                     // Sync vehicle animation
                     Vehicle?.SetRiderAnimation(isMoving: false);
+                }
+                else if (world.WorldIndex == 8 && !isInSafeZone)
+                {
+                    idleAction = weapons.PrimaryKind == WeaponKind.Crossbow
+                        ? PlayerAction.PlayerStopFlyCrossbow
+                        : PlayerAction.PlayerStopFly;
                 }
                 else
                 {
