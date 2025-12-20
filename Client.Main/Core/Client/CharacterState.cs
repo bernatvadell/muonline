@@ -119,6 +119,11 @@ namespace Client.Main.Core.Client
         public ushort Energy { get; set; } = 0;
         public ushort Leadership { get; set; } = 0;
 
+        // Combat speeds (provided by server, Season 6)
+        public ushort AttackSpeed { get; private set; } = 0;
+        public ushort MagicSpeed { get; private set; } = 0;
+        public ushort MaximumAttackSpeed { get; private set; } = 0;
+
         // Inventory and Money
         private readonly ConcurrentDictionary<byte, byte[]> _inventoryItems = new();
         public byte InventoryExpansionState { get; set; } = 0;
@@ -235,6 +240,7 @@ namespace Client.Main.Core.Client
 
         public event Action<uint, uint> HealthChanged; // (current, max)
         public event Action<uint, uint> ManaChanged;
+        public event Action AttackSpeedsChanged;
 
         public ushort AddedStrength { get; set; } = 0;
         public ushort AddedAgility { get; set; } = 0;
@@ -1107,6 +1113,187 @@ namespace Client.Main.Core.Client
         }
 
         /// <summary>
+        /// Updates attack/magic speeds (server-provided in Season 6).
+        /// If the server sends 0, falls back to stat-based calculation.
+        /// </summary>
+        public void UpdateAttackSpeeds(ushort attackSpeed, ushort magicSpeed, ushort? maximumAttackSpeed = null)
+        {
+            // Fallback to calculated values when server sends 0
+            if (attackSpeed == 0)
+            {
+                attackSpeed = CalculateAttackSpeed();
+                _logger.LogDebug("Server sent AttackSpeed=0, calculated fallback: {AttackSpeed}", attackSpeed);
+            }
+
+            if (magicSpeed == 0)
+            {
+                magicSpeed = CalculateMagicSpeed();
+                _logger.LogDebug("Server sent MagicSpeed=0, calculated fallback: {MagicSpeed}", magicSpeed);
+            }
+
+            bool changed = AttackSpeed != attackSpeed || MagicSpeed != magicSpeed;
+
+            AttackSpeed = attackSpeed;
+            MagicSpeed = magicSpeed;
+            if (maximumAttackSpeed.HasValue)
+                MaximumAttackSpeed = maximumAttackSpeed.Value;
+
+            _logger.LogDebug("Attack speeds updated. Attack={AttackSpeed}, Magic={MagicSpeed}, MaxAttack={MaxAttackSpeed}",
+                AttackSpeed, MagicSpeed, MaximumAttackSpeed);
+
+            if (changed)
+                AttackSpeedsChanged?.Invoke();
+        }
+
+        /// <summary>
+        /// Calculates attack speed based on agility, character class, and equipped items.
+        /// Used as fallback when server doesn't provide attack speed.
+        /// </summary>
+        private ushort CalculateAttackSpeed()
+        {
+            var agi = TotalAgility;
+
+            // Base attack speed from agility and class
+            int baseSpeed = Class switch
+            {
+                CharacterClassNumber.DarkKnight or CharacterClassNumber.BladeKnight or CharacterClassNumber.BladeMaster =>
+                    agi / 15,
+                CharacterClassNumber.DarkWizard or CharacterClassNumber.SoulMaster or CharacterClassNumber.GrandMaster =>
+                    agi / 10,
+                CharacterClassNumber.FairyElf or CharacterClassNumber.MuseElf or CharacterClassNumber.HighElf =>
+                    agi / 50,
+                CharacterClassNumber.MagicGladiator or CharacterClassNumber.DuelMaster =>
+                    agi / 15,
+                CharacterClassNumber.DarkLord or CharacterClassNumber.LordEmperor =>
+                    agi / 10,
+                CharacterClassNumber.Summoner or CharacterClassNumber.BloodySummoner or CharacterClassNumber.DimensionMaster =>
+                    agi / 20,
+                CharacterClassNumber.RageFighter or CharacterClassNumber.FistMaster =>
+                    agi / 9,
+                _ => 0
+            };
+
+            // Add equipment bonuses (weapon speed, excellent options, Wizard's Ring)
+            int equipmentBonus = CalculateEquipmentAttackSpeedBonus();
+            int totalSpeed = baseSpeed + equipmentBonus;
+
+            return (ushort)Math.Max(0, totalSpeed);
+        }
+
+        /// <summary>
+        /// Calculates magic speed based on agility and character class.
+        /// Used as fallback when server doesn't provide magic speed.
+        /// For most classes, magic speed equals attack speed.
+        /// </summary>
+        private ushort CalculateMagicSpeed()
+        {
+            // For wizard/summoner classes, magic speed might differ
+            // For now, use the same formula as attack speed
+            // This can be adjusted if different formulas are needed
+            return CalculateAttackSpeed();
+        }
+
+        /// <summary>
+        /// Calculates total attack speed bonus from equipped items.
+        /// Includes: weapon attack speed (max from dual-wield), excellent speed options, and Wizard's Ring.
+        /// </summary>
+        public int CalculateEquipmentAttackSpeedBonus()
+        {
+            int totalBonus = 0;
+
+            // Equipment slots: 0 = Right Hand, 1 = Left Hand, 10-11 = Rings, 9 = Pendant
+            const byte SLOT_RIGHT_HAND = 0;
+            const byte SLOT_LEFT_HAND = 1;
+            const byte SLOT_RING_LEFT = 10;
+            const byte SLOT_RING_RIGHT = 11;
+            const byte SLOT_PENDANT = 9;
+
+            const byte WIZARD_RING_GROUP = 13;
+            const byte WIZARD_RING_ID = 20;
+
+            const byte EXC_SPEED_BIT = 0b0000_1000;
+            const int EXC_SPEED_BONUS = 7; // Excellent Speed option gives +7 attack speed
+
+            // 1. Get max weapon attack speed (from right or left hand)
+            int maxWeaponSpeed = 0;
+
+            if (_inventoryItems.TryGetValue(SLOT_RIGHT_HAND, out byte[] rightHandData) && rightHandData.Length >= 6)
+            {
+                byte group = (byte)(rightHandData[5] >> 4);
+                short id = rightHandData[0];
+                var weaponDef = Core.Utilities.ItemDatabase.GetItemDefinition(group, id);
+                if (weaponDef != null)
+                {
+                    maxWeaponSpeed = Math.Max(maxWeaponSpeed, weaponDef.AttackSpeed);
+                }
+            }
+
+            if (_inventoryItems.TryGetValue(SLOT_LEFT_HAND, out byte[] leftHandData) && leftHandData.Length >= 6)
+            {
+                byte group = (byte)(leftHandData[5] >> 4);
+                short id = leftHandData[0];
+                var weaponDef = Core.Utilities.ItemDatabase.GetItemDefinition(group, id);
+                if (weaponDef != null)
+                {
+                    maxWeaponSpeed = Math.Max(maxWeaponSpeed, weaponDef.AttackSpeed);
+                }
+            }
+
+            totalBonus += maxWeaponSpeed;
+
+            // 2. Check all equipment slots for Excellent Speed option
+            foreach (var kvp in _inventoryItems)
+            {
+                byte slot = kvp.Key;
+                byte[] itemData = kvp.Value;
+
+                // Only check equipment slots (0-11)
+                if (slot > 11 || itemData.Length < 4)
+                    continue;
+
+                byte excByte = itemData[3];
+                if ((excByte & EXC_SPEED_BIT) != 0)
+                {
+                    totalBonus += EXC_SPEED_BONUS;
+                }
+            }
+
+            // 3. Check for Wizard's Ring (+10 attack speed)
+            if (_inventoryItems.TryGetValue(SLOT_RING_LEFT, out byte[] leftRingData) && leftRingData.Length >= 6)
+            {
+                byte group = (byte)(leftRingData[5] >> 4);
+                short id = leftRingData[0];
+                if (group == WIZARD_RING_GROUP && id == WIZARD_RING_ID)
+                {
+                    totalBonus += 10;
+                }
+            }
+
+            if (_inventoryItems.TryGetValue(SLOT_RING_RIGHT, out byte[] rightRingData) && rightRingData.Length >= 6)
+            {
+                byte group = (byte)(rightRingData[5] >> 4);
+                short id = rightRingData[0];
+                if (group == WIZARD_RING_GROUP && id == WIZARD_RING_ID)
+                {
+                    totalBonus += 10;
+                }
+            }
+
+            // Also check pendant slot (some servers allow Wizard's Ring in pendant slot)
+            if (_inventoryItems.TryGetValue(SLOT_PENDANT, out byte[] pendantData) && pendantData.Length >= 6)
+            {
+                byte group = (byte)(pendantData[5] >> 4);
+                short id = pendantData[0];
+                if (group == WIZARD_RING_GROUP && id == WIZARD_RING_ID)
+                {
+                    totalBonus += 10;
+                }
+            }
+
+            return totalBonus;
+        }
+
+        /// <summary>
         /// Increments a specific character stat attribute by a given amount.
         /// </summary>
         public void IncrementStat(CharacterStatAttribute attribute, ushort amount = 1)
@@ -1172,6 +1359,13 @@ namespace Client.Main.Core.Client
             if (slot < 12) // equipment slots 0..11
             {
                 EquipmentChanged?.Invoke();
+
+                // Recalculate attack speeds if equipment changes affect attack speed
+                // (weapons, rings, pendants with excellent speed options)
+                if (IsAttackSpeedAffectingSlot(slot))
+                {
+                    RecalculateAttackSpeedsFromEquipment();
+                }
             }
             string itemName = ItemDatabase.GetItemName(itemData) ?? "Unknown Item";
             _logger.LogDebug("Inventory item added/updated at slot {Slot}: {ItemName}", slot, itemName);
@@ -1189,12 +1383,63 @@ namespace Client.Main.Core.Client
                 if (slot < 12) // equipment slots 0..11
                 {
                     EquipmentChanged?.Invoke();
+
+                    // Recalculate attack speeds if equipment changes affect attack speed
+                    if (IsAttackSpeedAffectingSlot(slot))
+                    {
+                        RecalculateAttackSpeedsFromEquipment();
+                    }
                 }
                 _logger.LogDebug("Inventory item removed from slot {Slot}", slot);
             }
             else
             {
                 _logger.LogWarning("Attempted to remove inventory item from slot {Slot}, but no item found.", slot);
+            }
+        }
+
+        /// <summary>
+        /// Checks if the given equipment slot can affect attack speed.
+        /// This includes weapons (0-1), rings (10-11), and pendant (9).
+        /// Any equipment slot can also have excellent speed options.
+        /// </summary>
+        private bool IsAttackSpeedAffectingSlot(byte slot)
+        {
+            // Weapons directly provide attack speed
+            if (slot == 0 || slot == 1) return true;
+
+            // Rings can be Wizard's Ring (+10 speed)
+            if (slot == 10 || slot == 11) return true;
+
+            // Pendant can also be Wizard's Ring
+            if (slot == 9) return true;
+
+            // Any equipment slot can have excellent speed option
+            // So we check all equipment slots (0-11)
+            return slot < 12;
+        }
+
+        /// <summary>
+        /// Recalculates attack speeds from current equipment.
+        /// Used when equipment changes and server hasn't sent updated speeds.
+        /// </summary>
+        private void RecalculateAttackSpeedsFromEquipment()
+        {
+            // Recalculate using current equipment
+            ushort newAttackSpeed = CalculateAttackSpeed();
+            ushort newMagicSpeed = CalculateMagicSpeed();
+
+            // Only fire event if values actually changed
+            bool changed = AttackSpeed != newAttackSpeed || MagicSpeed != newMagicSpeed;
+
+            AttackSpeed = newAttackSpeed;
+            MagicSpeed = newMagicSpeed;
+
+            if (changed)
+            {
+                _logger.LogDebug("Attack speeds recalculated from equipment. Attack={AttackSpeed}, Magic={MagicSpeed}",
+                    AttackSpeed, MagicSpeed);
+                AttackSpeedsChanged?.Invoke();
             }
         }
 

@@ -118,6 +118,8 @@ namespace Client.Main.Objects.Player
 
         private int _standFrames;
         private int _attackSequence;
+        private ushort _lastAttackSpeedStat = ushort.MaxValue;
+        private ushort _lastMagicSpeedStat = ushort.MaxValue;
 
         private readonly object _inventoryAppearanceUpdateSync = new();
         private bool _inventoryAppearanceUpdateRunning;
@@ -207,7 +209,7 @@ namespace Client.Main.Objects.Player
             BoundingBoxLocal = new BoundingBox(new Vector3(-40, -40, 0), new Vector3(40, 40, 120));
 
             Scale = 0.85f;
-            AnimationSpeed = 10f;
+            AnimationSpeed = 25f;
             CurrentAction = PlayerAction.PlayerStopMale;
             _characterClass = CharacterClassNumber.DarkWizard;
             _isFemale = PlayerActionMapper.IsCharacterFemale(_characterClass);
@@ -223,6 +225,7 @@ namespace Client.Main.Objects.Player
         {
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
             CacheHeadBoneHierarchy();
+            InitializeActionSpeedsFromSourceMain52();
 
             if (IsMainWalker)
             {
@@ -245,15 +248,6 @@ namespace Client.Main.Objects.Player
 
             await base.Load();
 
-            // Idle actions play at half speed so the character breathes naturally
-            SetActionSpeed(PlayerAction.PlayerStopMale, 0.5f);
-            SetActionSpeed(PlayerAction.PlayerStopFemale, 0.5f);
-            SetActionSpeed(PlayerAction.PlayerStopFly, 0.5f);
-
-            // Fenrir riding animations need to be faster (2x speed)
-            SetActionSpeed(PlayerAction.PlayerFenrirRun, 2.0f);
-            SetActionSpeed(PlayerAction.PlayerFenrirStand, 1.0f);
-
             UpdateWorldBoundingBox();
         }
 
@@ -261,6 +255,7 @@ namespace Client.Main.Objects.Player
         {
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
             CacheHeadBoneHierarchy();
+            InitializeActionSpeedsFromSourceMain52();
 
             if (IsMainWalker)
             {
@@ -280,15 +275,6 @@ namespace Client.Main.Objects.Player
             }
 
             await base.Load();
-
-            // Idle actions play at half speed so the character breathes naturally
-            SetActionSpeed(PlayerAction.PlayerStopMale, 0.5f);
-            SetActionSpeed(PlayerAction.PlayerStopFemale, 0.5f);
-            SetActionSpeed(PlayerAction.PlayerStopFly, 0.5f);
-
-            // Fenrir riding animations need to be faster (2x speed)
-            SetActionSpeed(PlayerAction.PlayerFenrirRun, 2.0f);
-            SetActionSpeed(PlayerAction.PlayerFenrirStand, 2.0f);
 
             UpdateWorldBoundingBox();
         }
@@ -524,6 +510,7 @@ namespace Client.Main.Objects.Player
             {
                 // Subscribe to equipment-only changes to avoid reloading on pure inventory grid moves
                 _networkManager.GetCharacterState().EquipmentChanged += OnEquipmentChanged;
+                _networkManager.GetCharacterState().AttackSpeedsChanged += OnAttackSpeedsChanged;
             }
         }
 
@@ -533,6 +520,7 @@ namespace Client.Main.Objects.Player
             try
             {
                 _networkManager.GetCharacterState().EquipmentChanged -= OnEquipmentChanged;
+                _networkManager.GetCharacterState().AttackSpeedsChanged -= OnAttackSpeedsChanged;
             }
             catch (Exception ex)
             {
@@ -545,6 +533,13 @@ namespace Client.Main.Objects.Player
             if (!IsMainWalker) return;
             // Equipment updates can arrive from networking threads; marshal to main thread.
             MuGame.ScheduleOnMainThread(() => _ = RunInventoryAppearanceUpdateAsync());
+        }
+
+        private void OnAttackSpeedsChanged()
+        {
+            if (!IsMainWalker) return;
+            // Attack speed updates can arrive from networking threads; marshal to main thread.
+            MuGame.ScheduleOnMainThread(() => UpdateAttackAnimationSpeeds());
         }
 
         private async Task RunInventoryAppearanceUpdateAsync()
@@ -1126,6 +1121,260 @@ namespace Client.Main.Objects.Player
                 actions[idx].PlaySpeed = speed;
         }
 
+        private void SetActionSpeedRange(PlayerAction start, PlayerAction end, float speed)
+        {
+            int from = (int)start;
+            int to = (int)end;
+            if (from > to)
+            {
+                int tmp = from;
+                from = to;
+                to = tmp;
+            }
+
+            for (int i = from; i <= to; i++)
+            {
+                SetActionSpeed((PlayerAction)i, speed);
+            }
+        }
+
+        private void InitializeActionSpeedsFromSourceMain52()
+        {
+            // Mirrors SourceMain5.2 ZzzOpenData.cpp player action PlaySpeed table.
+            SetActionSpeedRange(PlayerAction.PlayerStopMale, PlayerAction.PlayerStopRideWeapon, 0.28f);
+            SetActionSpeed(PlayerAction.PlayerStopSword, 0.26f);
+            SetActionSpeed(PlayerAction.PlayerStopTwoHandSword, 0.24f);
+            SetActionSpeed(PlayerAction.PlayerStopSpear, 0.24f);
+            SetActionSpeed(PlayerAction.PlayerStopBow, 0.22f);
+            SetActionSpeed(PlayerAction.PlayerStopCrossbow, 0.22f);
+            SetActionSpeed(PlayerAction.PlayerStopSummoner, 0.24f);
+            SetActionSpeed(PlayerAction.PlayerStopWand, 0.30f);
+
+            // Walk animations = 0.33f (from ZzzCharacter.cpp:429, NOT ZzzOpenData.cpp)
+            SetActionSpeedRange(PlayerAction.PlayerWalkMale, PlayerAction.PlayerWalkCrossbow, 0.38f); // different animation speed?
+            SetActionSpeed(PlayerAction.PlayerWalkWand, 0.44f);
+            SetActionSpeed(PlayerAction.PlayerWalkSwim, 0.35f);
+
+            // Run animations = 0.34f (faster than walk!)
+            SetActionSpeedRange(PlayerAction.PlayerRun, PlayerAction.PlayerRunRideWeapon, 0.34f);
+            SetActionSpeed(PlayerAction.PlayerRunWand, 0.76f);
+            SetActionSpeed(PlayerAction.PlayerRunSwim, 0.35f);
+
+            SetActionSpeedRange(PlayerAction.PlayerDefense1, PlayerAction.PlayerShock, 0.32f);
+            SetActionSpeedRange(PlayerAction.PlayerDie1, PlayerAction.PlayerDie2, 0.45f);
+            SetActionSpeedRange(PlayerAction.PlayerSit1, (PlayerAction)((int)PlayerAction.MaxPlayerAction - 1), 0.40f);
+
+            SetActionSpeed(PlayerAction.PlayerShock, 0.40f);
+
+            // Emote animations - set to normal speed (not affected by attack speed)
+            SetActionSpeed(PlayerAction.PlayerSee1, 0.28f);
+            SetActionSpeed(PlayerAction.PlayerSeeFemale1, 0.28f);
+            SetActionSpeed(PlayerAction.PlayerWin1, 0.28f);
+            SetActionSpeed(PlayerAction.PlayerWinFemale1, 0.28f);
+            SetActionSpeed(PlayerAction.PlayerSmile1, 0.28f);
+            SetActionSpeed(PlayerAction.PlayerSmileFemale1, 0.28f);
+
+            SetActionSpeed(PlayerAction.PlayerHealing1, 0.20f);
+            SetActionSpeed(PlayerAction.PlayerHealingFemale1, 0.20f);
+
+            SetActionSpeed(PlayerAction.PlayerJack1, 0.38f);
+            SetActionSpeed(PlayerAction.PlayerJack2, 0.38f);
+            SetActionSpeed(PlayerAction.PlayerSanta1, 0.34f);
+            SetActionSpeed(PlayerAction.PlayerSanta2, 0.30f);
+
+            SetActionSpeed(PlayerAction.PlayerSkillRider, 0.20f);
+            SetActionSpeed(PlayerAction.PlayerSkillRiderFly, 0.20f);
+
+            SetActionSpeed(PlayerAction.PlayerStopTwoHandSwordTwo, 0.24f);
+            SetActionSpeed(PlayerAction.PlayerWalkTwoHandSwordTwo, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerRunTwoHandSwordTwo, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerAttackTwoHandSwordTwo, 0.24f);
+
+            SetActionSpeed(PlayerAction.PlayerAttackDeathstab, 0.45f);
+
+            SetActionSpeed(PlayerAction.PlayerDarklordStand, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerDarklordWalk, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerStopRideHorse, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerRunRideHorse, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerAttackStrike, 0.20f);
+            SetActionSpeed(PlayerAction.PlayerAttackTeleport, 0.28f);
+            SetActionSpeed(PlayerAction.PlayerAttackRideStrike, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerAttackRideTeleport, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerAttackRideHorseSword, 0.28f);
+            SetActionSpeed(PlayerAction.PlayerAttackRideAttackFlash, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerAttackRideAttackMagic, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerAttackDarkhorse, 0.20f);
+
+            SetActionSpeed(PlayerAction.PlayerIdle1Darkhorse, 1.00f);
+            SetActionSpeed(PlayerAction.PlayerIdle2Darkhorse, 1.00f);
+
+            SetActionSpeedRange(PlayerAction.PlayerFenrirAttack, PlayerAction.PlayerFenrirWalkOneLeft, 0.45f);
+            SetActionSpeedRange(PlayerAction.PlayerFenrirRun, PlayerAction.PlayerFenrirRunOneLeftElf, 0.71f);
+            SetActionSpeedRange(PlayerAction.PlayerFenrirStand, PlayerAction.PlayerFenrirStandOneLeft, 0.40f);
+            SetActionSpeed(PlayerAction.PlayerFenrirAttackMagic, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerFenrirAttackDarklordStrike, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerFenrirAttackDarklordTeleport, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerFenrirAttackDarklordSword, 0.28f);
+            SetActionSpeed(PlayerAction.PlayerFenrirAttackDarklordFlash, 0.30f);
+
+            for (int i = (int)PlayerAction.PlayerRageFenrir; i <= (int)PlayerAction.PlayerRageFenrirAttackRight; i++)
+            {
+                float speed = (i >= (int)PlayerAction.PlayerRageFenrirTwoSword && i <= (int)PlayerAction.PlayerRageFenrirOneLeft)
+                    ? 0.225f
+                    : 0.45f;
+                SetActionSpeed((PlayerAction)i, speed);
+            }
+
+            SetActionSpeedRange(PlayerAction.PlayerRageFenrirStandTwoSword, PlayerAction.PlayerRageFenrirStandOneLeft, 0.20f);
+            SetActionSpeed(PlayerAction.PlayerRageFenrirStand, 0.21f);
+
+            SetActionSpeedRange(PlayerAction.PlayerRageFenrirRun, PlayerAction.PlayerRageFenrirRunOneLeft, 0.355f);
+            SetActionSpeed(PlayerAction.PlayerRageUniRun, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerRageUniAttackOneRight, 0.20f);
+            SetActionSpeed(PlayerAction.PlayerRageUniStopOneRight, 0.18f);
+            SetActionSpeed(PlayerAction.PlayerStopRagefighter, 0.16f);
+        }
+
+        private void UpdateAttackAnimationSpeeds()
+        {
+            if (!IsMainWalker || Model?.Actions == null)
+                return;
+
+            var state = _networkManager?.GetCharacterState();
+            if (state == null)
+                return;
+
+            ushort attackSpeed = state.AttackSpeed;
+            ushort magicSpeed = state.MagicSpeed;
+
+            if (attackSpeed == _lastAttackSpeedStat && magicSpeed == _lastMagicSpeedStat)
+                return;
+
+            ApplyAttackSpeedToActions(attackSpeed, magicSpeed);
+            _lastAttackSpeedStat = attackSpeed;
+            _lastMagicSpeedStat = magicSpeed;
+        }
+
+        private void ApplyAttackSpeedToActions(ushort attackSpeed, ushort magicSpeed)
+        {
+            float attackSpeed1 = attackSpeed * 0.004f;
+            float magicSpeed1 = magicSpeed * 0.004f;
+            float magicSpeed2 = magicSpeed * 0.002f;
+            float rageAttackSpeed = attackSpeed * 0.002f;
+
+            SetActionSpeed(PlayerAction.PlayerAttackFist, 0.6f + attackSpeed1);
+
+            for (int i = (int)PlayerAction.PlayerAttackSwordRight1; i <= (int)PlayerAction.PlayerAttackRideCrossbow; i++)
+                SetActionSpeed((PlayerAction)i, 0.25f + attackSpeed1);
+
+            SetActionSpeed(PlayerAction.PlayerAttackSkillSword1, 0.30f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerAttackSkillSword2, 0.30f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerAttackSkillSword3, 0.27f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerAttackSkillSword4, 0.30f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerAttackSkillSword5, 0.24f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerAttackSkillWheel, 0.24f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerAttackDeathstab, 0.25f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerAttackSkillSpear, 0.30f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerSkillRider, 0.30f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerSkillRiderFly, 0.30f + attackSpeed1);
+
+            SetActionSpeed(PlayerAction.PlayerAttackTwoHandSwordTwo, 0.25f + attackSpeed1);
+
+            for (int i = (int)PlayerAction.PlayerAttackBow; i <= (int)PlayerAction.PlayerAttackFlyCrossbow; i++)
+                SetActionSpeed((PlayerAction)i, 0.30f + attackSpeed1);
+            for (int i = (int)PlayerAction.PlayerAttackRideBow; i <= (int)PlayerAction.PlayerAttackRideCrossbow; i++)
+                SetActionSpeed((PlayerAction)i, 0.30f + attackSpeed1);
+
+            SetActionSpeed(PlayerAction.PlayerSkillElf1, 0.25f + magicSpeed1);
+
+            for (int i = (int)PlayerAction.PlayerSkillHand1; i <= (int)PlayerAction.PlayerSkillWeapon2; i++)
+                SetActionSpeed((PlayerAction)i, 0.29f + magicSpeed2);
+
+            SetActionSpeed(PlayerAction.PlayerSkillTeleport, 0.30f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerSkillFlash, 0.40f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerSkillInferno, 0.60f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerSkillHell, 0.50f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerRideSkill, 0.30f + magicSpeed2);
+
+            SetActionSpeed(PlayerAction.PlayerSkillHellBegin, 0.50f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerAttackStrike, 0.25f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerAttackRideStrike, 0.20f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerAttackRideHorseSword, 0.25f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerAttackRideAttackFlash, 0.40f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerAttackRideAttackMagic, 0.30f + magicSpeed2);
+
+            SetActionSpeed(PlayerAction.PlayerFenrirAttack, 0.25f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerFenrirAttackDarklordStrike, 0.20f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerFenrirAttackDarklordSword, 0.25f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerFenrirAttackDarklordFlash, 0.40f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerFenrirAttackTwoSword, 0.25f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerFenrirAttackMagic, 0.37f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerFenrirAttackCrossbow, 0.30f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerFenrirAttackSpear, 0.25f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerFenrirAttackOneSword, 0.25f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerFenrirAttackBow, 0.30f + attackSpeed1);
+
+            for (int i = (int)PlayerAction.PlayerAttackBowUp; i <= (int)PlayerAction.PlayerAttackRideCrossbowUp; i++)
+                SetActionSpeed((PlayerAction)i, 0.30f + attackSpeed1);
+
+            SetActionSpeed(PlayerAction.PlayerAttackOneFlash, 0.40f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerAttackRush, 0.30f + attackSpeed1);
+            SetActionSpeed(PlayerAction.PlayerAttackDeathCannon, 0.20f + attackSpeed1);
+
+            SetActionSpeed(PlayerAction.PlayerSkillSleep, 0.30f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerSkillSleepUni, 0.30f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerSkillSleepDino, 0.30f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerSkillSleepFenrir, 0.30f + magicSpeed2);
+
+            SetActionSpeed(PlayerAction.PlayerSkillLightningOrb, 0.40f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerSkillLightningOrbUni, 0.25f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerSkillLightningOrbDino, 0.25f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerSkillLightningOrbFenrir, 0.25f + magicSpeed2);
+
+            SetActionSpeed(PlayerAction.PlayerSkillChainLightning, 0.25f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerSkillChainLightningUni, 0.15f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerSkillChainLightningDino, 0.15f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerSkillChainLightningFenrir, 0.15f + magicSpeed2);
+
+            SetActionSpeed(PlayerAction.PlayerSkillDrainLife, 0.25f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerSkillDrainLifeUni, 0.25f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerSkillDrainLifeDino, 0.25f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerSkillDrainLifeFenrir, 0.25f + magicSpeed2);
+
+            SetActionSpeed(PlayerAction.PlayerSkillGiganticstorm, 0.55f + magicSpeed1);
+            SetActionSpeed(PlayerAction.PlayerSkillFlamestrike, 0.69f + magicSpeed2);
+            SetActionSpeed(PlayerAction.PlayerSkillLightningShock, 0.35f + magicSpeed2);
+
+            SetActionSpeed(PlayerAction.PlayerSkillSummon, 0.25f);
+            SetActionSpeed(PlayerAction.PlayerSkillSummonUni, 0.25f);
+            SetActionSpeed(PlayerAction.PlayerSkillSummonDino, 0.25f);
+            SetActionSpeed(PlayerAction.PlayerSkillSummonFenrir, 0.25f);
+
+            SetActionSpeed(PlayerAction.PlayerSkillBlowOfDestruction, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerSkillRecovery, 0.33f);
+            SetActionSpeed(PlayerAction.PlayerSkillSwellOfMp, 0.20f);
+
+            SetActionSpeed(PlayerAction.PlayerAttackSkillFuryStrike, 0.38f);
+            SetActionSpeed(PlayerAction.PlayerSkillVitality, 0.34f);
+            SetActionSpeed(PlayerAction.PlayerSkillHellStart, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerAttackTeleport, 0.28f);
+            SetActionSpeed(PlayerAction.PlayerAttackRideTeleport, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerAttackDarkhorse, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerFenrirAttackDarklordTeleport, 0.30f);
+            SetActionSpeed(PlayerAction.PlayerAttackRemoval, 0.28f);
+
+            SetActionSpeed(PlayerAction.PlayerSkillThrust, 0.40f + rageAttackSpeed);
+            SetActionSpeed(PlayerAction.PlayerSkillStamp, 0.40f + rageAttackSpeed);
+            SetActionSpeed(PlayerAction.PlayerSkillGiantswing, 0.40f + rageAttackSpeed);
+            SetActionSpeed(PlayerAction.PlayerSkillDarksideReady, 0.30f + rageAttackSpeed);
+            SetActionSpeed(PlayerAction.PlayerSkillDarksideAttack, 0.30f + rageAttackSpeed);
+            SetActionSpeed(PlayerAction.PlayerSkillDragonkick, 0.40f + rageAttackSpeed);
+            SetActionSpeed(PlayerAction.PlayerSkillDragonlore, 0.30f + rageAttackSpeed);
+            SetActionSpeed(PlayerAction.PlayerSkillAttUpOurforces, 0.35f);
+            SetActionSpeed(PlayerAction.PlayerSkillHpUpOurforces, 0.35f);
+            SetActionSpeed(PlayerAction.PlayerRageFenrirAttackRight, 0.25f + rageAttackSpeed);
+        }
+
         // ───────────────────────────────── UPDATE LOOP ─────────────────────────────────
         public override void Update(GameTime gameTime)
         {
@@ -1220,6 +1469,32 @@ namespace Client.Main.Objects.Player
                 return EquippedWings.ItemIndex;
 
             return EquippedWings.Type > 0 ? EquippedWings.Type : (short)-1;
+        }
+
+        public PlayerAction GetSkillAction(ushort skillId, bool isInSafeZone)
+        {
+            int animationId = SkillDatabase.GetSkillAnimation(skillId);
+            if (animationId > 0 && (Model?.Actions == null || animationId < Model.Actions.Length))
+                return (PlayerAction)animationId;
+
+            return GetDefaultSkillAction(isInSafeZone);
+        }
+
+        private PlayerAction GetDefaultSkillAction(bool isInSafeZone)
+        {
+            if (_isRiding && !isInSafeZone)
+            {
+                if (_currentVehicleIndex == 7 || _currentVehicleIndex == 8)
+                    return PlayerAction.PlayerRideSkill;
+
+                if (IsFenrirVehicle(_currentVehicleIndex))
+                    return PlayerAction.PlayerFenrirAttackMagic;
+            }
+
+            if (_isFemale)
+                return PlayerAction.PlayerSkillElf1;
+
+            return MuGame.Random.Next(2) == 0 ? PlayerAction.PlayerSkillHand1 : PlayerAction.PlayerSkillHand2;
         }
 
         // --------------- Helpers for correct animation selection ----------------
@@ -2374,6 +2649,8 @@ namespace Client.Main.Objects.Player
             if (HandleRestTarget(world) || HandleSitTarget())
                 return;
 
+            UpdateAttackAnimationSpeeds();
+
             var flags = world.Terrain.RequestTerrainFlag((int)Location.X, (int)Location.Y);
             bool isInSafeZone = flags.HasFlag(TWFlags.SafeZone);
             bool relaxedSafeZone = IsRelaxedSafeZone(world, flags);
@@ -2621,6 +2898,11 @@ namespace Client.Main.Objects.Player
         // ────────────────────────────── ATTACKS (unchanged) ──────────────────────────────
         public PlayerAction GetAttackAnimation()
         {
+            return GetAttackAnimation(true);
+        }
+
+        private PlayerAction GetAttackAnimation(bool advanceSequence)
+        {
             var weapons = GetWeaponContext();
             bool isInSafeZone = false;
 
@@ -2631,7 +2913,8 @@ namespace Client.Main.Objects.Player
             }
 
             PlayerAction action = GetAttackAction(weapons, isInSafeZone);
-            _attackSequence++;
+            if (advanceSequence)
+                _attackSequence++;
             return action;
         }
 
@@ -2652,6 +2935,9 @@ namespace Client.Main.Objects.Player
                 return;
             }
 
+            if (IsAttackOrSkillAnimationPlaying())
+                return;
+
             _currentPath?.Clear();
 
             // Rotate to face the target
@@ -2660,7 +2946,8 @@ namespace Client.Main.Objects.Player
             if (dx != 0 || dy != 0)
                 Direction = DirectionExtensions.GetDirectionFromMovementDelta(dx, dy);
 
-            PlayAction((ushort)GetAttackAnimation());
+            var attackAction = GetAttackAnimation();
+            PlayAction((ushort)attackAction);
 
             // Play weapon swing sound based on equipped weapon type
             PlayWeaponSwingSound();
@@ -2671,7 +2958,7 @@ namespace Client.Main.Objects.Player
 
             _characterService?.SendHitRequestAsync(
                 target.NetworkId,
-                (byte)GetAttackAnimation(),
+                (byte)attackAction,
                 serverDir);
         }
 
@@ -2689,6 +2976,9 @@ namespace Client.Main.Objects.Player
                 return;
             }
 
+            if (IsAttackOrSkillAnimationPlaying())
+                return;
+
             _currentPath?.Clear();
 
             int dx = (int)(target.Location.X - Location.X);
@@ -2696,7 +2986,8 @@ namespace Client.Main.Objects.Player
             if (dx != 0 || dy != 0)
                 Direction = DirectionExtensions.GetDirectionFromMovementDelta(dx, dy);
 
-            PlayAction((ushort)GetAttackAnimation());
+            var attackAction = GetAttackAnimation();
+            PlayAction((ushort)attackAction);
             PlayWeaponSwingSound();
 
             byte clientDir = (byte)Direction;
@@ -2704,11 +2995,11 @@ namespace Client.Main.Objects.Player
 
             _characterService?.SendHitRequestAsync(
                 target.NetworkId,
-                (byte)GetAttackAnimation(),
+                (byte)attackAction,
                 serverDir);
         }
 
-        public float GetAttackRangeTiles() => GetAttackRangeForAction(GetAttackAnimation());
+        public float GetAttackRangeTiles() => GetAttackRangeForAction(GetAttackAnimation(false));
 
         /// <summary>
         /// Gets the currently equipped weapon type based on actual equipment

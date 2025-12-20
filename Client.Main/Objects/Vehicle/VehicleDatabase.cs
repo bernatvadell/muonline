@@ -3,7 +3,7 @@ namespace Client.Main.Objects.Vehicle;
 
 public static class VehicleDatabase
 {
-    public static Dictionary<int, VehicleDefinition> VehicleList => new()
+    public static readonly IReadOnlyDictionary<int, VehicleDefinition> VehicleList = new Dictionary<int, VehicleDefinition>
     {
         {
             0, new VehicleDefinition
@@ -11,8 +11,16 @@ public static class VehicleDatabase
                 Id = 0,
                 Name = "Dark Horse",
                 TexturePath = "DarkHorse.bmd",
-                RiderHeightOffset = 20f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                IdleActionIndex = 0,
+                RunActionIndex = 2,
+                SkillActionIndex = 6,
+                ActionPlaySpeedOverrides = new Dictionary<int, float>
+                {
+                    [0] = 0.3f,  // default
+                    [2] = 0.34f, // run
+                    [6] = 0.34f, // horse attack
+                },
             }
         },
         {
@@ -21,8 +29,8 @@ public static class VehicleDatabase
                 Id = 1,
                 Name = "Divine Horse",
                 TexturePath = "Divine_Horse.bmd",
-                RiderHeightOffset = 20f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -32,7 +40,7 @@ public static class VehicleDatabase
                 Name = "Giant Dark Wizard 01",
                 TexturePath = "Giant_DarkWizard_01.bmd",
                 RiderHeightOffset = 0f,
-                AnimationSpeedMultiplier = 4.0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -42,7 +50,7 @@ public static class VehicleDatabase
                 Name = "Giant Elf 01",
                 TexturePath = "Giant_Elf_01.bmd",
                 RiderHeightOffset = 0f,
-                AnimationSpeedMultiplier = 4.0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -52,7 +60,7 @@ public static class VehicleDatabase
                 Name = "Giant Grow Lancer 01",
                 TexturePath = "Giant_GrowLancer_01.bmd",
                 RiderHeightOffset = 0f,
-                AnimationSpeedMultiplier = 4.0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -61,8 +69,8 @@ public static class VehicleDatabase
                 Id = 5,
                 Name = "Leviathan",
                 TexturePath = "Leviathan.bmd",
-                RiderHeightOffset = 15f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -71,8 +79,8 @@ public static class VehicleDatabase
                 Id = 6,
                 Name = "Leviathan rare",
                 TexturePath = "Leviathan_rare.bmd",
-                RiderHeightOffset = 15f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -82,7 +90,21 @@ public static class VehicleDatabase
                 Name = "Rider 01",
                 TexturePath = "Rider01.bmd",
                 RiderHeightOffset = 0f, // Uniria - sits correctly
-                AnimationSpeedMultiplier = 4.0f,
+                // SourceMain5.2 (GOBoid.cpp): MODEL_UNICON SetAction uses indices 0..7, Velocity always 0.34f
+                IdleActionIndex = 0,
+                RunActionIndex = 2,
+                SkillActionIndex = 6,
+                ActionPlaySpeedOverrides = new Dictionary<int, float>
+                {
+                    [0] = 0.34f,
+                    [1] = 0.34f,
+                    [2] = 0.34f,
+                    [3] = 0.34f,
+                    [4] = 0.34f,
+                    [5] = 0.34f,
+                    [6] = 0.34f,
+                    [7] = 0.34f,
+                },
             }
         },
         {
@@ -91,8 +113,22 @@ public static class VehicleDatabase
                 Id = 8,
                 Name = "Rider 02",
                 TexturePath = "Rider02.bmd",
-                RiderHeightOffset = 30f, // Dinorant - rider too low
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f, // Dinorant - rider too low
+                // SourceMain5.2 (GOBoid.cpp): MODEL_PEGASUS SetAction uses indices 0..7, Velocity always 0.34f
+                IdleActionIndex = 0,
+                RunActionIndex = 2,
+                SkillActionIndex = 6,
+                ActionPlaySpeedOverrides = new Dictionary<int, float>
+                {
+                    [0] = 0.34f,
+                    [1] = 0.34f,
+                    [2] = 0.34f,
+                    [3] = 0.34f,
+                    [4] = 0.34f,
+                    [5] = 0.34f,
+                    [6] = 0.34f,
+                    [7] = 0.34f,
+                },
             }
         },
         {
@@ -101,8 +137,8 @@ public static class VehicleDatabase
                 Id = 9,
                 Name = "Ur",
                 TexturePath = "Ur.bmd",
-                RiderHeightOffset = 15f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -111,8 +147,8 @@ public static class VehicleDatabase
                 Id = 10,
                 Name = "Ur Up",
                 TexturePath = "UrUp.bmd",
-                RiderHeightOffset = 15f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -122,7 +158,19 @@ public static class VehicleDatabase
                 Name = "Fenril Black",
                 TexturePath = "fenril_black.bmd",
                 RiderHeightOffset = 0f, // Fenrir variants - rider too low
-                AnimationSpeedMultiplier = 4.0f,
+                // SourceMain5.2 (_define.h): FENRIR_STAND=0, WALK=1, RUN=2, ATTACK=3, ATTACK_SKILL=4, DAMAGE=5
+                IdleActionIndex = 0,
+                RunActionIndex = 2,
+                SkillActionIndex = 4,
+                ActionPlaySpeedOverrides = new Dictionary<int, float>
+                {
+                    [0] = 0.4f,
+                    [1] = 1.0f,
+                    [2] = 0.6f,
+                    [3] = 0.4f,
+                    [4] = 0.4f,
+                    [5] = 0.4f,
+                },
             }
         },
         {
@@ -132,7 +180,18 @@ public static class VehicleDatabase
                 Name = "Fenril Blue",
                 TexturePath = "fenril_blue.bmd",
                 RiderHeightOffset = 0f,
-                AnimationSpeedMultiplier = 4.0f,
+                IdleActionIndex = 0,
+                RunActionIndex = 2,
+                SkillActionIndex = 4,
+                ActionPlaySpeedOverrides = new Dictionary<int, float>
+                {
+                    [0] = 0.4f,
+                    [1] = 1.0f,
+                    [2] = 0.6f,
+                    [3] = 0.4f,
+                    [4] = 0.4f,
+                    [5] = 0.4f,
+                },
             }
         },
         {
@@ -142,7 +201,18 @@ public static class VehicleDatabase
                 Name = "Fenril Gold",
                 TexturePath = "fenril_gold.bmd",
                 RiderHeightOffset = 0f,
-                AnimationSpeedMultiplier = 4.0f,
+                IdleActionIndex = 0,
+                RunActionIndex = 2,
+                SkillActionIndex = 4,
+                ActionPlaySpeedOverrides = new Dictionary<int, float>
+                {
+                    [0] = 0.4f,
+                    [1] = 1.0f,
+                    [2] = 0.6f,
+                    [3] = 0.4f,
+                    [4] = 0.4f,
+                    [5] = 0.4f,
+                },
             }
         },
         {
@@ -152,7 +222,18 @@ public static class VehicleDatabase
                 Name = "Fenril Red",
                 TexturePath = "fenril_red.bmd",
                 RiderHeightOffset = 0f,
-                AnimationSpeedMultiplier = 4.0f,
+                IdleActionIndex = 0,
+                RunActionIndex = 2,
+                SkillActionIndex = 4,
+                ActionPlaySpeedOverrides = new Dictionary<int, float>
+                {
+                    [0] = 0.4f,
+                    [1] = 1.0f,
+                    [2] = 0.6f,
+                    [3] = 0.4f,
+                    [4] = 0.4f,
+                    [5] = 0.4f,
+                },
             }
         },
         {
@@ -162,7 +243,18 @@ public static class VehicleDatabase
                 Name = "Fenrir Black",
                 TexturePath = "fenrir_black.bmd",
                 RiderHeightOffset = 0f,
-                AnimationSpeedMultiplier = 4.0f,
+                IdleActionIndex = 0,
+                RunActionIndex = 2,
+                SkillActionIndex = 4,
+                ActionPlaySpeedOverrides = new Dictionary<int, float>
+                {
+                    [0] = 0.4f,
+                    [1] = 1.0f,
+                    [2] = 0.6f,
+                    [3] = 0.4f,
+                    [4] = 0.4f,
+                    [5] = 0.4f,
+                },
             }
         },
         {
@@ -172,7 +264,18 @@ public static class VehicleDatabase
                 Name = "Fenrir Blue",
                 TexturePath = "fenrir_blue.bmd",
                 RiderHeightOffset = 0f,
-                AnimationSpeedMultiplier = 4.0f,
+                IdleActionIndex = 0,
+                RunActionIndex = 2,
+                SkillActionIndex = 4,
+                ActionPlaySpeedOverrides = new Dictionary<int, float>
+                {
+                    [0] = 0.4f,
+                    [1] = 1.0f,
+                    [2] = 0.6f,
+                    [3] = 0.4f,
+                    [4] = 0.4f,
+                    [5] = 0.4f,
+                },
             }
         },
         {
@@ -182,7 +285,18 @@ public static class VehicleDatabase
                 Name = "Fenrir Gold",
                 TexturePath = "fenrir_gold.bmd",
                 RiderHeightOffset = 0f,
-                AnimationSpeedMultiplier = 4.0f,
+                IdleActionIndex = 0,
+                RunActionIndex = 2,
+                SkillActionIndex = 4,
+                ActionPlaySpeedOverrides = new Dictionary<int, float>
+                {
+                    [0] = 0.4f,
+                    [1] = 1.0f,
+                    [2] = 0.6f,
+                    [3] = 0.4f,
+                    [4] = 0.4f,
+                    [5] = 0.4f,
+                },
             }
         },
         {
@@ -192,7 +306,18 @@ public static class VehicleDatabase
                 Name = "Fenrir Red",
                 TexturePath = "fenrir_red.bmd",
                 RiderHeightOffset = 0f,
-                AnimationSpeedMultiplier = 4.0f,
+                IdleActionIndex = 0,
+                RunActionIndex = 2,
+                SkillActionIndex = 4,
+                ActionPlaySpeedOverrides = new Dictionary<int, float>
+                {
+                    [0] = 0.4f,
+                    [1] = 1.0f,
+                    [2] = 0.6f,
+                    [3] = 0.4f,
+                    [4] = 0.4f,
+                    [5] = 0.4f,
+                },
             }
         },
         {
@@ -201,8 +326,8 @@ public static class VehicleDatabase
                 Id = 19,
                 Name = "Fiercelion",
                 TexturePath = "fiercelion.bmd",
-                RiderHeightOffset = 20f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -211,8 +336,8 @@ public static class VehicleDatabase
                 Id = 20,
                 Name = "Fiercelion Rare",
                 TexturePath = "fiercelionR.bmd",
-                RiderHeightOffset = 20f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -221,8 +346,8 @@ public static class VehicleDatabase
                 Id = 21,
                 Name = "Ghost Horse",
                 TexturePath = "ghost_horse.bmd",
-                RiderHeightOffset = 20f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -231,8 +356,8 @@ public static class VehicleDatabase
                 Id = 22,
                 Name = "Griffs Up Ride",
                 TexturePath = "griffsUp_ride.bmd",
-                RiderHeightOffset = 15f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -241,8 +366,8 @@ public static class VehicleDatabase
                 Id = 23,
                 Name = "Griffs Ride",
                 TexturePath = "griffs_ride.bmd",
-                RiderHeightOffset = 15f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -251,8 +376,8 @@ public static class VehicleDatabase
                 Id = 24,
                 Name = "Ice Dragon",
                 TexturePath = "icedragon.bmd",
-                RiderHeightOffset = 15f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -261,8 +386,8 @@ public static class VehicleDatabase
                 Id = 25,
                 Name = "Ice Dragon Rare",
                 TexturePath = "icedragon_rare.bmd",
-                RiderHeightOffset = 15f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -271,8 +396,8 @@ public static class VehicleDatabase
                 Id = 26,
                 Name = "Magma Horse",
                 TexturePath = "magma_horse.bmd",
-                RiderHeightOffset = 20f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -281,8 +406,8 @@ public static class VehicleDatabase
                 Id = 27,
                 Name = "Pon Up Ride",
                 TexturePath = "ponUp_ride.bmd",
-                RiderHeightOffset = 15f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -291,8 +416,8 @@ public static class VehicleDatabase
                 Id = 28,
                 Name = "Pon Ride",
                 TexturePath = "pon_ride.bmd",
-                RiderHeightOffset = 15f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -301,8 +426,8 @@ public static class VehicleDatabase
                 Id = 29,
                 Name = "Rare Shining Tails",
                 TexturePath = "rare_shiningtails.bmd",
-                RiderHeightOffset = 15f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -311,8 +436,8 @@ public static class VehicleDatabase
                 Id = 30,
                 Name = "Rippen Up Ride",
                 TexturePath = "rippenUp_ride.bmd",
-                RiderHeightOffset = 15f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -321,8 +446,8 @@ public static class VehicleDatabase
                 Id = 31,
                 Name = "Rippen Ride",
                 TexturePath = "rippen_ride.bmd",
-                RiderHeightOffset = 15f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -331,8 +456,8 @@ public static class VehicleDatabase
                 Id = 32,
                 Name = "Shining Tails",
                 TexturePath = "shiningtails.bmd",
-                RiderHeightOffset = 15f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -341,8 +466,8 @@ public static class VehicleDatabase
                 Id = 33,
                 Name = "Wolfpet Vehicle",
                 TexturePath = "wolfpetVehicle.bmd",
-                RiderHeightOffset = 20f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
         {
@@ -351,8 +476,8 @@ public static class VehicleDatabase
                 Id = 34,
                 Name = "Wolfpet Vehicle Evol",
                 TexturePath = "wolfpetVehicle_evol.bmd",
-                RiderHeightOffset = 20f,
-                AnimationSpeedMultiplier = 4.0f,
+                RiderHeightOffset = 0f,
+                AnimationSpeedMultiplier = 1.0f,
             }
         },
     };

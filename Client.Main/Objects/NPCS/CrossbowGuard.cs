@@ -14,6 +14,7 @@ namespace Client.Main.Objects.NPCS
             // Weapon1.Type = (int)ModelType.Crossbow + 10 + MODEL_ITEM; // Light Crossbow
             // Weapon2.Type = MODEL_BOLT;
             await base.Load();
+            AnimationSpeed = 25f;
             CurrentAction = (int)PlayerAction.PlayerStopMale;
         }
         protected override void HandleClick() { }

@@ -51,7 +51,8 @@ namespace Client.Main.Objects.NPCS
             _wings.Model = await BMDLoader.Instance.Prepare("Item/Wing04.bmd");
 
             await base.Load();
-
+            
+            AnimationSpeed = 25f;
             CurrentAction = (int)PlayerAction.PlayerStopFly;
             Scale = 1.0f;
 

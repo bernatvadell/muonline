@@ -231,16 +231,9 @@ namespace Client.Main.Objects.Worlds.Atlans
                 _world.Objects.Add(fish);
 
                 spawnCount++;
-
-                System.Diagnostics.Debug.WriteLine($"[FISH] Spawned fish #{_fishes.Count} at {spawnPos}, Type={fish.Type}");
             }
 
             _isSpawning = false;
-
-            if (spawnCount > 0)
-            {
-                System.Diagnostics.Debug.WriteLine($"[FISH] Spawned {spawnCount} fish this frame. Total: {_fishes.Count}/{MAX_BOIDS}");
-            }
         }
 
         /// <summary>

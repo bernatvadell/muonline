@@ -132,6 +132,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 uint initialMana = 0, maxMana = 1;
                 uint initialAbility = 0, maxAbility = 0;
                 ushort str = 0, agi = 0, vit = 0, ene = 0, cmd = 0;
+                ushort attackSpeed = 0, magicSpeed = 0, maxAttackSpeed = 0;
                 byte inventoryExpansion = 0;
                 CharacterStatus status = CharacterStatus.Normal;
                 CharacterHeroState heroState = CharacterHeroState.Normal;
@@ -160,6 +161,9 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             maxMana = info.MaximumMana;
                             initialAbility = info.CurrentAbility;
                             maxAbility = info.MaximumAbility;
+                            attackSpeed = info.AttackSpeed;
+                            magicSpeed = info.MagicSpeed;
+                            maxAttackSpeed = info.MaximumAttackSpeed;
                             money = info.Money;
                             heroState = info.HeroState;
                             status = info.Status;
@@ -271,6 +275,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 _characterState.UpdateInventoryZen(money);
                 _characterState.UpdateStatus(status, heroState);
                 _characterState.InventoryExpansionState = inventoryExpansion;
+                _characterState.UpdateAttackSpeeds(attackSpeed, magicSpeed, maxAttackSpeed);
 
                 _logger.LogInformation(
                     "🗺️ Map: {MapName} ({MapId}) at ({X},{Y}).",
@@ -516,6 +521,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     currentSd = stats.Shield;
                     currentMana = stats.Mana;
                     currentAbility = stats.Ability;
+                    _characterState.UpdateAttackSpeeds(stats.AttackSpeed, stats.MagicSpeed);
                     updatedManaAbility = true;
                     _logger.LogDebug("Parsing CurrentStats (Extended).");
                 }
@@ -608,6 +614,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     currentSd = stats.Shield;
                     currentMana = stats.Mana;
                     currentAbility = stats.Ability;
+                    _characterState.UpdateAttackSpeeds(stats.AttackSpeed, stats.MagicSpeed);
                     updatedHealthShield = true;
                     _logger.LogDebug("Parsing CurrentStats (Extended).");
                 }

@@ -190,6 +190,15 @@ namespace Client.Main.Controls.UI.Game.Character
             {
                 _logger.LogWarning("NetworkManager is null in CharacterInfoWindowControl constructor. Stat increase functionality may not work.");
             }
+            else
+            {
+                // Subscribe to attack speed changes to refresh UI
+                var characterState = _networkManager.GetCharacterState();
+                if (characterState != null)
+                {
+                    characterState.AttackSpeedsChanged += OnAttackSpeedsChanged;
+                }
+            }
         }
 
         public IEnumerable<string> GetPreloadTexturePaths()
@@ -803,6 +812,12 @@ namespace Client.Main.Controls.UI.Game.Character
             return new Rectangle(x, y, width, height);
         }
 
+        private void OnAttackSpeedsChanged()
+        {
+            // Attack speeds changed - invalidate cached snapshot to force UI refresh
+            _hasCachedSnapshot = false;
+        }
+
         private void UpdateDisplayData()
         {
             if (_characterState == null)
@@ -1038,6 +1053,16 @@ namespace Client.Main.Controls.UI.Game.Character
 
         public override void Dispose()
         {
+            // Unsubscribe from attack speed changes
+            if (_networkManager != null)
+            {
+                var characterState = _networkManager.GetCharacterState();
+                if (characterState != null)
+                {
+                    characterState.AttackSpeedsChanged -= OnAttackSpeedsChanged;
+                }
+            }
+
             base.Dispose();
             _staticSurface?.Dispose();
             _staticSurface = null;
@@ -1088,7 +1113,11 @@ namespace Client.Main.Controls.UI.Game.Character
                 MagicalMin = magic.min;
                 MagicalMax = magic.max;
 
-                AttackSpeed = GetAttackSpeed(state);
+                // Use AttackSpeed from CharacterState which includes equipment bonuses
+                // (weapon speed, excellent options, wizard ring, etc.)
+                AttackSpeed = state.AttackSpeed;
+
+                // Use calculated values for other stats (server may not provide these)
                 Defense = GetDefense(state);
                 PvPAttackRate = GetPvPAttackRate(state);
                 PvPDefenseRate = GetPvPDefenseRate(state);
@@ -1245,32 +1274,6 @@ namespace Client.Main.Controls.UI.Game.Character
                 CharacterClassNumber.Summoner or CharacterClassNumber.BloodySummoner or CharacterClassNumber.DimensionMaster =>
                     (ene / 5, ene / 2),
                 _ => (0, 0)
-            };
-        }
-
-        private static int GetAttackSpeed(CharacterState state)
-        {
-            if (state == null) return 0;
-
-            var agi = state.TotalAgility;
-
-            return state.Class switch
-            {
-                CharacterClassNumber.DarkKnight or CharacterClassNumber.BladeKnight or CharacterClassNumber.BladeMaster =>
-                    agi / 15,
-                CharacterClassNumber.DarkWizard or CharacterClassNumber.SoulMaster or CharacterClassNumber.GrandMaster =>
-                    agi / 10,
-                CharacterClassNumber.FairyElf or CharacterClassNumber.MuseElf or CharacterClassNumber.HighElf =>
-                    agi / 50,
-                CharacterClassNumber.MagicGladiator or CharacterClassNumber.DuelMaster =>
-                    agi / 15,
-                CharacterClassNumber.DarkLord or CharacterClassNumber.LordEmperor =>
-                    agi / 10,
-                CharacterClassNumber.Summoner or CharacterClassNumber.BloodySummoner or CharacterClassNumber.DimensionMaster =>
-                    agi / 20,
-                CharacterClassNumber.RageFighter or CharacterClassNumber.FistMaster =>
-                    agi / 9,
-                _ => 0
             };
         }
 

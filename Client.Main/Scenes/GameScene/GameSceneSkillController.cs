@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Client.Data.ATT;
 using Client.Main.Controls;
 using Client.Main.Controls.UI.Game.Skills;
@@ -23,6 +24,7 @@ namespace Client.Main.Scenes
         private uint _pendingSkillRange;
         private bool _pendingSkillIsArea;
         private bool _pendingSkillTargetIsPlayer;
+        private readonly Dictionary<ushort, double> _nextSkillAllowedMs = new();
 
         public GameSceneSkillController(
             GameScene scene,
@@ -218,11 +220,11 @@ namespace Client.Main.Scenes
 
                 if (IsInSkillRange(targetPlayer.Location, _pendingSkillRange))
                 {
-                    if (_pendingSkillIsArea)
-                        UseAreaSkill(_pendingSkill, targetPlayer.NetworkId);
-                    else
-                        UseSkillOnPlayerTarget(_pendingSkill, targetPlayer);
-                    ClearPendingSkill();
+                    bool sent = _pendingSkillIsArea
+                        ? UseAreaSkill(_pendingSkill, targetPlayer.NetworkId)
+                        : UseSkillOnPlayerTarget(_pendingSkill, targetPlayer);
+                    if (sent)
+                        ClearPendingSkill();
                 }
                 else
                 {
@@ -239,11 +241,11 @@ namespace Client.Main.Scenes
 
             if (IsInSkillRange(targetMonster.Location, _pendingSkillRange))
             {
-                if (_pendingSkillIsArea)
-                    UseAreaSkill(_pendingSkill, targetMonster.NetworkId);
-                else
-                    UseSkillOnTarget(_pendingSkill, targetMonster);
-                ClearPendingSkill();
+                bool sent = _pendingSkillIsArea
+                    ? UseAreaSkill(_pendingSkill, targetMonster.NetworkId)
+                    : UseSkillOnTarget(_pendingSkill, targetMonster);
+                if (sent)
+                    ClearPendingSkill();
             }
             else
             {
@@ -273,14 +275,17 @@ namespace Client.Main.Scenes
             hero.MoveTo(targetLocation, sendToServer: true, usePathfinding: usePathfinding);
         }
 
-        private void UseSkillOnTarget(Core.Client.SkillEntryState skill, MonsterObject target)
+        private bool UseSkillOnTarget(Core.Client.SkillEntryState skill, MonsterObject target)
         {
             var hero = _scene.Hero;
             if (skill == null || target == null || hero == null)
-                return;
+                return false;
 
             if (hero.IsDead)
-                return;
+                return false;
+
+            if (!TryBeginSkillCast(skill, hero))
+                return false;
 
             _logger?.LogInformation("Using targeted skill {SkillId} (Level {Level}) on target {TargetId}",
                 skill.SkillId, skill.SkillLevel, target.NetworkId);
@@ -288,19 +293,24 @@ namespace Client.Main.Scenes
             _ = MuGame.Network.GetCharacterService().SendSkillRequestAsync(
                 skill.SkillId,
                 target.NetworkId);
+
+            return true;
         }
 
-        private void UseSkillOnPlayerTarget(Core.Client.SkillEntryState skill, PlayerObject target)
+        private bool UseSkillOnPlayerTarget(Core.Client.SkillEntryState skill, PlayerObject target)
         {
             var hero = _scene.Hero;
             if (skill == null || target == null || hero == null)
-                return;
+                return false;
 
             if (hero.IsDead || target.IsDead)
-                return;
+                return false;
 
             if (!_isDuelAttackTarget(target))
-                return;
+                return false;
+
+            if (!TryBeginSkillCast(skill, hero))
+                return false;
 
             _logger?.LogInformation("Using targeted skill {SkillId} (Level {Level}) on duel target player {TargetId}",
                 skill.SkillId, skill.SkillLevel, target.NetworkId);
@@ -308,16 +318,21 @@ namespace Client.Main.Scenes
             _ = MuGame.Network.GetCharacterService().SendSkillRequestAsync(
                 skill.SkillId,
                 target.NetworkId);
+
+            return true;
         }
 
-        private void UseAreaSkill(Core.Client.SkillEntryState skill, ushort extraTargetId = 0)
+        private bool UseAreaSkill(Core.Client.SkillEntryState skill, ushort extraTargetId = 0)
         {
             var hero = _scene.Hero;
             if (skill == null || hero == null)
-                return;
+                return false;
 
             if (hero.IsDead)
-                return;
+                return false;
+
+            if (!TryBeginSkillCast(skill, hero))
+                return false;
 
             if (extraTargetId != 0)
             {
@@ -340,6 +355,52 @@ namespace Client.Main.Scenes
                 targetY,
                 rotation,
                 extraTargetId);
+
+            return true;
+        }
+
+        private bool TryBeginSkillCast(Core.Client.SkillEntryState skill, PlayerObject hero)
+        {
+            if (hero.IsAttackOrSkillAnimationPlaying())
+                return false;
+
+            if (!TryConsumeSkillDelay(skill.SkillId))
+                return false;
+
+            bool isInSafeZone = false;
+            if (_scene.World is WalkableWorldControl walkableWorld)
+            {
+                var flags = walkableWorld.Terrain.RequestTerrainFlag((int)hero.Location.X, (int)hero.Location.Y);
+                isInSafeZone = flags.HasFlag(TWFlags.SafeZone);
+            }
+
+            var action = hero.GetSkillAction(skill.SkillId, isInSafeZone);
+            hero.PlayAction((ushort)action);
+            hero.TriggerVehicleSkillAnimation();
+            return true;
+        }
+
+        private bool TryConsumeSkillDelay(ushort skillId)
+        {
+            int delayMs = SkillDatabase.GetSkillCooldown(skillId);
+            if (delayMs <= 0)
+                return true;
+
+            double now = GetNowMs();
+            if (_nextSkillAllowedMs.TryGetValue(skillId, out double nextAllowed) && now < nextAllowed)
+                return false;
+
+            _nextSkillAllowedMs[skillId] = now + delayMs;
+            return true;
+        }
+
+        private static double GetNowMs()
+        {
+            var gameTime = MuGame.Instance?.GameTime;
+            if (gameTime != null)
+                return gameTime.TotalGameTime.TotalMilliseconds;
+
+            return Environment.TickCount64;
         }
     }
 }

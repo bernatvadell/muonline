@@ -29,6 +29,7 @@ namespace Client.Main.Objects.NPCS
             Boots.IsAncientItem = true;
 
             await base.Load();
+            AnimationSpeed = 25f;
             CurrentAction = (int)PlayerAction.PlayerStopMale;
         }
         protected override void HandleClick() { }

@@ -27,6 +27,7 @@ namespace Client.Main.Objects.NPCS
             var item = ItemDatabase.GetItemDefinition(3, 7); // Berdysh
             _rightHandWeapon.Model = await BMDLoader.Instance.Prepare(item.TexturePath);
             await base.Load();
+            AnimationSpeed = 25f;
             CurrentAction = (int)PlayerAction.PlayerStopMale;
         }
         protected override void HandleClick() { }
