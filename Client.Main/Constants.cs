@@ -31,7 +31,7 @@ namespace Client.Main
         public static readonly float MIN_PITCH = MathHelper.ToRadians(110);
 
         // Player movement
-        public const float MOVE_SPEED = 350f;
+        public const float MOVE_SPEED = 300f; // 12 * 25 FPS
 
         // UI base
         public const float BASE_FONT_SIZE = 25f;

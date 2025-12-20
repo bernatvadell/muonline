@@ -87,6 +87,26 @@ namespace Client.Main.Objects.Player
         // Timer for footstep sound playback
         private float _footstepTimer;
 
+        // Movement speed/run state (mirrors SourceMain 5.2 behavior)
+        private float _runFrames;
+        private const float RunActivationFrames = 40f;
+        private const float FenrirRunDelayFrames = 20f;
+        private const float BaseWalkSpeedUnits = 12f;
+        private const float BaseRunSpeedUnits = 15f;
+        private const float WingFastSpeedUnits = 16f;
+        private const float DarkHorseSpeedUnits = 17f;
+        private const float FenrirSpeedStage1 = 15f;
+        private const float FenrirSpeedStage2 = 16f;
+        private const float FenrirSpeedNormal = 17f;
+        private const float FenrirSpeedExcellent = 19f;
+        private const float CursedTempleQuicknessSpeedUnits = 20f;
+
+        private const byte BuffCursedTempleQuickness = 32;
+        private const byte DebuffFreeze = 56;
+        private const byte DebuffBlowOfDestruction = 86;
+
+        private const short WingOfDragonIndex = 5;
+
         // ────────────────────────────── CURSOR LOOK / STAND ROTATION ──────────────────────────────
         private float _headYaw;
         private float _headPitch;
@@ -1262,6 +1282,11 @@ namespace Client.Main.Objects.Player
             cls == CharacterClassNumber.BloodySummoner ||
             cls == CharacterClassNumber.DimensionMaster;
 
+        private static bool IsDarkKnightClass(CharacterClassNumber cls) =>
+            cls == CharacterClassNumber.DarkKnight ||
+            cls == CharacterClassNumber.BladeKnight ||
+            cls == CharacterClassNumber.BladeMaster;
+
         private static bool IsRageFighterClass(CharacterClassNumber cls) =>
             cls == CharacterClassNumber.RageFighter ||
             cls == CharacterClassNumber.FistMaster;
@@ -1424,6 +1449,144 @@ namespace Client.Main.Objects.Player
             var rightKind = rightIsAmmo ? WeaponKind.None : GetWeaponKind(right, rightGroup);
 
             return new WeaponContext(right, left, rightGroup, leftGroup, rightKind, leftKind, rightIsAmmo, leftIsAmmo);
+        }
+
+        private bool HasActiveBuff(byte effectId)
+        {
+            var charState = _networkManager?.GetCharacterState();
+            if (charState == null)
+            {
+                return false;
+            }
+
+            ushort id = NetworkId != 0 ? NetworkId : charState.Id;
+            return charState.HasActiveBuff(effectId, id);
+        }
+
+        private void GetEquipmentLevels(out int bootsLevel, out int glovesLevel)
+        {
+            if (IsMainWalker)
+            {
+                bootsLevel = Boots?.ItemLevel ?? 0;
+                glovesLevel = Gloves?.ItemLevel ?? 0;
+                return;
+            }
+
+            bootsLevel = Appearance.BootsItemLevel;
+            glovesLevel = Appearance.GlovesItemLevel;
+        }
+
+        private static bool IsUnderwaterRunMap(short worldIndex) =>
+            worldIndex == 8 || worldIndex == 68; // Atlans + Doppelganger Underwater
+
+        private static bool IsFenrirVehicle(short vehicleIndex) =>
+            vehicleIndex >= 11 && vehicleIndex <= 18;
+
+        private static bool IsFenrirExcellentVehicle(short vehicleIndex) =>
+            vehicleIndex == 11 || vehicleIndex == 12 || vehicleIndex == 13 ||
+            vehicleIndex == 15 || vehicleIndex == 16 || vehicleIndex == 17;
+
+        private bool HasFastWingEquipped()
+        {
+            if (!HasEquippedWings)
+                return false;
+
+            short wingIndex = GetEquippedWingIndex();
+            return wingIndex == WingOfDragonIndex || wingIndex == WingOfStormIndex;
+        }
+
+        private float GetFenrirSpeedUnits()
+        {
+            if (_runFrames < FenrirRunDelayFrames / 2f)
+                return FenrirSpeedStage1;
+            if (_runFrames < FenrirRunDelayFrames)
+                return FenrirSpeedStage2;
+            return IsFenrirExcellentVehicle(_currentVehicleIndex) ? FenrirSpeedExcellent : FenrirSpeedNormal;
+        }
+
+        private bool UpdateMovementSpeedAndRunState(WalkableWorldControl world, TWFlags flags, bool isAboutToMove)
+        {
+            bool isInSafeZone = flags.HasFlag(TWFlags.SafeZone);
+            bool hasFenrir = _isRiding && IsFenrirVehicle(_currentVehicleIndex);
+            bool hasDarkHorse = _isRiding && _currentVehicleIndex == 0;
+            bool hasUniriaOrDino = _isRiding && (_currentVehicleIndex == 7 || _currentVehicleIndex == 8);
+            bool hasWings = HasEquippedWings && !isInSafeZone;
+
+            GetEquipmentLevels(out int bootsLevel, out int glovesLevel);
+            bool useGlovesForRun = IsUnderwaterRunMap(world.WorldIndex);
+            bool hasRunItem = useGlovesForRun ? glovesLevel >= 5 : bootsLevel >= 5;
+
+            bool canRun =
+                IsDarkKnightClass(CharacterClass) ||
+                IsDarkLordClass(CharacterClass) ||
+                IsRageFighterClass(CharacterClass) ||
+                hasRunItem ||
+                hasFenrir;
+
+            if (!isAboutToMove || isInSafeZone)
+            {
+                _runFrames = 0f;
+            }
+            else if (_runFrames < RunActivationFrames && canRun)
+            {
+                _runFrames += FPSCounter.Instance.FPS_ANIMATION_FACTOR;
+                if (_runFrames > RunActivationFrames)
+                    _runFrames = RunActivationFrames;
+            }
+
+            bool inChaosCastle = IsChaosCastleMap(world.WorldIndex);
+            if (!isInSafeZone && (hasDarkHorse || hasWings || hasUniriaOrDino || inChaosCastle))
+            {
+                _runFrames = RunActivationFrames;
+            }
+
+            if (HasActiveBuff(BuffCursedTempleQuickness))
+            {
+                _runFrames = RunActivationFrames;
+            }
+
+            float speedUnits;
+            if (isInSafeZone)
+            {
+                speedUnits = BaseWalkSpeedUnits;
+            }
+            else if (inChaosCastle)
+            {
+                speedUnits = BaseRunSpeedUnits;
+            }
+            else if (hasFenrir)
+            {
+                speedUnits = GetFenrirSpeedUnits();
+            }
+            else if (hasDarkHorse)
+            {
+                speedUnits = DarkHorseSpeedUnits;
+            }
+            else if (hasWings || hasUniriaOrDino)
+            {
+                speedUnits = HasFastWingEquipped() ? WingFastSpeedUnits : BaseRunSpeedUnits;
+            }
+            else
+            {
+                speedUnits = _runFrames >= RunActivationFrames ? BaseRunSpeedUnits : BaseWalkSpeedUnits;
+            }
+
+            if (HasActiveBuff(DebuffFreeze))
+            {
+                speedUnits *= 0.5f;
+            }
+            else if (HasActiveBuff(DebuffBlowOfDestruction))
+            {
+                speedUnits *= 0.33f;
+            }
+
+            if (HasActiveBuff(BuffCursedTempleQuickness))
+            {
+                speedUnits = CursedTempleQuicknessSpeedUnits;
+            }
+
+            MoveSpeed = Constants.MOVE_SPEED * (speedUnits / BaseWalkSpeedUnits);
+            return _runFrames >= RunActivationFrames;
         }
 
         private static bool IsTwoHandedWeaponKind(WeaponKind kind) =>
@@ -1623,15 +1786,15 @@ namespace Client.Main.Objects.Player
         }
 
         /// <summary>Action that should play while moving (gender already cached).</summary>
-        private PlayerAction GetMovementAction(MovementMode mode, WeaponContext weapons, bool isInSafeZone)
+        private PlayerAction GetMovementAction(MovementMode mode, WeaponContext weapons, bool isInSafeZone, bool isRunning)
         {
             return mode switch
             {
-                MovementMode.Swim => PlayerAction.PlayerRunSwim,
+                MovementMode.Swim => isRunning ? PlayerAction.PlayerRunSwim : PlayerAction.PlayerWalkSwim,
                 MovementMode.Fly => weapons.PrimaryKind == WeaponKind.Crossbow && !isInSafeZone
                     ? PlayerAction.PlayerFlyCrossbow
                     : PlayerAction.PlayerFly,
-                _ => GetMovementActionForWeapon(weapons)
+                _ => isRunning ? GetRunActionForWeapon(weapons) : GetMovementActionForWeapon(weapons)
             };
         }
 
@@ -1655,7 +1818,37 @@ namespace Client.Main.Objects.Player
                 WeaponKind.SummonerStick => PlayerAction.PlayerWalkWand,
                 WeaponKind.StaffOneHand => PlayerAction.PlayerWalkSword,
                 WeaponKind.StaffTwoHand => PlayerAction.PlayerWalkScythe,
+                WeaponKind.Book => PlayerAction.PlayerWalkWand,
                 _ => GetClassWalkAction(isInChaosCastle: World is WalkableWorldControl w && IsChaosCastleMap(w.WorldIndex))
+            };
+        }
+
+        private PlayerAction GetRunActionForWeapon(WeaponContext weapons)
+        {
+            if (!weapons.HasAnyWeapon)
+                return PlayerAction.PlayerRun;
+
+            if (weapons.HasDualWeapons && weapons.RightKind == WeaponKind.Sword && weapons.LeftKind == WeaponKind.Sword)
+            {
+                if (IsRageFighterClass(CharacterClass))
+                    return PlayerAction.PlayerRun;
+                return PlayerAction.PlayerRunTwoSword;
+            }
+
+            return weapons.PrimaryKind switch
+            {
+                WeaponKind.Sword => PlayerAction.PlayerRunSword,
+                WeaponKind.TwoHandSword => PlayerAction.PlayerRunTwoHandSword,
+                WeaponKind.TwoHandSwordTwo => PlayerAction.PlayerRunTwoHandSwordTwo,
+                WeaponKind.Spear => PlayerAction.PlayerRunSpear,
+                WeaponKind.Scythe => PlayerAction.PlayerRunSpear,
+                WeaponKind.Bow => PlayerAction.PlayerRunBow,
+                WeaponKind.Crossbow => PlayerAction.PlayerRunCrossbow,
+                WeaponKind.SummonerStick => PlayerAction.PlayerRunWand,
+                WeaponKind.StaffOneHand => PlayerAction.PlayerRunSword,
+                WeaponKind.StaffTwoHand => PlayerAction.PlayerRunSpear,
+                WeaponKind.Book => PlayerAction.PlayerRunWand,
+                _ => PlayerAction.PlayerRun
             };
         }
 
@@ -1833,7 +2026,14 @@ namespace Client.Main.Objects.Player
             }
             else if (Appearance.HasFenrir)
             {
-                vehicleIndex = 14; // Default Fenrir (red)
+                if (Appearance.HasBlackFenrir)
+                    vehicleIndex = 11; // Fenrir Black
+                else if (Appearance.HasBlueFenrir)
+                    vehicleIndex = 12; // Fenrir Blue
+                else if (Appearance.HasGoldFenrir)
+                    vehicleIndex = 13; // Fenrir Gold
+                else
+                    vehicleIndex = 14; // Default Fenrir (red)
             }
 
             bool hasRideablePet = vehicleIndex >= 0;
@@ -1896,8 +2096,12 @@ namespace Client.Main.Objects.Player
         private PlayerAction GetRidingMovementAction(WeaponContext weapons)
         {
             // Fenrir variants have special running animation
-            if (_currentVehicleIndex >= 11 && _currentVehicleIndex <= 18) // All Fenrir variants
+            if (IsFenrirVehicle(_currentVehicleIndex)) // All Fenrir variants
+            {
+                if (_runFrames < FenrirRunDelayFrames)
+                    return GetFenrirWalkAction(weapons);
                 return GetFenrirRunAction(weapons);
+            }
 
             // Dark Horse has a specific animation
             if (_currentVehicleIndex == 0) // Dark Horse
@@ -1915,6 +2119,28 @@ namespace Client.Main.Objects.Player
 
             // Default riding animation for Dinorant, Uniria, etc.
             return PlayerAction.PlayerRunRide;
+        }
+
+        private PlayerAction GetFenrirWalkAction(WeaponContext weapons)
+        {
+            if (IsRageFighterClass(CharacterClass))
+            {
+                if (weapons.HasDualWeapons)
+                    return PlayerAction.PlayerRageFenrirWalkTwoSword;
+                if (weapons.HasRightWeapon)
+                    return PlayerAction.PlayerRageFenrirWalkOneRight;
+                if (weapons.HasLeftWeapon)
+                    return PlayerAction.PlayerRageFenrirWalkOneLeft;
+                return PlayerAction.PlayerRageFenrirWalk;
+            }
+
+            if (weapons.HasDualWeapons)
+                return PlayerAction.PlayerFenrirWalkTwoSword;
+            if (weapons.HasRightWeapon)
+                return PlayerAction.PlayerFenrirWalkOneRight;
+            if (weapons.HasLeftWeapon)
+                return PlayerAction.PlayerFenrirWalkOneLeft;
+            return PlayerAction.PlayerFenrirWalk;
         }
 
         /// <summary>
@@ -2168,6 +2394,8 @@ namespace Client.Main.Objects.Player
                 mode = MovementMode.Swim;
             }
 
+            bool isRunning = UpdateMovementSpeedAndRunState(world, flags, isAboutToMove);
+
             if (isAboutToMove)
             {
                 ResetRestSitStates();
@@ -2186,7 +2414,7 @@ namespace Client.Main.Objects.Player
                 }
                 else
                 {
-                    desired = GetMovementAction(mode, weapons, isInSafeZone);
+                    desired = GetMovementAction(mode, weapons, isInSafeZone, isRunning);
                 }
 
                 if (!IsOneShotPlaying && CurrentAction != desired)
@@ -2246,6 +2474,8 @@ namespace Client.Main.Objects.Player
                 mode = MovementMode.Swim;
             }
 
+            bool isRunning = UpdateMovementSpeedAndRunState(world, flags, isAboutToMove);
+
             if (isAboutToMove)
             {
                 ResetRestSitStates();
@@ -2263,7 +2493,7 @@ namespace Client.Main.Objects.Player
                 }
                 else
                 {
-                    desired = GetMovementAction(mode, weapons, isInSafeZone);
+                    desired = GetMovementAction(mode, weapons, isInSafeZone, isRunning);
                 }
 
                 if (!IsOneShotPlaying && CurrentAction != desired)
