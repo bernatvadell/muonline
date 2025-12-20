@@ -225,7 +225,7 @@ namespace Client.Main.Objects.Player
         {
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
             CacheHeadBoneHierarchy();
-            InitializeActionSpeedsFromSourceMain52();
+            InitializeActionSpeeds();
 
             if (IsMainWalker)
             {
@@ -255,7 +255,7 @@ namespace Client.Main.Objects.Player
         {
             Model = await BMDLoader.Instance.Prepare("Player/Player.bmd");
             CacheHeadBoneHierarchy();
-            InitializeActionSpeedsFromSourceMain52();
+            InitializeActionSpeeds();
 
             if (IsMainWalker)
             {
@@ -1138,7 +1138,7 @@ namespace Client.Main.Objects.Player
             }
         }
 
-        private void InitializeActionSpeedsFromSourceMain52()
+        private void InitializeActionSpeeds()
         {
             // Mirrors SourceMain5.2 ZzzOpenData.cpp player action PlaySpeed table.
             SetActionSpeedRange(PlayerAction.PlayerStopMale, PlayerAction.PlayerStopRideWeapon, 0.28f);
