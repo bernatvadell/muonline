@@ -7,29 +7,27 @@ using Client.Main.Objects.Player;
 using Client.Main.Worlds;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
-using MUnique.OpenMU.Network.Packets;
 using MUnique.OpenMU.Network.Packets.ServerToClient;
 using Client.Main.Objects;
 using Client.Main.Core.Utilities;
 using Client.Main.Networking.PacketHandling.Handlers; // For CharacterClassNumber
-using Client.Main.Controllers;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Controls.UI.Game.Map;
 using Client.Main.Controls.UI.Game.Party;
 using Client.Main.Controls.UI.Game.PauseMenu;
 using Client.Main.Controls.UI.Game.Character;
 using Client.Main.Controls.UI.Game.Trade;
-using Client.Main.Helpers;
 using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Networking;
-using Client.Main.Core.Models;
 using System.Reflection;
-using Client.Main.Content;
-using Client.Data.ATT;
+using System.Diagnostics.CodeAnalysis;
 using Client.Main.Controls.UI.Game.Buffs;
 using Client.Main.Controls.UI.Game.Hud;
-using Client.Main.Objects.Effects;
+using MUnique.OpenMU.Network.Packets;
+using Client.Main.Controllers;
+using Client.Main.Helpers;
 
 namespace Client.Main.Scenes
 {
@@ -38,22 +36,17 @@ namespace Client.Main.Scenes
         // ──────────────────────────── Fields ────────────────────────────
         private readonly PlayerObject _hero;
         private readonly MainControl _main;
-        private WorldControl _nextWorld; // Used for map changes
-        private LoadingScreenControl _loadingScreen; // For initial load and map changes
+        private GameSceneMapController _mapController;
         private MapListControl _mapListControl;
         private ChatLogWindow _chatLog;
         private MoveCommandWindow _moveCommandWindow;
         private ChatInputBoxControl _chatInput;
         private InventoryControl _inventoryControl;
-        private Client.Main.Controls.UI.NotificationManager _notificationManager;
+        private NotificationManager _notificationManager;
         private PartyPanelControl _partyPanel;
         private readonly (string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance) _characterInfo;
-        private KeyboardState _previousKeyboardState;
-        private bool _isChangingWorld = false;
-        private readonly List<(ServerMessage.MessageType Type, string Message)> _pendingNotifications = new();
         private CharacterInfoWindowControl _characterInfoWindow;
-        private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<GameScene>();
-        private MapNameControl _currentMapNameControl; // Track active map name display
+        private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<GameScene>() ?? NullLogger<GameScene>.Instance;
         private LabelControl _pingLabel; // Displays current ping
         private double _pingTimer = 0;
         private int? _lastPingValue = null;
@@ -63,34 +56,18 @@ namespace Client.Main.Scenes
         private ActiveBuffsPanel _activeBuffsPanel; // Active buffs display (top-left corner)
         private Texture2D _backgroundTexture;
         private ProgressBarControl _progressBar;
-        private PlayerContextMenu _playerContextMenu;
-        private LabelControl _playerMenuHint;
-        private const double PlayerMenuHintCooldownSeconds = 0.3;
-        private double _playerMenuHoverTime;
-        private ushort? _playerMenuHoverId;
-        private double _playerMenuHintCooldown;
-        private float _playerMenuHintAlpha;
-        private BlendingEditorControl _blendingEditor;
-        private ObjectSelectionDialog _blendingObjectSelectionDialog;
-        private ObjectSelectionDialog _deletionObjectSelectionDialog;
-        private Core.Client.SkillEntryState? _pendingSkill;
-        private ushort _pendingSkillTargetId;
-        private uint _pendingSkillRange;
-        private bool _pendingSkillIsArea;
-        private bool _pendingSkillTargetIsPlayer;
-
-        // Cache expensive enum values to avoid allocations
-        private static readonly Keys[] _allKeys = (Keys[])System.Enum.GetValues(typeof(Keys));
+        private GameSceneSkillController _skillController;
+        private GameSceneNotificationController _notificationController;
+        private GameScenePlayerMenuController _playerMenuController;
+        private GameSceneInputController _inputController;
+        private GameSceneScopeImportController _scopeImportController;
+        private GameSceneObjectEditorController _objectEditorController;
+        private GameSceneDuelController _duelController;
+        private GameSceneChatController _chatController;
+        private GameSceneUiPreloadController _uiPreloadController;
+        private GameSceneWindowCloseController _windowCloseController;
 
         // Performance optimization fields - track object IDs for O(1) lookups
-        private readonly HashSet<ushort> _activePlayerIds = new();
-        private readonly HashSet<ushort> _activeMonsterIds = new();
-        private readonly HashSet<ushort> _activeNpcIds = new();
-        private readonly HashSet<ushort> _activeItemIds = new();
-
-        // Cache for movement-related keys to reduce keyboard processing overhead
-        private static readonly Keys[] _moveCommandKeys = { Keys.Up, Keys.Down, Keys.Left, Keys.Right, Keys.Enter, Keys.Escape };
-
         // ───────────────────────── Properties ─────────────────────────
         public PlayerObject Hero => _hero;
         public ChatLogWindow ChatLog => _chatLog;
@@ -100,6 +77,7 @@ namespace Client.Main.Scenes
 
         public static readonly IReadOnlyDictionary<byte, Type> MapWorldRegistry = DiscoverWorlds();
 
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "World registry uses reflection; trimming is not supported for scene discovery.")]
         private static IReadOnlyDictionary<byte, Type> DiscoverWorlds()
         {
             var registry = new Dictionary<byte, Type>();
@@ -119,13 +97,6 @@ namespace Client.Main.Scenes
             }
             return registry;
         }
-
-        private static readonly Dictionary<ServerMessage.MessageType, Color> NotificationColors = new Dictionary<ServerMessage.MessageType, Color>
-        {
-            { ServerMessage.MessageType.GoldenCenter, Color.Goldenrod },
-            { ServerMessage.MessageType.BlueNormal,   new Color(100, 150, 255) },
-            { ServerMessage.MessageType.GuildNotice,  new Color(144, 238, 144) },
-        };
 
         // ──────────────────────── Constructors ────────────────────────
         public GameScene((string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance) characterInfo)
@@ -157,21 +128,20 @@ namespace Client.Main.Scenes
                 X = 5,
                 Y = UiScaler.VirtualSize.Y - 65 - ChatInputBoxControl.CHATBOX_HEIGHT
             };
-            _chatInput.MessageSendRequested += OnChatMessageSendRequested;
             Controls.Add(_chatInput);
+            _duelController = new GameSceneDuelController(this, _chatLog, _logger);
 
-            _pendingNotifications.AddRange(ChatMessageHandler.TakePendingServerMessages());
-            _notificationManager = new Client.Main.Controls.UI.NotificationManager();
+            _notificationManager = new NotificationManager();
             Controls.Add(_notificationManager);
             _notificationManager.BringToFront();
+            _notificationController = new GameSceneNotificationController(_notificationManager, _chatLog);
+            _notificationController.AddPending(ChatMessageHandler.TakePendingServerMessages());
+            _scopeImportController = new GameSceneScopeImportController(this, _logger);
 
             _inventoryControl = new InventoryControl(MuGame.Network, MuGame.AppLoggerFactory);
             Controls.Add(_inventoryControl);
             _inventoryControl.HookEvents();
-
-            _loadingScreen = new LoadingScreenControl { Visible = true, Message = "Loading Game..." };
-            Controls.Add(_loadingScreen);
-            _loadingScreen.BringToFront();
+            _windowCloseController = new GameSceneWindowCloseController(_inventoryControl, _logger);
 
             _moveCommandWindow = new MoveCommandWindow(MuGame.AppLoggerFactory, MuGame.Network);
             Controls.Add(_moveCommandWindow);
@@ -212,9 +182,10 @@ namespace Client.Main.Scenes
             _skillQuickSlot.SetSelectionPanel(_skillSelectionPanel); // Connect panel
             Controls.Add(_skillQuickSlot);
             _skillQuickSlot.BringToFront();
+            _skillController = new GameSceneSkillController(this, _skillQuickSlot, _logger, _duelController.IsDuelAttackTarget);
 
             // Experience bar
-            var experienceBar = new Controls.UI.Game.Hud.ExperienceBarControl(MuGame.Network.GetCharacterState());
+            var experienceBar = new ExperienceBarControl(MuGame.Network.GetCharacterState());
             Controls.Add(experienceBar);
 
             // Active buffs panel (top-left corner, no border)
@@ -226,26 +197,19 @@ namespace Client.Main.Scenes
             var duelHud = new DuelHudControl(MuGame.Network.GetCharacterState());
             Controls.Add(duelHud);
             duelHud.BringToFront();
-
-            _playerMenuHint = new LabelControl
-            {
-                Text = "ALT + RMB: player menu",
-                FontSize = 11f,
-                Padding = new Margin { Left = 6, Right = 6, Top = 4, Bottom = 4 },
-                BackgroundColor = new Color(0, 0, 0, 180),
-                TextColor = Color.White,
-                HasShadow = true,
-                Visible = false,
-                Interactive = false
-            };
-            Controls.Add(_playerMenuHint);
-            _playerMenuHint.BringToFront();
-
-#if DEBUG
-            // Blending editor
-            _blendingEditor = new BlendingEditorControl();
-            Controls.Add(_blendingEditor);
-#endif
+            _playerMenuController = new GameScenePlayerMenuController(this, StartWhisperToPlayer, _duelController.OnDuelRequestedFromContextMenu);
+            _playerMenuController.Initialize();
+            _inputController = new GameSceneInputController(
+                this,
+                _pauseMenu,
+                _playerMenuController,
+                _moveCommandWindow,
+                _inventoryControl,
+                _characterInfoWindow,
+                _chatInput,
+                _chatLog);
+            _objectEditorController = new GameSceneObjectEditorController(this, _logger);
+            _objectEditorController.Initialize();
 
             try
             {
@@ -258,10 +222,25 @@ namespace Client.Main.Scenes
 
             _progressBar = new ProgressBarControl();
             Controls.Add(_progressBar);
+            _mapController = new GameSceneMapController(
+                this,
+                _main,
+                _progressBar,
+                _chatLog,
+                _chatInput,
+                _mapListControl,
+                DebugPanel,
+                Cursor,
+                _scopeImportController,
+                _logger);
+            _mapController.EnsureLoadingScreen();
+            _chatController = new GameSceneChatController(_mapController, _duelController, _chatLog, _logger);
+            _chatInput.MessageSendRequested += _chatController.OnChatMessageSendRequested;
+            _uiPreloadController = new GameSceneUiPreloadController(this, _logger);
 
             // Start pre-loading common UI assets in background to prevent freezes
             // This runs async and won't block scene initialization
-            _ = PreloadCommonUIAssetsAsync();
+            _ = _uiPreloadController.StartPreloadAsync();
         }
 
         public GameScene() : this(GetCharacterInfoFromState())
@@ -289,170 +268,170 @@ namespace Client.Main.Scenes
         {
             MuGame.ScheduleOnMainThread(() => // Ensure UI updates are on the main thread
             {
-                if (_loadingScreen != null)
-                {
-                    _loadingScreen.Message = message;
-                    _loadingScreen.Progress = progress;
-                }
+                _mapController?.UpdateLoadProgress(message, progress);
             });
         }
 
         protected override async Task LoadSceneContentWithProgress(Action<string, float> progressCallback)
         {
-            UpdateLoadProgress("Initializing Game Scene...", 0.0f);
-
-            // 1. Hero Setup
-            UpdateLoadProgress("Setting up hero info...", 0.05f);
-
-            var charState = MuGame.Network?.GetCharacterState();
-            if (charState == null)
+            try
             {
-                UpdateLoadProgress("Error: CharacterState is null.", 1.0f);
-                _logger?.LogDebug("CharacterState is null in GameScene.Load, cannot proceed.");
-                if (_loadingScreen != null) { Controls.Remove(_loadingScreen); _loadingScreen.Dispose(); _loadingScreen = null; }
-                _main.Visible = false;
-                return;
+                UpdateLoadProgress("Initializing Game Scene...", 0.0f);
+
+                // 1. Hero Setup
+                UpdateLoadProgress("Setting up hero info...", 0.05f);
+
+                var charState = MuGame.Network?.GetCharacterState();
+                if (charState == null)
+                {
+                    UpdateLoadProgress("Error: CharacterState is null.", 1.0f);
+                    _logger?.LogDebug("CharacterState is null in GameScene.Load, cannot proceed.");
+                    _main.Visible = false;
+                    return;
+                }
+
+                _hero.CharacterClass = _characterInfo.Class;
+                _hero.Name = _characterInfo.Name;
+
+                charState.UpdateCoreCharacterInfo(
+                    charState.Id,
+                    _characterInfo.Name,
+                    _characterInfo.Class,
+                    _characterInfo.Level,
+                    charState.PositionX,
+                    charState.PositionY,
+                    charState.MapId
+                );
+
+                _hero.NetworkId = charState.Id;
+                _hero.Location = new Vector2(charState.PositionX, charState.PositionY);
+                _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: _hero.NetworkId set to {charState.Id:X4}, Location set to ({charState.PositionX}, {charState.PositionY}).");
+
+                UpdateLoadProgress("Hero info applied.", 0.1f);
+                if (_windowCloseController != null)
+                {
+                    _hero.PlayerMoved += _windowCloseController.OnHeroMoved;
+                    _hero.PlayerTookDamage += _windowCloseController.OnHeroTookDamage;
+                }
+
+                // 2. Determine Initial World (Quick)
+                UpdateLoadProgress("Determining initial world...", 0.15f);
+                Type initialWorldType = typeof(LorenciaWorld);
+                if (charState != null && MapWorldRegistry.TryGetValue((byte)charState.MapId, out var mappedType))
+                {
+                    initialWorldType = mappedType;
+                }
+                else
+                {
+                    _logger?.LogDebug($"GameScene.Load: Unknown MapId: {charState?.MapId}. Defaulting to Lorencia.");
+                }
+                UpdateLoadProgress($"Initial world: {initialWorldType.Name}.", 0.2f);
+
+                // 3. Instantiate and Initialize World
+                UpdateLoadProgress($"Loading world: {initialWorldType.Name}...", 0.25f);
+
+                if (World != null)
+                {
+                    Controls.Remove(World);
+                    World.Dispose();
+                    World = null;
+                }
+
+                var worldInstance = (WorldControl)Activator.CreateInstance(initialWorldType);
+                if (worldInstance is WalkableWorldControl walkable)
+                {
+                    _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: About to assign _hero to walkable.Walker. _hero.NetworkId: {_hero.NetworkId:X4}");
+
+                    walkable.Walker = _hero;
+                    _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: Assigned _hero ({_hero.NetworkId:X4}) to walkableWorld.Walker.");
+
+                    _scopeImportController?.EnsureWalkerNetworkId(walkable, charState.Id, "after assignment and verification");
+
+                    _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: Walker.NetworkId after assignment and verification: {walkable.Walker?.NetworkId:X4}");
+                }
+
+                Controls.Add(worldInstance);
+                World = worldInstance;
+
+                World.Objects.Add(_hero);
+                _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: Added _hero to World.Objects.");
+
+                await worldInstance.Initialize();
+                UpdateLoadProgress($"World {initialWorldType.Name} initialized.", 0.6f);
+
+                if (worldInstance is WalkableWorldControl walkableAfterInit)
+                {
+                    _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: Walker.NetworkId after world initialization: {walkableAfterInit.Walker?.NetworkId:X4}");
+
+                    _scopeImportController?.EnsureWalkerNetworkId(walkableAfterInit, charState.Id, "after world initialization");
+                    _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: Walker.NetworkId after fix: {walkableAfterInit.Walker?.NetworkId:X4}");
+                }
+
+                // 4. Load Hero Assets
+                UpdateLoadProgress("Loading hero assets...", 0.65f);
+                if (_hero.Status == GameControlStatus.NonInitialized || _hero.Status == GameControlStatus.Initializing)
+                {
+                    ushort expectedNetworkId = charState.Id;
+                    _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: _hero.NetworkId before Load(): {_hero.NetworkId:X4}");
+
+                    await _hero.Load();
+
+                    _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: _hero.NetworkId after Load(): {_hero.NetworkId:X4}");
+                    _scopeImportController?.EnsureHeroNetworkId(expectedNetworkId, "after hero Load()");
+                }
+                UpdateLoadProgress("Hero assets loaded.", 0.80f);
+
+                // 5. Import Pending Objects
+                UpdateLoadProgress("Importing nearby entities...", 0.85f);
+                if (World.Status == GameControlStatus.Ready)
+                {
+                    await (_scopeImportController?.ImportPendingRemotePlayersAsync() ?? Task.CompletedTask);
+                    await (_scopeImportController?.ImportPendingNpcsMonstersAsync() ?? Task.CompletedTask);
+                    await (_scopeImportController?.ImportPendingDroppedItemsAsync() ?? Task.CompletedTask);
+                }
+                else
+                {
+                    _logger?.LogDebug($"GameScene.Load: World not ready after Initialize (Status: {World.Status}). Pending objects may not import correctly.");
+                }
+                UpdateLoadProgress("Entities imported.", 0.95f);
+
+                // Preload sounds for dropped items
+                UpdateLoadProgress("Preloading sounds...", 0.96f);
+                PreloadSounds();
+                UpdateLoadProgress("Sounds preloaded.", 0.965f);
+
+                // Preload NPC and monster textures
+                UpdateLoadProgress("Preloading NPC textures...", 0.97f);
+                // Skip preloading to avoid blocking
+                UpdateLoadProgress("NPC textures preloaded.", 0.975f);
+
+                // Preload UI textures so opening windows doesn't cause stalls
+                UpdateLoadProgress("Preloading UI textures...", 0.98f);
+                // Skip preloading to avoid blocking
+                UpdateLoadProgress("UI textures preloaded.", 0.99f);
+
+                if (World is WalkableWorldControl finalWalkable)
+                {
+                    _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: FINAL CHECK - Walker.NetworkId: {finalWalkable.Walker?.NetworkId:X4}, CharState.Id: {charState.Id:X4}");
+
+                    // One last check and fix if needed
+                    _scopeImportController?.EnsureWalkerNetworkId(finalWalkable, charState.Id, "final verification");
+                    _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: After final fix - Walker.NetworkId: {finalWalkable.Walker?.NetworkId:X4}");
+                }
+
+                // Finalize
+                _mapController?.UpdateLoadProgress("Game ready!", 1.0f);
+                _main.Visible = true;
+                _mapController?.UpdateMapName();
             }
-
-            _hero.CharacterClass = _characterInfo.Class;
-            _hero.Name = _characterInfo.Name;
-
-            charState.UpdateCoreCharacterInfo(
-                charState.Id,
-                _characterInfo.Name,
-                _characterInfo.Class,
-                _characterInfo.Level,
-                charState.PositionX,
-                charState.PositionY,
-                charState.MapId
-            );
-
-            _hero.NetworkId = charState.Id;
-            _hero.Location = new Vector2(charState.PositionX, charState.PositionY);
-            _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: _hero.NetworkId set to {charState.Id:X4}, Location set to ({charState.PositionX}, {charState.PositionY}).");
-
-            UpdateLoadProgress("Hero info applied.", 0.1f);
-            _hero.PlayerMoved += OnHeroMoved;
-            _hero.PlayerTookDamage += OnHeroTookDamage;
-
-            // 2. Determine Initial World (Quick)
-            UpdateLoadProgress("Determining initial world...", 0.15f);
-            Type initialWorldType = typeof(LorenciaWorld);
-            if (charState != null && MapWorldRegistry.TryGetValue((byte)charState.MapId, out var mappedType))
+            finally
             {
-                initialWorldType = mappedType;
+                _mapController?.DisposeLoadingScreen();
+                if (_progressBar != null)
+                {
+                    _progressBar.Visible = false;
+                }
             }
-            else
-            {
-                _logger?.LogDebug($"GameScene.Load: Unknown MapId: {charState?.MapId}. Defaulting to Lorencia.");
-            }
-            UpdateLoadProgress($"Initial world: {initialWorldType.Name}.", 0.2f);
-
-            // 3. Instantiate and Initialize World
-            UpdateLoadProgress($"Loading world: {initialWorldType.Name}...", 0.25f);
-
-            if (World != null)
-            {
-                Controls.Remove(World);
-                World.Dispose();
-                World = null;
-            }
-
-            var worldInstance = (WorldControl)Activator.CreateInstance(initialWorldType);
-            if (worldInstance is WalkableWorldControl walkable)
-            {
-                _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: About to assign _hero to walkable.Walker. _hero.NetworkId: {_hero.NetworkId:X4}");
-
-                walkable.Walker = _hero;
-                _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: Assigned _hero ({_hero.NetworkId:X4}) to walkableWorld.Walker.");
-
-                EnsureWalkerNetworkId(walkable, charState.Id, "after assignment and verification");
-
-                _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: Walker.NetworkId after assignment and verification: {walkable.Walker?.NetworkId:X4}");
-            }
-
-            Controls.Add(worldInstance);
-            World = worldInstance;
-
-            World.Objects.Add(_hero);
-            _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: Added _hero to World.Objects.");
-
-            await worldInstance.Initialize();
-            UpdateLoadProgress($"World {initialWorldType.Name} initialized.", 0.6f);
-
-            if (worldInstance is WalkableWorldControl walkableAfterInit)
-            {
-                _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: Walker.NetworkId after world initialization: {walkableAfterInit.Walker?.NetworkId:X4}");
-
-                EnsureWalkerNetworkId(walkableAfterInit, charState.Id, "after world initialization");
-                _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: Walker.NetworkId after fix: {walkableAfterInit.Walker?.NetworkId:X4}");
-            }
-
-            // 4. Load Hero Assets
-            UpdateLoadProgress("Loading hero assets...", 0.65f);
-            if (_hero.Status == GameControlStatus.NonInitialized || _hero.Status == GameControlStatus.Initializing)
-            {
-                ushort expectedNetworkId = charState.Id;
-                _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: _hero.NetworkId before Load(): {_hero.NetworkId:X4}");
-
-                await _hero.Load();
-
-                _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: _hero.NetworkId after Load(): {_hero.NetworkId:X4}");
-                EnsureHeroNetworkId(expectedNetworkId, "after hero Load()");
-            }
-            UpdateLoadProgress("Hero assets loaded.", 0.80f);
-
-            // 5. Import Pending Objects
-            UpdateLoadProgress("Importing nearby entities...", 0.85f);
-            if (World.Status == GameControlStatus.Ready)
-            {
-                await ImportPendingRemotePlayers();
-                await ImportPendingNpcsMonsters();
-                await ImportPendingDroppedItems();
-            }
-            else
-            {
-                _logger?.LogDebug($"GameScene.Load: World not ready after Initialize (Status: {World.Status}). Pending objects may not import correctly.");
-            }
-            UpdateLoadProgress("Entities imported.", 0.95f);
-
-            // Preload sounds for dropped items
-            UpdateLoadProgress("Preloading sounds...", 0.96f);
-            PreloadSounds();
-            UpdateLoadProgress("Sounds preloaded.", 0.965f);
-
-            // Preload NPC and monster textures
-            UpdateLoadProgress("Preloading NPC textures...", 0.97f);
-            // Skip preloading to avoid blocking
-            UpdateLoadProgress("NPC textures preloaded.", 0.975f);
-
-            // Preload UI textures so opening windows doesn't cause stalls
-            UpdateLoadProgress("Preloading UI textures...", 0.98f);
-            // Skip preloading to avoid blocking
-            UpdateLoadProgress("UI textures preloaded.", 0.99f);
-
-            if (World is WalkableWorldControl finalWalkable)
-            {
-                _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: FINAL CHECK - Walker.NetworkId: {finalWalkable.Walker?.NetworkId:X4}, CharState.Id: {charState.Id:X4}");
-
-                // One last check and fix if needed
-                EnsureWalkerNetworkId(finalWalkable, charState.Id, "final verification");
-                _logger?.LogDebug($"GameScene.LoadSceneContentWithProgress: After final fix - Walker.NetworkId: {finalWalkable.Walker?.NetworkId:X4}");
-            }
-
-            // Finalize
-            if (_loadingScreen != null)
-            {
-                Controls.Remove(_loadingScreen);
-                _loadingScreen.Dispose();
-                _loadingScreen = null;
-            }
-            if (_progressBar != null)
-            {
-                _progressBar.Visible = false;
-            }
-            _main.Visible = true;
-            UpdateLoadProgress("Game ready!", 1.0f);
         }
 
         public override async Task Load()
@@ -491,238 +470,13 @@ namespace Client.Main.Scenes
             }
         }
 
-        private void OnHeroMoved(object sender, EventArgs e)
-        {
-            if (NpcShopControl.Instance.Visible)
-            {
-                _logger?.LogInformation("Hero moved, closing NPC shop window.");
-                NpcShopControl.Instance.Visible = false;
-                // Also close inventory when NPC shop closes (similar to vault behavior)
-                if (_inventoryControl?.Visible == true)
-                {
-                    _inventoryControl.Hide();
-                }
-                var svc = MuGame.Network?.GetCharacterService();
-                if (svc != null)
-                {
-                    Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await svc.SendCloseNpcRequestAsync();
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger?.LogError(ex, "Failed to send close NPC request");
-                        }
-                    });
-                }
-            }
-
-            // Close Vault (storage) similarly and hide Inventory if it was open together with it
-            if (VaultControl.Instance.Visible)
-            {
-                _logger?.LogInformation("Hero moved, closing Vault (storage) window.");
-                VaultControl.Instance.CloseWindow();
-                if (_inventoryControl?.Visible == true)
-                {
-                    _inventoryControl.Hide();
-                }
-                var svc = MuGame.Network?.GetCharacterService();
-                if (svc != null)
-                {
-                    Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await svc.SendCloseNpcRequestAsync();
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger?.LogError(ex, "Failed to send close NPC request");
-                        }
-                    });
-                }
-            }
-
-            // Close Chaos Mix similarly and hide Inventory if it was open together with it
-            if (ChaosMixControl.Instance.Visible)
-            {
-                _logger?.LogInformation("Hero moved, closing Chaos Mix window.");
-                bool closed = ChaosMixControl.Instance.CloseWindow();
-                if (closed && _inventoryControl?.Visible == true)
-                {
-                    _inventoryControl.Hide();
-                }
-            }
-
-            // Close trade window if hero moves
-            if (TradeControl.Instance.Visible)
-            {
-                _logger?.LogInformation("Hero moved, cancelling trade.");
-                TradeControl.Instance.Hide();
-                var svc = MuGame.Network?.GetCharacterService();
-                if (svc != null)
-                {
-                    _ = svc.SendTradeCancelAsync();
-                }
-            }
-        }
-
-        private void OnHeroTookDamage(object sender, EventArgs e)
-        {
-            // Do not close NPC shop on damage unless explicitly desired.
-            // But close Vault (storage) and related Inventory when taking damage
-            if (VaultControl.Instance.Visible)
-            {
-                _logger?.LogInformation("Hero took damage, closing Vault (storage) window.");
-                VaultControl.Instance.CloseWindow();
-                if (_inventoryControl?.Visible == true)
-                {
-                    _inventoryControl.Hide();
-                }
-                var svc = MuGame.Network?.GetCharacterService();
-                if (svc != null)
-                {
-                    Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await svc.SendCloseNpcRequestAsync();
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger?.LogError(ex, "Failed to send close NPC request");
-                        }
-                    });
-                }
-            }
-
-            // Close Chaos Mix similarly when taking damage
-            if (ChaosMixControl.Instance.Visible)
-            {
-                _logger?.LogInformation("Hero took damage, closing Chaos Mix window.");
-                bool closed = ChaosMixControl.Instance.CloseWindow();
-                if (closed && _inventoryControl?.Visible == true)
-                {
-                    _inventoryControl.Hide();
-                }
-            }
-
-            // Close trade window if hero takes damage
-            if (TradeControl.Instance.Visible)
-            {
-                _logger?.LogInformation("Hero took damage, cancelling trade.");
-                TradeControl.Instance.Hide();
-                var svc = MuGame.Network?.GetCharacterService();
-                if (svc != null)
-                {
-                    _ = svc.SendTradeCancelAsync();
-                }
-            }
-        }
-
         // ─────────────────── Map Change Logic (Remains largely the same) ───────────────────
-        public async Task ChangeMap(Type worldType)
+        public async Task ChangeMap([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] Type worldType)
         {
-            _isChangingWorld = true;
-
-            // Clear object tracking for new map
-            ClearObjectTracking();
-
-            if (_loadingScreen == null) // Recreate if disposed, or handle if just hidden
+            if (_mapController != null)
             {
-                _loadingScreen = new LoadingScreenControl { Visible = true };
-                Controls.Add(_loadingScreen);
-                _loadingScreen.BringToFront();
+                await _mapController.ChangeMap(worldType);
             }
-            else
-            {
-                _loadingScreen.Visible = true;
-            }
-            _loadingScreen.Message = $"Loading {worldType.Name}...";
-            _loadingScreen.Progress = 0f; // Reset progress for map change
-            _main.Visible = false;
-
-            var previousWorld = World;
-
-            if (previousWorld is { Objects: { } objects })
-            {
-                objects.Detach(_hero);
-            }
-
-            _hero.Reset();
-
-            _nextWorld = (WorldControl)Activator.CreateInstance(worldType);
-            if (_nextWorld is WalkableWorldControl walkable)
-                walkable.Walker = _hero;
-
-            // Add to controls and set World property BEFORE Initialize.
-            Controls.Add(_nextWorld);
-            World = _nextWorld; // Temporarily set to new world for its Initialize
-            World.Objects.Add(_hero); // Add hero to new world
-
-            _loadingScreen.Progress = 0.1f;
-            _logger?.LogDebug($"GameScene.ChangeMap<{worldType.Name}>: Initializing new world...");
-            await _nextWorld.Initialize();
-            _logger?.LogDebug($"GameScene.ChangeMap<{worldType.Name}>: New world initialized. Status: {_nextWorld.Status}");
-            _loadingScreen.Progress = 0.7f;
-
-            if (previousWorld != null)
-            {
-                Controls.Remove(previousWorld);
-                previousWorld.Dispose();
-                _logger?.LogDebug("GameScene.ChangeMap: Disposed previous world.");
-            }
-
-            _nextWorld = null;
-
-            if (World.Status == GameControlStatus.Ready)
-            {
-                _loadingScreen.Progress = 0.8f;
-                _logger?.LogDebug("GameScene.ChangeMap: World is Ready. Importing pending objects...");
-                await ImportPendingRemotePlayers();
-                await ImportPendingNpcsMonsters();
-                await ImportPendingDroppedItems();
-            }
-            else
-            {
-                _logger?.LogDebug($"GameScene.ChangeMap: World not ready after Initialize (Status: {World.Status}). Pending objects may not import correctly.");
-            }
-            _loadingScreen.Progress = 0.95f;
-
-            await MuGame.Network.SendClientReadyAfterMapChangeAsync();
-
-            Controls.Remove(_loadingScreen);
-            _loadingScreen.Dispose();
-            _loadingScreen = null;
-            if (_progressBar != null)
-            {
-                _progressBar.Visible = false;
-            }
-            _main.Visible = true;
-            _isChangingWorld = false;
-
-            if (!string.IsNullOrEmpty(World.Name))
-            {
-                // Hide previous map name control if exists
-                if (_currentMapNameControl != null)
-                {
-                    Controls.Remove(_currentMapNameControl);
-                    _currentMapNameControl = null;
-                }
-
-                // Create and show new map name control
-                _currentMapNameControl = new MapNameControl { LabelText = World.Name };
-                Controls.Add(_currentMapNameControl);
-                _currentMapNameControl.BringToFront();
-                _chatLog.BringToFront();
-                _chatInput.BringToFront();
-                _mapListControl?.BringToFront();
-                DebugPanel.BringToFront();
-                Cursor.BringToFront();
-            }
-            _logger?.LogDebug($"GameScene.ChangeMap<{worldType.Name}>: ChangeMap completed.");
         }
 
         public async Task ChangeMap<T>() where T : WalkableWorldControl, new()
@@ -730,415 +484,28 @@ namespace Client.Main.Scenes
             await ChangeMap(typeof(T));
         }
 
-        // ──────────────────── Debug & Test Methods ────────────────────
-        private void AddChatTestData()
-        {
-            if (_chatLog == null) return;
-            _chatLog.AddMessage(string.Empty, "Welcome to the world of Mu!", MessageType.System);
-            _chatLog.AddMessage("Player1", "Hello everyone!", MessageType.Chat);
-            _chatLog.AddMessage("System", "Server will restart in 5 minutes.", MessageType.Info);
-            _chatLog.AddMessage("GM_Tester", "Please report for an interview.", MessageType.GM);
-            _chatLog.AddMessage("AllyMember", "Shall we go for the boss?", MessageType.Guild);
-            _chatLog.AddMessage("PartyDude", "I've got a spot!", MessageType.Party);
-            _chatLog.AddMessage("Whisperer", "Shall we meet in Lorencia?", MessageType.Whisper);
-            for (int i = 0; i < 10; i++) _chatLog.AddMessage("Spammer", $"Test message number {i + 1}.", MessageType.Chat);
-            _chatLog.AddMessage(string.Empty, "An unexpected error has occurred.", MessageType.Error);
-        }
-
-        // ─────────────────── Import NPCs & Monsters ───────────────────
-        private Task ImportPendingNpcsMonsters()
-        {
-            if (World is not WalkableWorldControl w) return Task.CompletedTask;
-            var list = ScopeHandler.TakePendingNpcsMonsters();
-            if (list.Count == 0) return Task.CompletedTask;
-
-            foreach (var s in list)
-            {
-                // Use HashSet for O(1) lookup instead of expensive LINQ
-                if (_activeNpcIds.Contains(s.Id) || _activeMonsterIds.Contains(s.Id)) continue;
-
-                if (!NpcDatabase.TryGetNpcType(s.TypeNumber, out Type objectType)) continue;
-                if (Activator.CreateInstance(objectType) is WalkerObject npcMonster)
-                {
-                    npcMonster.NetworkId = s.Id;
-                    npcMonster.Location = new Vector2(s.PositionX, s.PositionY);
-                    npcMonster.Direction = (Models.Direction)s.Direction;
-                    npcMonster.World = w;
-
-                    MuGame.TaskScheduler.QueueTask(async () =>
-                    {
-                        try
-                        {
-                            await npcMonster.Load();
-                            w.Objects.Add(npcMonster);
-
-                            // Track the added object
-                            if (npcMonster is MonsterObject)
-                                _activeMonsterIds.Add(s.Id);
-                            else
-                                _activeNpcIds.Add(s.Id);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger?.LogError(ex, $"Error loading pending NPC/Monster {s.Id:X4}");
-                            npcMonster.Dispose();
-                        }
-                    }, Controllers.TaskScheduler.Priority.High);
-                }
-            }
-
-            return Task.CompletedTask;
-        }
-
-        // ─────────────────── Import Remote Players ───────────────────
-        private Task ImportPendingRemotePlayers()
-        {
-            if (World is not WalkableWorldControl w) return Task.CompletedTask;
-            var list = ScopeHandler.TakePendingPlayers();
-
-            var heroId = MuGame.Network.GetCharacterState().Id;
-            foreach (var s in list)
-            {
-                if (s.Id == heroId) continue;
-
-                // Use HashSet for O(1) lookup instead of expensive LINQ
-                if (_activePlayerIds.Contains(s.Id)) continue;
-
-                // Preserve appearance data so remote players show correct equipment
-                var remote = new PlayerObject(new AppearanceData(s.AppearanceData))
-                {
-                    NetworkId = s.Id,
-                    Name = s.Name,
-                    CharacterClass = s.Class,
-                    Location = new Vector2(s.PositionX, s.PositionY),
-                    World = w
-                };
-
-                MuGame.TaskScheduler.QueueTask(async () =>
-                {
-                    try
-                    {
-                        await remote.Load();
-                        w.Objects.Add(remote);
-
-                        // Track the added player
-                        _activePlayerIds.Add(s.Id);
-
-                        // Re-attach any buffered buffs (e.g., Elf Soldier) which arrived before world was ready
-                        ElfBuffEffectManager.Instance?.EnsureBuffsForPlayer(s.Id);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.LogError(ex, $"Error loading pending remote player {s.Name} ({s.Id:X4})");
-                        remote.Dispose();
-                    }
-                }, Controllers.TaskScheduler.Priority.High);
-            }
-
-            return Task.CompletedTask;
-        }
-
-        // ─────────────────── Import Dropped Items ───────────────────
-        private Task ImportPendingDroppedItems()
-        {
-            if (World is not WalkableWorldControl w) return Task.CompletedTask;
-
-            var scopeManager = MuGame.Network?.GetScopeManager();
-            if (scopeManager == null) return Task.CompletedTask;
-
-            var allDrops = scopeManager.GetScopeItems(ScopeObjectType.Item)
-                                       .Concat(scopeManager.GetScopeItems(ScopeObjectType.Money))
-                                       .Cast<ScopeObject>();
-
-            foreach (var s in allDrops)
-            {
-                // Use HashSet for O(1) lookup instead of expensive LINQ
-                if (_activeItemIds.Contains(s.Id))
-                    continue;
-
-                // Load and add dropped items on main thread to ensure World.Scene is available
-                MuGame.ScheduleOnMainThread(() =>
-                {
-                    if (w.Status != GameControlStatus.Ready ||
-                        _activeItemIds.Contains(s.Id))
-                        return;
-
-                    var obj = DroppedItemObject.Rent(
-                        s,
-                        MuGame.Network.GetCharacterState().Id,
-                        MuGame.Network.GetCharacterService(),
-                        MuGame.AppLoggerFactory.CreateLogger<DroppedItemObject>());
-
-                    // Set World property before loading
-                    obj.World = w;
-
-                    // Add to world so World.Scene is available
-                    w.Objects.Add(obj);
-
-                    // Track the added item
-                    _activeItemIds.Add(s.Id);
-
-                    // Queue load on main-thread scheduler to avoid blocking frame
-                    MuGame.TaskScheduler.QueueTask(async () =>
-                    {
-                        try
-                        {
-                            await obj.Load();
-                            // Don't set Hidden immediately - let WorldObject.Update handle visibility checks
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger?.LogError(ex, $"Error loading pending dropped item {s.Id:X4}");
-                            w.Objects.Remove(obj);
-                            _activeItemIds.Remove(s.Id);
-                            obj.Recycle();
-                        }
-                    }, Controllers.TaskScheduler.Priority.Low);
-                });
-            }
-
-            return Task.CompletedTask;
-        }
-
-        // ─────────────────── NetworkId Fix Helper ───────────────────
-        private void EnsureHeroNetworkId(ushort expectedId, string context = "")
-        {
-            if (_hero.NetworkId != expectedId)
-            {
-                _logger?.LogWarning($"NetworkId mismatch in {context}. Fixing: {_hero.NetworkId:X4} -> {expectedId:X4}");
-                _hero.NetworkId = expectedId;
-            }
-        }
-
-        private void EnsureWalkerNetworkId(WalkableWorldControl walkable, ushort expectedId, string context = "")
-        {
-            if (walkable?.Walker?.NetworkId != expectedId)
-            {
-                _logger?.LogWarning($"Walker NetworkId mismatch in {context}. Fixing: {walkable.Walker?.NetworkId:X4} -> {expectedId:X4}");
-                if (walkable.Walker != null)
-                {
-                    walkable.Walker.NetworkId = expectedId;
-                }
-            }
-        }
-
-        // ─────────────────── Generic Object Import Helper ───────────────────
-        private async Task ImportObjects<T>(
-            ICollection<ScopeObject> objects,
-            HashSet<ushort> trackingSet,
-            Func<ScopeObject, T> createFunc,
-            string objectTypeName) where T : WorldObject
-        {
-            if (World is not WalkableWorldControl w) return;
-            if (objects.Count == 0) return;
-
-            foreach (var s in objects)
-            {
-                if (trackingSet.Contains(s.Id)) continue;
-
-                try
-                {
-                    var gameObject = createFunc(s);
-                    if (gameObject == null) continue;
-
-                    gameObject.World = w;
-                    await gameObject.Load();
-                    w.Objects.Add(gameObject);
-                    trackingSet.Add(s.Id);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogError(ex, $"Error loading {objectTypeName} {s.Id:X4}");
-                }
-            }
-        }
-
-        // ─────────────────── Object Tracking Helpers ───────────────────
-        private void ClearObjectTracking()
-        {
-            if (World?.Objects != null)
-            {
-                // Remove all visual objects from current world (they belong to previous map)
-                var objectsToRemove = new List<WorldObject>();
-
-                foreach (var obj in World.Objects.ToList())
-                {
-                    // Keep the hero (main player)
-                    if (obj == _hero) continue;
-
-                    objectsToRemove.Add(obj);
-                }
-
-                foreach (var obj in objectsToRemove)
-                {
-                    World.Objects.Remove(obj);
-                    if (obj is DroppedItemObject drop)
-                        drop.Recycle();
-                    else
-                        obj.Dispose();
-                }
-
-                _logger?.LogDebug("ClearObjectTracking: Removed {Count} objects from previous map", objectsToRemove.Count);
-            }
-
-            // Clear our local tracking collections
-            _activePlayerIds.Clear();
-            _activeMonsterIds.Clear();
-            _activeNpcIds.Clear();
-            _activeItemIds.Clear();
-
-            // Clear dropped items from ScopeManager manually
-            // Server may not send OutOfScope packets for items during warp, causing old items to persist
-            var scopeManager = MuGame.Network?.GetScopeManager();
-            if (scopeManager != null)
-            {
-                scopeManager.ClearDroppedItemsFromScope();
-                _logger?.LogDebug("ClearObjectTracking: Manually cleared dropped items from ScopeManager");
-            }
-        }
-
-        private void RemoveObjectFromTracking(ushort networkId)
-        {
-            _activePlayerIds.Remove(networkId);
-            _activeMonsterIds.Remove(networkId);
-            _activeNpcIds.Remove(networkId);
-            _activeItemIds.Remove(networkId);
-        }
-
         // ─────────────────── Notification Handling ───────────────────
         public void ShowNotificationMessage(ServerMessage.MessageType messageType, string message)
         {
-            MuGame.ScheduleOnMainThread(() =>
-            {
-                lock (_pendingNotifications) { _pendingNotifications.Add((messageType, message)); }
-            });
-        }
-
-        private void ProcessPendingNotifications()
-        {
-            if (_notificationManager == null) return;
-            List<(ServerMessage.MessageType Type, string Message)> currentBatch;
-            lock (_pendingNotifications)
-            {
-                if (_pendingNotifications.Count == 0) return;
-                currentBatch = new List<(ServerMessage.MessageType Type, string Message)>(_pendingNotifications);
-                _pendingNotifications.Clear();
-            }
-            foreach (var pending in currentBatch)
-            {
-                if (NotificationColors.TryGetValue(pending.Type, out Color notificationColor))
-                {
-                    if (pending.Type != ServerMessage.MessageType.BlueNormal)
-                    {
-                        _notificationManager.AddNotification(pending.Message, notificationColor);
-                    }
-                }
-                else
-                {
-                    _chatLog?.AddMessage(string.Empty, pending.Message, Models.MessageType.System);
-                }
-                if (pending.Type == ServerMessage.MessageType.BlueNormal)
-                {
-                    _chatLog?.AddMessage(string.Empty, pending.Message, Models.MessageType.System);
-                }
-            }
+            _notificationController?.Enqueue(messageType, message);
         }
 
         // ─────────────────────────── Update Loop ───────────────────────────
         public override void Update(GameTime gameTime)
         {
-            if (_isChangingWorld)
+            if (_mapController?.IsChangingWorld == true)
             {
-                _loadingScreen?.Update(gameTime);
+                _mapController.UpdateLoading(gameTime);
                 return;
             }
 
             var currentKeyboardState = MuGame.Instance.Keyboard;
-            bool escapePressed = currentKeyboardState.IsKeyDown(Keys.Escape) && _previousKeyboardState.IsKeyUp(Keys.Escape);
 
             base.Update(gameTime);
-
-            // Toggle pause menu on ESC (edge-triggered), unless a UI control consumed Escape.
-            if (escapePressed && !IsKeyboardEscapeConsumedThisFrame)
-            {
-                if (_playerContextMenu?.Visible == true)
-                {
-                    _playerContextMenu.Visible = false;
-                    _playerMenuHintCooldown = PlayerMenuHintCooldownSeconds;
-                }
-                else if (_pauseMenu != null)
-                {
-                    _pauseMenu.Visible = !_pauseMenu.Visible;
-                    if (_pauseMenu.Visible)
-                        _pauseMenu.BringToFront();
-                }
-            }
-
-            if (FocusControl == _moveCommandWindow && _moveCommandWindow.Visible)
-            {
-                // Only check relevant keys for move command window instead of all keys
-                foreach (Keys key in _moveCommandKeys)
-                {
-                    if (currentKeyboardState.IsKeyDown(key) && _previousKeyboardState.IsKeyUp(key))
-                    {
-                        _moveCommandWindow.ProcessKeyInput(key, false);
-                    }
-                }
-            }
-
-            // Determine if any UI element that captures typing has focus.
-            bool isUiInputActive =
-                (FocusControl is TextFieldControl)
-                || (FocusControl == _moveCommandWindow && _moveCommandWindow.Visible)
-                || (_pauseMenu != null && _pauseMenu.Visible);
-
-            // Process global hotkeys ONLY if a UI input element is NOT active.
-            if (!isUiInputActive)
-            {
-                if (currentKeyboardState.IsKeyDown(Keys.I) && !_previousKeyboardState.IsKeyDown(Keys.I))
-                {
-                    bool wasVisible = _inventoryControl.Visible;
-                    if (wasVisible)
-                        _inventoryControl.Hide();
-                    else
-                        _inventoryControl.Show();
-
-                    // Play window open sound only when opening (not closing)
-                    if (!wasVisible)
-                        SoundController.Instance.PlayBuffer("Sound/iCreateWindow.wav");
-                }
-                if (currentKeyboardState.IsKeyDown(Keys.C) && !_previousKeyboardState.IsKeyDown(Keys.C))
-                {
-                    if (_characterInfoWindow != null)
-                    {
-                        bool wasVisible = _characterInfoWindow.Visible;
-                        if (wasVisible)
-                            _characterInfoWindow.HideWindow();
-                        else
-                            _characterInfoWindow.ShowWindow();
-
-                        // Play window open sound only when opening (not closing)
-                        if (!wasVisible)
-                            SoundController.Instance.PlayBuffer("Sound/iCreateWindow.wav");
-                    }
-                }
-                if (currentKeyboardState.IsKeyDown(Keys.M) && !_previousKeyboardState.IsKeyDown(Keys.M))
-                {
-                    if (!NpcShopControl.Instance.Visible)
-                    {
-                        _moveCommandWindow.ToggleVisibility();
-                    }
-                }
-
-                // Handle opening the chat window if it's not focused and Enter is pressed.
-                if (!IsKeyboardEnterConsumedThisFrame && !_chatInput.Visible && currentKeyboardState.IsKeyDown(Keys.Enter) && !_previousKeyboardState.IsKeyDown(Keys.Enter))
-                {
-                    _chatInput.Show();
-                }
-            }
+            _inputController?.HandleGlobalInput(currentKeyboardState);
 
             _notificationManager?.Update(gameTime);
-            ProcessPendingNotifications();
+            _notificationController?.ProcessPending();
 
             if (World is WalkableWorldControl walkableWorld)
             {
@@ -1147,61 +514,16 @@ namespace Client.Main.Scenes
 
             if (World == null || World.Status != GameControlStatus.Ready)
             {
-                if (_playerContextMenu?.Visible == true)
-                {
-                    _playerContextMenu.Visible = false;
-                }
-                if (_playerMenuHint?.Visible == true)
-                {
-                    _playerMenuHint.Visible = false;
-                }
-                _playerMenuHoverTime = 0;
-                _playerMenuHoverId = null;
-                _playerMenuHintCooldown = 0;
-                _playerMenuHintAlpha = 0;
-                ClearPendingSkill();
-                _previousKeyboardState = currentKeyboardState;
+                _playerMenuController?.ResetOnWorldUnavailable();
+                _skillController?.ClearPending();
+                _inputController?.UpdatePreviousKeyboardState(currentKeyboardState);
                 return;
             }
 
             var uiMouse = MuGame.Instance.UiMouseState;
             var prevUiMouse = MuGame.Instance.PrevUiMouseState;
-            bool contextMenuOpened = false;
-
-            if (!IsMouseInputConsumedThisFrame &&
-                MouseHoverObject is PlayerObject hoveredPlayer &&
-                hoveredPlayer != _hero)
-            {
-                bool altPressed = currentKeyboardState.IsKeyDown(Keys.LeftAlt) || currentKeyboardState.IsKeyDown(Keys.RightAlt);
-                bool rightClickReleased = prevUiMouse.RightButton == ButtonState.Pressed &&
-                                          uiMouse.RightButton == ButtonState.Released;
-
-                if (altPressed && rightClickReleased)
-                {
-                    ShowPlayerContextMenu(hoveredPlayer, uiMouse.Position);
-                    SetMouseInputConsumed();
-                    contextMenuOpened = true;
-                }
-            }
-
-            if (_playerContextMenu?.Visible == true && !contextMenuOpened)
-            {
-                bool clickReleasedOutside =
-                    ((prevUiMouse.LeftButton == ButtonState.Pressed && uiMouse.LeftButton == ButtonState.Released) ||
-                     (prevUiMouse.RightButton == ButtonState.Pressed && uiMouse.RightButton == ButtonState.Released))
-                    && !_playerContextMenu.IsMouseOver;
-
-                bool targetMissing = !IsPlayerAvailable(_playerContextMenu.TargetPlayerId);
-
-                if (clickReleasedOutside || targetMissing)
-                {
-                    _playerContextMenu.Visible = false;
-                    _playerMenuHintCooldown = PlayerMenuHintCooldownSeconds;
-                }
-            }
-
-            UpdatePlayerMenuHint(gameTime, currentKeyboardState, MouseHoverObject as PlayerObject, uiMouse.Position);
-            UpdatePendingSkill();
+            _playerMenuController?.Update(gameTime, currentKeyboardState, uiMouse, prevUiMouse);
+            _skillController?.Update();
 
             // Handle attack clicks on monsters with proper validation
             if (!IsMouseInputConsumedThisFrame &&
@@ -1224,7 +546,7 @@ namespace Client.Main.Scenes
             if (!IsMouseInputConsumedThisFrame &&
                 MouseHoverObject is PlayerObject targetPlayer &&
                 targetPlayer != _hero &&
-                IsDuelAttackTarget(targetPlayer) &&
+                (_duelController?.IsDuelAttackTarget(targetPlayer) == true) &&
                 MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
                 MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released) // Fresh press
             {
@@ -1239,88 +561,7 @@ namespace Client.Main.Scenes
             }
 
             // Handle skill usage with right-click
-            if (!IsMouseInputConsumedThisFrame &&
-                !IsMouseOverUi() && // Don't use skills if mouse is over UI
-                MuGame.Instance.Mouse.RightButton == ButtonState.Pressed &&
-                MuGame.Instance.PrevMouseState.RightButton == ButtonState.Released && // Fresh press
-                _skillQuickSlot?.SelectedSkill != null) // Must have skill selected
-            {
-                if (Hero != null && !Hero.IsDead && World is WalkableWorldControl walkableForSkills) // Don't use skills if player is dead
-                {
-                    // Check if player is in SafeZone
-                    var terrainFlags = walkableForSkills.Terrain.RequestTerrainFlag((int)Hero.Location.X, (int)Hero.Location.Y);
-                    if (terrainFlags.HasFlag(TWFlags.SafeZone))
-                    {
-                        _logger?.LogDebug("Cannot use skill in SafeZone");
-                        SetMouseInputConsumed();
-                    }
-                    else
-                    {
-                        ClearPendingSkill();
-                        var skill = _skillQuickSlot.SelectedSkill;
-                        uint allowedRange = Core.Utilities.SkillDatabase.GetSkillRange(skill.SkillId);
-
-                        // Check if skill is area/buff type
-                        if (IsAreaSkill(skill.SkillId))
-                        {
-                            // Area/buff skill - can be used with or without target
-                            WalkerObject skillTarget = null;
-                            if (MouseHoverObject is MonsterObject skillTargetMonster &&
-                                !skillTargetMonster.IsDead &&
-                                skillTargetMonster.World == World)
-                            {
-                                skillTarget = skillTargetMonster;
-                            }
-                            else if (MouseHoverObject is PlayerObject skillTargetPlayer &&
-                                skillTargetPlayer != Hero &&
-                                !skillTargetPlayer.IsDead &&
-                                skillTargetPlayer.World == World &&
-                                IsDuelAttackTarget(skillTargetPlayer))
-                            {
-                                skillTarget = skillTargetPlayer;
-                            }
-                            if (skillTarget == null)
-                            {
-                                UseAreaSkill(skill, 0);
-                            }
-                            else if (IsInSkillRange(skillTarget.Location, allowedRange))
-                            {
-                                UseAreaSkill(skill, skillTarget.NetworkId);
-                            }
-                            else
-                            {
-                                QueueSkillCast(skill, skillTarget, allowedRange, isAreaSkill: true);
-                            }
-                        }
-                        else
-                        {
-                            // Targeted skill - requires target
-                            if (MouseHoverObject is MonsterObject skillTargetMonster &&
-                                !skillTargetMonster.IsDead &&
-                                skillTargetMonster.World == World)
-                            {
-                                if (IsInSkillRange(skillTargetMonster.Location, allowedRange))
-                                    UseSkillOnTarget(skill, skillTargetMonster);
-                                else
-                                    QueueSkillCast(skill, skillTargetMonster, allowedRange, isAreaSkill: false);
-                            }
-                            else if (MouseHoverObject is PlayerObject skillTargetPlayer &&
-                                skillTargetPlayer != Hero &&
-                                !skillTargetPlayer.IsDead &&
-                                skillTargetPlayer.World == World &&
-                                IsDuelAttackTarget(skillTargetPlayer))
-                            {
-                                if (IsInSkillRange(skillTargetPlayer.Location, allowedRange))
-                                    UseSkillOnPlayerTarget(skill, skillTargetPlayer);
-                                else
-                                    QueueSkillCast(skill, skillTargetPlayer, allowedRange, isAreaSkill: false);
-                            }
-                        }
-
-                        SetMouseInputConsumed();
-                    }
-                }
-            }
+            _skillController?.HandleRightClickSkillUsage();
 
             // Handle blending editor activation with left mouse click + "/" key
             if (!IsMouseInputConsumedThisFrame &&
@@ -1328,7 +569,7 @@ namespace Client.Main.Scenes
                 MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
                 MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released)
             {
-                HandleBlendingEditorActivation();
+                _objectEditorController?.HandleBlendingEditorActivation();
                 SetMouseInputConsumed();
             }
 
@@ -1338,33 +579,11 @@ namespace Client.Main.Scenes
                 MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
                 MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released)
             {
-                HandleObjectDeletion();
+                _objectEditorController?.HandleObjectDeletion();
                 SetMouseInputConsumed();
             }
 
-            if (currentKeyboardState.IsKeyDown(Keys.F5) && _previousKeyboardState.IsKeyUp(Keys.F5)) _chatLog?.ToggleFrame();
-            if (currentKeyboardState.IsKeyDown(Keys.F4) && _previousKeyboardState.IsKeyUp(Keys.F4)) _chatLog?.CycleSize();
-            if (currentKeyboardState.IsKeyDown(Keys.F6) && _previousKeyboardState.IsKeyUp(Keys.F6)) _chatLog?.CycleBackgroundAlpha();
-            if (currentKeyboardState.IsKeyDown(Keys.F2) && _previousKeyboardState.IsKeyUp(Keys.F2))
-            {
-                if (_chatLog != null)
-                {
-                    var nextType = _chatLog.CurrentViewType + 1;
-                    if (!System.Enum.IsDefined(typeof(Models.MessageType), nextType) || nextType == Models.MessageType.Unknown) nextType = Models.MessageType.All;
-                    if (nextType == Models.MessageType.Info || nextType == Models.MessageType.Error) nextType++;
-                    if (!System.Enum.IsDefined(typeof(Models.MessageType), nextType) || nextType == Models.MessageType.Unknown) nextType = Models.MessageType.All;
-                    _chatLog.ChangeViewType(nextType);
-                    Console.WriteLine($"[ChatLog] Changed view to: {nextType}");
-                }
-            }
-            if (_chatLog != null && _chatLog.IsFrameVisible)
-            {
-                int scrollDelta = 0;
-                if (currentKeyboardState.IsKeyDown(Keys.PageUp) && _previousKeyboardState.IsKeyUp(Keys.PageUp)) scrollDelta = _chatLog.NumberOfShowingLines;
-                if (currentKeyboardState.IsKeyDown(Keys.PageDown) && _previousKeyboardState.IsKeyUp(Keys.PageDown)) scrollDelta = -_chatLog.NumberOfShowingLines;
-                if (scrollDelta != 0) _chatLog.ScrollLines(scrollDelta);
-            }
-            _previousKeyboardState = currentKeyboardState;
+            _inputController?.HandleChatLogInput(currentKeyboardState);
 
             // Update ping every 5 seconds to reduce network overhead
             _pingTimer += gameTime.ElapsedGameTime.TotalSeconds;
@@ -1378,12 +597,13 @@ namespace Client.Main.Scenes
         // ─────────────────────────── Draw Loop ───────────────────────────
         public override void Draw(GameTime gameTime)
         {
-            if (_isChangingWorld || World == null || World.Status != GameControlStatus.Ready)
+            if (_mapController?.IsChangingWorld == true || World == null || World.Status != GameControlStatus.Ready)
             {
                 GraphicsDevice.Clear(new Color(12, 12, 20));
                 DrawBackground();
-                _progressBar.Progress = _loadingScreen?.Progress ?? 0f;
-                _progressBar.StatusText = _loadingScreen?.Message ?? "Loading...";
+                var loading = _mapController?.LoadingScreen;
+                _progressBar.Progress = loading?.Progress ?? 0f;
+                _progressBar.StatusText = loading?.Message ?? "Loading...";
                 _progressBar.Visible = true;
                 _progressBar.Draw(gameTime);
                 return;
@@ -1423,9 +643,9 @@ namespace Client.Main.Scenes
             {
                 var sprite = GraphicsManager.Instance.Sprite;
                 _inventoryControl?._pickedItemRenderer?.Draw(sprite, gameTime);
-                Client.Main.Controls.UI.Game.VaultControl.Instance?.DrawPickedPreview(sprite, gameTime);
-                Client.Main.Controls.UI.Game.ChaosMixControl.Instance?.DrawPickedPreview(sprite, gameTime);
-                Client.Main.Controls.UI.Game.Trade.TradeControl.Instance?.DrawPickedPreview(sprite, gameTime);
+                VaultControl.Instance?.DrawPickedPreview(sprite, gameTime);
+                ChaosMixControl.Instance?.DrawPickedPreview(sprite, gameTime);
+                TradeControl.Instance?.DrawPickedPreview(sprite, gameTime);
             }
             _characterInfoWindow?.BringToFront();
         }
@@ -1457,375 +677,6 @@ namespace Client.Main.Scenes
             SoundController.Instance.PreloadSound("Sound/pSwim.wav");
         }
 
-        /// <summary>
-        /// Preloads textures for UI controls to avoid stalls when opening them later.
-        /// </summary>
-        private async Task PreloadUITextures()
-        {
-            if (_inventoryControl != null)
-            {
-                await _inventoryControl.Initialize();
-                await _inventoryControl.PreloadAssetsAsync();
-                _inventoryControl.Preload();
-            }
-
-            if (_characterInfoWindow != null)
-            {
-                await _characterInfoWindow.Initialize();
-                await _characterInfoWindow.PreloadAssetsAsync();
-            }
-        }
-
-        private void OnChatMessageSendRequested(object sender, ChatMessageEventArgs e)
-        {
-            if (_isChangingWorld || MuGame.Network == null || !MuGame.Network.IsConnected)
-            {
-                _chatLog.AddMessage("System", "Cannot send message while disconnected or changing maps.", MessageType.Error);
-                return;
-            }
-
-            if (e.MessageType != MessageType.Whisper && TryHandleDuelChatCommand(e.Message))
-            {
-                return;
-            }
-            if (e.MessageType == MessageType.Whisper)
-            {
-                Task.Run(async () =>
-                {
-                    try
-                    {
-                        await MuGame.Network.SendWhisperMessageAsync(e.Receiver, e.Message);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.LogError(ex, "Failed to send whisper message");
-                        MuGame.ScheduleOnMainThread(() =>
-                        {
-                            _chatLog?.AddMessage("System", "Failed to send whisper message.", MessageType.Error);
-                        });
-                    }
-                });
-            }
-            else
-            {
-                Task.Run(async () =>
-                {
-                    try
-                    {
-                        await MuGame.Network.SendPublicChatMessageAsync(e.Message);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.LogError(ex, "Failed to send chat message");
-                        MuGame.ScheduleOnMainThread(() =>
-                        {
-                            _chatLog?.AddMessage("System", "Failed to send message.", MessageType.Error);
-                        });
-                    }
-                });
-            }
-        }
-
-        private bool TryHandleDuelChatCommand(string message)
-        {
-            if (string.IsNullOrWhiteSpace(message))
-            {
-                return false;
-            }
-
-            string command = message.Trim();
-            if (command.Length > 0 && (command[0] == '~' || command[0] == '@' || command[0] == '$'))
-            {
-                command = command.Substring(1).TrimStart();
-            }
-
-            if (command.StartsWith("/duelend", StringComparison.OrdinalIgnoreCase))
-            {
-                TrySendDuelStopRequest();
-                return true;
-            }
-
-            if (command.StartsWith("/duelstart", StringComparison.OrdinalIgnoreCase))
-            {
-                string[] parts = command.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                string targetName = parts.Length >= 2 ? parts[1] : null;
-                TrySendDuelStartRequest(targetName);
-                return true;
-            }
-
-            return false;
-        }
-
-        private void TrySendDuelStopRequest()
-        {
-            if (IsInChaosCastle())
-            {
-                _chatLog?.AddMessage("System", "You can't use duel commands in Chaos Castle.", MessageType.System);
-                return;
-            }
-
-            var state = MuGame.Network?.GetCharacterState();
-            if (state == null)
-            {
-                return;
-            }
-
-            if (!state.IsDuelActive)
-            {
-                return;
-            }
-
-            var characterService = MuGame.Network?.GetCharacterService();
-            if (characterService == null)
-            {
-                _chatLog?.AddMessage("System", "CharacterService not available.", MessageType.Error);
-                return;
-            }
-
-            Task.Run(async () =>
-            {
-                try
-                {
-                    await characterService.SendDuelStopRequestAsync();
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogError(ex, "Failed to send duel stop request.");
-                    MuGame.ScheduleOnMainThread(() =>
-                    {
-                        _chatLog?.AddMessage("System", "Failed to stop duel.", MessageType.Error);
-                    });
-                }
-            });
-        }
-
-        private void TrySendDuelStartRequest(string targetName = null)
-        {
-            if (Hero == null || World == null)
-            {
-                return;
-            }
-
-            if (IsInChaosCastle())
-            {
-                _chatLog?.AddMessage("System", "You can't use duel commands in Chaos Castle.", MessageType.System);
-                return;
-            }
-
-            var state = MuGame.Network?.GetCharacterState();
-            if (state == null)
-            {
-                return;
-            }
-
-            if (state.IsDuelActive)
-            {
-                _chatLog?.AddMessage("System", "You are already in a duel.", MessageType.System);
-                return;
-            }
-
-            if (state.Level < 30)
-            {
-                _chatLog?.AddMessage("System", "You must be at least level 30 to start a duel.", MessageType.Error);
-                return;
-            }
-
-            var targetPlayer = FindDuelTarget(targetName);
-            if (targetPlayer == null)
-            {
-                _chatLog?.AddMessage("System", "No valid duel target found nearby.", MessageType.Error);
-                return;
-            }
-
-            if (!CanRequestDuelWithTarget(targetPlayer, explicitTarget: !string.IsNullOrWhiteSpace(targetName), out string reason))
-            {
-                _chatLog?.AddMessage("System", reason, MessageType.Error);
-                return;
-            }
-
-            var characterService = MuGame.Network?.GetCharacterService();
-            if (characterService == null)
-            {
-                _chatLog?.AddMessage("System", "CharacterService not available.", MessageType.Error);
-                return;
-            }
-
-            Task.Run(async () =>
-            {
-                try
-                {
-                    await characterService.SendDuelStartRequestAsync(targetPlayer.NetworkId, targetPlayer.Name);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogError(ex, "Failed to send duel start request.");
-                    MuGame.ScheduleOnMainThread(() =>
-                    {
-                        _chatLog?.AddMessage("System", "Failed to send duel request.", MessageType.Error);
-                    });
-                }
-            });
-        }
-
-        private PlayerObject FindDuelTarget(string targetName)
-        {
-            if (Hero == null || World == null)
-            {
-                return null;
-            }
-
-            if (!string.IsNullOrWhiteSpace(targetName))
-            {
-                var players = World.Players;
-                for (int i = 0; i < players.Count; i++)
-                {
-                    var p = players[i];
-                    if (p == null || p == Hero)
-                    {
-                        continue;
-                    }
-
-                    if (string.Equals(p.Name, targetName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        if (p.IsDead)
-                        {
-                            return null;
-                        }
-                        return p;
-                    }
-                }
-
-                return null;
-            }
-
-            // SourceMain5.2 fallback: find a nearby player in front (adjacent + opposite facing).
-            var heroTile = Hero.Location;
-            Client.Main.Models.Direction heroDir = Hero.Direction;
-            Client.Main.Models.Direction oppositeHeroDir = (Client.Main.Models.Direction)(((int)heroDir + 4) & 7);
-            var candidates = World.Players;
-            for (int i = 0; i < candidates.Count; i++)
-            {
-                var p = candidates[i];
-                if (p == null || p == Hero)
-                {
-                    continue;
-                }
-
-                if (p.IsDead)
-                {
-                    continue;
-                }
-
-                if (Math.Abs(p.Location.X - heroTile.X) <= 1 && Math.Abs(p.Location.Y - heroTile.Y) <= 1)
-                {
-                    if (p.Direction == oppositeHeroDir)
-                    {
-                        return p;
-                    }
-                }
-            }
-
-            return null;
-        }
-
-        private bool CanRequestDuelWithTarget(PlayerObject target, bool explicitTarget, out string reason)
-        {
-            reason = string.Empty;
-            if (Hero == null || target == null || target == Hero)
-            {
-                reason = "Invalid duel target.";
-                return false;
-            }
-
-            if (target.IsDead)
-            {
-                reason = "You can't duel a dead player.";
-                return false;
-            }
-
-            var state = MuGame.Network?.GetCharacterState();
-            if (state == null)
-            {
-                reason = "Character state not available.";
-                return false;
-            }
-
-            if (state.IsDuelActive)
-            {
-                reason = "You are already in a duel.";
-                return false;
-            }
-
-            if (state.Level < 30)
-            {
-                reason = "You must be at least level 30 to start a duel.";
-                return false;
-            }
-
-            if (Math.Abs(target.Location.X - Hero.Location.X) > 1 || Math.Abs(target.Location.Y - Hero.Location.Y) > 1)
-            {
-                reason = "You must be standing next to the target player to start a duel.";
-                return false;
-            }
-
-            // When the target is not explicitly specified (no selected target), SourceMain5.2 requires opposite facing.
-            if (!explicitTarget)
-            {
-                Client.Main.Models.Direction oppositeHeroDir = (Client.Main.Models.Direction)(((int)Hero.Direction + 4) & 7);
-                if (target.Direction != oppositeHeroDir)
-                {
-                    reason = "You need to face the target player to start a duel.";
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        private bool IsInChaosCastle()
-        {
-            if (World == null)
-            {
-                return false;
-            }
-
-            int mapId = World.WorldIndex - 1;
-            if (mapId < 0)
-            {
-                return false;
-            }
-
-            // SourceMain5.2 blocks duel commands inside Chaos Castle.
-            if (mapId >= 18 && mapId <= 23)
-            {
-                return true;
-            }
-
-            if (mapId == 53 || mapId == 97)
-            {
-                return true;
-            }
-
-            return false;
-        }
-
-        private bool IsDuelAttackTarget(PlayerObject targetPlayer)
-        {
-            var state = MuGame.Network?.GetCharacterState();
-            if (state == null || !state.IsDuelActive || targetPlayer == null)
-            {
-                return false;
-            }
-
-            ushort enemyId = state.GetDuelPlayerId(Client.Main.Core.Client.CharacterState.DuelPlayerType.Enemy);
-            if (enemyId == 0)
-            {
-                return false;
-            }
-
-            return targetPlayer.NetworkId == enemyId;
-        }
-
         private async Task UpdatePingAsync()
         {
             if (MuGame.Network == null)
@@ -1845,250 +696,6 @@ namespace Client.Main.Scenes
             });
         }
 
-        /// <summary>
-        /// Pre-loads common UI textures in background to prevent freezes when opening windows.
-        /// This runs async with low priority to avoid impacting gameplay FPS.
-        /// </summary>
-        private async Task PreloadCommonUIAssetsAsync()
-        {
-            try
-            {
-                _logger?.LogInformation("Starting UI asset pre-loading...");
-
-                var texturePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var control in EnumerateUiControls())
-                {
-                    if (control is not IUiTexturePreloadable preloadable)
-                    {
-                        continue;
-                    }
-
-                    var paths = preloadable.GetPreloadTexturePaths();
-                    if (paths == null)
-                    {
-                        continue;
-                    }
-
-                    foreach (var path in paths)
-                    {
-                        if (!string.IsNullOrWhiteSpace(path))
-                        {
-                            texturePaths.Add(path);
-                        }
-                    }
-                }
-
-                if (texturePaths.Count == 0)
-                {
-                    _logger?.LogInformation("No UI textures registered for pre-loading.");
-                    return;
-                }
-
-                foreach (var assetPath in texturePaths)
-                {
-                    var path = assetPath;
-                    MuGame.TaskScheduler.QueueTask(async () =>
-                    {
-                        try
-                        {
-                            await TextureLoader.Instance.Prepare(path);
-                            _ = TextureLoader.Instance.GetTexture2D(path);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger?.LogTrace(ex, "Failed to pre-load UI asset: {Asset}", path);
-                        }
-                    }, Controllers.TaskScheduler.Priority.Low);
-
-                    await Task.Delay(10);
-                }
-
-                _logger?.LogInformation("UI asset pre-loading completed. {Count} assets queued for background loading.", texturePaths.Count);
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogWarning(ex, "Error during UI asset pre-loading (non-critical).");
-            }
-        }
-
-        private IEnumerable<GameControl> EnumerateUiControls()
-        {
-            var rootControls = Controls?.ToArray();
-            if (rootControls == null || rootControls.Length == 0)
-            {
-                yield break;
-            }
-
-            var stack = new Stack<GameControl>(rootControls);
-            while (stack.Count > 0)
-            {
-                var current = stack.Pop();
-                yield return current;
-
-                var children = current.Controls?.ToArray();
-                if (children == null || children.Length == 0)
-                {
-                    continue;
-                }
-
-                for (int i = 0; i < children.Length; i++)
-                {
-                    stack.Push(children[i]);
-                }
-            }
-        }
-
-        private void ShowPlayerContextMenu(PlayerObject targetPlayer, Point mousePos)
-        {
-            if (_playerContextMenu == null)
-            {
-                _playerContextMenu = new PlayerContextMenu();
-                Controls.Add(_playerContextMenu);
-                _playerContextMenu.WhisperRequested += StartWhisperToPlayer;
-                _playerContextMenu.DuelRequested += OnDuelRequestedFromContextMenu;
-            }
-
-            _playerContextMenu.SetTarget(targetPlayer.NetworkId, targetPlayer.Name);
-            _playerContextMenu.SetDuelButtonEnabled(true);
-            _playerContextMenu.ShowAt(mousePos.X, mousePos.Y);
-            _playerContextMenu.BringToFront();
-            _playerMenuHintCooldown = PlayerMenuHintCooldownSeconds;
-            _playerMenuHintAlpha = 0;
-            if (_playerMenuHint != null)
-            {
-                _playerMenuHint.Visible = false;
-            }
-        }
-
-        private void OnDuelRequestedFromContextMenu(ushort targetPlayerId, string targetPlayerName)
-        {
-            if (World == null || Hero == null)
-            {
-                return;
-            }
-
-            PlayerObject targetPlayer = null;
-            var players = World.Players;
-            for (int i = 0; i < players.Count; i++)
-            {
-                var p = players[i];
-                if (p != null && p.NetworkId == targetPlayerId)
-                {
-                    targetPlayer = p;
-                    break;
-                }
-            }
-
-            if (targetPlayer == null)
-            {
-                _chatLog?.AddMessage("System", "Target player is no longer available.", MessageType.Error);
-                return;
-            }
-
-            if (!CanRequestDuelWithTarget(targetPlayer, explicitTarget: true, out string reason))
-            {
-                _chatLog?.AddMessage("System", reason, MessageType.Error);
-                return;
-            }
-
-            var characterService = MuGame.Network?.GetCharacterService();
-            if (characterService == null)
-            {
-                _chatLog?.AddMessage("System", "CharacterService not available.", MessageType.Error);
-                return;
-            }
-
-            Task.Run(async () =>
-            {
-                try
-                {
-                    await characterService.SendDuelStartRequestAsync(targetPlayerId, targetPlayerName);
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogError(ex, "Failed to send duel request.");
-                    MuGame.ScheduleOnMainThread(() =>
-                    {
-                        _chatLog?.AddMessage("System", "Failed to send duel request.", MessageType.Error);
-                    });
-                }
-            });
-        }
-
-        private void UpdatePlayerMenuHint(GameTime gameTime, KeyboardState keyboardState, PlayerObject hoveredPlayer, Point mousePos)
-        {
-            const double hintDelaySeconds = 0.35;
-            double dt = gameTime.ElapsedGameTime.TotalSeconds;
-
-            if (_playerMenuHintCooldown > 0)
-            {
-                _playerMenuHintCooldown = Math.Max(0, _playerMenuHintCooldown - dt);
-            }
-
-            bool ctrlDown = keyboardState.IsKeyDown(Keys.LeftControl) || keyboardState.IsKeyDown(Keys.RightControl);
-            bool menuOpen = _playerContextMenu?.Visible == true;
-            bool playerValid = hoveredPlayer != null && hoveredPlayer != _hero && hoveredPlayer.World == World;
-            bool shouldShow = playerValid && !ctrlDown && !menuOpen && _playerMenuHintCooldown <= 0;
-
-            if (!playerValid)
-            {
-                _playerMenuHoverId = null;
-                _playerMenuHoverTime = 0;
-            }
-
-            if (shouldShow && hoveredPlayer != null && _playerMenuHoverId == hoveredPlayer.NetworkId)
-            {
-                _playerMenuHoverTime += gameTime.ElapsedGameTime.TotalSeconds;
-            }
-            else if (hoveredPlayer != null)
-            {
-                _playerMenuHoverId = hoveredPlayer.NetworkId;
-                _playerMenuHoverTime = 0;
-            }
-
-            bool pastDelay = _playerMenuHoverTime >= hintDelaySeconds;
-            float targetAlpha = (shouldShow && pastDelay) ? 1f : 0f;
-            _playerMenuHintAlpha = MathHelper.Lerp(_playerMenuHintAlpha, targetAlpha, (float)Math.Min(1, dt * 8));
-
-            if (_playerMenuHint == null)
-            {
-                return;
-            }
-
-            _playerMenuHint.Alpha = _playerMenuHintAlpha;
-
-            if (_playerMenuHintAlpha < 0.01f)
-            {
-                _playerMenuHint.Visible = false;
-                return;
-            }
-
-            var hintPosition = new Point(mousePos.X + 14, mousePos.Y + 18);
-            int hintWidth = _playerMenuHint.ControlSize.X + _playerMenuHint.Padding.Left + _playerMenuHint.Padding.Right;
-            int hintHeight = _playerMenuHint.ControlSize.Y + _playerMenuHint.Padding.Top + _playerMenuHint.Padding.Bottom;
-            _playerMenuHint.ViewSize = new Point(hintWidth, hintHeight);
-
-            int maxX = UiScaler.VirtualSize.X - hintWidth - 4;
-            int maxY = UiScaler.VirtualSize.Y - hintHeight - 4;
-            _playerMenuHint.X = Math.Clamp(hintPosition.X, 4, Math.Max(4, maxX));
-            _playerMenuHint.Y = Math.Clamp(hintPosition.Y, 4, Math.Max(4, maxY));
-            _playerMenuHint.Visible = true;
-            _playerMenuHint.BringToFront();
-        }
-
-        private bool IsPlayerAvailable(ushort playerId)
-        {
-            if (playerId == 0 || World is not WalkableWorldControl walkableWorld)
-                return false;
-
-            if (walkableWorld.WalkerObjectsById.TryGetValue(playerId, out var walker) && walker is PlayerObject po)
-            {
-                return po.World == World;
-            }
-
-            return false;
-        }
-
         private void StartWhisperToPlayer(string playerName)
         {
             if (string.IsNullOrWhiteSpace(playerName) || _chatInput == null)
@@ -2099,380 +706,20 @@ namespace Client.Main.Scenes
             _chatInput.StartWhisperTo(playerName);
         }
 
-        /// <summary>
-        /// Checks if mouse is currently over any UI element (not game world).
-        /// </summary>
-        private bool IsMouseOverUi()
+        internal void SetWorldInternal(WorldControl world)
         {
-            // MouseHoverControl is set by BaseScene - if it's not the World, we're over UI
-            return MouseHoverControl != null && MouseHoverControl != World;
-        }
-
-        /// <summary>
-        /// Checks if a skill is area/buff type (doesn't require target).
-        /// </summary>
-        private bool IsAreaSkill(ushort skillId)
-        {
-            return Core.Utilities.SkillDatabase.IsAreaSkill(skillId);
-        }
-
-        private bool IsInSkillRange(Vector2 targetLocation, uint allowedRange)
-        {
-            if (Hero == null)
-                return false;
-
-            return allowedRange == 0 || Vector2.Distance(Hero.Location, targetLocation) <= allowedRange;
-        }
-
-        private void QueueSkillCast(Core.Client.SkillEntryState skill, WalkerObject target, uint allowedRange, bool isAreaSkill)
-        {
-            if (skill == null || target == null || Hero == null)
-                return;
-
-            _pendingSkill = skill;
-            _pendingSkillTargetId = target.NetworkId;
-            _pendingSkillRange = allowedRange;
-            _pendingSkillIsArea = isAreaSkill;
-            _pendingSkillTargetIsPlayer = target is PlayerObject;
-
-            MoveHeroTowardsTarget(target.Location, force: true);
-        }
-
-        private void UpdatePendingSkill()
-        {
-            if (_pendingSkill == null || _pendingSkillTargetId == 0 || Hero == null || Hero.IsDead)
-            {
-                ClearPendingSkill();
-                return;
-            }
-
-            if (_skillQuickSlot?.SelectedSkill == null || _skillQuickSlot.SelectedSkill.SkillId != _pendingSkill.SkillId)
-            {
-                ClearPendingSkill();
-                return;
-            }
-
-            if (World is not WalkableWorldControl walkableWorld)
-            {
-                ClearPendingSkill();
-                return;
-            }
-
-            var terrainFlags = walkableWorld.Terrain.RequestTerrainFlag((int)Hero.Location.X, (int)Hero.Location.Y);
-            if (terrainFlags.HasFlag(TWFlags.SafeZone))
-            {
-                ClearPendingSkill();
-                return;
-            }
-
-            if (!walkableWorld.WalkerObjectsById.TryGetValue(_pendingSkillTargetId, out var walker))
-            {
-                ClearPendingSkill();
-                return;
-            }
-
-            if (_pendingSkillTargetIsPlayer)
-            {
-                if (walker is not PlayerObject targetPlayer || targetPlayer.IsDead || !IsDuelAttackTarget(targetPlayer))
-                {
-                    ClearPendingSkill();
-                    return;
-                }
-
-                if (IsInSkillRange(targetPlayer.Location, _pendingSkillRange))
-                {
-                    if (_pendingSkillIsArea)
-                        UseAreaSkill(_pendingSkill, targetPlayer.NetworkId);
-                    else
-                        UseSkillOnPlayerTarget(_pendingSkill, targetPlayer);
-                    ClearPendingSkill();
-                }
-                else
-                {
-                    MoveHeroTowardsTarget(targetPlayer.Location, force: false);
-                }
-                return;
-            }
-
-            if (walker is not MonsterObject targetMonster || targetMonster.IsDead || targetMonster.World != World)
-            {
-                ClearPendingSkill();
-                return;
-            }
-
-            if (IsInSkillRange(targetMonster.Location, _pendingSkillRange))
-            {
-                if (_pendingSkillIsArea)
-                    UseAreaSkill(_pendingSkill, targetMonster.NetworkId);
-                else
-                    UseSkillOnTarget(_pendingSkill, targetMonster);
-                ClearPendingSkill();
-            }
-            else
-            {
-                MoveHeroTowardsTarget(targetMonster.Location, force: false);
-            }
-        }
-
-        private void ClearPendingSkill()
-        {
-            _pendingSkill = null;
-            _pendingSkillTargetId = 0;
-            _pendingSkillRange = 0;
-            _pendingSkillIsArea = false;
-            _pendingSkillTargetIsPlayer = false;
-        }
-
-        private void MoveHeroTowardsTarget(Vector2 targetLocation, bool force)
-        {
-            if (Hero == null)
-                return;
-
-            if (!force && (Hero.IsMoving || Hero.MovementIntent))
-                return;
-
-            bool usePathfinding = !Hero.IsAttackOrSkillAnimationPlaying();
-            Hero.MoveTo(targetLocation, sendToServer: true, usePathfinding: usePathfinding);
-        }
-
-        /// <summary>
-        /// Uses the selected targeted skill on a monster.
-        /// </summary>
-        private void UseSkillOnTarget(Core.Client.SkillEntryState skill, MonsterObject target)
-        {
-            if (skill == null || target == null || Hero == null)
-                return;
-
-            // Don't use skills if player is dead
-            if (Hero.IsDead)
-                return;
-
-            _logger?.LogInformation("Using targeted skill {SkillId} (Level {Level}) on target {TargetId}",
-                skill.SkillId, skill.SkillLevel, target.NetworkId);
-
-            // Send targeted skill usage packet to server
-            // Animation will be played when server confirms with SkillAnimation packet
-            _ = MuGame.Network.GetCharacterService().SendSkillRequestAsync(
-                skill.SkillId,
-                target.NetworkId);
-        }
-
-        /// <summary>
-        /// Uses the selected targeted skill on a player (duel opponent).
-        /// </summary>
-        private void UseSkillOnPlayerTarget(Core.Client.SkillEntryState skill, PlayerObject target)
-        {
-            if (skill == null || target == null || Hero == null)
-                return;
-
-            if (Hero.IsDead || target.IsDead)
-                return;
-
-            if (!IsDuelAttackTarget(target))
-                return;
-
-            _logger?.LogInformation("Using targeted skill {SkillId} (Level {Level}) on duel target player {TargetId}",
-                skill.SkillId, skill.SkillLevel, target.NetworkId);
-
-            _ = MuGame.Network.GetCharacterService().SendSkillRequestAsync(
-                skill.SkillId,
-                target.NetworkId);
-        }
-
-        /// <summary>
-        /// Uses the selected skill at the player's position with optional target.
-        /// </summary>
-        private void UseAreaSkill(Core.Client.SkillEntryState skill, ushort extraTargetId = 0)
-        {
-            if (skill == null || Hero == null)
-                return;
-
-            // Don't use skills if player is dead
-            if (Hero.IsDead)
-                return;
-
-            if (extraTargetId != 0)
-            {
-                _logger?.LogInformation("Using skill {SkillId} (Level {Level}) at position ({X},{Y}) with target {TargetId}",
-                    skill.SkillId, skill.SkillLevel, (byte)Hero.Location.X, (byte)Hero.Location.Y, extraTargetId);
-            }
-            else
-            {
-                _logger?.LogInformation("Using area skill {SkillId} (Level {Level}) at position ({X},{Y})",
-                    skill.SkillId, skill.SkillLevel, (byte)Hero.Location.X, (byte)Hero.Location.Y);
-            }
-
-            // Send area skill usage packet to server
-            // Animation will be played when server confirms with AreaSkillAnimation packet
-            // Use player's current position and direction
-            byte targetX = (byte)Hero.Location.X;
-            byte targetY = (byte)Hero.Location.Y;
-            byte rotation = (byte)((Hero.Angle.Y / (2 * Math.PI)) * 255); // Convert radians to 0-255 range (use Y component for rotation)
-
-            _ = MuGame.Network.GetCharacterService().SendAreaSkillRequestAsync(
-                skill.SkillId,
-                targetX,
-                targetY,
-                rotation,
-                extraTargetId);
-        }
-
-        private void HandleBlendingEditorActivation()
-        {
-            if (World == null || World.Status != GameControlStatus.Ready || !Constants.DRAW_BOUNDING_BOXES)
-                return;
-
-            // Get all objects that are currently hovered
-            var hoveredObjects = new List<ModelObject>();
-            foreach (var obj in World.Objects)
-            {
-                if (obj is ModelObject modelObj && modelObj.IsMouseHover)
-                {
-                    hoveredObjects.Add(modelObj);
-                }
-            }
-
-            if (hoveredObjects.Count == 0)
-                return;
-
-            if (hoveredObjects.Count == 1)
-            {
-                // Single object - open blending editor directly
-                ShowBlendingEditor(hoveredObjects[0]);
-            }
-            else
-            {
-                // Multiple objects - show selection dialog
-                ShowObjectSelectionDialog(hoveredObjects);
-            }
-        }
-
-        private void ShowBlendingEditor(ModelObject targetObject)
-        {
-            if (_blendingEditor == null)
-                return;
-
-            _blendingEditor.ShowForObject(targetObject);
-            _logger?.LogDebug($"Opening blending editor for {targetObject.GetType().Name}");
-        }
-
-        private void ShowObjectSelectionDialog(List<ModelObject> objects)
-        {
-            // Remove previous dialog if exists
-            if (_blendingObjectSelectionDialog != null)
-            {
-                Controls.Remove(_blendingObjectSelectionDialog);
-                _blendingObjectSelectionDialog = null;
-            }
-
-            _blendingObjectSelectionDialog = new ObjectSelectionDialog(objects.Cast<WorldObject>().ToList());
-            _blendingObjectSelectionDialog.ObjectSelected += OnObjectSelectedForEditing;
-            Controls.Add(_blendingObjectSelectionDialog);
-
-            // Position near mouse cursor
-            var mousePos = MuGame.Instance.UiMouseState.Position;
-            _blendingObjectSelectionDialog.ShowAt(mousePos.X + 10, mousePos.Y + 10);
-
-            _logger?.LogDebug($"Showing selection dialog for {objects.Count} objects");
-        }
-
-        private void OnObjectSelectedForEditing(WorldObject selectedObject)
-        {
-            if (selectedObject is ModelObject modelObj)
-            {
-                ShowBlendingEditor(modelObj);
-            }
-
-            // Clean up dialog
-            if (_blendingObjectSelectionDialog != null)
-            {
-                Controls.Remove(_blendingObjectSelectionDialog);
-                _blendingObjectSelectionDialog = null;
-            }
-        }
-
-        private void HandleObjectDeletion()
-        {
-            if (World == null || World.Status != GameControlStatus.Ready || !Constants.DRAW_BOUNDING_BOXES)
-                return;
-
-            // Get all objects that are currently hovered
-            var hoveredObjects = new List<WorldObject>();
-            foreach (var obj in World.Objects)
-            {
-                if (obj.IsMouseHover)
-                {
-                    hoveredObjects.Add(obj);
-                }
-            }
-
-            if (hoveredObjects.Count == 0)
-                return;
-
-            if (hoveredObjects.Count == 1)
-            {
-                // Single object - delete directly
-                DeleteObject(hoveredObjects[0]);
-            }
-            else
-            {
-                // Multiple objects - show selection dialog for deletion
-                ShowObjectSelectionDialogForDeletion(hoveredObjects);
-            }
-        }
-
-        private void DeleteObject(WorldObject targetObject)
-        {
-            if (targetObject == null)
-                return;
-
-            _logger?.LogDebug($"Deleting object: {targetObject.GetType().Name} (ID: {targetObject.NetworkId})");
-
-            // Remove from world
-            World.RemoveObject(targetObject);
-
-            // Dispose the object
-            targetObject.Dispose();
-        }
-
-        private void ShowObjectSelectionDialogForDeletion(List<WorldObject> objects)
-        {
-            // Remove previous dialog if exists
-            if (_deletionObjectSelectionDialog != null)
-            {
-                Controls.Remove(_deletionObjectSelectionDialog);
-                _deletionObjectSelectionDialog = null;
-            }
-
-            _deletionObjectSelectionDialog = new ObjectSelectionDialog(objects);
-            _deletionObjectSelectionDialog.ObjectSelected += OnObjectSelectedForDeletion;
-            Controls.Add(_deletionObjectSelectionDialog);
-
-            // Position near mouse cursor
-            var mousePos = MuGame.Instance.UiMouseState.Position;
-            _deletionObjectSelectionDialog.ShowAt(mousePos.X + 10, mousePos.Y + 10);
-
-            _logger?.LogDebug($"Showing deletion selection dialog for {objects.Count} objects");
-        }
-
-        private void OnObjectSelectedForDeletion(WorldObject selectedObject)
-        {
-            DeleteObject(selectedObject);
-
-            // Clean up dialog
-            if (_deletionObjectSelectionDialog != null)
-            {
-                Controls.Remove(_deletionObjectSelectionDialog);
-                _deletionObjectSelectionDialog = null;
-            }
+            World = world;
         }
 
         public override void Dispose()
         {
             if (_hero != null)
             {
-                _hero.PlayerMoved -= OnHeroMoved;
-                _hero.PlayerTookDamage -= OnHeroTookDamage;
+                if (_windowCloseController != null)
+                {
+                    _hero.PlayerMoved -= _windowCloseController.OnHeroMoved;
+                    _hero.PlayerTookDamage -= _windowCloseController.OnHeroTookDamage;
+                }
             }
             base.Dispose();
         }
