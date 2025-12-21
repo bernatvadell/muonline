@@ -251,7 +251,8 @@ namespace Client.Main.Controls.UI.Game.Hud
             float x = (ControlSize.X - size.X) / 2f;
             float y = (ControlSize.Y - size.Y) / 2f + 6f;
 
-            DrawTextWithShadow(sb, message, x, y, scale, Theme.TextWhite);
+            Vector2 pos = Translate(new Vector2(x, y));
+            DrawTextWithShadow(sb, message, pos.X, pos.Y, scale, Theme.TextWhite);
 
             string subtitle = remaining <= 10 ? "Hurry!" : string.Empty;
             if (!string.IsNullOrEmpty(subtitle))
@@ -259,7 +260,8 @@ namespace Client.Main.Controls.UI.Game.Hud
                 Vector2 subSize = _font.MeasureString(subtitle) * FONT_SCALE_SMALL;
                 float subX = (ControlSize.X - subSize.X) / 2f;
                 float subY = y + size.Y + 4f;
-                DrawTextWithShadow(sb, subtitle, subX, subY, FONT_SCALE_SMALL, Theme.Warning);
+                Vector2 subPos = Translate(new Vector2(subX, subY));
+                DrawTextWithShadow(sb, subtitle, subPos.X, subPos.Y, FONT_SCALE_SMALL, Theme.Warning);
             }
         }
 
@@ -268,5 +270,11 @@ namespace Client.Main.Controls.UI.Game.Hud
             sb.DrawString(_font, text, new Vector2(x + 1, y + 1), Color.Black * 0.6f, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             sb.DrawString(_font, text, new Vector2(x, y), color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
         }
+
+        private Rectangle Translate(Rectangle rect)
+            => new(DisplayRectangle.X + rect.X, DisplayRectangle.Y + rect.Y, rect.Width, rect.Height);
+
+        private Vector2 Translate(Vector2 pos)
+            => new(pos.X + DisplayRectangle.X, pos.Y + DisplayRectangle.Y);
     }
 }

@@ -4,10 +4,10 @@ using Microsoft.Xna.Framework;
 
 namespace Client.Main.Worlds
 {
-    [WorldInfo(9, "Devil Square")]
+    [WorldInfo(32, "Devil Square")]
     public class DevilSquareWorld : WalkableWorldControl
     {
-        public DevilSquareWorld() : base(worldIndex: 10) // DEVIL SQUARE
+        public DevilSquareWorld() : base(worldIndex: 10) // DEVIL SQUARE - World10 folder, OpenMU uses mapId 32
         {
             Name = "Devil Square";
             BackgroundMusicPath = "Music/devil_square_intro.mp3";

@@ -72,7 +72,7 @@ namespace Client.Main.Controls.UI.Game
             public static readonly Color Danger = new(220, 80, 80);
         }
 
-        private static readonly (int Min, int Max)[] DefaultRanges =
+        private static readonly (int Min, int Max)[] LevelRanges =
         {
             (15, 130),
             (131, 180),
@@ -80,17 +80,6 @@ namespace Client.Main.Controls.UI.Game
             (231, 280),
             (281, 330),
             (331, 400),
-            (0, 0)
-        };
-
-        private static readonly (int Min, int Max)[] DarkRanges =
-        {
-            (15, 110),
-            (111, 160),
-            (161, 210),
-            (211, 260),
-            (261, 310),
-            (311, 400),
             (0, 0)
         };
 
@@ -131,7 +120,7 @@ namespace Client.Main.Controls.UI.Game
         {
             "Enter with a Devil's Invitation ticket.",
             "Only the highlighted gate matches your level.",
-            "Dark Knight/Lord/Rage Fighter use alternate ranges.",
+            "Each gate corresponds to a specific level range.",
             "Entrance closes shortly before the event starts."
         };
 
@@ -645,8 +634,6 @@ namespace Client.Main.Controls.UI.Game
             _activeIndex = ComputeActiveIndex();
             _expectedInvitationLevel = (byte)(_activeIndex + 1);
 
-            var ranges = UsesDarkRanges(_characterState.Class) ? DarkRanges : DefaultRanges;
-
             for (int i = 0; i < ENTRY_COUNT; i++)
             {
                 _entryLabels[i] = $"Devil Square {i + 1}";
@@ -656,7 +643,7 @@ namespace Client.Main.Controls.UI.Game
                 }
                 else
                 {
-                    _entryRanges[i] = $"Lv {ranges[i].Min}~{ranges[i].Max}";
+                    _entryRanges[i] = $"Lv {LevelRanges[i].Min}~{LevelRanges[i].Max}";
                 }
             }
 
@@ -719,12 +706,11 @@ namespace Client.Main.Controls.UI.Game
             }
 
             int level = _characterState.Level;
-            var ranges = UsesDarkRanges(_characterState.Class) ? DarkRanges : DefaultRanges;
             int result = 0;
 
             for (int i = 0; i < ENTRY_COUNT - 1; i++)
             {
-                if (level >= ranges[i].Min && level <= ranges[i].Max)
+                if (level >= LevelRanges[i].Min && level <= LevelRanges[i].Max)
                 {
                     result = i;
                     break;
@@ -732,13 +718,6 @@ namespace Client.Main.Controls.UI.Game
             }
 
             return result;
-        }
-
-        private static bool UsesDarkRanges(CharacterClassNumber cls)
-        {
-            return cls == CharacterClassNumber.DarkKnight || cls == CharacterClassNumber.BladeKnight || cls == CharacterClassNumber.BladeMaster
-                || cls == CharacterClassNumber.DarkLord || cls == CharacterClassNumber.LordEmperor
-                || cls == CharacterClassNumber.RageFighter || cls == CharacterClassNumber.FistMaster;
         }
 
         private void SendCloseNpcRequest()
