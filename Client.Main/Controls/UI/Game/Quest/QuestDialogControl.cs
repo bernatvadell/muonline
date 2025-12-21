@@ -299,8 +299,9 @@ namespace Client.Main.Controls.UI.Game.Quest
             int reqCount = _questData?.Requirements?.Count ?? 0;
             int requirementsHeight = reqCount > 0 ? 44 + reqCount * (lineHeight + 12) : 0;
 
-            // Items section
-            int itemCount = _questData?.RequiredItems?.Count ?? 0;
+            // Items section (only show for Active or Complete quests, not Inactive)
+            bool showItems = _questData?.State == LegacyQuestState.Active || _questData?.State == LegacyQuestState.Complete;
+            int itemCount = showItems ? (_questData?.RequiredItems?.Count ?? 0) : 0;
             int itemsHeight = itemCount > 0 ? 44 + itemCount * (lineHeight + 12) : 0;
 
             // Footer (buttons)
@@ -344,8 +345,9 @@ namespace Client.Main.Controls.UI.Game.Quest
                 _requirementsRect = Rectangle.Empty;
             }
 
-            // Items section
-            int itemCount = _questData?.RequiredItems?.Count ?? 0;
+            // Items section (only show for Active or Complete quests, not Inactive)
+            bool showItems = _questData?.State == LegacyQuestState.Active || _questData?.State == LegacyQuestState.Complete;
+            int itemCount = showItems ? (_questData?.RequiredItems?.Count ?? 0) : 0;
             int itemsHeight = itemCount > 0 ? 44 + itemCount * 36 : 0;
             if (itemsHeight > 0)
             {

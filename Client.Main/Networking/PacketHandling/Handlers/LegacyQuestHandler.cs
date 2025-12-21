@@ -517,7 +517,9 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         }
 
         /// <summary>
-        /// Checks all requirements including level, zen, prerequisite quest, and required items.
+        /// Checks all requirements including level, zen, prerequisite quest, and required items (only for Active quests).
+        /// For Inactive quests, only check prerequisites (level/zen/prerequisite quest), not items.
+        /// For Active quests, also check required items.
         /// </summary>
         private static bool CheckAllRequirements(byte questIndex, CharacterState characterState, out string blockReason)
         {
@@ -530,15 +532,20 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 return false;
             }
 
-            // Check required items
-            var requiredItems = GetQuestItems(questIndex, characterState);
-            foreach (var item in requiredItems)
+            // Only check required items for Active quests (already accepted, need to complete)
+            // For Inactive quests (not yet accepted), don't check items
+            var state = characterState.GetLegacyQuestState(questIndex);
+            if (state == LegacyQuestState.Active)
             {
-                int count = CountItemsInInventory(characterState, item.Group, item.Id);
-                if (count < item.RequiredCount)
+                var requiredItems = GetQuestItems(questIndex, characterState);
+                foreach (var item in requiredItems)
                 {
-                    blockReason = $"Missing item: {item.Name}";
-                    return false;
+                    int count = CountItemsInInventory(characterState, item.Group, item.Id);
+                    if (count < item.RequiredCount)
+                    {
+                        blockReason = $"Missing item: {item.Name}";
+                        return false;
+                    }
                 }
             }
 
