@@ -8,8 +8,10 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Client.Main.Core.Client;
 using Client.Main.Controls.UI;
+using Client.Main.Controls.UI.Game;
 using Client.Main.Scenes;
 using Client.Main.Models;
+using Client.Main.Controls.UI.Game.Hud;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
 {
@@ -218,6 +220,89 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             }
 
             return Task.CompletedTask;
+        }
+
+        [PacketHandler(0x90, PacketRouter.NoSubCode)] // DevilSquareEnterResult (S2C)
+        public Task HandleDevilSquareEnterResultAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var res = new DevilSquareEnterResult(packet);
+
+                if (res.Result != DevilSquareEnterResult.EnterResult.Success)
+                {
+                    string msg = res.Result switch
+                    {
+                        DevilSquareEnterResult.EnterResult.Failed => "Failed to enter Devil Square. Check invitation and level range.",
+                        DevilSquareEnterResult.EnterResult.NotOpen => "Devil Square is not open.",
+                        DevilSquareEnterResult.EnterResult.CharacterLevelTooHigh => "Your level is too high for this Devil Square gate.",
+                        DevilSquareEnterResult.EnterResult.CharacterLevelTooLow => "Your level is too low for this Devil Square gate.",
+                        DevilSquareEnterResult.EnterResult.Full => "Devil Square is full.",
+                        _ => "Failed to enter Devil Square."
+                    };
+
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        DevilSquareEnterControl.Instance.CloseWindow();
+                        RequestDialog.ShowInfo(msg);
+                    });
+                }
+                else
+                {
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        DevilSquareEnterControl.Instance.CloseWindow();
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing DevilSquareEnterResult packet.");
+            }
+
+            return Task.CompletedTask;
+        }
+
+        [PacketHandler(0x92, PacketRouter.NoSubCode)] // UpdateMiniGameState (S2C)
+        public Task HandleUpdateMiniGameStateAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var update = new UpdateMiniGameState(packet);
+                if (!IsDevilSquareState(update.State))
+                {
+                    return Task.CompletedTask;
+                }
+
+                if (!IsInDevilSquare())
+                {
+                    return Task.CompletedTask;
+                }
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    DevilSquareCountdownControl.Instance.StartCountdown(update.State);
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing UpdateMiniGameState packet.");
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private bool IsDevilSquareState(UpdateMiniGameState.MiniGameTypeState state)
+        {
+            return state == UpdateMiniGameState.MiniGameTypeState.DevilSquareClosed
+                   || state == UpdateMiniGameState.MiniGameTypeState.DevilSquareOpened
+                   || state == UpdateMiniGameState.MiniGameTypeState.DevilSquareRunning;
+        }
+
+        private bool IsInDevilSquare()
+        {
+            ushort mapId = _characterState.MapId;
+            return mapId == 9 || mapId == 32;
         }
 
         [PacketHandler(0xAA, 0x04)] // DuelScore (S2C)

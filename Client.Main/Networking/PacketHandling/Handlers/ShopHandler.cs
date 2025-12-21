@@ -95,6 +95,13 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         scene?.InventoryControl?.Show();
                     });
                 }
+                else if (resp.Window == NpcWindowResponse.NpcWindow.DevilSquare)
+                {
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        DevilSquareEnterControl.Instance.ShowWindow();
+                    });
+                }
             }
             catch (Exception ex)
             {

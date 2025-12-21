@@ -115,6 +115,7 @@ namespace Client.Main.Scenes
             Controls.Add(ChaosMixControl.Instance);
             Controls.Add(TradeControl.Instance);
             Controls.Add(QuestDialogControl.Instance);
+            Controls.Add(DevilSquareEnterControl.Instance);
 
             _mapListControl = new MapListControl { Visible = false };
 
@@ -199,6 +200,10 @@ namespace Client.Main.Scenes
             var duelHud = new DuelHudControl(MuGame.Network.GetCharacterState());
             Controls.Add(duelHud);
             duelHud.BringToFront();
+
+            // Devil Square countdown HUD (bottom center)
+            Controls.Add(DevilSquareCountdownControl.Instance);
+            DevilSquareCountdownControl.Instance.BringToFront();
             _playerMenuController = new GameScenePlayerMenuController(this, StartWhisperToPlayer, _duelController.OnDuelRequestedFromContextMenu);
             _playerMenuController.Initialize();
             _inputController = new GameSceneInputController(

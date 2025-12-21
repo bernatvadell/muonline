@@ -1018,6 +1018,38 @@ namespace Client.Main.Networking.Services
         }
 
         /// <summary>
+        /// Sends a request to enter Devil Square (Charon NPC).
+        /// </summary>
+        /// <param name="squareLevel">Devil Square level index (0-based).</param>
+        /// <param name="ticketInventoryIndex">Inventory slot index of the Devil's Invitation (includes offset 12), or 0xFF.</param>
+        public async Task SendDevilSquareEnterRequestAsync(byte squareLevel, byte ticketInventoryIndex)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send Devil Square enter request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending DevilSquareEnterRequest: Level={Level}, TicketSlot={Slot}", squareLevel, ticketInventoryIndex);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var len = DevilSquareEnterRequest.Length;
+                    var packet = new DevilSquareEnterRequest(_connectionManager.Connection.Output.GetMemory(len).Slice(0, len));
+                    packet.SquareLevel = squareLevel;
+                    packet.TicketItemInventoryIndex = ticketInventoryIndex;
+                    return len;
+                });
+                _logger.LogInformation("DevilSquareEnterRequest sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending DevilSquareEnterRequest.");
+            }
+        }
+
+        /// <summary>
         /// Requests the legacy quest state list (C1 A0). In the original client this is sent after entering the game world.
         /// </summary>
         public async Task RequestLegacyQuestStateListAsync()

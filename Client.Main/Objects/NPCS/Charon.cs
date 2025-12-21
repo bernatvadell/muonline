@@ -46,8 +46,11 @@ namespace Client.Main.Objects.NPCS
         }
         protected override void HandleClick()
         {
-            // Handle the click event specific to this NPC
-            Console.WriteLine("Specific NPC clicked!");
+            var svc = MuGame.Network?.GetCharacterService();
+            if (svc != null)
+            {
+                _ = svc.SendTalkToNpcRequestAsync(NetworkId);
+            }
         }
     }
 }
