@@ -57,8 +57,10 @@ namespace Client.Main.Scenes
                 return;
 
             var mouse = MuGame.Instance.Mouse;
-            var prevMouse = MuGame.Instance.PrevMouseState;
-            if (mouse.RightButton != ButtonState.Pressed || prevMouse.RightButton != ButtonState.Released)
+
+            // Allow continuous skill usage while holding right mouse button
+            // The cooldown system (TryConsumeSkillDelay) will rate-limit the casting
+            if (mouse.RightButton != ButtonState.Pressed)
                 return;
 
             var skill = _skillQuickSlot.SelectedSkill;
