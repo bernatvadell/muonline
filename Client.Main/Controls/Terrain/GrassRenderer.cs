@@ -106,6 +106,18 @@ namespace Client.Main.Controls.Terrain
             }
         }
 
+        /// <summary>
+        /// Ensures grass content is loaded when DRAW_GRASS is enabled after initial load.
+        /// Call this when toggling grass setting from false to true.
+        /// </summary>
+        public void EnsureContentLoaded(short worldIndex)
+        {
+            if (Constants.DRAW_GRASS && !_texReady)
+            {
+                LoadContent(worldIndex);
+            }
+        }
+
         public void ResetMetrics()
         {
             Flushes = 0;

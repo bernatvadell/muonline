@@ -720,7 +720,16 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                 {
                     AddOption("Draw Bounding Boxes", () => Constants.DRAW_BOUNDING_BOXES, value => Constants.DRAW_BOUNDING_BOXES = value, ref currentY, OptionRowHeight);
                     AddOption("Draw Bounding Boxes (Interactives)", () => Constants.DRAW_BOUNDING_BOXES_INTERACTIVES, value => Constants.DRAW_BOUNDING_BOXES_INTERACTIVES = value, ref currentY, OptionRowHeight);
-                    AddOption("Draw Grass", () => Constants.DRAW_GRASS, value => Constants.DRAW_GRASS = value, ref currentY, OptionRowHeight);
+                    AddOption("Draw Grass", () => Constants.DRAW_GRASS, value =>
+                    {
+                        Constants.DRAW_GRASS = value;
+                        if (value)
+                        {
+                            // When enabling grass, ensure textures are loaded
+                            var scene = MuGame.Instance?.ActiveScene as BaseScene;
+                            scene?.World?.Terrain?.ReloadGrassIfNeeded();
+                        }
+                    }, ref currentY, OptionRowHeight);
                     AddOption("Low Quality Switch", () => Constants.ENABLE_LOW_QUALITY_SWITCH, value => Constants.ENABLE_LOW_QUALITY_SWITCH = value, ref currentY, OptionRowHeight);
                     AddOption("Low Quality in Login", () => Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE, value => Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE = value, ref currentY, OptionRowHeight);
                 });

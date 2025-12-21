@@ -12,7 +12,7 @@ namespace Client.Main.Objects.Worlds.Dungeon
             BlendState = BlendState.Additive;
             LightEnabled = true;
             IsTransparent = true;
-            Model = await BMDLoader.Instance.Prepare($"Object2/Object2.bmd");
+            Model = await BMDLoader.Instance.Prepare($"Object2/Object02.bmd");
 
             await base.Load();
         }

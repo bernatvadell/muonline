@@ -81,6 +81,15 @@ namespace Client.Main.Controls
         }
 
         /// <summary>
+        /// Ensures grass textures are loaded when DRAW_GRASS setting is toggled on.
+        /// Call this after changing Constants.DRAW_GRASS from false to true.
+        /// </summary>
+        public void ReloadGrassIfNeeded()
+        {
+            _grassRenderer?.EnsureContentLoaded(WorldIndex);
+        }
+
+        /// <summary>
         /// Exposes frame-specific rendering metrics for debugging or performance monitoring.
         /// </summary>
         public sealed class TerrainFrameMetrics
