@@ -473,7 +473,7 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
             MuGame.ScheduleOnMainThread(() => MuGame.Instance?.ApplyGraphicsOptions());
         }
 
-        private void ApplyQualityPreset(GraphicsQualityPreset preset)
+        private void ApplyQualityPreset(GraphicsQualityPreset preset, Action onComplete = null)
         {
             MuGame.ScheduleOnMainThread(() =>
             {
@@ -481,6 +481,7 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                 GraphicsQualityManager.ApplyPreset(preset, adapter, _logger);
                 MuGame.Instance?.ApplyGraphicsOptions();
                 GraphicsManager.Instance?.UpdateRenderScale();
+                onComplete?.Invoke();
             });
 
             if (MuGame.AppSettings?.Graphics != null)
@@ -731,20 +732,20 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                 {
                     AddOption("Auto (Detect)", () => GraphicsQualityManager.UserPreset == GraphicsQualityPreset.Auto, value =>
                     {
-                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.Auto);
-                    }, ref currentY, OptionRowHeight, RefreshOptions);
+                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.Auto, RefreshOptions);
+                    }, ref currentY, OptionRowHeight);
                     AddOption("Low (0.75x)", () => GraphicsQualityManager.UserPreset == GraphicsQualityPreset.Low, value =>
                     {
-                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.Low);
-                    }, ref currentY, OptionRowHeight, RefreshOptions);
+                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.Low, RefreshOptions);
+                    }, ref currentY, OptionRowHeight);
                     AddOption("Medium (1.0x)", () => GraphicsQualityManager.UserPreset == GraphicsQualityPreset.Medium, value =>
                     {
-                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.Medium);
-                    }, ref currentY, OptionRowHeight, RefreshOptions);
+                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.Medium, RefreshOptions);
+                    }, ref currentY, OptionRowHeight);
                     AddOption("High (2.0x)", () => GraphicsQualityManager.UserPreset == GraphicsQualityPreset.High, value =>
                     {
-                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.High);
-                    }, ref currentY, OptionRowHeight, RefreshOptions);
+                        if (value) _owner.ApplyQualityPreset(GraphicsQualityPreset.High, RefreshOptions);
+                    }, ref currentY, OptionRowHeight);
                 });
             }
 

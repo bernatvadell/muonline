@@ -163,7 +163,7 @@ namespace Client.Main
             // Match current settings to closest preset
             if (SHADOW_MAP_SIZE <= 512)
                 return ShadowQuality.Low;
-            if (SHADOW_MAP_SIZE <= 1024 && SHADOW_SKIP_SMALL_PARTS)
+            if (SHADOW_MAP_SIZE <= 1024 && SHADOW_DISTANCE <= 2500f)
                 return ShadowQuality.Medium;
             if (SHADOW_MAP_SIZE <= 1024)
                 return ShadowQuality.High;
