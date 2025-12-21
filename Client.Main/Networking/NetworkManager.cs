@@ -412,6 +412,9 @@ namespace Client.Main.Networking
                     hero.Reset();
                     hero.Location = new Vector2(x, y);
                     hero.Direction = (Client.Main.Models.Direction)direction;
+                    // Synchronize MoveTargetPosition to prevent walk animation after teleport
+                    hero.MoveTargetPosition = hero.TargetPosition;
+                    hero.Position = hero.TargetPosition;
 
                     if (mapChanged)
                     {
@@ -429,9 +432,6 @@ namespace Client.Main.Networking
                     else
                     {
                         _logger.LogInformation("ProcessCharacterRespawn: Same map ({MapId}). Updating hero position.", mapId);
-                        hero.MoveTargetPosition = hero.TargetPosition;
-                        hero.Position = hero.TargetPosition;
-
                         _logger.LogInformation("ProcessCharacterRespawn: Sending ClientReadyAfterMapChange for same map teleport/respawn.");
                         await _characterService.SendClientReadyAfterMapChangeAsync();
                     }
