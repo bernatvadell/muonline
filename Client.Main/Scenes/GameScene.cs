@@ -19,6 +19,7 @@ using Client.Main.Controls.UI.Game.Party;
 using Client.Main.Controls.UI.Game.PauseMenu;
 using Client.Main.Controls.UI.Game.Character;
 using Client.Main.Controls.UI.Game.Trade;
+using Client.Main.Controls.UI.Game.Quest;
 using Microsoft.Xna.Framework.Graphics;
 using Client.Main.Networking;
 using System.Reflection;
@@ -113,6 +114,7 @@ namespace Client.Main.Scenes
             Controls.Add(VaultControl.Instance);
             Controls.Add(ChaosMixControl.Instance);
             Controls.Add(TradeControl.Instance);
+            Controls.Add(QuestDialogControl.Instance);
 
             _mapListControl = new MapListControl { Visible = false };
 

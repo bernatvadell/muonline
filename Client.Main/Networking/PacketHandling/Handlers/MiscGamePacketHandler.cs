@@ -835,6 +835,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             try
             {
                 var qList = new LegacyQuestStateList(packet);
+                _characterState.SetLegacyQuestStates(qList);
                 _logger.LogInformation(
                     "Legacy quest list received: {Count} entries",
                     qList.QuestCount);

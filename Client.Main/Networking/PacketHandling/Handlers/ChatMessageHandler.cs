@@ -96,6 +96,44 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             return Task.CompletedTask;
         }
 
+        [PacketHandler(0x01, PacketRouter.NoSubCode)]  // ObjectMessage (0x01)
+        public Task HandleObjectMessageAsync(Memory<byte> packet)
+        {
+            try
+            {
+                var msg = new ObjectMessage(packet);
+                ushort targetId = (ushort)(msg.ObjectId & 0x7FFF);
+                string text = msg.Message ?? string.Empty;
+
+                _logger.LogInformation("Received ObjectMessage (0x01): Target={TargetId:X4}, Text='{Text}'", targetId, text);
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    var scene = MuGame.Instance?.ActiveScene as GameScene;
+                    if (scene?.World == null)
+                    {
+                        return;
+                    }
+
+                    var world = scene.World;
+                    if (world.TryGetWalkerById(targetId, out var target) && target != null)
+                    {
+                        // Reuse chat bubble UI to show NPC/player overhead messages.
+                        var bubble = new ChatBubbleObject(text, targetId, target.DisplayName);
+                        world.Objects.Add(bubble);
+                    }
+
+                    scene.ChatLog?.AddMessage("System", text, Client.Main.Models.MessageType.System);
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error parsing ObjectMessage (0x01).");
+            }
+
+            return Task.CompletedTask;
+        }
+
         [PacketHandler(0x00, PacketRouter.NoSubCode)]  // ChatMessage (0x00)
         public Task HandleChatMessageAsync(Memory<byte> packet)
         {

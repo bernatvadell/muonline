@@ -1018,6 +1018,116 @@ namespace Client.Main.Networking.Services
         }
 
         /// <summary>
+        /// Requests the legacy quest state list (C1 A0). In the original client this is sent after entering the game world.
+        /// </summary>
+        public async Task RequestLegacyQuestStateListAsync()
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot request legacy quest state list.");
+                return;
+            }
+
+            _logger.LogInformation("Requesting LegacyQuestStateList (0xA0) ...");
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var len = LegacyQuestStateRequest.Length;
+                    _ = new LegacyQuestStateRequest(_connectionManager.Connection.Output.GetMemory(len).Slice(0, len));
+                    return len;
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending LegacyQuestStateRequest (0xA0).");
+            }
+        }
+
+        /// <summary>
+        /// Sends a legacy quest progress request (C1 A2). SourceMain5.2 sends NewState=1 for progression.
+        /// </summary>
+        public async Task SendLegacyQuestProceedRequestAsync(byte questNumber)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send legacy quest proceed request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending LegacyQuestStateSetRequest (0xA2): QuestNumber={QuestNumber}", questNumber);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var len = LegacyQuestStateSetRequest.Length;
+                    var packet = new LegacyQuestStateSetRequest(_connectionManager.Connection.Output.GetMemory(len).Slice(0, len));
+                    packet.QuestNumber = questNumber;
+                    packet.NewState = (LegacyQuestState)1;
+                    return len;
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending LegacyQuestStateSetRequest (0xA2).");
+            }
+        }
+
+        /// <summary>
+        /// Sends EnterOnWerewolfRequest (C1 D0 07) to enter Barracks of Balgass during 3rd class quest.
+        /// </summary>
+        public async Task SendEnterOnWerewolfRequestAsync()
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send EnterOnWerewolfRequest.");
+                return;
+            }
+
+            _logger.LogInformation("Sending EnterOnWerewolfRequest (0xD0/0x07) ...");
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var len = EnterOnWerewolfRequest.Length;
+                    _ = new EnterOnWerewolfRequest(_connectionManager.Connection.Output.GetMemory(len).Slice(0, len));
+                    return len;
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending EnterOnWerewolfRequest.");
+            }
+        }
+
+        /// <summary>
+        /// Sends EnterOnGatekeeperRequest (C1 D0 08) to enter Balgass Refuge during 3rd class quest.
+        /// </summary>
+        public async Task SendEnterOnGatekeeperRequestAsync()
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send EnterOnGatekeeperRequest.");
+                return;
+            }
+
+            _logger.LogInformation("Sending EnterOnGatekeeperRequest (0xD0/0x08) ...");
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var len = EnterOnGatekeeperRequest.Length;
+                    _ = new EnterOnGatekeeperRequest(_connectionManager.Connection.Output.GetMemory(len).Slice(0, len));
+                    return len;
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending EnterOnGatekeeperRequest.");
+            }
+        }
+
+        /// <summary>
         /// Sends a close-NPC dialog request to the server.
         /// </summary>
         public async Task SendCloseNpcRequestAsync()

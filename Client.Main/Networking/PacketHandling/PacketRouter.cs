@@ -36,6 +36,7 @@ namespace Client.Main.Networking.PacketHandling
         private readonly ChatMessageHandler _chatMessageHandler;
         private readonly ConnectServerHandler _connectServerHandler;
         private readonly MiscGamePacketHandler _miscGamePacketHandler;
+        private readonly LegacyQuestHandler _legacyQuestHandler;
         private readonly PartyHandler _partyHandler;
         private readonly ShopHandler _shopHandler;
         private readonly TradeHandler _tradeHandler;
@@ -72,6 +73,7 @@ namespace Client.Main.Networking.PacketHandling
             _chatMessageHandler = new ChatMessageHandler(loggerFactory);
             _connectServerHandler = new ConnectServerHandler(loggerFactory, networkManager);
             _miscGamePacketHandler = new MiscGamePacketHandler(loggerFactory, networkManager, characterService, characterState, scopeManager, targetVersion);
+            _legacyQuestHandler = new LegacyQuestHandler(loggerFactory, characterState, characterService);
             _partyHandler = new PartyHandler(loggerFactory, partyManager, characterService, scopeManager, characterState);
             _shopHandler = new ShopHandler(loggerFactory, characterState, networkManager, targetVersion);
             _tradeHandler = new TradeHandler(loggerFactory, characterState, networkManager, targetVersion);
@@ -213,6 +215,7 @@ namespace Client.Main.Networking.PacketHandling
                 _scopeHandler,
                 _chatMessageHandler,
                 _miscGamePacketHandler,
+                _legacyQuestHandler,
                 _partyHandler,
                 _shopHandler,
                 _tradeHandler

@@ -683,6 +683,10 @@ namespace Client.Main.Networking
                 EnteredGame?.Invoke(this, EventArgs.Empty);
             }
             catch (Exception ex) { _logger.LogError(ex, "--- ProcessCharacterInformation: Exception during EnteredGame event invocation."); }
+
+            // Legacy quest state list (A0) - required for classic class-change quest UI (Sebina/Marlon/Devin).
+            _ = _characterService.RequestLegacyQuestStateListAsync();
+
             _logger.LogInformation("<<< ProcessCharacterInformation: State updated and EnteredGame event raised.");
         }
 

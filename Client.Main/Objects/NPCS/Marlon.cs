@@ -1,5 +1,6 @@
 using Client.Main.Content;
 using Client.Main.Models;
+using Client.Main.Networking;
 using System.Threading.Tasks;
 
 namespace Client.Main.Objects.NPCS
@@ -23,6 +24,13 @@ namespace Client.Main.Objects.NPCS
             AnimationSpeed = 25f;
             CurrentAction = (int)PlayerAction.PlayerStopMale;
         }
-        protected override void HandleClick() { }
+        protected override void HandleClick()
+        {
+            var svc = MuGame.Network?.GetCharacterService();
+            if (svc != null)
+            {
+                _ = svc.SendTalkToNpcRequestAsync(NetworkId);
+            }
+        }
     }
 }

@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Client.Data.BMD;
 using Client.Main.Controls.UI.Game.Inventory;
 using Microsoft.Extensions.Logging;
+using System.Text;
 
 namespace Client.Main.Core.Utilities
 {
@@ -155,6 +156,85 @@ namespace Client.Main.Core.Utilities
             _definitions.Value.TryGetValue((group, id), out var def);
 
             return def;
+        }
+
+        public static bool TryGetItemDefinitionByName(string name, out ItemDefinition definition)
+        {
+            definition = null;
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return false;
+            }
+
+            // Fast path: exact (case-insensitive) match.
+            foreach (var def in _definitions.Value.Values)
+            {
+                if (def?.Name != null && def.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                {
+                    definition = def;
+                    return true;
+                }
+            }
+
+            // Fallback: normalized match (ignores punctuation and article "the").
+            string normalized = NormalizeItemName(name);
+            if (string.IsNullOrEmpty(normalized))
+            {
+                return false;
+            }
+
+            foreach (var def in _definitions.Value.Values)
+            {
+                if (def?.Name == null)
+                {
+                    continue;
+                }
+
+                if (NormalizeItemName(def.Name) == normalized)
+                {
+                    definition = def;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static string NormalizeItemName(string input)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                return string.Empty;
+            }
+
+            var sb = new StringBuilder(input.Length);
+            bool prevSpace = false;
+
+            foreach (char c in input)
+            {
+                if (char.IsLetterOrDigit(c))
+                {
+                    sb.Append(char.ToLowerInvariant(c));
+                    prevSpace = false;
+                    continue;
+                }
+
+                if (!prevSpace)
+                {
+                    sb.Append(' ');
+                    prevSpace = true;
+                }
+            }
+
+            var parts = sb.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            // Remove "the" to match strings like "Scroll of the Emperor" vs "Scroll of Emperor".
+            var filtered = parts.Where(p => !p.Equals("the", StringComparison.Ordinal)).ToArray();
+            return string.Join(' ', filtered);
         }
 
         public static IEnumerable<ItemDefinition> GetItemDefinitions(byte group)

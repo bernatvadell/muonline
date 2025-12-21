@@ -147,6 +147,80 @@ namespace Client.Main.Core.Client
         public event Action VaultItemsChanged;
         public event Action ChaosMachineItemsChanged;
 
+        // Legacy quest state (A0/A1/A2/A3/A4) - used for class change quests (Sebina/Marlon/Devin)
+        private readonly object _legacyQuestStateLock = new();
+        private readonly byte[] _legacyQuestStateBytes = new byte[2];
+        public bool HasLegacyQuestStateList { get; private set; }
+        public event Action LegacyQuestStateChanged;
+
+        public LegacyQuestState GetLegacyQuestState(byte questIndex)
+        {
+            lock (_legacyQuestStateLock)
+            {
+                int group = questIndex / 4;
+                int offset = (questIndex % 4) * 2;
+                if (group < 0 || group >= _legacyQuestStateBytes.Length)
+                {
+                    return LegacyQuestState.Undefined;
+                }
+
+                return (LegacyQuestState)((_legacyQuestStateBytes[group] >> offset) & 0x03);
+            }
+        }
+
+        public void SetLegacyQuestStates(LegacyQuestStateList list)
+        {
+            if (list.Equals(default(LegacyQuestStateList)))
+            {
+                return;
+            }
+
+            lock (_legacyQuestStateLock)
+            {
+                _legacyQuestStateBytes[0] = PackLegacyQuestGroup(
+                    list.ScrollOfEmperorState,
+                    list.ThreeTreasuresOfMuState,
+                    list.GainHeroStatusState,
+                    list.SecretOfDarkStoneState);
+
+                _legacyQuestStateBytes[1] = PackLegacyQuestGroup(
+                    list.CertificateOfStrengthState,
+                    list.InfiltrationOfBarrackState,
+                    list.InfiltrationOfRefugeState,
+                    list.UnusedQuestState);
+
+                HasLegacyQuestStateList = true;
+            }
+
+            LegacyQuestStateChanged?.Invoke();
+        }
+
+        public void UpdateLegacyQuestStateGroup(byte questIndex, byte packedStates)
+        {
+            lock (_legacyQuestStateLock)
+            {
+                int group = questIndex / 4;
+                if (group < 0 || group >= _legacyQuestStateBytes.Length)
+                {
+                    return;
+                }
+
+                _legacyQuestStateBytes[group] = packedStates;
+                HasLegacyQuestStateList = true;
+            }
+
+            LegacyQuestStateChanged?.Invoke();
+        }
+
+        private static byte PackLegacyQuestGroup(LegacyQuestState q0, LegacyQuestState q1, LegacyQuestState q2, LegacyQuestState q3)
+        {
+            return (byte)(
+                ((byte)q0 & 0x03) |
+                (((byte)q1 & 0x03) << 2) |
+                (((byte)q2 & 0x03) << 4) |
+                (((byte)q3 & 0x03) << 6));
+        }
+
         // Trade State
         private bool _isTradeActive;
         private ushort _tradePartnerId;
