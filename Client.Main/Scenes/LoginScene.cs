@@ -125,7 +125,13 @@ namespace Client.Main.Scenes
             UpdateStatusLabel(_networkManager.CurrentState);
 
             progressCallback?.Invoke("Checking Connection State...", 0.80f);
-            if (_networkManager.CurrentState >= ClientConnectionState.ConnectedToConnectServer)
+            if (_networkManager.CurrentState == ClientConnectionState.Initial ||
+                _networkManager.CurrentState == ClientConnectionState.Disconnected)
+            {
+                _logger.LogInformation("LoginScene loaded, initiating connection to Connect Server...");
+                _ = _networkManager.ConnectToConnectServerAsync(); // Fire and forget
+            }
+            else if (_networkManager.CurrentState >= ClientConnectionState.ConnectedToConnectServer)
             {
                 _logger.LogInformation("LoginScene loaded, NetworkManager already connected or connecting. State: {State}", _networkManager.CurrentState);
 
@@ -137,12 +143,6 @@ namespace Client.Main.Scenes
                 HandleConnectionStateChange(this, _networkManager.CurrentState);
 
                 EnsureServerListPopulatedFromCache();
-            }
-            else if (_networkManager.CurrentState == ClientConnectionState.Initial ||
-                     _networkManager.CurrentState == ClientConnectionState.Disconnected)
-            {
-                _logger.LogInformation("LoginScene loaded, initiating connection to Connect Server...");
-                _ = _networkManager.ConnectToConnectServerAsync(); // Fire and forget
             }
             progressCallback?.Invoke("Login Scene Setup Complete.", 0.90f);
         }

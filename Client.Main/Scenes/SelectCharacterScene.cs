@@ -92,7 +92,8 @@ namespace Client.Main.Scenes
         private ButtonControl _exitButton;
         private CharacterCreationDialog _characterCreationDialog;
         private string _currentlySelectedCharacterName = null;
-        
+        private bool _isIntentionalLogout = false;
+
         // UI Panel rendering
         private RenderTarget2D _characterPanelSurface;
         private bool _panelNeedsRedraw = true;
@@ -669,11 +670,8 @@ namespace Client.Main.Scenes
         private void HandleLogoutResponseReceived(object sender, LogOutType logoutType)
         {
             _logger.LogInformation("SelectCharacterScene.HandleLogoutResponseReceived: Type={Type}", logoutType);
-            
-            if (logoutType == LogOutType.BackToCharacterSelection)
-            {
-                _logger.LogInformation("Logout completed for BackToCharacterSelection. Waiting for character list from server...");
-            }
+            // Intentional logout handling is now done in HandleConnectionStateChange
+            // which reacts to the Disconnected state after logout
         }
 
         private void HandleCharacterListReceived(object sender,
@@ -776,8 +774,16 @@ namespace Client.Main.Scenes
                 _logger.LogDebug("SelectCharacterScene received ConnectionStateChanged: {NewState}", newState);
                 if (newState == ClientConnectionState.Disconnected)
                 {
-                    _logger.LogWarning("Disconnected while in character selection. Returning to LoginScene.");
-                    MessageWindow.Show("Connection lost.");
+                    if (_isIntentionalLogout)
+                    {
+                        _logger.LogInformation("Intentional logout - returning to LoginScene.");
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Disconnected while in character selection. Returning to LoginScene.");
+                        MessageWindow.Show("Connection lost.");
+                    }
+
                     if (MuGame.Instance.ActiveScene == this)
                     {
                         MuGame.Instance.ChangeScene<LoginScene>();
@@ -1304,7 +1310,8 @@ namespace Client.Main.Scenes
         private void OnExitButtonClick(object sender, EventArgs e)
         {
             _logger.LogInformation("Exit button clicked - returning to login.");
-            _ = _networkManager.GetCharacterService().SendLogoutRequestAsync(LogOutType.BackToCharacterSelection);
+            _isIntentionalLogout = true;
+            _ = _networkManager.GetCharacterService().SendLogoutRequestAsync(LogOutType.BackToServerSelection);
         }
     }
 }
