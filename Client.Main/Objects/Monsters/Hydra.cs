@@ -10,11 +10,12 @@ namespace Client.Main.Objects.Monsters
     [NpcInfo(49, "Hydra")]
     public class Hydra : MonsterObject
     {
+        private bool _isAttacking = false;
+
         public Hydra()
         {
             RenderShadow = true;
             Scale = 1.0f; // Set according to C++ Setting_Monster
-            BlendMesh = 5;
             BlendMeshLight = 0.0f;
         }
 
@@ -54,6 +55,8 @@ namespace Client.Main.Objects.Monsters
         protected override void OnIdle()
         {
             base.OnIdle();
+            _isAttacking = false;
+            HiddenMesh = 5; // Hide mesh 5 when not attacking
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
             SoundController.Instance.PlayBufferWithAttenuation("Sound/mHydra1.wav", Position, listenerPosition); // Index 0 -> Sound 141
         }
@@ -61,8 +64,19 @@ namespace Client.Main.Objects.Monsters
         public override void OnPerformAttack(int attackType = 1)
         {
             base.OnPerformAttack(attackType);
+            _isAttacking = true;
+            HiddenMesh = -1; // Show all meshes during attack
             Vector3 listenerPosition = ((WalkableWorldControl)World).Walker.Position;
             SoundController.Instance.PlayBufferWithAttenuation("Sound/mHydraAttack1.wav", Position, listenerPosition); // Index 2 -> Sound 142
+        }
+
+        protected override bool IsBlendMesh(int mesh)
+        {
+            // Mesh 5 visible only during attacks
+            if (mesh == 5)
+                return _isAttacking;
+
+            return base.IsBlendMesh(mesh);
         }
 
         public override void OnDeathAnimationStart()

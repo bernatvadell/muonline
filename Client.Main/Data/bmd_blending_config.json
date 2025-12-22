@@ -51,6 +51,76 @@
     "NPC/ElfWizard01.bmd": {
     "0": "Opaque",
     "1": "Additive"
+  },
+    "comment_14" : "Elf Wings v2",
+    "Item/Wing04.bmd": {
+    "0": "Additive"
+  },
+    "comment_15" : "Elf Wings v3",
+    "Item/wing10.bmd": {
+    "0": "Additive"
+  }
+  ,
+    "comment_16" : "MG Wings v3",
+    "Item/wing11.bmd": {
+    "0": "Additive"
+  },
+    "comment_17" : "Elf shield 04",
+    "Item/Shield04.bmd": {
+    "0": "Opaque",
+    "1": "Additive"
+  },
+    "comment_18" : "shield 16",
+    "Item/Shield16.bmd": {
+    "0": "Additive",
+    "1": "Additive",
+    "2": "Opaque"
+  },
+    "comment_19" : "spear01",
+    "Item/Spear01.bmd": {
+    "0": "Opaque",
+    "1": "Additive"
+  },
+    "comment_20" : "staff07",
+    "Item/Staff07.bmd": {
+    "0": "Additive",
+    "1": "Additive",
+    "2": "Additive",
+    "3": "Additive"
+  },
+    "comment_21" : "staff08",
+    "Item/Staff08.bmd": {
+    "0": "Opaque",
+    "1": "Additive"
+  },
+    "comment_22" : "staff09",
+    "Item/Staff09.bmd": {
+    "0": "Additive"
+  },
+    "comment_23" : "staff10",
+    "Item/Staff10.bmd": {
+    "0": "Opaque",
+    "1": "Additive"
+  },
+    "comment_24" : "staff11",
+    "Item/Staff11.bmd": {
+    "0": "Additive",
+    "1": "Opaque"
+  },
+    "comment_25" : "crossbow 06",
+    "Item/CrossBow06.bmd": {
+    "0": "Additive",
+    "1": "Additive"
+  },
+    "comment_26" : "crossbow 07",
+    "Item/CrossBow07.bmd": {
+    "0": "Additive",
+    "1": "Additive"
+  },
+    "comment_27" : "crossbow 17",
+    "Item/CrossBow17.bmd": {
+    "0": "Additive",
+    "1": "Additive"
   }
 }
  
