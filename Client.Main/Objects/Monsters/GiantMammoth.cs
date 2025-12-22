@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
 {
+    [NpcInfo(455, "Giant Mammoth")]
     public class GiantMammoth : MonsterObject
     {
         public GiantMammoth()
