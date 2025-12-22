@@ -831,6 +831,8 @@ namespace Client.Main.Objects
                     }
 
                     // Draw all meshes in this state group
+                    // When dynamic lighting is disabled and blend state is non-opaque, force per-mesh path
+                    // to ensure proper DepthStencilState handling and BasicEffect usage for alpha blending
                     bool forcePerMeshTransparency = !Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
                                                     stateKey.BlendState != BlendState.Opaque;
                     for (int n = 0; n < meshIndices.Count; n++)
@@ -838,7 +840,7 @@ namespace Client.Main.Objects
                         int mi = meshIndices[n];
                         if (NeedsSpecialShaderForMesh(mi) || forcePerMeshTransparency)
                         {
-                            DrawMesh(mi); // Falls back to full per-mesh path for special shaders
+                            DrawMesh(mi); // Falls back to full per-mesh path for special shaders or forced transparency
 
                             // Per-mesh draws can change the active shader; reapply the group effect
                             // before any fast draws that follow.
@@ -1093,14 +1095,13 @@ namespace Client.Main.Objects
                     }
 
                     var alphaEffect = GraphicsManager.Instance.AlphaTestEffect3D;
-                    var basicEffect = GraphicsManager.Instance.BasicEffect3D;
 
                     // Cache frequently used values
                     bool isBlendMesh = IsBlendMesh(mesh);
                     BlendState blendState = GetMeshBlendState(mesh, isBlendMesh);
-                    bool useBasicEffect = !Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
-                                          blendState != BlendState.Opaque &&
-                                          basicEffect != null;
+                    // Always use AlphaTestEffect - it has ReferenceAlpha=2 which discards very low alpha
+                    // pixels similar to DynamicLightingEffect's clip(finalAlpha - 0.01), preventing
+                    // black outlines and depth buffer issues with semi-transparent meshes
                     var vertexBuffer = _boneVertexBuffers[mesh];
                     var indexBuffer = _boneIndexBuffers[mesh];
                     var texture = _boneTextures[mesh];
@@ -1108,7 +1109,7 @@ namespace Client.Main.Objects
                     // Batch state changes - save current states
                     var originalRasterizer = gd.RasterizerState;
                     var prevBlend = gd.BlendState;
-                    float prevAlpha = useBasicEffect ? basicEffect.Alpha : (alphaEffect?.Alpha ?? 1f);
+                    float prevAlpha = alphaEffect?.Alpha ?? 1f;
 
                     // Get mesh rendering states using helper methods
                     bool isTwoSided = IsMeshTwoSided(mesh, isBlendMesh);
@@ -1140,51 +1141,25 @@ namespace Client.Main.Objects
                     // Draw with optimized primitive count calculation
                     int primitiveCount = indexBuffer.IndexCount / 3;
 
-                    if (useBasicEffect)
+                    // Always use AlphaTestEffect - it discards very low alpha pixels (ReferenceAlpha=2)
+                    // similar to DynamicLightingEffect's clip(finalAlpha - 0.01), preventing black
+                    // outlines and depth issues while still allowing proper alpha blending
+                    if (alphaEffect != null)
                     {
-                        var prevWorld = basicEffect.World;
-                        var prevView = basicEffect.View;
-                        var prevProjection = basicEffect.Projection;
-                        var prevTexture = basicEffect.Texture;
+                        alphaEffect.Texture = texture;
+                        alphaEffect.Alpha = TotalAlpha;
 
-                        basicEffect.World = WorldPosition;
-                        basicEffect.View = Camera.Instance.View;
-                        basicEffect.Projection = Camera.Instance.Projection;
-                        basicEffect.Texture = texture;
-                        basicEffect.Alpha = TotalAlpha;
+                        var technique = alphaEffect.CurrentTechnique;
+                        var passes = technique.Passes;
+                        int passCount = passes.Count;
 
-                        var passes = basicEffect.CurrentTechnique.Passes;
-                        for (int p = 0; p < passes.Count; p++)
+                        for (int p = 0; p < passCount; p++)
                         {
                             passes[p].Apply();
                             gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
                         }
 
-                        basicEffect.Alpha = prevAlpha;
-                        basicEffect.World = prevWorld;
-                        basicEffect.View = prevView;
-                        basicEffect.Projection = prevProjection;
-                        basicEffect.Texture = prevTexture;
-                    }
-                    else
-                    {
-                        if (alphaEffect != null)
-                        {
-                            alphaEffect.Texture = texture;
-                            alphaEffect.Alpha = TotalAlpha;
-
-                            var technique = alphaEffect.CurrentTechnique;
-                            var passes = technique.Passes;
-                            int passCount = passes.Count;
-
-                            for (int p = 0; p < passCount; p++)
-                            {
-                                passes[p].Apply();
-                                gd.DrawIndexedPrimitives(PrimitiveType.TriangleList, 0, 0, primitiveCount);
-                            }
-
-                            alphaEffect.Alpha = prevAlpha;
-                        }
+                        alphaEffect.Alpha = prevAlpha;
                     }
 
                     gd.BlendState = prevBlend;

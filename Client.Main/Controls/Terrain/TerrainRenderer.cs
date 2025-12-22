@@ -160,6 +160,10 @@ namespace Client.Main.Controls.Terrain
 
                 effect.Projection = Camera.Instance.Projection;
                 effect.View = Camera.Instance.View;
+                effect.World = Matrix.Identity;
+                // Configure alpha blending to match custom shader behavior
+                effect.Alpha = 1.0f;
+                effect.VertexColorEnabled = true;
             }
 
             foreach (var block in _visibility.VisibleBlocks)
