@@ -1,4 +1,4 @@
-﻿using Client.Main.Content;
+using Client.Main.Content;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,17 +7,16 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
 {
-    [NpcInfo(356, "Gigantis")]
-    public class Gigantis : MonsterObject
+    [NpcInfo(348, "Ballista")]
+    public class Ballista : MonsterObject
     {
-        public Gigantis()
+        public Ballista()
         {
-            Scale = 1.2f;
         }
 
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare($"Monster/Monster113.bmd");
+            Model = await BMDLoader.Instance.Prepare($"Monster/Monster100.bmd");
             await base.Load();
         }
     }
