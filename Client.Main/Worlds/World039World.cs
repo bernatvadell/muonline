@@ -14,7 +14,11 @@ namespace Client.Main.Worlds
     {
         public World039World() : base(worldIndex: 39) // KANTURU REMAIN (RELICS)
         {
+            // World39 folder is missing TileRock05-07.ozj - map to existing rock textures
             Terrain.TextureMappingFiles[10] = "TileRock04.OZJ";
+            Terrain.TextureMappingFiles[11] = "TileRock04.OZJ"; // Fallback for missing TileRock05
+            Terrain.TextureMappingFiles[12] = "TileRock03.OZJ"; // Fallback for missing TileRock06
+            Terrain.TextureMappingFiles[13] = "TileRock02.OZJ"; // Fallback for missing TileRock07
         }
 
         public override void AfterLoad()

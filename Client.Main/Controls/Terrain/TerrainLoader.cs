@@ -29,7 +29,11 @@ namespace Client.Main.Controls.Terrain
 
         public void SetTextureMapping(Dictionary<int, string> textureMapping)
         {
-            _terrainData.TextureMappingFiles = new Dictionary<int, string>(textureMapping);
+            // Merge overrides with defaults instead of replacing entirely
+            foreach (var kvp in textureMapping)
+            {
+                _terrainData.TextureMappingFiles[kvp.Key] = kvp.Value;
+            }
         }
 
         public async Task<TerrainData> LoadAsync()
