@@ -122,6 +122,20 @@ float3 HSVtoRGB(float3 hsv)
     return rgb + m;
 }
 
+// Custom spectrum for Excellent items: Blue -> Orange -> Violet (NO GREEN)
+// blueScale: controls blue intensity (0.30 for +7+, 1.0 for +0-+6)
+float3 GetCustomSpectrum(float phase, float blueScale)
+{
+    phase = frac(phase) * 3.0;
+    if (phase < 1.0)
+        return lerp(float3(0.0, 0.3, 1.0) * float3(1.0, 1.0, blueScale), float3(1.0, 0.5, 0.0), frac(phase)); // Blue to Orange
+    else if (phase < 2.0)
+        return lerp(float3(1.0, 0.5, 0.0), float3(0.6, 0.0, 0.8), frac(phase)); // Orange to Violet
+    else
+        return lerp(float3(0.6, 0.0, 0.8), float3(0.0, 0.3, 1.0) * float3(1.0, 1.0, blueScale), frac(phase)); // Violet to Blue
+}
+
+
 float SampleShadow(float3 worldPos, float3 normal)
 {
     // Branchless shadow sampling for OpenGL compatibility
@@ -192,27 +206,27 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     float ghostIntensity = 0.0;
     
     if (itemLevel < 7)
-    {
-        brightness = 1.2;
-        ghostIntensity = 0.0;
+    {    
+        brightness = 1;
+        ghostIntensity = 0;
     }
     else if (itemLevel < 9)
     {
         effectColor = GlowColor * GlowIntensityScale;
-        brightness = 1.6;
-        ghostIntensity = 0.3;
+        brightness = 1.6 + (itemLevel -8) * 0.2;
+        ghostIntensity = 0.30;
     }
     else if (itemLevel < 10)
     {
         effectColor = GlowColor * GlowIntensityScale;
-        brightness = 1.8;
-        ghostIntensity = 0.6;
+        brightness = 1.8 + (itemLevel - 9) * 0.2;
+        ghostIntensity = 0.8;
     }
     else
     {
         effectColor = GlowColor * GlowIntensityScale;
-        brightness = 1.8 + (itemLevel - 10) * 0.2;
-        ghostIntensity = 0.8;
+        brightness = 1.8 + (itemLevel -10 ) * 0.2;
+        ghostIntensity = 0.7 + (itemLevel / 30 );
     }
     
     float subtlePulse = (1.0 + sin(Time * 0.8)) * 0.03 + 0.97;
@@ -312,6 +326,45 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     float baseGlowIntensity = (itemLevel >= 9) ? 0.5 : 0.25;
     color.rgb += color.rgb * ancientColor * baseGlow * baseGlowIntensity * ancientEnabled;
     
+    // ==================== EXCELLENT SWEEP PULSE EFFECT ====================
+    // Similar to Ancient sweep but with semi-transparent violet color (only for +7+)
+    float excellentSweepEnabled = (IsExcellent && itemLevel >= 7) ? 1.0 : 0.0;
+    float3 excellentSweepColor = float3(0.5, 0.3, 0.7); // Semi-transparent violet (less white, more violet)
+    
+    // Cycle with pause: sweep takes 15% of cycle, pause is 85%
+    float exCycleSpeed = 0.12; 
+    float exSweepPortion = 0.15;
+    
+    float exCycleProgress = frac(Time * exCycleSpeed);
+    float exSweepProgress = saturate(exCycleProgress / exSweepPortion);
+    
+    // Fast sweep across mesh
+    float exSweepPosition = exSweepProgress;
+    float exMeshPosition = input.TextureCoordinate.x;
+    
+    // Create sharp beam
+    float exBeamWidth = 0.18;
+    float exDistFromBeam = abs(exMeshPosition - exSweepPosition);
+    float exBeamIntensity = 1.0 - saturate(exDistFromBeam / exBeamWidth);
+    exBeamIntensity = pow(exBeamIntensity, 2.0) * 2.0; // Reduced intensity for semi-transparency
+    
+    // Fade out beam at the end of sweep
+    float exFadeOut = 1.0 - smoothstep(0.85, 1.0, exSweepProgress);
+    exBeamIntensity *= exFadeOut;
+    
+    // Add secondary vertical wave for depth
+    float exWave2 = sin(Time * 3.5 + input.TextureCoordinate.y * 6.0) * 0.3 + 0.7;
+    float exCombinedWave = exBeamIntensity * exWave2;
+    
+    float exLevelBoost = (itemLevel >= 9) ? 1.5 : 1.0; // Reduced boost for subtlety
+    color.rgb += excellentGhost1.rgb * excellentSweepColor * exCombinedWave * 1.2 * exLevelBoost * excellentSweepEnabled;
+    color.rgb += excellentGhost2.rgb * excellentSweepColor * exCombinedWave * 0.9 * exLevelBoost * excellentSweepEnabled;
+    
+    // Subtle base violet glow (always present for excellent +7+)
+    float exBaseGlow = sin(Time * 0.9) * 0.08 + 0.12; // Reduced base glow
+    float exBaseGlowIntensity = (itemLevel >= 9) ? 0.4 : 0.2; // Reduced intensity
+    color.rgb += color.rgb * excellentSweepColor * exBaseGlow * exBaseGlowIntensity * excellentSweepEnabled;
+    
     // ==================== ENHANCED EXCELLENT EFFECT ====================
         float excellentEnabled = IsExcellent ? 1.0 : 0.0;
         
@@ -320,16 +373,22 @@ float4 MainPS(VertexShaderOutput input) : COLOR
         float fresnel = 1.0 - saturate(dot(viewDir, normal));
         fresnel = pow(fresnel, 2.5); // Sharper edge glow
         
-        // 2. Smooth rainbow color cycling using HSV
+        // 2. Custom spectrum color cycling (Blue -> Orange -> Violet, NO GREEN)
         float hueBase = frac(Time * 0.15); // Slow base rotation
         float hueSpatial = input.TextureCoordinate.x * 0.3 + input.TextureCoordinate.y * 0.2; // Spatial variation
         float hueNormal = (normal.x + normal.y) * 0.1; // Normal-based variation
         
-        // Create multiple rainbow colors at different phases
-        float3 rainbow1 = HSVtoRGB(float3(frac(hueBase + hueSpatial), 0.85, 1.0));
-        float3 rainbow2 = HSVtoRGB(float3(frac(hueBase + hueSpatial + 0.33), 0.85, 1.0));
-        float3 rainbow3 = HSVtoRGB(float3(frac(hueBase + hueSpatial + 0.66), 0.85, 1.0));
-        float3 rainbow4 = HSVtoRGB(float3(frac(hueBase + hueNormal + 0.5), 0.9, 1.0));
+        // Blue intensity: 0.30 for +7+, 1.0 for +0-+6
+        float blueScale = (itemLevel >= 7) ? 0.01 : 1.0;
+        
+        // Excellent effect intensity scale
+        float exScale = (itemLevel >= 7) ? 1.8 : 1.8;
+        
+        // Create multiple spectrum colors at different phases
+        float3 rainbow1 = GetCustomSpectrum(hueBase + hueSpatial, blueScale);
+        float3 rainbow2 = GetCustomSpectrum(hueBase + hueSpatial + 0.33, blueScale);
+        float3 rainbow3 = GetCustomSpectrum(hueBase + hueSpatial + 0.66, blueScale);
+        float3 rainbow4 = GetCustomSpectrum(hueBase + hueNormal + 0.5, blueScale);
         
         // 3. Sweeping shine effect - diagonal light beams
         float sweepSpeed1 = Time * 1.5;
@@ -365,12 +424,12 @@ float4 MainPS(VertexShaderOutput input) : COLOR
         // Apply ghost layers with rainbow colors
         float ghostBaseIntensity = 0.2 * combinedPulse + 0.1;
         
-        color.rgb += excellentGhost1.rgb * rainbow1 * ghostBaseIntensity * 1.0 * excellentEnabled;
-        color.rgb += excellentGhost2.rgb * rainbow2 * ghostBaseIntensity * 0.9 * excellentEnabled;
-        color.rgb += excellentGhost3.rgb * rainbow3 * ghostBaseIntensity * 0.8 * excellentEnabled;
-        color.rgb += excellentGhost4.rgb * rainbow4 * ghostBaseIntensity * 0.7 * excellentEnabled;
-        color.rgb += excellentGhost5.rgb * waveColor * ghostBaseIntensity * 0.6 * excellentEnabled;
-        color.rgb += excellentGhost6.rgb * rainbow1 * ghostBaseIntensity * 0.5 * excellentEnabled;
+        color.rgb += excellentGhost1.rgb * rainbow1 * ghostBaseIntensity * (1.0 * exScale) * excellentEnabled;
+        color.rgb += excellentGhost2.rgb * rainbow2 * ghostBaseIntensity * (0.9 * exScale) * excellentEnabled;
+        color.rgb += excellentGhost3.rgb * rainbow3 * ghostBaseIntensity * (0.8 * exScale) * excellentEnabled;
+        color.rgb += excellentGhost4.rgb * rainbow4 * ghostBaseIntensity * (0.7 * exScale) * excellentEnabled;
+        color.rgb += excellentGhost5.rgb * waveColor * ghostBaseIntensity * (0.6 * exScale) * excellentEnabled;
+        color.rgb += excellentGhost6.rgb * rainbow1 * ghostBaseIntensity * (0.5 * exScale) * excellentEnabled;
         
         // Apply sweeping beams with rainbow
         float3 beamColor = lerp(rainbow1, rainbow2, sin(Time * 0.4) * 0.5 + 0.5);

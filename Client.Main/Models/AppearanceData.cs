@@ -80,10 +80,24 @@ namespace Client.Main.Models
             : 0;
 
         /// <summary>
-        /// Converts a 3‑bit glow level (0–7) to the actual item level (0, 1, 3, 5, ...).
+        /// Converts a 3‑bit glow level (0–7) to the actual item level.
+        /// Standard MU Online mapping: 0->0, 1->3, 2->5, 3->7, 4->9, 5->11, 6->13, 7->15
         /// </summary>
-        private static byte ConvertGlowToItemLevel(byte glow) =>
-            glow == 0 ? (byte)0 : (byte)((glow - 1) * 2 + 1);
+        private static byte ConvertGlowToItemLevel(byte glow)
+        {
+            return glow switch
+            {
+                0 => 0,
+                1 => 3,
+                2 => 5,
+                3 => 7,
+                4 => 9,
+                5 => 11,
+                6 => 13,
+                7 => 15,
+                _ => 0
+            };
+        }
 
         /// <summary>
         /// Gets the item level for the specified slot index (0=LeftHand, 1=RightHand, ..., 6=Boots).
