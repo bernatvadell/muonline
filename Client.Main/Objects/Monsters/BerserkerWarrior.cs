@@ -11,6 +11,7 @@ namespace Client.Main.Objects.Monsters
     {
         public BerserkerWarrior()
         {
+            Scale = 1.15f;
         }
 
         public override async Task Load()
