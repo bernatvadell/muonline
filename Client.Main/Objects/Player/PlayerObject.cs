@@ -713,6 +713,8 @@ namespace Client.Main.Objects.Player
             if (leftHandDef != null)
             {
                 Weapon1.Model = await BMDLoader.Instance.Prepare(leftHandDef.TexturePath);
+                Weapon1.TexturePath = leftHandDef.TexturePath;
+                Weapon1.ItemGroup = ItemDatabase.GetItemGroup(inventory[InventoryConstants.LeftHandSlot]);
                 Weapon1.LinkParentAnimation = false;
                 SetItemProperties(Weapon1, inventory[InventoryConstants.LeftHandSlot]);
                 RefreshWeaponAttachment(Weapon1, isLeftHand: true);
@@ -720,6 +722,7 @@ namespace Client.Main.Objects.Player
             else
             {
                 Weapon1.Model = null;
+                Weapon1.TexturePath = null;
             }
 
             // Right Hand
@@ -727,6 +730,8 @@ namespace Client.Main.Objects.Player
             if (rightHandDef != null)
             {
                 Weapon2.Model = await BMDLoader.Instance.Prepare(rightHandDef.TexturePath);
+                Weapon2.TexturePath = rightHandDef.TexturePath;
+                Weapon2.ItemGroup = ItemDatabase.GetItemGroup(inventory[InventoryConstants.RightHandSlot]);
                 Weapon2.LinkParentAnimation = false;
                 SetItemProperties(Weapon2, inventory[InventoryConstants.RightHandSlot]);
                 RefreshWeaponAttachment(Weapon2, isLeftHand: false);
@@ -734,6 +739,7 @@ namespace Client.Main.Objects.Player
             else
             {
                 Weapon2.Model = null;
+                Weapon2.TexturePath = null;
             }
 
             await EnsureHelmHeadVisibleAsync();
@@ -871,6 +877,7 @@ namespace Client.Main.Objects.Player
                 if (leftHandDef != null)
                 {
                     Weapon1.Model = await BMDLoader.Instance.Prepare(leftHandDef.TexturePath);
+                    Weapon1.TexturePath = leftHandDef.TexturePath;
                     Weapon1.LinkParentAnimation = false;
 
                     // Apply item properties for shader effects
@@ -882,11 +889,13 @@ namespace Client.Main.Objects.Player
                 else
                 {
                     Weapon1.Model = null;
+                    Weapon1.TexturePath = null;
                 }
             }
             else
             {
                 Weapon1.Model = null;
+                Weapon1.TexturePath = null;
             }
 
             if (Appearance.RightHandItemIndex != 255 && Appearance.RightHandItemIndex != 0xFF)
@@ -895,6 +904,7 @@ namespace Client.Main.Objects.Player
                 if (rightHandDef != null)
                 {
                     Weapon2.Model = await BMDLoader.Instance.Prepare(rightHandDef.TexturePath);
+                    Weapon2.TexturePath = rightHandDef.TexturePath;
                     Weapon2.LinkParentAnimation = false;
 
                     // Apply item properties for shader effects
@@ -906,11 +916,13 @@ namespace Client.Main.Objects.Player
                 else
                 {
                     Weapon2.Model = null;
+                    Weapon2.TexturePath = null;
                 }
             }
             else
             {
                 Weapon2.Model = null;
+                Weapon2.TexturePath = null;
             }
             await EnsureHelmHeadVisibleAsync();
         }
@@ -1069,6 +1081,7 @@ namespace Client.Main.Objects.Player
                 if (leftHandDef != null)
                 {
                     Weapon1.Model = await BMDLoader.Instance.Prepare(leftHandDef.TexturePath);
+                    Weapon1.TexturePath = leftHandDef.TexturePath;
                     Weapon1.LinkParentAnimation = false;
 
                     // Apply item properties for shader effects
@@ -1080,11 +1093,13 @@ namespace Client.Main.Objects.Player
                 else
                 {
                     Weapon1.Model = null;
+                    Weapon1.TexturePath = null;
                 }
             }
             else
             {
                 Weapon1.Model = null;
+                Weapon1.TexturePath = null;
             }
 
             if (appearanceConfig.RightHandItemIndex != 255 && appearanceConfig.RightHandItemIndex != 0xFF)
@@ -1093,6 +1108,7 @@ namespace Client.Main.Objects.Player
                 if (rightHandDef != null)
                 {
                     Weapon2.Model = await BMDLoader.Instance.Prepare(rightHandDef.TexturePath);
+                    Weapon2.TexturePath = rightHandDef.TexturePath;
                     Weapon2.LinkParentAnimation = false;
 
                     // Apply item properties for shader effects
@@ -1104,11 +1120,13 @@ namespace Client.Main.Objects.Player
                 else
                 {
                     Weapon2.Model = null;
+                    Weapon2.TexturePath = null;
                 }
             }
             else
             {
                 Weapon2.Model = null;
+                Weapon2.TexturePath = null;
             }
 
             await EnsureHelmHeadVisibleAsync();
@@ -2577,6 +2595,17 @@ namespace Client.Main.Objects.Player
                 weapon.ParentBoneLink = BackWeaponBoneIndex;
                 weapon.Position = GetHolsterOffset(isLeftHand);
                 weapon.Angle = GetHolsterRotationRadians(isLeftHand);
+
+                // Apply specific offsets for shields, bows, and crossbows when holstered
+                if (weapon.ItemGroup == 6) // Shields
+                {
+                    weapon.Position = new Vector3(weapon.Position.X - 15f, weapon.Position.Y - 5f, weapon.Position.Z - 80f);
+                    weapon.Angle = new Vector3(weapon.Angle.X + MathHelper.ToRadians(100f), weapon.Angle.Y + MathHelper.ToRadians(180f), weapon.Angle.Z); // Rotate 90 degrees around Y
+                }
+                else if (weapon.ItemGroup == 4) // Bows and Crossbows
+                {
+                    weapon.Position = new Vector3(weapon.Position.X, weapon.Position.Y, weapon.Position.Z - 30f); // Slightly lower
+                }
             }
             else
             {
@@ -3740,11 +3769,13 @@ namespace Client.Main.Objects.Player
             {
                 case InventoryConstants.LeftHandSlot:
                     Weapon1.Model = null;
+                    Weapon1.TexturePath = null;
                     ClearItemProperties(Weapon1);
                     break;
 
                 case InventoryConstants.RightHandSlot:
                     Weapon2.Model = null;
+                    Weapon2.TexturePath = null;
                     ClearItemProperties(Weapon2);
                     break;
 
