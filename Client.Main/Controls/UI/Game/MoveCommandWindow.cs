@@ -333,9 +333,9 @@ namespace Client.Main.Controls.UI.Game
             if (Visible)
             {
                 _logger.LogDebug("MoveCommandWindow toggled ON. Refreshing map data.");
-                LoadMapData();
                 _currentScrollOffset = 0;
-                if (_scrollBar.Visible) _scrollBar.Value = 0;
+                if (_scrollBar != null) _scrollBar.Value = 0;
+                LoadMapData();
                 Scene.FocusControl = this;
             }
             else

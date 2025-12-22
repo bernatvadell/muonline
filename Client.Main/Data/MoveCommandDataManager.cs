@@ -51,6 +51,16 @@ namespace Client.Main.Data
                 new MoveCommandInfo { Index = 31, ServerMapName = "Elveland", DisplayName = "Elbeland", RequiredLevel = 10, RequiredZen = 2000 },
                 new MoveCommandInfo { Index = 32, ServerMapName = "Elveland2", DisplayName = "Elbeland 2", RequiredLevel = 10, RequiredZen = 2500 },
                 new MoveCommandInfo { Index = 43, ServerMapName = "Elveland3", DisplayName = "Elbeland 3", RequiredLevel = 10, RequiredZen = 3000 },
+
+                new MoveCommandInfo { Index = 28, ServerMapName = "KanturuRuins1", DisplayName = "Kanturu Ruin 1", RequiredLevel = 160, RequiredZen = 9000 },
+                new MoveCommandInfo { Index = 29, ServerMapName = "KanturuRuins2", DisplayName = "Kanturu Ruin 2", RequiredLevel = 160, RequiredZen = 9000 },
+                new MoveCommandInfo { Index = 45, ServerMapName = "KanturuRuins3", DisplayName = "Kanturu Ruin Island", RequiredLevel = 160, RequiredZen = 15000 },
+                new MoveCommandInfo { Index = 30, ServerMapName = "KanturuRelics", DisplayName = "Kanturu Remain", RequiredLevel = 230, RequiredZen = 12000 },
+                new MoveCommandInfo { Index = 46, ServerMapName = "Karutan1", DisplayName = "Karutan 1", RequiredLevel = 170, RequiredZen = 13000 },
+                new MoveCommandInfo { Index = 47, ServerMapName = "Karutan2", DisplayName = "Karutan 2", RequiredLevel = 170, RequiredZen = 14000 },
+                new MoveCommandInfo { Index = 34, ServerMapName = "LaCleon", DisplayName = "Raklion", RequiredLevel = 280, RequiredZen = 15000 },
+                new MoveCommandInfo { Index = 33, ServerMapName = "PeaceSwamp", DisplayName = "Swamp of Calmness", RequiredLevel = 400, RequiredZen = 15000 },
+                new MoveCommandInfo { Index = 42, ServerMapName = "Vulcanus", DisplayName = "Vulcanus", RequiredLevel = 30, RequiredZen = 15000 },
             };
 
             _moveCommands = _moveCommands.OrderBy(m => m.RequiredLevel).ThenBy(m => m.DisplayName).ToList();
