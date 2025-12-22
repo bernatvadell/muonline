@@ -13,6 +13,11 @@
     <MonoGameFrameworkPackage Condition="'$(MonoGameFrameworkPackage)'==''">MonoGame.Framework.DesktopGL</MonoGameFrameworkPackage>
   </PropertyGroup>
 
+  <!-- Android platform version -->
+  <PropertyGroup Condition="'$(TargetFramework)'=='net10.0-android'">
+    <TargetPlatformVersion>36.0</TargetPlatformVersion>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="BCnEncoder.Net" Version="2.2.1" />
     <PackageReference Include="BouncyCastle.NetCore" Version="2.2.1" />

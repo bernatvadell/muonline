@@ -8,7 +8,7 @@ namespace Client.Main.Scenes
 {
     internal sealed class GameSceneNotificationController
     {
-        private readonly NotificationManager _notificationManager;
+        private readonly Controls.UI.NotificationManager _notificationManager;
         private readonly ChatLogWindow _chatLog;
         private readonly List<(ServerMessage.MessageType Type, string Message)> _pendingNotifications = new();
         private static readonly Dictionary<ServerMessage.MessageType, Color> NotificationColors = new()
@@ -18,7 +18,7 @@ namespace Client.Main.Scenes
             { ServerMessage.MessageType.GuildNotice, new Color(144, 238, 144) }
         };
 
-        public GameSceneNotificationController(NotificationManager notificationManager, ChatLogWindow chatLog)
+        public GameSceneNotificationController(Controls.UI.NotificationManager notificationManager, ChatLogWindow chatLog)
         {
             _notificationManager = notificationManager;
             _chatLog = chatLog;

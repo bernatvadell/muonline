@@ -74,7 +74,7 @@ jobs:
           cmdline-tools-version: 11076708
           packages: |
             platform-tools
-            platforms;android-35
+            platforms;android-36
             build-tools;35.0.0
             ndk;27.2.12479018
           accept-android-sdk-licenses: true

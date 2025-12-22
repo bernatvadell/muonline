@@ -43,7 +43,7 @@ namespace Client.Main.Scenes
         private MoveCommandWindow _moveCommandWindow;
         private ChatInputBoxControl _chatInput;
         private InventoryControl _inventoryControl;
-        private NotificationManager _notificationManager;
+        private Controls.UI.NotificationManager _notificationManager;
         private PartyPanelControl _partyPanel;
         private readonly (string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance) _characterInfo;
         private CharacterInfoWindowControl _characterInfoWindow;
@@ -134,7 +134,7 @@ namespace Client.Main.Scenes
             Controls.Add(_chatInput);
             _duelController = new GameSceneDuelController(this, _chatLog, _logger);
 
-            _notificationManager = new NotificationManager();
+            _notificationManager = new Controls.UI.NotificationManager();
             Controls.Add(_notificationManager);
             _notificationManager.BringToFront();
             _notificationController = new GameSceneNotificationController(_notificationManager, _chatLog);

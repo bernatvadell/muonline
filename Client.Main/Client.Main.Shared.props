@@ -14,6 +14,7 @@
   <!-- Define platform constants -->
   <PropertyGroup Condition="'$(TargetFramework)'=='net10.0-android'">
     <DefineConstants>$(DefineConstants);ANDROID</DefineConstants>
+    <TargetPlatformVersion>36.0</TargetPlatformVersion>
   </PropertyGroup>
   <PropertyGroup Condition="'$(TargetFramework)'=='net10.0-ios'">
     <DefineConstants>$(DefineConstants);IOS</DefineConstants>
