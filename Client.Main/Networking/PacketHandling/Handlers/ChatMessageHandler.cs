@@ -70,6 +70,30 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     {
                         _lastBlueSystemMessage = (DateTime.UtcNow, cleaned);
                     }
+
+                    // Check if this message is from a recently talked-to NPC
+                    var characterState = MuGame.Network?.GetCharacterState();
+                    if (characterState != null && characterState.LastNpcNetworkId != 0)
+                    {
+                        ushort npcId = characterState.LastNpcNetworkId;
+                        ushort npcType = characterState.LastNpcTypeNumber;
+
+                        // Try to show chat bubble above the NPC
+                        MuGame.ScheduleOnMainThread(() =>
+                        {
+                            if (scene?.World == null) return;
+
+                            var world = scene.World;
+                            if (world.TryGetWalkerById(npcId, out var npc) && npc != null)
+                            {
+                                string npcName = NpcDatabase.GetNpcName(npcType);
+                                var bubble = new ChatBubbleObject(cleaned, npcId, npcName);
+                                world.Objects.Add(bubble);
+
+                                _logger.LogDebug("Created chat bubble for NPC {NpcId} ({NpcName}): '{Message}'", npcId, npcName, cleaned);
+                            }
+                        });
+                    }
                 }
 
                 // Queue for UI-thread processing in GameScene
@@ -77,7 +101,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     scene.ShowNotificationMessage(serverMsg.Type, cleaned);
                 }
-                
+
                 // Also print to console with prefix based on message type
                 string prefix = serverMsg.Type switch
                 {

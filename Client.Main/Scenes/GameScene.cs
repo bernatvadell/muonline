@@ -116,6 +116,9 @@ namespace Client.Main.Scenes
             Controls.Add(TradeControl.Instance);
             Controls.Add(QuestDialogControl.Instance);
             Controls.Add(DevilSquareEnterControl.Instance);
+            Controls.Add(BloodCastleEnterControl.Instance);
+            Controls.Add(BloodCastleTimeControl.Instance);
+            Controls.Add(BloodCastleResultControl.Instance);
 
             _mapListControl = new MapListControl { Visible = false };
 

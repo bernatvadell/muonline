@@ -40,6 +40,7 @@ namespace Client.Main.Networking.PacketHandling
         private readonly PartyHandler _partyHandler;
         private readonly ShopHandler _shopHandler;
         private readonly TradeHandler _tradeHandler;
+        private readonly BloodCastleHandler _bloodCastleHandler;
 
         private readonly Dictionary<(byte MainCode, byte SubCode), Func<Memory<byte>, Task>> _packetHandlers
             = new();
@@ -77,6 +78,7 @@ namespace Client.Main.Networking.PacketHandling
             _partyHandler = new PartyHandler(loggerFactory, partyManager, characterService, scopeManager, characterState);
             _shopHandler = new ShopHandler(loggerFactory, characterState, networkManager, targetVersion);
             _tradeHandler = new TradeHandler(loggerFactory, characterState, networkManager, targetVersion);
+            _bloodCastleHandler = new BloodCastleHandler(loggerFactory, characterState, networkManager);
 
             RegisterAttributeBasedHandlers();
             RegisterConnectServerHandlers();
@@ -218,7 +220,8 @@ namespace Client.Main.Networking.PacketHandling
                 _legacyQuestHandler,
                 _partyHandler,
                 _shopHandler,
-                _tradeHandler
+                _tradeHandler,
+                _bloodCastleHandler
             };
 
             int registered = 0;

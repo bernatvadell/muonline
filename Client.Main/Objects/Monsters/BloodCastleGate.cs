@@ -7,10 +7,13 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Monsters
 {
+    [NpcInfo(131, "Castle Gate")]
     public class BloodCastleGate : MonsterObject
     {
         public BloodCastleGate()
         {
+            Scale = 0.8f;
+            RenderShadow = false;
         }
 
         public override async Task Load()

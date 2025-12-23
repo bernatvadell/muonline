@@ -102,6 +102,13 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         DevilSquareEnterControl.Instance.ShowWindow();
                     });
                 }
+                else if (resp.Window == NpcWindowResponse.NpcWindow.BloodCastle)
+                {
+                    MuGame.ScheduleOnMainThread(() =>
+                    {
+                        BloodCastleEnterControl.Instance.ShowWindow();
+                    });
+                }
             }
             catch (Exception ex)
             {

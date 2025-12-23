@@ -4,14 +4,14 @@ using System.Threading.Tasks;
 namespace Client.Main.Objects.NPCS
 {
     /// <summary>
-    /// Messenger of Archangel NPC - Blood Castle related NPC.
+    /// Gens Vanert NPC - Vanert Gens faction NPC.
     /// </summary>
-    [NpcInfo(233, "Messenger of Archangel")]
-    public class MessengerOfArchangel : NPCObject
+    [NpcInfo(544, "Gens Vanert")]
+    public class GensVanert : NPCObject
     {
         public override async Task Load()
         {
-            Model = await BMDLoader.Instance.Prepare($"NPC/BloodCastle02.bmd");
+            Model = await BMDLoader.Instance.Prepare($"NPC/barnert.bmd");
             await base.Load();
         }
 

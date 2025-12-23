@@ -1050,6 +1050,38 @@ namespace Client.Main.Networking.Services
         }
 
         /// <summary>
+        /// Sends a request to enter Blood Castle.
+        /// </summary>
+        /// <param name="castleLevel">Blood Castle level (1-8).</param>
+        /// <param name="ticketInventoryIndex">Inventory slot index of the Blood Bone or Scroll of Archangel (includes offset 12), or 0xFF.</param>
+        public async Task SendBloodCastleEnterRequestAsync(byte castleLevel, byte ticketInventoryIndex)
+        {
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected - cannot send Blood Castle enter request.");
+                return;
+            }
+
+            _logger.LogInformation("Sending BloodCastleEnterRequest: Level={Level}, TicketSlot={Slot}", castleLevel, ticketInventoryIndex);
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                {
+                    var len = BloodCastleEnterRequest.Length;
+                    var packet = new BloodCastleEnterRequest(_connectionManager.Connection.Output.GetMemory(len).Slice(0, len));
+                    packet.CastleLevel = castleLevel;
+                    packet.TicketItemInventoryIndex = ticketInventoryIndex;
+                    return len;
+                });
+                _logger.LogInformation("BloodCastleEnterRequest sent.");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending BloodCastleEnterRequest.");
+            }
+        }
+
+        /// <summary>
         /// Requests the legacy quest state list (C1 A0). In the original client this is sent after entering the game world.
         /// </summary>
         public async Task RequestLegacyQuestStateListAsync()
