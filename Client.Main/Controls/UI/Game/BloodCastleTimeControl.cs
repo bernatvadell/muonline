@@ -42,6 +42,12 @@ namespace Client.Main.Controls.UI.Game
         private int _maxMonsters = 65535; // Default max (means not set)
         private string _timeText = "00:00:00";
 
+        /// <summary>
+        /// Indicates if Blood Castle event is currently active (bridge is open).
+        /// When true, players can cross the normally-blocked bridge area.
+        /// </summary>
+        public static bool IsEventActive { get; private set; }
+
         private BloodCastleTimeControl()
         {
             ControlSize = new Point(WINDOW_WIDTH, WINDOW_HEIGHT);
@@ -138,11 +144,13 @@ namespace Client.Main.Controls.UI.Game
         public void ShowWindow()
         {
             Visible = true;
+            IsEventActive = true; // Open the bridge when event starts
         }
 
         public void HideWindow()
         {
             Visible = false;
+            IsEventActive = false; // Close the bridge when event ends
             _remainingTimeSeconds = 0;
             _killedMonsters = 0;
             _maxMonsters = 65535;

@@ -322,7 +322,25 @@ namespace Client.Main.Controls
         public bool IsWalkable(Vector2 position)
         {
             var terrainFlag = Terrain.RequestTerrainFlag((int)position.X, (int)position.Y);
-            return !terrainFlag.HasFlag(TWFlags.NoMove);
+            bool hasNoMove = terrainFlag.HasFlag(TWFlags.NoMove);
+
+            // In Blood Castle, when the event is active (timer started), allow crossing the bridge
+            // even if NoMove flag is set (the bridge area is normally blocked until event starts)
+            if (hasNoMove && UI.Game.BloodCastleTimeControl.IsEventActive)
+            {
+                // Check if we're on a Blood Castle map (map IDs 11-17 and 52)
+                var charState = MuGame.Network?.GetCharacterState();
+                if (charState != null)
+                {
+                    var mapId = charState.MapId;
+                    if ((mapId >= 11 && mapId <= 17) || mapId == 52)
+                    {
+                        return true; // Allow movement during active Blood Castle event
+                    }
+                }
+            }
+
+            return !hasNoMove;
         }
 
         private void OnObjectAdded(object sender, ChildrenEventArgs<WorldObject> e)
