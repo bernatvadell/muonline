@@ -95,6 +95,11 @@ namespace Client.Main
         public TouchCollection Touch { get; private set; }
         public Point UiTouchPosition { get; private set; }
         public Ray MouseRay { get; private set; }
+        /// <summary>
+        /// Mouse position converted to back buffer space (for 3D raycasting).
+        /// In fullscreen borderless mode, window size may differ from back buffer size.
+        /// </summary>
+        public Vector2 MouseInBackBuffer { get; private set; }
         public GameTime GameTime { get; private set; }
         public DepthStencilState DisableDepthMask { get; } = new DepthStencilState
         {
@@ -111,7 +116,8 @@ namespace Client.Main
             {
                 PreferredBackBufferWidth = 1280,
                 PreferredBackBufferHeight = 720,
-                PreferMultiSampling = Constants.MSAA_ENABLED
+                PreferMultiSampling = Constants.MSAA_ENABLED,
+                HardwareModeSwitch = false // Required for dynamic resolution changes at runtime
             };
 
 #if ANDROID
@@ -637,7 +643,6 @@ namespace Client.Main
         {
             var mouseState = Microsoft.Xna.Framework.Input.Mouse.GetState();
             var touchState = TouchPanel.GetState();
-            var windowBounds = Window.ClientBounds;
 
             PrevMouseState = Mouse;
             PrevUiMouseState = UiMouseState;
@@ -649,9 +654,31 @@ namespace Client.Main
             Keyboard = Microsoft.Xna.Framework.Input.Keyboard.GetState();
             Touch = touchState;
 
-            // Update physical mouse only if we're in the window (important for PC)
-            var absoluteMousePosition = new Microsoft.Xna.Framework.Point(mouseState.X + windowBounds.X, mouseState.Y + windowBounds.Y);
-            if (!IsActive || !windowBounds.Contains(absoluteMousePosition))
+            // Get back buffer and window dimensions
+            int backBufferWidth = GraphicsDevice.PresentationParameters.BackBufferWidth;
+            int backBufferHeight = GraphicsDevice.PresentationParameters.BackBufferHeight;
+
+            // In borderless fullscreen, Window.ClientBounds may return screen size while
+            // back buffer is smaller. We need to check if mouse needs scaling.
+            // Use Window.ClientBounds for the actual area where mouse events are reported.
+            var clientBounds = Window.ClientBounds;
+            int inputAreaWidth = clientBounds.Width > 0 ? clientBounds.Width : backBufferWidth;
+            int inputAreaHeight = clientBounds.Height > 0 ? clientBounds.Height : backBufferHeight;
+
+            // Calculate scale factors for converting input coords to back buffer coords
+            float scaleX = (float)backBufferWidth / inputAreaWidth;
+            float scaleY = (float)backBufferHeight / inputAreaHeight;
+
+            // Convert mouse position from window space to back buffer space
+            float mouseBackBufferX = mouseState.X * scaleX;
+            float mouseBackBufferY = mouseState.Y * scaleY;
+            MouseInBackBuffer = new Vector2(mouseBackBufferX, mouseBackBufferY);
+
+            // Check if mouse is within back buffer bounds (using converted coordinates)
+            var mouseInWindow = mouseBackBufferX >= 0 && mouseBackBufferX < backBufferWidth &&
+                                mouseBackBufferY >= 0 && mouseBackBufferY < backBufferHeight;
+
+            if (!IsActive || !mouseInWindow)
             {
                 Mouse = PrevMouseState;
 #if !ANDROID
@@ -744,21 +771,38 @@ namespace Client.Main
 
         private void UpdateMouseRay()
         {
-            // Use touch position if available, otherwise use mouse position
+            // Use touch position if available, otherwise use mouse position in back buffer space
             Vector2 inputPosition;
             if (Touch.Count > 0)
             {
-                // Use touch position for ray calculation
-                inputPosition = Touch[0].Position;
+                // Touch position needs same scaling as mouse in fullscreen borderless mode
+                var touchPos = Touch[0].Position;
+                int backBufferWidth = GraphicsDevice.PresentationParameters.BackBufferWidth;
+                int backBufferHeight = GraphicsDevice.PresentationParameters.BackBufferHeight;
+
+                var clientBounds = Window.ClientBounds;
+                int inputAreaWidth = clientBounds.Width > 0 ? clientBounds.Width : backBufferWidth;
+                int inputAreaHeight = clientBounds.Height > 0 ? clientBounds.Height : backBufferHeight;
+
+                float scaleX = (float)backBufferWidth / inputAreaWidth;
+                float scaleY = (float)backBufferHeight / inputAreaHeight;
+                inputPosition = new Vector2(touchPos.X * scaleX, touchPos.Y * scaleY);
             }
             else
             {
-                // Use mouse position
-                inputPosition = Mouse.Position.ToVector2();
+                // Use pre-calculated mouse position in back buffer space
+                inputPosition = MouseInBackBuffer;
             }
 
+            // Create viewport matching actual back buffer size for correct unprojection
+            // (GraphicsDevice.Viewport may be set to render target size from previous frame)
+            var backBufferViewport = new Viewport(
+                0, 0,
+                GraphicsDevice.PresentationParameters.BackBufferWidth,
+                GraphicsDevice.PresentationParameters.BackBufferHeight);
+
             Vector3 farSource = new Vector3(inputPosition, 1f);
-            Vector3 farPoint = GraphicsDevice.Viewport.Unproject(
+            Vector3 farPoint = backBufferViewport.Unproject(
                 farSource,
                 Camera.Instance.Projection,
                 Camera.Instance.View,
@@ -849,7 +893,7 @@ namespace Client.Main
             GraphicsManager.Instance.Sprite.End();
         }
 
-        private void ApplyGraphicsConfiguration(GraphicsSettings graphics)
+        public void ApplyGraphicsConfiguration(GraphicsSettings graphics)
         {
             if (graphics == null)
             {
@@ -870,6 +914,8 @@ namespace Client.Main
                 Math.Max(1, graphics.UiVirtualHeight),
                 ScaleMode.Stretch);
 
+            Camera.Instance.AspectRatio = (float)screenSize.X / screenSize.Y;
+
             _logger?.LogDebug("Android graphics configured: {Width}x{Height}, UiScaler: {ScaleX:F4}x{ScaleY:F4}",
                 screenSize.X, screenSize.Y,
                 UiScaler.ScaleX, UiScaler.ScaleY);
@@ -887,21 +933,42 @@ namespace Client.Main
                 Math.Max(1, graphics.UiVirtualHeight),
                 ScaleMode.Stretch);
 
+            Camera.Instance.AspectRatio = (float)screenSize.X / screenSize.Y;
+
             _logger?.LogDebug("iOS graphics configured: {Width}x{Height}, UiScaler: {ScaleX:F4}x{ScaleY:F4}",
                 screenSize.X, screenSize.Y,
                 UiScaler.ScaleX, UiScaler.ScaleY);
 #else
-            _graphics.IsFullScreen = graphics.IsFullScreen;
             _graphics.PreferredBackBufferWidth = Math.Max(1, graphics.Width);
             _graphics.PreferredBackBufferHeight = Math.Max(1, graphics.Height);
+            _graphics.IsFullScreen = graphics.IsFullScreen;
+
+            // In fullscreen mode, we need HardwareModeSwitch = true to actually change resolution.
+            // With HardwareModeSwitch = false (borderless), back buffer is always screen size.
+            // For windowed mode, HardwareModeSwitch doesn't matter.
+            if (graphics.IsFullScreen)
+            {
+                _graphics.HardwareModeSwitch = true;
+            }
+
             _graphics.ApplyChanges();
 
+            // Get actual window/backbuffer size after ApplyChanges (may differ from preferred)
+            int actualWidth = GraphicsDevice.PresentationParameters.BackBufferWidth;
+            int actualHeight = GraphicsDevice.PresentationParameters.BackBufferHeight;
+
+            // Update viewport to match actual back buffer size (required for correct mouse ray casting)
+            GraphicsDevice.Viewport = new Viewport(0, 0, actualWidth, actualHeight);
+
             UiScaler.Configure(
-                _graphics.PreferredBackBufferWidth,
-                _graphics.PreferredBackBufferHeight,
+                actualWidth,
+                actualHeight,
                 Math.Max(1, graphics.UiVirtualWidth),
                 Math.Max(1, graphics.UiVirtualHeight),
                 ScaleMode.Uniform);
+
+            // Update camera aspect ratio after resolution change
+            Camera.Instance.AspectRatio = (float)actualWidth / actualHeight;
 #endif
 
             _scaleFactor = UiScaler.Scale;
@@ -1016,6 +1083,40 @@ namespace Client.Main
             catch (Exception ex)
             {
                 logger?.LogWarning(ex, "Failed to persist graphics preset to disk.");
+            }
+        }
+
+        public static void PersistDisplaySettings(int width, int height, bool isFullScreen)
+        {
+            var logger = AppLoggerFactory?.CreateLogger<MuGame>();
+            try
+            {
+                Directory.CreateDirectory(ConfigDirectory ?? AppContext.BaseDirectory);
+
+                JsonObject root = LoadLocalSettings(logger);
+                if (root["MuOnlineSettings"] is not JsonObject muSettings)
+                {
+                    muSettings = new JsonObject();
+                    root["MuOnlineSettings"] = muSettings;
+                }
+
+                if (muSettings["Graphics"] is not JsonObject graphics)
+                {
+                    graphics = new JsonObject();
+                    muSettings["Graphics"] = graphics;
+                }
+
+                graphics["Width"] = width;
+                graphics["Height"] = height;
+                graphics["IsFullScreen"] = isFullScreen;
+
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                File.WriteAllText(LocalSettingsPath, root.ToJsonString(options));
+                logger?.LogInformation("Saved display settings to {Path}", LocalSettingsPath);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogWarning(ex, "Failed to persist display settings to disk.");
             }
         }
 

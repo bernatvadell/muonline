@@ -5,6 +5,7 @@ using Client.Main.Objects;
 using Client.Main.Objects.Monsters;
 using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System;
 using System.Threading.Tasks;
@@ -24,7 +25,7 @@ namespace Client.Main.Controls
         private float _targetCameraDistance;
 
         // --- Mouse tile caching for performance ---
-        private Point _lastMousePosition = new Point(-1, -1);
+        private Vector2 _lastMouseInBackBuffer = new Vector2(-1, -1);
         private Vector3 _lastCameraPosition;
 
         // --- Properties ---
@@ -172,33 +173,39 @@ namespace Client.Main.Controls
         /// </summary>
         private void CalculateMouseTilePos()
         {
-            var currentMousePos = MuGame.Instance.Mouse.Position;
+            // Use mouse position in back buffer space (handles fullscreen borderless scaling)
+            var currentMousePos = MuGame.Instance.MouseInBackBuffer;
             var currentCamPos = Camera.Instance.Position;
             bool isButtonHeld = MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed;
 
             // Use cache only when mouse button is NOT held and position hasn't changed
             // When button is held, always recalculate to support continuous movement
             if (!isButtonHeld &&
-                currentMousePos == _lastMousePosition &&
+                currentMousePos == _lastMouseInBackBuffer &&
                 currentCamPos == _lastCameraPosition)
             {
                 return; // Use cached MouseTileX/MouseTileY values
             }
 
-            _lastMousePosition = currentMousePos;
+            _lastMouseInBackBuffer = currentMousePos;
             _lastCameraPosition = currentCamPos;
 
-            var mousePos = currentMousePos.ToVector2();
-            var viewport = GraphicsManager.Instance.GraphicsDevice.Viewport;
+            // Create viewport from actual back buffer size (not GraphicsDevice.Viewport which may be stale
+            // from render target usage during previous Draw() call)
+            var gd = GraphicsManager.Instance.GraphicsDevice;
+            var viewport = new Viewport(0, 0,
+                gd.PresentationParameters.BackBufferWidth,
+                gd.PresentationParameters.BackBufferHeight);
+
             var cam = Camera.Instance;
             var proj = cam.Projection;
             var view = cam.View;
 
-            var near = viewport.Unproject(new Vector3(mousePos, 0f),
+            var near = viewport.Unproject(new Vector3(currentMousePos, 0f),
                                           proj,
                                           view,
                                           Matrix.Identity);
-            var far = viewport.Unproject(new Vector3(mousePos, 1f),
+            var far = viewport.Unproject(new Vector3(currentMousePos, 1f),
                                           proj,
                                           view,
                                           Matrix.Identity);

@@ -627,6 +627,8 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
 
                 AddCategoryButton("Audio", () => BuildAudioCategory(), categoryStartY,
                     ref categoryX, categoryWidth, categoryHeight, categorySpacing, categoriesPerRow, ref categoryIndex);
+                AddCategoryButton("Display", () => BuildDisplayCategory(), categoryStartY,
+                    ref categoryX, categoryWidth, categoryHeight, categorySpacing, categoriesPerRow, ref categoryIndex);
                 AddCategoryButton("Quality Preset", () => BuildQualityPresetCategory(), categoryStartY,
                     ref categoryX, categoryWidth, categoryHeight, categorySpacing, categoriesPerRow, ref categoryIndex);
                 AddCategoryButton("World & Visibility", () => BuildWorldCategory(), categoryStartY,
@@ -929,6 +931,113 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                         _owner.ApplyDebugPanelSetting();
                     }, ref currentY, OptionRowHeight);
                 });
+            }
+
+            private void BuildDisplayCategory()
+            {
+                BuildCategory("Display", (ref int currentY) =>
+                {
+                    var settings = MuGame.AppSettings?.Graphics;
+                    if (settings == null) return;
+
+                    // Get supported display modes from adapter
+                    var adapter = GraphicsManager.Instance?.GraphicsDevice?.Adapter ?? GraphicsAdapter.DefaultAdapter;
+                    var maxDisplayMode = adapter.CurrentDisplayMode;
+                    int maxWidth = maxDisplayMode.Width;
+                    int maxHeight = maxDisplayMode.Height;
+
+                    // Helper to check if resolution is supported by adapter for fullscreen
+                    bool IsResolutionSupported(int w, int h)
+                    {
+                        // Always allow resolutions up to max for windowed mode
+                        if (!settings.IsFullScreen) return w <= maxWidth && h <= maxHeight;
+
+                        // For fullscreen, check if adapter supports this mode
+                        foreach (var mode in adapter.SupportedDisplayModes)
+                        {
+                            if (mode.Width == w && mode.Height == h)
+                                return true;
+                        }
+                        return false;
+                    }
+
+                    AddHeading("Resolution", ref currentY);
+
+                    // Standard 16:9 resolutions only - to maintain UI aspect ratio
+                    if (IsResolutionSupported(1280, 720))
+                    {
+                        AddOption("1280x720", () => settings.Width == 1280 && settings.Height == 720, value =>
+                        {
+                            if (value) SetResolution(1280, 720);
+                        }, ref currentY, OptionRowHeight);
+                    }
+
+                    if (IsResolutionSupported(1920, 1080))
+                    {
+                        AddOption("1920x1080", () => settings.Width == 1920 && settings.Height == 1080, value =>
+                        {
+                            if (value) SetResolution(1920, 1080);
+                        }, ref currentY, OptionRowHeight);
+                    }
+
+                    if (IsResolutionSupported(2560, 1440))
+                    {
+                        AddOption("2560x1440", () => settings.Width == 2560 && settings.Height == 1440, value =>
+                        {
+                            if (value) SetResolution(2560, 1440);
+                        }, ref currentY, OptionRowHeight);
+                    }
+
+                    if (IsResolutionSupported(3840, 2160))
+                    {
+                        AddOption("3840x2160", () => settings.Width == 3840 && settings.Height == 2160, value =>
+                        {
+                            if (value) SetResolution(3840, 2160);
+                        }, ref currentY, OptionRowHeight);
+                    }
+
+                    currentY += 8;
+                    AddHeading("Window Mode", ref currentY);
+
+                    AddOption("Fullscreen", () => settings.IsFullScreen, value =>
+                    {
+                        SetFullscreen(value);
+                    }, ref currentY, OptionRowHeight);
+                });
+            }
+
+            private void SetResolution(int width, int height)
+            {
+                var settings = MuGame.AppSettings?.Graphics;
+                if (settings == null) return;
+
+                settings.Width = width;
+                settings.Height = height;
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    MuGame.Instance.ApplyGraphicsConfiguration(settings);
+                    GraphicsManager.Instance.UpdateRenderScale();
+                });
+
+                MuGame.PersistDisplaySettings(width, height, settings.IsFullScreen);
+                RefreshOptions();
+            }
+
+            private void SetFullscreen(bool enabled)
+            {
+                var settings = MuGame.AppSettings?.Graphics;
+                if (settings == null) return;
+
+                settings.IsFullScreen = enabled;
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    MuGame.Instance.ApplyGraphicsConfiguration(settings);
+                });
+
+                MuGame.PersistDisplaySettings(settings.Width, settings.Height, enabled);
+                RefreshOptions();
             }
 
             private void AddCategoryButton(string label, Action onClick, int startY,
