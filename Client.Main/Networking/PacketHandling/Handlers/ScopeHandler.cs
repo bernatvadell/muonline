@@ -1591,6 +1591,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             ushort maskedId = (ushort)(rawId & 0x7FFF);
             byte serverActionId = anim.Animation;
             byte serverDirection = anim.Direction;
+            ushort targetId = anim.TargetId;
 
             MuGame.ScheduleOnMainThread(() =>
             {
@@ -1641,6 +1642,11 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     clientActionToPlay = (PlayerAction)action;
                     actionNameForLog = action.ToString();
                     monsterAction = action;
+
+                    if (monsterAction == MonsterActionType.Attack1 || monsterAction == MonsterActionType.Attack2)
+                    {
+                        monsterToAnimate.LastAttackTargetId = targetId;
+                    }
                 }
                 else
                 {

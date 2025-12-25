@@ -1168,6 +1168,24 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                                 Core.Utilities.SkillDatabase.GetSkillName(skillId),
                                 targetId);
                         }
+
+                        // Spawn skill visual effect via registry
+                        if (activeScene.World is WalkableWorldControl world)
+                        {
+                            var effectContext = new Objects.Effects.Skills.SkillEffectContext
+                            {
+                                Caster = activeScene.Hero,
+                                TargetId = targetId,
+                                SkillId = skillId,
+                                World = world
+                            };
+
+                            if (Objects.Effects.Skills.SkillVisualEffectRegistry.TrySpawn(skillId, effectContext, out var effect))
+                            {
+                                world.Objects.Add(effect!);
+                                _ = effect!.Load();
+                            }
+                        }
                     }
                     else
                     {

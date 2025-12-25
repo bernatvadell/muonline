@@ -569,6 +569,18 @@ namespace Client.Main.Objects
         {
             _isTransformDirty = true;
         }
+
+        /// <summary>
+        /// Forces the object to be treated as in-view for the next update cycle.
+        /// Useful for short-lived effects that shouldn't wait for culling checks.
+        /// </summary>
+        public void ForceInView()
+        {
+            OutOfView = false;
+            _wasOutOfView = false;
+            _cullingCheckTimer = 0f;
+            _lowPriorityUpdateTimer = 0f;
+        }
         protected virtual void RecalculateWorldPosition()
         {
             if (!_isTransformDirty)

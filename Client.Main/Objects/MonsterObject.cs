@@ -23,6 +23,11 @@ namespace Client.Main.Objects
         public bool Blood { get; set; } = true;
 
         /// <summary>
+        /// Last target id received from server animation packets (used for attack effects).
+        /// </summary>
+        public ushort LastAttackTargetId { get; internal set; }
+
+        /// <summary>
         /// Set of mesh indices that should NOT use blending (equivalent to NoneBlendMesh = true in original code).
         /// </summary>
         public HashSet<int> NoneBlendMeshes { get; set; } = new HashSet<int>();

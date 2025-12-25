@@ -321,6 +321,9 @@ namespace Client.Main.Controls.Terrain
                                                !_terrainVertexBufferAlpha.IsDisposed;
                 }
 
+                if (_useTerrainIndexBatching && VisibleBlocksTouchTerrainEdge())
+                    _useTerrainIndexBatching = false;
+
                 if (effect != null)
                 {
                     effect.CurrentTechnique = effect.Techniques["DynamicLighting"];
@@ -411,6 +414,24 @@ namespace Client.Main.Controls.Terrain
             return false;
         }
 
+        private bool VisibleBlocksTouchTerrainEdge()
+        {
+            if (_visibility?.VisibleBlocks == null)
+                return false;
+
+            int edgeStart = Constants.TERRAIN_SIZE - BlockSize;
+            foreach (var block in _visibility.VisibleBlocks)
+            {
+                if (block?.IsVisible != true)
+                    continue;
+
+                if (block.Xi >= edgeStart || block.Yi >= edgeStart)
+                    return true;
+            }
+
+            return false;
+        }
+
         private bool HasLowerLodNeighbor(int bx, int by, int lodStep)
         {
             return IsLowerLodNeighbor(bx, by - 1, lodStep) ||
@@ -487,6 +508,9 @@ namespace Client.Main.Controls.Terrain
                                            _terrainVertexBufferAlpha != null &&
                                            !_terrainVertexBufferAlpha.IsDisposed;
             }
+
+            if (_useTerrainIndexBatching && VisibleBlocksTouchTerrainEdge())
+                _useTerrainIndexBatching = false;
 
             shadowEffect.Parameters["UseProceduralTerrainUV"]?.SetValue(_useTerrainIndexBatching ? 1.0f : 0.0f);
             shadowEffect.Parameters["IsWaterTexture"]?.SetValue(0.0f);
