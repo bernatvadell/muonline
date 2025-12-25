@@ -1250,6 +1250,24 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             _logger.LogDebug("Skill {SkillId} ({SkillName}) uses generic animation",
                                 skillId, Core.Utilities.SkillDatabase.GetSkillName(skillId));
                         }
+
+                        // Spawn skill visual effect via registry (area skills included)
+                        if (activeScene.World is WalkableWorldControl world)
+                        {
+                            var effectContext = new Objects.Effects.Skills.SkillEffectContext
+                            {
+                                Caster = activeScene.Hero,
+                                TargetId = 0,
+                                SkillId = skillId,
+                                World = world
+                            };
+
+                            if (Objects.Effects.Skills.SkillVisualEffectRegistry.TrySpawn(skillId, effectContext, out var effect))
+                            {
+                                world.Objects.Add(effect!);
+                                _ = effect!.Load();
+                            }
+                        }
                     }
                     else
                     {
