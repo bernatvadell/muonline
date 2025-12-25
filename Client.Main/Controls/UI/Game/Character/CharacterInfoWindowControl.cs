@@ -702,7 +702,7 @@ namespace Client.Main.Controls.UI.Game.Character
             EnsureStaticSurface();
 
             var spriteBatch = GraphicsManager.Instance.Sprite;
-            SpriteBatchScope scope = null;
+            SpriteBatchScope? scope = null;
             if (!SpriteBatchScope.BatchIsBegun)
             {
                 scope = new SpriteBatchScope(spriteBatch, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform);

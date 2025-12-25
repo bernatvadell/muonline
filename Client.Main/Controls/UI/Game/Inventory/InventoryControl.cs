@@ -581,7 +581,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
             EnsureStaticSurface();
 
             var spriteBatch = graphicsManager.Sprite;
-            SpriteBatchScope scope = null;
+            SpriteBatchScope? scope = null;
             if (!SpriteBatchScope.BatchIsBegun)
             {
                 scope = new SpriteBatchScope(

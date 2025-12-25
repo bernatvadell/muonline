@@ -217,7 +217,7 @@ namespace Client.Main
             ENABLE_BATCH_OPTIMIZED_SORTING = true;
             ENABLE_ITEM_MATERIAL_ANIMATION = false;
             ENABLE_DYNAMIC_BUFFER_POOL = true;
-            RENDER_SCALE = 2.0f;
+            RENDER_SCALE = 1.0f;
             HIGH_QUALITY_TEXTURES = true;
             DISABLE_VSYNC = true;
             UNLIMITED_FPS = true;

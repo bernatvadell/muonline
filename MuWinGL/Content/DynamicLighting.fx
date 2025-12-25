@@ -72,6 +72,15 @@ float GlobalLightMultiplier = 1.0; // Day-night cycle multiplier for vertex colo
 // Terrain static lighting
 float3 TerrainLight = float3(1.0, 1.0, 1.0);
 
+// Terrain UV generation (CPU-friendly: compute UV from world position in shader)
+float2 TerrainUvScale = float2(0.0, 0.0);      // UV per world unit (already includes 1/TERRAIN_SCALE)
+float UseProceduralTerrainUV = 0.0;            // 0 = use vertex TexCoord (objects), 1 = procedural (terrain)
+float IsWaterTexture = 0.0;                    // 1 = apply water flow/distortion in VS
+float2 WaterFlowDirection = float2(1.0, 0.0);
+float WaterTotal = 0.0;
+float DistortionAmplitude = 0.0;
+float DistortionFrequency = 0.0;
+
 // Input structures
 struct VertexInput
 {
@@ -195,7 +204,21 @@ PixelInput VS_Terrain(VertexInput input)
     output.WorldPos = worldPos.xyz;
     output.Position = mul(worldPos, mul(View, Projection));
     output.Normal = normalize(mul(input.Normal, (float3x3)World));
-    output.TexCoord = input.TexCoord;
+
+    // Default to vertex-provided UVs (objects), but allow terrain to use procedural UVs.
+    float2 procUv = worldPos.xy * TerrainUvScale;
+    if (IsWaterTexture > 0.5)
+    {
+        float2 uv = procUv + WaterFlowDirection * WaterTotal;
+        float f = max(0.01, DistortionFrequency);
+        float wrapPeriod = 6.2831853 / f; // 2*pi/f
+        float phase = WaterTotal - floor(WaterTotal / wrapPeriod) * wrapPeriod;
+        uv.x += sin((procUv.x + phase) * f) * DistortionAmplitude;
+        uv.y += cos((procUv.y + phase) * f) * DistortionAmplitude;
+        procUv = uv;
+    }
+    output.TexCoord = lerp(input.TexCoord, procUv, UseProceduralTerrainUV);
+
     output.Color = input.Color;
     // Calculate dynamic lighting per-vertex for terrain (8 lights max, faster)
     output.DynamicLight = CalculateTerrainLighting(output.WorldPos, output.Normal);
@@ -368,7 +391,8 @@ ShadowVertexOutput ShadowVS(VertexInput input)
     ShadowVertexOutput output;
     float4 worldPos = mul(float4(input.Position, 1.0), World);
     output.Position = mul(worldPos, LightViewProjection);
-    output.TexCoord = input.TexCoord;
+    float2 procUv = worldPos.xy * TerrainUvScale;
+    output.TexCoord = lerp(input.TexCoord, procUv, UseProceduralTerrainUV);
     output.Depth = output.Position.zw; // Pass z and w for depth calculation in PS
     return output;
 }

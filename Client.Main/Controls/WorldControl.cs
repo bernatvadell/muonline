@@ -40,8 +40,13 @@ namespace Client.Main.Controls
     sealed class WorldObjectBatchOptimizedAsc : IComparer<WorldObject>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int CompareRefs<T>(T a, T b) where T : class =>
-            ReferenceEquals(a, b) ? 0 : (a?.GetHashCode() ?? 0).CompareTo(b?.GetHashCode() ?? 0);
+        private static int CompareRefs<T>(T a, T b) where T : class
+        {
+            if (ReferenceEquals(a, b)) return 0;
+            if (a is null) return -1;
+            if (b is null) return 1;
+            return RuntimeHelpers.GetHashCode(a).CompareTo(RuntimeHelpers.GetHashCode(b));
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Compare(WorldObject a, WorldObject b)
@@ -67,8 +72,13 @@ namespace Client.Main.Controls
     sealed class WorldObjectBatchOptimizedDesc : IComparer<WorldObject>
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int CompareRefs<T>(T a, T b) where T : class =>
-            ReferenceEquals(a, b) ? 0 : (a?.GetHashCode() ?? 0).CompareTo(b?.GetHashCode() ?? 0);
+        private static int CompareRefs<T>(T a, T b) where T : class
+        {
+            if (ReferenceEquals(a, b)) return 0;
+            if (a is null) return -1;
+            if (b is null) return 1;
+            return RuntimeHelpers.GetHashCode(a).CompareTo(RuntimeHelpers.GetHashCode(b));
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Compare(WorldObject a, WorldObject b)
@@ -138,7 +148,6 @@ namespace Client.Main.Controls
         private readonly WorldObjectBatchOptimizedDesc _cmpBatchDesc = new();
         private static readonly DepthStencilState DepthStateDefault = DepthStencilState.Default;
         private static readonly DepthStencilState DepthStateDepthRead = DepthStencilState.DepthRead;
-        private BoundingFrustum _boundingFrustum;
         private StaticChunk[] _staticChunks;
         private int _staticChunkGridSize;
         private float _staticChunkWorldSize;
@@ -222,8 +231,6 @@ namespace Client.Main.Controls
             Objects.ControlAdded += OnObjectAdded;
             Objects.ControlRemoved += OnObjectRemoved;
 
-            Camera.Instance.CameraMoved += OnCameraMoved;
-            UpdateBoundingFrustum();
         }
 
         // --- Lifecycle Methods ---
@@ -556,12 +563,12 @@ namespace Client.Main.Controls
             };
 
             var cam = Camera.Instance;
-            if (cam == null || _boundingFrustum == null) return;
+            var frustum = cam?.Frustum;
+            if (cam == null || frustum == null) return;
 
             Vector2 cam2D = new(cam.Position.X, cam.Position.Y);
             float maxDist = cam.ViewFar + CullingOffset;
             float maxDistSq = maxDist * maxDist;
-            var frustum = _boundingFrustum;
 
             if (_staticChunkCacheDirty || !_staticChunksReady)
             {
@@ -629,7 +636,7 @@ namespace Client.Main.Controls
             SetDepthState(depthState);
 
             var spriteBatch = GraphicsManager.Instance.Sprite;
-            Helpers.SpriteBatchScope scope = null;
+            Helpers.SpriteBatchScope? scope = null;
             BlendState currentBlend = null;
             SamplerState currentSampler = null;
             DepthStencilState currentBatchDepth = null;
@@ -790,8 +797,7 @@ namespace Client.Main.Controls
             if (Vector2.DistanceSquared(cam2, obj2) > maxDist * maxDist)
                 return false;
 
-            if (_boundingFrustum == null) return false;
-            return _boundingFrustum.Contains(obj.BoundingBoxWorld) != ContainmentType.Disjoint;
+            return cam.Frustum.Contains(obj.BoundingBoxWorld) != ContainmentType.Disjoint;
         }
 
         // Fast path for loops where camera info is already cached
@@ -839,25 +845,14 @@ namespace Client.Main.Controls
         /// <returns>True if the light's sphere is at least partially in view, otherwise false.</returns>
         public bool IsLightInView(DynamicLight light)
         {
-            if (_boundingFrustum == null) return true;
+            var frustum = Camera.Instance?.Frustum;
+            if (frustum == null) return true;
 
             // Create a bounding sphere representing the light's full radius of effect.
             var lightSphere = new BoundingSphere(light.Position, light.Radius);
 
             // Use the highly optimized Intersects check. This is much faster than manual distance calculations.
-            return _boundingFrustum.Intersects(lightSphere);
-        }
-
-        private void OnCameraMoved(object sender, EventArgs e) =>
-            UpdateBoundingFrustum();
-
-        private void UpdateBoundingFrustum()
-        {
-            var cam = Camera.Instance;
-            if (cam == null) return;
-
-            var viewProj = cam.View * cam.Projection;
-            _boundingFrustum = new BoundingFrustum(viewProj);
+            return frustum.Intersects(lightSphere);
         }
 
         private void BuildStaticChunkCache()

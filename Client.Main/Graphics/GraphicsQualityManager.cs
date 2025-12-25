@@ -150,7 +150,7 @@ namespace Client.Main.Graphics
 
                 case GraphicsQualityPreset.High:
                 default:
-                    Constants.RENDER_SCALE = 2.0f;
+                    Constants.RENDER_SCALE = 1.0f;
                     Constants.MSAA_ENABLED = false;
                     Constants.ENABLE_DYNAMIC_LIGHTS = true;
                     Constants.ENABLE_DYNAMIC_LIGHTING_SHADER = true;

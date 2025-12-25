@@ -26,7 +26,7 @@ namespace Client.Main.Controls.Terrain
     public class TerrainVisibilityManager
     {
         private const int BlockSize = 4;
-        private const int MaxLodLevels = 2;
+        private const int MaxLodLevels = 3;
         private const float LodDistanceMultiplier = 3000f;
         private const float CameraMoveThreshold = 32f;
         // Slight conservative padding (world units) to avoid edge popping
@@ -39,7 +39,7 @@ namespace Client.Main.Controls.Terrain
         // Scratch list reused each frame to avoid per-update allocations
         private readonly List<TerrainBlock> _visibleScratch = new(256);
         private Vector2 _lastCameraPosition;
-        private readonly int[] _lodSteps = { 1, 4 };
+        private readonly int[] _lodSteps = { 1, 2, 4 };
 
         public IReadOnlyCollection<TerrainBlock> VisibleBlocks => _visibleBlocks;
         public int[] LodSteps => _lodSteps;

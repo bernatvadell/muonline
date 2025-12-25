@@ -381,7 +381,7 @@ namespace Client.Main.Controls.UI.Game
             var spriteBatch = gm?.Sprite;
             if (spriteBatch == null) return;
 
-            SpriteBatchScope scope = null;
+            SpriteBatchScope? scope = null;
             if (!SpriteBatchScope.BatchIsBegun)
             {
                 scope = new SpriteBatchScope(spriteBatch, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform);
@@ -414,7 +414,7 @@ namespace Client.Main.Controls.UI.Game
             var spriteBatch = gm?.Sprite;
             if (spriteBatch == null) return;
 
-            SpriteBatchScope scope = null;
+            SpriteBatchScope? scope = null;
             if (!SpriteBatchScope.BatchIsBegun)
             {
                 scope = new SpriteBatchScope(spriteBatch, SpriteSortMode.Deferred, BlendState.AlphaBlend, transform: UiScaler.SpriteTransform);

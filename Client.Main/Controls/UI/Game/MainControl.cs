@@ -8,6 +8,8 @@ using Client.Main.Helpers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Client.Main.Controls.UI.Game
@@ -23,6 +25,10 @@ namespace Client.Main.Controls.UI.Game
         private readonly MainHPControl _hp;
         private readonly MainMPControl _mp;
         private int _hoveredHudElements;
+
+        private readonly List<DrawEntry> _drawEntries = new();
+        private IReadOnlyList<GameControl> _lastControlsSnapshot = Array.Empty<GameControl>();
+        private int _lastControlsRenderOrderHash = 0;
 
         public MainControl(CharacterState state)
         {
@@ -144,26 +150,73 @@ namespace Client.Main.Controls.UI.Game
             }
         }
 
+        private static int GetRenderOrder(GameControl control) => (control as ExtendedUIControl)?.RenderOrder ?? 0;
+
+        private void EnsureDrawEntries(IReadOnlyList<GameControl> snapshot)
+        {
+            int hash = 17;
+            for (int i = 0; i < snapshot.Count; i++)
+            {
+                var c = snapshot[i];
+                if (c == null) continue;
+                hash = unchecked(hash * 31 + GetRenderOrder(c));
+            }
+
+            if (ReferenceEquals(snapshot, _lastControlsSnapshot) && hash == _lastControlsRenderOrderHash)
+                return;
+
+            _drawEntries.Clear();
+            if (_drawEntries.Capacity < snapshot.Count)
+                _drawEntries.Capacity = snapshot.Count;
+
+            for (int i = 0; i < snapshot.Count; i++)
+            {
+                var c = snapshot[i];
+                if (c == null) continue;
+                _drawEntries.Add(new DrawEntry(c, GetRenderOrder(c), i));
+            }
+
+            _drawEntries.Sort(DrawEntryComparer.Instance);
+            _lastControlsSnapshot = snapshot;
+            _lastControlsRenderOrderHash = hash;
+        }
+
         public override void Draw(GameTime gameTime)
         {
             var sb = GraphicsManager.Instance.Sprite;
 
-            foreach (var c in Controls.OrderBy(x => (x as ExtendedUIControl)?.RenderOrder ?? 0))
+            var snapshot = Controls.GetSnapshot();
+            EnsureDrawEntries(snapshot);
+
+            SpriteBatchScope? textureScope = null;
+            try
             {
-                if (c is TextureControl)
+                for (int i = 0; i < _drawEntries.Count; i++)
                 {
-                    using (new SpriteBatchScope(
-                           sb,
-                           SpriteSortMode.Deferred,
-                           BlendState.NonPremultiplied,
-                           SamplerState.PointClamp,
-                           transform: UiScaler.SpriteTransform))
+                    var entry = _drawEntries[i];
+                    var c = entry.Control;
+
+                    if (entry.IsTexture)
                     {
+                        textureScope ??= new SpriteBatchScope(
+                            sb,
+                            SpriteSortMode.Deferred,
+                            BlendState.NonPremultiplied,
+                            SamplerState.PointClamp,
+                            transform: UiScaler.SpriteTransform);
+                        c.Draw(gameTime);
+                    }
+                    else
+                    {
+                        textureScope?.Dispose();
+                        textureScope = null;
                         c.Draw(gameTime);
                     }
                 }
-                else
-                    c.Draw(gameTime);
+            }
+            finally
+            {
+                textureScope?.Dispose();
             }
 
             using (new SpriteBatchScope(
@@ -174,6 +227,34 @@ namespace Client.Main.Controls.UI.Game
             {
                 _hp.DrawLabel(gameTime);
                 _mp.DrawLabel(gameTime);
+            }
+        }
+
+        private readonly struct DrawEntry
+        {
+            public GameControl Control { get; }
+            public int RenderOrder { get; }
+            public int Index { get; }
+            public bool IsTexture { get; }
+
+            public DrawEntry(GameControl control, int renderOrder, int index)
+            {
+                Control = control;
+                RenderOrder = renderOrder;
+                Index = index;
+                IsTexture = control is TextureControl;
+            }
+        }
+
+        private sealed class DrawEntryComparer : IComparer<DrawEntry>
+        {
+            public static readonly DrawEntryComparer Instance = new();
+
+            public int Compare(DrawEntry x, DrawEntry y)
+            {
+                int cmp = x.RenderOrder.CompareTo(y.RenderOrder);
+                if (cmp != 0) return cmp;
+                return x.Index.CompareTo(y.Index);
             }
         }
 

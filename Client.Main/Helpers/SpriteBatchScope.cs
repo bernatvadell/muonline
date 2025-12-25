@@ -8,7 +8,7 @@ namespace Client.Main.Helpers
     /// <summary>
     /// Manages nested SpriteBatch.Begin/End calls, preserving and restoring all parameters.
     /// </summary>
-    public sealed class SpriteBatchScope : IDisposable
+    public struct SpriteBatchScope : IDisposable
     {
         private readonly SpriteBatch _batch;
         private static readonly Stack<SavedState> _stack = new();
@@ -17,6 +17,7 @@ namespace Client.Main.Helpers
         private readonly DepthStencilState _prevDepth;
         private readonly RasterizerState _prevRaster;
         private readonly SamplerState _prevSampler; // NEW
+        private readonly bool _active;
 
         /// <summary>
         /// True if there is currently an open SpriteBatch (anywhere in the stack).
@@ -56,10 +57,14 @@ namespace Client.Main.Helpers
 
             _myState.Begin(_batch);
             _stack.Push(_myState);
+            _active = true;
         }
 
         public void Dispose()
         {
+            if (!_active)
+                return;
+
             _stack.Pop().End(_batch);
 
             var gd = _batch.GraphicsDevice;

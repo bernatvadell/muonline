@@ -52,6 +52,10 @@ namespace Client.Main.Objects
         private TextureScript[] _scriptTextures;
         private TextureData[] _dataTextures;
 
+        // Cached hint for world-level batching/sorting (avoids scanning mesh textures during Sort comparisons)
+        private Texture2D _sortTextureHint;
+        private bool _sortTextureHintDirty = true;
+
         private bool[] _meshIsRGBA;
         private bool[] _meshHiddenByScript;
         private bool[] _meshBlendByScript;
@@ -109,23 +113,53 @@ namespace Client.Main.Objects
         }
 
         public float BodyHeight { get; private set; }
-        public int HiddenMesh { get; set; } = -1;
-        public int BlendMesh { get; set; } = -1;
+        private int _hiddenMesh = -1;
+        private int _blendMesh = -1;
+
+        public int HiddenMesh
+        {
+            get => _hiddenMesh;
+            set
+            {
+                if (_hiddenMesh == value)
+                    return;
+
+                _hiddenMesh = value;
+                _sortTextureHintDirty = true;
+                _sortTextureHint = null;
+            }
+        }
+
+        public int BlendMesh
+        {
+            get => _blendMesh;
+            set => _blendMesh = value;
+        }
         public BlendState BlendMeshState { get; set; } = BlendState.Additive;
 
         // Hint for world-level batching: returns first visible mesh texture (if any)
         internal Texture2D GetSortTextureHint()
         {
-            if (_boneTextures == null) return null;
+            if (!_sortTextureHintDirty)
+                return _sortTextureHint;
+
+            _sortTextureHintDirty = false;
+            _sortTextureHint = null;
+
+            if (_boneTextures == null)
+                return null;
 
             for (int i = 0; i < _boneTextures.Length; i++)
             {
                 var tex = _boneTextures[i];
                 if (tex != null && !IsHiddenMesh(i))
-                    return tex;
+                {
+                    _sortTextureHint = tex;
+                    break;
+                }
             }
 
-            return null;
+            return _sortTextureHint;
         }
 
         public float BlendMeshLight
@@ -505,6 +539,9 @@ namespace Client.Main.Objects
                 await Task.WhenAll(texturePreloadTasks);
             }
 
+            _sortTextureHintDirty = true;
+            _sortTextureHint = null;
+
             _blendMeshIndicesScratch = new int[meshCount];
 
             // Initialize mesh buffer cache
@@ -612,6 +649,35 @@ namespace Client.Main.Objects
                         {
                             childModel.InvalidateBuffers(BUFFER_FLAG_ANIMATION);
                         }
+                    }
+                }
+            }
+
+            // Throttle CPU skinning / buffer rebuild frequency for distant walkers (monsters/NPC/remote players).
+            // This affects SetDynamicBuffers() later in this Update call via AnimationUpdateStride.
+            if (this is WalkerObject walker)
+            {
+                int desiredStride = 1;
+                if (!walker.IsMainWalker)
+                {
+                    // Keep nearby animations smooth; only throttle when low-quality is active.
+                    desiredStride = walker.IsOneShotPlaying ? 1 : (LowQuality ? 4 : 1);
+                }
+
+                if (AnimationUpdateStride != desiredStride)
+                    SetAnimationUpdateStride(desiredStride);
+
+                // Apply the same stride to linked child models (equipment/attachments) to avoid rebuilding all parts every frame.
+                if (isVisible && _cachedModelChildren.Length > 0)
+                {
+                    for (int i = 0; i < _cachedModelChildren.Length; i++)
+                    {
+                        var child = _cachedModelChildren[i];
+                        if (child.ParentBoneLink < 0 && !child.LinkParentAnimation)
+                            continue;
+
+                        if (child.AnimationUpdateStride != desiredStride)
+                            child.SetAnimationUpdateStride(desiredStride);
                     }
                 }
             }
@@ -1876,6 +1942,8 @@ namespace Client.Main.Objects
                     shadowEffect?.Parameters["ShadowBias"]?.SetValue(Constants.SHADOW_BIAS);
                     shadowEffect?.Parameters["ShadowNormalBias"]?.SetValue(Constants.SHADOW_NORMAL_BIAS);
                     shadowEffect?.Parameters["SunDirection"]?.SetValue(GraphicsManager.Instance.ShadowMapRenderer?.LightDirection ?? Constants.SUN_DIRECTION);
+                    shadowEffect?.Parameters["UseProceduralTerrainUV"]?.SetValue(0.0f);
+                    shadowEffect?.Parameters["IsWaterTexture"]?.SetValue(0.0f);
 
                     gd.BlendState = BlendState.Opaque;
                     gd.DepthStencilState = DepthStencilState.Default;
@@ -2830,6 +2898,11 @@ namespace Client.Main.Objects
         public void InvalidateBuffers(uint flags = BUFFER_FLAG_ALL)
         {
             _invalidatedBufferFlags |= flags;
+            if ((flags & BUFFER_FLAG_TEXTURE) != 0)
+            {
+                _sortTextureHintDirty = true;
+                _sortTextureHint = null;
+            }
 
             for (int i = 0; i < Children.Count; i++)
             {

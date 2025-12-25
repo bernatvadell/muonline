@@ -15,6 +15,7 @@ namespace Client.Main.Graphics
         private float _viewFar = 1800f;
         private Vector3 _position = Vector3.Zero;
         private Vector3 _target = Vector3.Zero;
+        private readonly BoundingFrustum _frustum = new BoundingFrustum(Matrix.Identity);
 
         // Public Properties
         public float AspectRatio
@@ -55,7 +56,7 @@ namespace Client.Main.Graphics
 
         public Matrix View { get; private set; }
         public Matrix Projection { get; private set; }
-        public BoundingFrustum Frustum { get; private set; }
+        public BoundingFrustum Frustum => _frustum;
 
         // Events
         public event EventHandler CameraMoved;
@@ -103,7 +104,7 @@ namespace Client.Main.Graphics
 
         private void UpdateFrustum()
         {
-            Frustum = new BoundingFrustum(View * Projection);
+            _frustum.Matrix = View * Projection;
         }
     }
 }

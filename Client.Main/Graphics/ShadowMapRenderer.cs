@@ -20,6 +20,7 @@ namespace Client.Main.Graphics
         private RenderTarget2D _shadowMap;
         private int _frameCounter = 0;
         private readonly List<(ModelObject model, float distSq)> _casterCandidates = new(64);
+        private readonly BoundingFrustum _lightFrustum = new BoundingFrustum(Matrix.Identity);
         private Vector3 _lastCameraPosition = new(float.NaN, float.NaN, float.NaN);
         private Vector3 _lastCameraTarget = new(float.NaN, float.NaN, float.NaN);
         private float _lastShadowDistance = float.NaN;
@@ -115,7 +116,8 @@ namespace Client.Main.Graphics
             _lastCameraPosition = camera.Position;
             _lastCameraTarget = camera.Target;
             _forceRender = false;
-            var lightFrustum = new BoundingFrustum(LightViewProjection);
+            _lightFrustum.Matrix = LightViewProjection;
+            var lightFrustum = _lightFrustum;
 
             var shadowEffect = GraphicsManager.Instance.DynamicLightingEffect;
             if (shadowEffect == null || _shadowMap == null)

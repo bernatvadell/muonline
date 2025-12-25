@@ -7,6 +7,8 @@ namespace Client.Main.Configuration
     {
         public bool ShowWeather { get; set; } = true;
         public bool ShowDamage { get; set; } = true;
+        public bool LogPacketsHex { get; set; } = false;
+        public int LogPacketsHexMaxBytes { get; set; } = 64;
     }
 
     public class GraphicsSettings

@@ -472,14 +472,17 @@ namespace Client.Main.Networking.Services
                         ? TradeButtonState.Checked
                         : TradeButtonState.Unchecked;
                     _logger.LogDebug("TradeButtonStateChange payload: NewState={NewState} ({NewStateValue})", packet.NewState, (byte)packet.NewState);
-                    try
+                    if (_logger.IsEnabled(LogLevel.Debug))
                     {
-                        Memory<byte> bytes = packet;
-                        _logger.LogDebug("Sending TradeButtonStateChange ({Length} bytes): {Bytes}", bytes.Length, Convert.ToHexString(bytes.Span));
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogDebug(ex, "Failed to log TradeButtonStateChange bytes.");
+                        try
+                        {
+                            Memory<byte> bytes = packet;
+                            _logger.LogDebug("Sending TradeButtonStateChange ({Length} bytes): {Bytes}", bytes.Length, Convert.ToHexString(bytes.Span));
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogDebug(ex, "Failed to log TradeButtonStateChange bytes.");
+                        }
                     }
                     return TradeButtonStateChange.Length;
                 });
@@ -508,14 +511,17 @@ namespace Client.Main.Networking.Services
                 await _connectionManager.Connection.SendAsync(() =>
                 {
                     var packet = new TradeCancel(_connectionManager.Connection.Output.GetMemory(TradeCancel.Length).Slice(0, TradeCancel.Length));
-                    try
+                    if (_logger.IsEnabled(LogLevel.Debug))
                     {
-                        Memory<byte> bytes = packet;
-                        _logger.LogDebug("Sending TradeCancel ({Length} bytes): {Bytes}", bytes.Length, Convert.ToHexString(bytes.Span));
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogDebug(ex, "Failed to log TradeCancel bytes.");
+                        try
+                        {
+                            Memory<byte> bytes = packet;
+                            _logger.LogDebug("Sending TradeCancel ({Length} bytes): {Bytes}", bytes.Length, Convert.ToHexString(bytes.Span));
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogDebug(ex, "Failed to log TradeCancel bytes.");
+                        }
                     }
                     return TradeCancel.Length;
                 });

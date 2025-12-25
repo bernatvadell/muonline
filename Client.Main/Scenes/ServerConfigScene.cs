@@ -179,8 +179,10 @@ namespace Client.Main.Scenes
                        null,
                        UiScaler.SpriteTransform))
             {
-                foreach (var ctrl in Controls.ToArray())
+                var controls = Controls.GetSnapshot();
+                for (int i = 0; i < controls.Count; i++)
                 {
+                    var ctrl = controls[i];
                     if (ctrl == null || ctrl == World || !ctrl.Visible)
                     {
                         continue;

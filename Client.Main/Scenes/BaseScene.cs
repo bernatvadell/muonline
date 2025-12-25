@@ -345,8 +345,13 @@ namespace Client.Main.Scenes
                        DepthStencilState.DepthRead))     // Read depth buffer but don't write to it
             {
 #if !ANDROID
-                foreach (var worldObject in World.Objects)
+                var worldObjects = World.Objects.GetSnapshot();
+                for (int i = 0; i < worldObjects.Count; i++)
                 {
+                    var worldObject = worldObjects[i];
+                    if (worldObject == null)
+                        continue;
+
                     // Call the public methods to draw depth-aware UI elements
                     worldObject.DrawHoverName();
                     worldObject.DrawBoundingBox2D();
@@ -366,8 +371,10 @@ namespace Client.Main.Scenes
                        null,
                        UiScaler.SpriteTransform))
             {
-                foreach (var ctrl in Controls.ToArray())
+                var controls = Controls.GetSnapshot();
+                for (int i = 0; i < controls.Count; i++)
                 {
+                    var ctrl = controls[i];
                     if (ctrl == null || ctrl == World || !ctrl.Visible)
                     {
                         continue;

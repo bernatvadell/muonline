@@ -103,7 +103,23 @@ namespace Client.Main.Networking.PacketHandling
         public Task RoutePacketAsync(ReadOnlySequence<byte> sequence)
         {
             var packet = sequence.ToArray().AsMemory();
-            _logger.LogDebug("Received packet ({Length} bytes): {Data}", packet.Length, Convert.ToHexString(packet.Span));
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                if (_settings?.PacketLogging?.LogPacketsHex == true)
+                {
+                    var span = packet.Span;
+                    int maxBytes = Math.Clamp(_settings.PacketLogging.LogPacketsHexMaxBytes, 1, span.Length);
+                    string hex = Convert.ToHexString(span.Slice(0, maxBytes));
+                    if (span.Length > maxBytes)
+                        hex = $"{hex}…(+{span.Length - maxBytes}B)";
+
+                    _logger.LogDebug("Received packet ({Length} bytes): {Data}", span.Length, hex);
+                }
+                else
+                {
+                    _logger.LogDebug("Received packet ({Length} bytes).", packet.Length);
+                }
+            }
 
             return _isConnectServerRouting
                 ? RouteConnectServerPacketAsync(packet)
