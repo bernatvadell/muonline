@@ -252,7 +252,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"[Spawn] Error loading assets for {name} ({maskedId:X4}).");
-                p.Dispose();
+                MuGame.ScheduleOnMainThread(() => p.Dispose());
                 return;
             }
 
@@ -271,8 +271,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     _logger.LogWarning($"[Spawn] Stale object for {name} found. Removing before adding new.");
                     world.Objects.Remove(existingWalker);
-                    // Dispose asynchronously to avoid blocking
-                    _ = Task.Run(() => existingWalker.Dispose());
+                    existingWalker.Dispose();
                 }
 
                 if (world.FindPlayerById(maskedId) != null)
@@ -487,7 +486,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"ScopeHandler: Error loading NPC/Monster {maskedId} ({obj.GetType().Name}).");
-                obj.Dispose();
+                MuGame.ScheduleOnMainThread(() => obj.Dispose());
                 return;
             }
 
@@ -506,11 +505,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     _logger.LogWarning($"ScopeHandler: Stale/Duplicate NPC/Monster ID {maskedId:X4} ({existingWalker.GetType().Name}) found in WalkerObjectsById. Removing it before adding new {name} (Type: {type}).");
 
-                    // Remove and dispose asynchronously to avoid blocking
-                    _ = Task.Run(() =>
-                    {
-                        existingWalker.Dispose();
-                    });
+                    existingWalker.Dispose();
                     worldRef.Objects.Remove(existingWalker);
                 }
 
@@ -1245,8 +1240,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         if (obj != null)
                         {
                             world.Objects.Remove(obj);
-                            // Dispose asynchronously to avoid blocking
-                            _ = Task.Run(() => obj.Recycle());
+                            obj.Recycle();
                             _logger.LogDebug("Removed DroppedItemObject {Id:X4} from world (scope gone).", masked);
                         }
                     }
@@ -1311,8 +1305,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         if (player != null)
                         {
                             world.Objects.Remove(player);
-                            // Dispose asynchronously to avoid blocking
-                            _ = Task.Run(() => player.Dispose());
+                            player.Dispose();
                             continue;
                         }
 
@@ -1321,8 +1314,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         if (walker != null)
                         {
                             world.Objects.Remove(walker);
-                            // Dispose asynchronously to avoid blocking
-                            _ = Task.Run(() => walker.Dispose());
+                            walker.Dispose();
                             continue;
                         }
 
@@ -1331,8 +1323,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         if (drop != null)
                         {
                             world.Objects.Remove(drop);
-                            // Dispose asynchronously to avoid blocking
-                            _ = Task.Run(() => drop.Dispose());
+                            drop.Dispose();
                         }
                     }
                 });
@@ -1766,8 +1757,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 if (existing != null)
                 {
                     world.Objects.Remove(existing);
-                    // Dispose asynchronously to avoid blocking
-                    _ = Task.Run(() => existing.Recycle());
+                    existing.Recycle();
                 }
 
                 var obj = DroppedItemObject.Rent(dropObj, _characterState.Id, _networkManager.GetCharacterService(), _loggerFactory.CreateLogger<DroppedItemObject>());
