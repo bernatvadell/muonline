@@ -1034,6 +1034,7 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                 MuGame.ScheduleOnMainThread(() =>
                 {
                     MuGame.Instance.ApplyGraphicsConfiguration(settings);
+                    GraphicsManager.Instance.UpdateRenderScale();
                 });
 
                 MuGame.PersistDisplaySettings(settings.Width, settings.Height, enabled);

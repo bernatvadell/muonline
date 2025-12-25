@@ -78,6 +78,7 @@ namespace Client.Main
         private Point _lastEffectTargetSize;
         private Matrix _cachedEffectOrtho;
         private Vector2 _cachedEffectResolution;
+        private Vector2 _lastValidMouseInBackBuffer;
 
         // Public Instance Properties
         public BaseScene ActiveScene { get; private set; }
@@ -672,7 +673,7 @@ namespace Client.Main
             // Convert mouse position from window space to back buffer space
             float mouseBackBufferX = mouseState.X * scaleX;
             float mouseBackBufferY = mouseState.Y * scaleY;
-            MouseInBackBuffer = new Vector2(mouseBackBufferX, mouseBackBufferY);
+            var mouseBackBufferPos = new Vector2(mouseBackBufferX, mouseBackBufferY);
 
             // Check if mouse is within back buffer bounds (using converted coordinates)
             var mouseInWindow = mouseBackBufferX >= 0 && mouseBackBufferX < backBufferWidth &&
@@ -681,6 +682,7 @@ namespace Client.Main
             if (!IsActive || !mouseInWindow)
             {
                 Mouse = PrevMouseState;
+                MouseInBackBuffer = _lastValidMouseInBackBuffer;
 #if !ANDROID
                 Keyboard = new KeyboardState(); // Clear keyboard on PC when inactive
 #endif
@@ -688,6 +690,8 @@ namespace Client.Main
             else
             {
                 Mouse = mouseState;
+                MouseInBackBuffer = mouseBackBufferPos;
+                _lastValidMouseInBackBuffer = mouseBackBufferPos;
             }
 
             // --- VIRTUAL MOUSE (UI) ---
@@ -944,12 +948,8 @@ namespace Client.Main
             _graphics.IsFullScreen = graphics.IsFullScreen;
 
             // In fullscreen mode, we need HardwareModeSwitch = true to actually change resolution.
-            // With HardwareModeSwitch = false (borderless), back buffer is always screen size.
-            // For windowed mode, HardwareModeSwitch doesn't matter.
-            if (graphics.IsFullScreen)
-            {
-                _graphics.HardwareModeSwitch = true;
-            }
+            // In windowed/borderless mode, keep it false to avoid exclusive fullscreen.
+            _graphics.HardwareModeSwitch = graphics.IsFullScreen;
 
             _graphics.ApplyChanges();
 

@@ -135,9 +135,11 @@ namespace Client.Main.Controllers
             var settings = MuGame.AppSettings?.Graphics;
             if (settings != null)
             {
+                int actualWidth = Math.Max(1, _graphicsDevice.PresentationParameters.BackBufferWidth);
+                int actualHeight = Math.Max(1, _graphicsDevice.PresentationParameters.BackBufferHeight);
                 UiScaler.Configure(
-                    MuGame.Instance.Width,
-                    MuGame.Instance.Height,
+                    actualWidth,
+                    actualHeight,
                     settings.UiVirtualWidth,
                     settings.UiVirtualHeight);
             }
@@ -171,8 +173,8 @@ namespace Client.Main.Controllers
         {
             PresentationParameters pp = _graphicsDevice.PresentationParameters;
 
-            int backBufferWidth = Math.Max(1, MuGame.Instance.Width);
-            int backBufferHeight = Math.Max(1, MuGame.Instance.Height);
+            int backBufferWidth = Math.Max(1, _graphicsDevice.PresentationParameters.BackBufferWidth);
+            int backBufferHeight = Math.Max(1, _graphicsDevice.PresentationParameters.BackBufferHeight);
 
             int targetWidth = Math.Max(1, (int)MathF.Round(backBufferWidth * Constants.RENDER_SCALE));
             int targetHeight = Math.Max(1, (int)MathF.Round(backBufferHeight * Constants.RENDER_SCALE));
