@@ -11,6 +11,7 @@ using Client.Main.Models;
 using Client.Main.Objects;
 using Client.Main.Objects.Effects;
 using Client.Main.Scenes;
+using Client.Main;
 using Microsoft.Xna.Framework;
 
 namespace Client.Main.Networking.PacketHandling.Handlers
@@ -1172,11 +1173,29 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         // Spawn skill visual effect via registry
                         if (activeScene.World is WalkableWorldControl world)
                         {
+                            Vector3? targetPosition = null;
+                            if (targetId != 0 && world.TryGetWalkerById(targetId, out var target))
+                                targetPosition = target.WorldPosition.Translation;
+                            else if (targetId == 0 && Core.Utilities.SkillDatabase.IsAreaSkill(skillId))
+                            {
+                                // Fallback to client-side remembered cast point (mirrors original client SkillX/SkillY usage).
+                                double nowMs = MuGame.Instance?.GameTime?.TotalGameTime.TotalMilliseconds ?? Environment.TickCount64;
+                                double elapsedMs = nowMs - _characterState.LastAreaSkillSentAtMs;
+                                if (_characterState.LastAreaSkillId == skillId && elapsedMs >= 0 && elapsedMs <= 1500)
+                                {
+                                    float worldX = (_characterState.LastAreaSkillTargetX + 0.5f) * Constants.TERRAIN_SCALE;
+                                    float worldY = (_characterState.LastAreaSkillTargetY + 0.5f) * Constants.TERRAIN_SCALE;
+                                    float worldZ = world.Terrain.RequestTerrainHeight(worldX, worldY);
+                                    targetPosition = new Vector3(worldX, worldY, worldZ);
+                                }
+                            }
+
                             var effectContext = new Objects.Effects.Skills.SkillEffectContext
                             {
                                 Caster = activeScene.Hero,
                                 TargetId = targetId,
                                 SkillId = skillId,
+                                TargetPosition = targetPosition,
                                 World = world
                             };
 
@@ -1254,11 +1273,17 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         // Spawn skill visual effect via registry (area skills included)
                         if (activeScene.World is WalkableWorldControl world)
                         {
+                            float worldX = (targetX + 0.5f) * Constants.TERRAIN_SCALE;
+                            float worldY = (targetY + 0.5f) * Constants.TERRAIN_SCALE;
+                            float worldZ = world.Terrain.RequestTerrainHeight(worldX, worldY);
+                            var targetPosition = new Vector3(worldX, worldY, worldZ);
+
                             var effectContext = new Objects.Effects.Skills.SkillEffectContext
                             {
                                 Caster = activeScene.Hero,
                                 TargetId = 0,
                                 SkillId = skillId,
+                                TargetPosition = targetPosition,
                                 World = world
                             };
 

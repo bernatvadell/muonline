@@ -21,6 +21,8 @@ namespace Client.Main.Scenes
 
         private Core.Client.SkillEntryState _pendingSkill;
         private ushort _pendingSkillTargetId;
+        private Vector2 _pendingSkillTargetLocation;
+        private bool _pendingSkillHasLocation;
         private uint _pendingSkillRange;
         private bool _pendingSkillIsArea;
         private bool _pendingSkillTargetIsPlayer;
@@ -87,9 +89,17 @@ namespace Client.Main.Scenes
             if (IsAreaSkill(skill.SkillId))
             {
                 var skillTarget = hoveredTarget;
+                var mouseTile = new Vector2(walkableForSkills.MouseTileX, walkableForSkills.MouseTileY);
                 if (skillTarget == null)
                 {
-                    UseAreaSkill(skill, 0);
+                    if (IsInSkillRange(mouseTile, allowedRange))
+                    {
+                        UseAreaSkill(skill, 0, mouseTile);
+                    }
+                    else
+                    {
+                        QueueAreaSkillCast(skill, mouseTile, allowedRange);
+                    }
                 }
                 else if (IsInSkillRange(skillTarget.Location, allowedRange))
                 {
@@ -181,7 +191,13 @@ namespace Client.Main.Scenes
         private void UpdatePendingSkill()
         {
             var hero = _scene.Hero;
-            if (_pendingSkill == null || _pendingSkillTargetId == 0 || hero == null || hero.IsDead)
+            if (_pendingSkill == null || hero == null || hero.IsDead)
+            {
+                ClearPendingSkill();
+                return;
+            }
+
+            if (_pendingSkillTargetId == 0 && !_pendingSkillHasLocation)
             {
                 ClearPendingSkill();
                 return;
@@ -203,6 +219,21 @@ namespace Client.Main.Scenes
             if (terrainFlags.HasFlag(TWFlags.SafeZone))
             {
                 ClearPendingSkill();
+                return;
+            }
+
+            if (_pendingSkillHasLocation)
+            {
+                if (IsInSkillRange(_pendingSkillTargetLocation, _pendingSkillRange))
+                {
+                    bool sent = UseAreaSkill(_pendingSkill, 0, _pendingSkillTargetLocation);
+                    if (sent)
+                        ClearPendingSkill();
+                }
+                else
+                {
+                    MoveHeroTowardsTarget(_pendingSkillTargetLocation, force: false);
+                }
                 return;
             }
 
@@ -259,6 +290,8 @@ namespace Client.Main.Scenes
         {
             _pendingSkill = null;
             _pendingSkillTargetId = 0;
+            _pendingSkillTargetLocation = Vector2.Zero;
+            _pendingSkillHasLocation = false;
             _pendingSkillRange = 0;
             _pendingSkillIsArea = false;
             _pendingSkillTargetIsPlayer = false;
@@ -324,7 +357,7 @@ namespace Client.Main.Scenes
             return true;
         }
 
-        private bool UseAreaSkill(Core.Client.SkillEntryState skill, ushort extraTargetId = 0)
+        private bool UseAreaSkill(Core.Client.SkillEntryState skill, ushort extraTargetId = 0, Vector2? targetLocationOverride = null)
         {
             var hero = _scene.Hero;
             if (skill == null || hero == null)
@@ -336,19 +369,42 @@ namespace Client.Main.Scenes
             if (!TryBeginSkillCast(skill, hero))
                 return false;
 
+            Vector2 targetTile = hero.Location;
+            if (targetLocationOverride.HasValue)
+            {
+                targetTile = targetLocationOverride.Value;
+            }
+            else if (_scene.World is WalkableWorldControl world)
+            {
+                if (extraTargetId != 0 && world.TryGetWalkerById(extraTargetId, out var target))
+                    targetTile = target.Location;
+                else
+                    targetTile = new Vector2(world.MouseTileX, world.MouseTileY);
+            }
+
+            byte targetX = (byte)Math.Clamp((int)targetTile.X, 0, Constants.TERRAIN_SIZE - 1);
+            byte targetY = (byte)Math.Clamp((int)targetTile.Y, 0, Constants.TERRAIN_SIZE - 1);
+
+            var characterState = MuGame.Network?.GetCharacterState();
+            if (characterState != null)
+            {
+                characterState.LastAreaSkillId = skill.SkillId;
+                characterState.LastAreaSkillTargetX = targetX;
+                characterState.LastAreaSkillTargetY = targetY;
+                characterState.LastAreaSkillSentAtMs = GetNowMs();
+            }
+
             if (extraTargetId != 0)
             {
                 _logger?.LogInformation("Using skill {SkillId} (Level {Level}) at position ({X},{Y}) with target {TargetId}",
-                    skill.SkillId, skill.SkillLevel, (byte)hero.Location.X, (byte)hero.Location.Y, extraTargetId);
+                    skill.SkillId, skill.SkillLevel, targetX, targetY, extraTargetId);
             }
             else
             {
                 _logger?.LogInformation("Using area skill {SkillId} (Level {Level}) at position ({X},{Y})",
-                    skill.SkillId, skill.SkillLevel, (byte)hero.Location.X, (byte)hero.Location.Y);
+                    skill.SkillId, skill.SkillLevel, targetX, targetY);
             }
 
-            byte targetX = (byte)hero.Location.X;
-            byte targetY = (byte)hero.Location.Y;
             byte rotation = (byte)((hero.Angle.Y / (2 * Math.PI)) * 255);
 
             _ = MuGame.Network.GetCharacterService().SendAreaSkillRequestAsync(
@@ -359,6 +415,23 @@ namespace Client.Main.Scenes
                 extraTargetId);
 
             return true;
+        }
+
+        private void QueueAreaSkillCast(Core.Client.SkillEntryState skill, Vector2 targetLocation, uint allowedRange)
+        {
+            var hero = _scene.Hero;
+            if (skill == null || hero == null)
+                return;
+
+            _pendingSkill = skill;
+            _pendingSkillTargetId = 0;
+            _pendingSkillTargetLocation = targetLocation;
+            _pendingSkillHasLocation = true;
+            _pendingSkillRange = allowedRange;
+            _pendingSkillIsArea = true;
+            _pendingSkillTargetIsPlayer = false;
+
+            MoveHeroTowardsTarget(targetLocation, force: true);
         }
 
         private bool TryBeginSkillCast(Core.Client.SkillEntryState skill, PlayerObject hero)

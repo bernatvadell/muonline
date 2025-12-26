@@ -102,6 +102,15 @@ namespace Client.Main.Core.Client
         public ushort MapId { get; set; } = 0;
         public byte Direction { get; set; } = 0; // Default direction, e.g., West
 
+        /// <summary>
+        /// Last area skill cast point (client-side), used as fallback for VFX positioning
+        /// when the server animation packet doesn't include coordinates.
+        /// </summary>
+        public ushort LastAreaSkillId { get; set; } = 0;
+        public byte LastAreaSkillTargetX { get; set; } = 0;
+        public byte LastAreaSkillTargetY { get; set; } = 0;
+        public double LastAreaSkillSentAtMs { get; set; } = 0;
+
         // Core Stats (HP, Mana, SD, AG)
         public uint CurrentHealth { get; set; } = 0;
         public uint MaximumHealth { get; set; } = 1;

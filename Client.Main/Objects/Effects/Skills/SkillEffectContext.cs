@@ -1,4 +1,5 @@
 using Client.Main.Controls;
+using Microsoft.Xna.Framework;
 
 namespace Client.Main.Objects.Effects.Skills
 {
@@ -21,6 +22,11 @@ namespace Client.Main.Objects.Effects.Skills
         /// The skill ID being cast.
         /// </summary>
         public ushort SkillId { get; init; }
+
+        /// <summary>
+        /// Optional world-space target position (used for area skills).
+        /// </summary>
+        public Vector3? TargetPosition { get; init; }
 
         /// <summary>
         /// The world control where the effect will be spawned.
