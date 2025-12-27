@@ -32,6 +32,9 @@ namespace Client.Main.Objects.Worlds.Devias
 
         public override bool IsTransparent => _isTransparent || (Alpha < 0.99f);
 
+        // Cannot be cached due to flicker animation and player-proximity fading
+        public override bool IsStaticForCaching => false;
+
         public override async Task Load()
         {
             BlendState = BlendState.AlphaBlend;

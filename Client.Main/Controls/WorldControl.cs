@@ -127,13 +127,25 @@ namespace Client.Main.Controls
 
         // --- Fields & Constants ---
 
-        private sealed class StaticChunk
+        private sealed class StaticChunk : IDisposable
         {
             public BoundingBox Bounds;
             public Vector2 Center2D;
             public bool HasBounds;
             public bool IsVisible;
             public readonly List<WorldObject> Objects = new();
+
+            // Surface caching for static objects
+            public RenderTarget2D CachedSurface;
+            public bool SurfaceDirty = true;
+            public Matrix LastViewProjection;
+            public int CacheableObjectCount;
+
+            public void Dispose()
+            {
+                CachedSurface?.Dispose();
+                CachedSurface = null;
+            }
         }
 
         private const int StaticChunkSizeTiles = 16;
@@ -909,6 +921,17 @@ namespace Client.Main.Controls
                     (chunk.Bounds.Min.X + chunk.Bounds.Max.X) * 0.5f,
                     (chunk.Bounds.Min.Y + chunk.Bounds.Max.Y) * 0.5f);
                 chunk.IsVisible = false;
+                chunk.SurfaceDirty = true;
+
+                // Count cacheable objects for future surface caching
+                int cacheableCount = 0;
+                for (int n = 0; n < chunk.Objects.Count; n++)
+                {
+                    if (chunk.Objects[n] is ModelObject model && model.IsStaticForCaching)
+                        cacheableCount++;
+                }
+                chunk.CacheableObjectCount = cacheableCount;
+
                 if (chunk.Objects.Count > 0)
                 {
                     anyObjects = true;
@@ -952,6 +975,15 @@ namespace Client.Main.Controls
             _players.Clear();
             _monsters.Clear();
             _droppedItems.Clear();
+
+            // Dispose static chunk cached surfaces
+            if (_staticChunks != null)
+            {
+                for (int i = 0; i < _staticChunks.Length; i++)
+                    _staticChunks[i]?.Dispose();
+                _staticChunks = null;
+            }
+            _staticChunksReady = false;
 
             sw.Stop();
             var elapsedObjects = sw.ElapsedMilliseconds;

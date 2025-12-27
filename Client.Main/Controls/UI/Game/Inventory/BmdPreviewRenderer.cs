@@ -73,6 +73,9 @@ namespace Client.Main.Controls.UI.Game.Inventory
         private static readonly HashSet<string> _failedRenders = new();
         private static readonly Dictionary<string, BlendState> _previewBlendStateCache = new();
 
+        // Reusable buffer to avoid per-frame allocations in GetPreviewInternal
+        private static readonly Vector3[] _transformedCornersBuffer = new Vector3[8];
+
         private const int MaxRotatingCacheSize = 96;
         private const float AnimatedUpdateInterval = 1f / 23f; // limit
 
@@ -475,7 +478,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
                 Matrix worldBase = Matrix.CreateScale(scale) * finalRotation * Matrix.CreateTranslation(-originalCenter * scale);
 
-                Vector3[] transformedCorners = new Vector3[8];
+                var transformedCorners = _transformedCornersBuffer;
                 for (int i = 0; i < originalCorners.Length; i++)
                 {
                     transformedCorners[i] = Vector3.Transform(originalCorners[i], worldBase);
