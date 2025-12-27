@@ -16,6 +16,7 @@ namespace Client.Main.Scenes
     {
         private const ushort TeleportSkillId = 6;
         private const ushort HellFireSkillId = 10;
+        private const ushort InfernoSkillId = 14;
 
         private readonly GameScene _scene;
         private readonly SkillQuickSlot _skillQuickSlot;
@@ -109,7 +110,7 @@ namespace Client.Main.Scenes
             var hoveredTarget = GetHoveredSkillTarget();
             if (IsAreaSkill(skill.SkillId))
             {
-                if (skill.SkillId == HellFireSkillId)
+                if (skill.SkillId == HellFireSkillId || skill.SkillId == InfernoSkillId)
                 {
                     UseAreaSkill(skill);
                     _scene.SetMouseInputConsumed();
@@ -225,7 +226,7 @@ namespace Client.Main.Scenes
                 return;
             }
 
-            if (_pendingSkill.SkillId == HellFireSkillId)
+            if (_pendingSkill.SkillId == HellFireSkillId || _pendingSkill.SkillId == InfernoSkillId)
             {
                 ClearPendingSkill();
                 return;
@@ -412,7 +413,7 @@ namespace Client.Main.Scenes
                 return false;
 
             Vector2 targetTile = hero.Location;
-            if (skill.SkillId != HellFireSkillId)
+            if (skill.SkillId != HellFireSkillId && skill.SkillId != InfernoSkillId)
             {
                 if (targetLocationOverride.HasValue)
                 {
