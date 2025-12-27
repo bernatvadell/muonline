@@ -199,6 +199,7 @@ namespace Client.Data.BMD
             Add(19, 62);    // Falling Slash → PlayerAttackSkillWheel
             Add(43, 71);    // Death Stab → PlayerAttackDeathstab
             Add(41, 65);    // Twisting Slash → PlayerAttackSkillWheel
+            Add(42, 66);    // Rageful Blow → PlayerAttackSkillFuryStrike
 
             // WIZARD/SUMMONER SKILLS
             Add(6, 151);    // Teleport → PlayerSkillTeleport
