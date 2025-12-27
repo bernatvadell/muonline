@@ -407,11 +407,27 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             ushort mapId = (ushort)(mapNumber); // Server's MapNumber is already the correct WorldIndex for client worlds.
             _logger.LogInformation("🔄 MapChanged: Map={Map}, Pos=({X},{Y}), Dir={Dir}", mapId, x, y, direction);
 
+            // End teleport state if active (show hero, allow movement)
+            bool wasTeleporting = _characterState.IsTeleporting;
+            _characterState.EndTeleport();
+
             // Update state & notify
             _characterState.UpdatePosition(x, y);
             _characterState.UpdateMap(mapId);
             _characterState.UpdateDirection(direction);
             _networkManager.ProcessCharacterRespawn(mapId, x, y, direction);
+
+            // Show hero after teleport completes
+            if (wasTeleporting)
+            {
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    if (MuGame.Instance.ActiveScene is GameScene gs && gs.Hero != null)
+                    {
+                        gs.Hero.Hidden = false;
+                    }
+                });
+            }
 
             // Heuristic: Some servers go directly to MapChanged without sending CharacterInformation
             if (_networkManager.CurrentState == ClientConnectionState.SelectingCharacter)

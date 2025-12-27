@@ -1514,7 +1514,7 @@ namespace Client.Main.Networking.Services
             }
         }
 
-        public async Task SendEnterGateRequestAsync(ushort gateId)
+        public async Task SendEnterGateRequestAsync(ushort gateId, byte teleportTargetX = 0, byte teleportTargetY = 0)
         {
             if (!_connectionManager.IsConnected)
             {
@@ -1522,18 +1522,32 @@ namespace Client.Main.Networking.Services
                 return;
             }
 
-            _logger.LogInformation("Sending enter gate request for gate {GateId}...", gateId);
+            if (gateId == 0 && (teleportTargetX != 0 || teleportTargetY != 0))
+            {
+                _logger.LogInformation("Sending teleport request to ({X},{Y})...", teleportTargetX, teleportTargetY);
+            }
+            else
+            {
+                _logger.LogInformation("Sending enter gate request for gate {GateId}...", gateId);
+            }
             try
             {
                 await _connectionManager.Connection.SendAsync(() =>
                 {
                     var packet = new EnterGateRequest(_connectionManager.Connection.Output.GetMemory(EnterGateRequest.Length).Slice(0, EnterGateRequest.Length));
                     packet.GateNumber = gateId;
-                    packet.TeleportTargetX = 0;
-                    packet.TeleportTargetY = 0;
+                    packet.TeleportTargetX = teleportTargetX;
+                    packet.TeleportTargetY = teleportTargetY;
                     return EnterGateRequest.Length;
                 });
-                _logger.LogInformation("Enter gate request sent for gate {GateId}.", gateId);
+                if (gateId == 0 && (teleportTargetX != 0 || teleportTargetY != 0))
+                {
+                    _logger.LogInformation("Teleport request sent to ({X},{Y}).", teleportTargetX, teleportTargetY);
+                }
+                else
+                {
+                    _logger.LogInformation("Enter gate request sent for gate {GateId}.", gateId);
+                }
             }
             catch (Exception ex)
             {

@@ -14,6 +14,8 @@ namespace Client.Main.Scenes
 {
     internal sealed class GameSceneSkillController
     {
+        private const ushort TeleportSkillId = 6;
+
         private readonly GameScene _scene;
         private readonly SkillQuickSlot _skillQuickSlot;
         private readonly ILogger _logger;
@@ -85,6 +87,23 @@ namespace Client.Main.Scenes
 
             ClearPendingSkill();
             uint allowedRange = SkillDatabase.GetSkillRange(skill.SkillId);
+
+            if (skill.SkillId == TeleportSkillId)
+            {
+                var mouseTile = new Vector2(walkableForSkills.MouseTileX, walkableForSkills.MouseTileY);
+                if (IsInSkillRange(mouseTile, allowedRange))
+                {
+                    UseAreaSkill(skill, 0, mouseTile);
+                }
+                else
+                {
+                    _logger?.LogDebug("Teleport target out of range. Target=({X},{Y}) Range={Range}",
+                        mouseTile.X, mouseTile.Y, allowedRange);
+                }
+
+                _scene.SetMouseInputConsumed();
+                return;
+            }
 
             var hoveredTarget = GetHoveredSkillTarget();
             if (IsAreaSkill(skill.SkillId))
@@ -194,6 +213,13 @@ namespace Client.Main.Scenes
             var hero = _scene.Hero;
             if (_pendingSkill == null || hero == null || hero.IsDead)
             {
+                ClearPendingSkill();
+                return;
+            }
+
+            if (_pendingSkill.SkillId == TeleportSkillId)
+            {
+                // Teleport is an instant skill; it shouldn't path towards the target.
                 ClearPendingSkill();
                 return;
             }
@@ -387,14 +413,38 @@ namespace Client.Main.Scenes
             byte targetX = (byte)Math.Clamp((int)targetTile.X, 0, Constants.TERRAIN_SIZE - 1);
             byte targetY = (byte)Math.Clamp((int)targetTile.Y, 0, Constants.TERRAIN_SIZE - 1);
 
+            if (skill.SkillId == TeleportSkillId)
+            {
+                if (_scene.World is WorldControl worldForTeleport &&
+                    !worldForTeleport.IsWalkable(new Vector2(targetX, targetY)))
+                {
+                    _logger?.LogDebug("Teleport target ({X},{Y}) is not walkable.", targetX, targetY);
+                    return false;
+                }
+            }
+
             if (!TryBeginSkillCast(skill, hero))
                 return false;
 
             hero.FaceTowards(new Vector2(targetX, targetY), immediate: true);
 
-            byte animationCounter = NextAreaSkillAnimationCounter();
-
             var characterState = MuGame.Network?.GetCharacterState();
+
+            if (skill.SkillId == TeleportSkillId)
+            {
+                _logger?.LogInformation("Using teleport skill {SkillId} (Level {Level}) to position ({X},{Y})",
+                    skill.SkillId, skill.SkillLevel, targetX, targetY);
+
+                characterState?.BeginTeleport();
+
+                hero.StopMovement();
+                hero.Hidden = true; // Hide hero until server responds
+
+                _ = MuGame.Network.GetCharacterService().SendEnterGateRequestAsync(0, targetX, targetY);
+                return true;
+            }
+
+            byte animationCounter = NextAreaSkillAnimationCounter();
             if (characterState != null)
             {
                 characterState.LastAreaSkillId = skill.SkillId;
@@ -415,7 +465,12 @@ namespace Client.Main.Scenes
                     skill.SkillId, skill.SkillLevel, targetX, targetY);
             }
 
-            byte rotation = (byte)((hero.Angle.Y / (2 * Math.PI)) * 255);
+            float angleZ = MathHelper.WrapAngle(hero.Angle.Z);
+            if (angleZ < 0f)
+            {
+                angleZ += MathHelper.TwoPi;
+            }
+            byte rotation = (byte)(angleZ / MathHelper.TwoPi * 256f);
 
             _ = MuGame.Network.GetCharacterService().SendAreaSkillRequestAsync(
                 skill.SkillId,

@@ -20,7 +20,7 @@ namespace Client.Data.BMD
             { 3, SkillType.Target },   // Lightning
             { 4, SkillType.Target },   // Fire Ball
             { 5, SkillType.Area },     // Flame
-            { 6, SkillType.Self },     // Teleport
+            { 6, SkillType.Area },     // Teleport
             { 7, SkillType.Target },   // Ice
             { 8, SkillType.Area },     // Twister
             { 9, SkillType.Area },   // Evil Spirit

@@ -351,6 +351,10 @@ namespace Client.Main.Objects
             // Don't allow movement if player is dead
             if (!this.IsAlive()) return;
 
+            // Don't allow movement while teleporting (waiting for server response)
+            if (IsMainWalker && MuGame.Network?.GetCharacterState()?.IsTeleporting == true)
+                return;
+
             _movementIntent = true;
 
             UpdateFacingFromVector(targetLocation - Location);

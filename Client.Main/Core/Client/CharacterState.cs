@@ -103,6 +103,21 @@ namespace Client.Main.Core.Client
         public byte Direction { get; set; } = 0; // Default direction, e.g., West
 
         /// <summary>
+        /// True while teleport skill is in progress (hero hidden, movement blocked until server responds).
+        /// </summary>
+        public bool IsTeleporting { get; private set; } = false;
+
+        public void BeginTeleport()
+        {
+            IsTeleporting = true;
+        }
+
+        public void EndTeleport()
+        {
+            IsTeleporting = false;
+        }
+
+        /// <summary>
         /// Last area skill cast point (client-side), used as fallback for VFX positioning
         /// when the server animation packet doesn't include coordinates.
         /// </summary>
