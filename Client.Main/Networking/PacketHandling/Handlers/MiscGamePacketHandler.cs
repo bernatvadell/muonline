@@ -535,8 +535,11 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             try
             {
                 var entered = new GameServerEntered(packet);
-                _characterState.Id = entered.PlayerId;
-                _logger.LogInformation("👋 Entered Game Server. PlayerId = {Pid:X4}", entered.PlayerId);
+                // The server may set the high bit on object ids; internally we work with masked ids (0x7FFF)
+                // because most world lookups and movement packets use the masked form.
+                ushort maskedId = (ushort)(entered.PlayerId & 0x7FFF);
+                _characterState.Id = maskedId;
+                _logger.LogInformation("👋 Entered Game Server. PlayerId = {Pid:X4} (masked {Masked:X4})", entered.PlayerId, maskedId);
                 _networkManager.ProcessGameServerEntered();
             }
             catch (Exception ex)

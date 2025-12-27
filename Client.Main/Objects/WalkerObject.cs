@@ -399,6 +399,11 @@ namespace Client.Main.Objects
             });
         }
 
+        public void FaceTowards(Vector2 targetLocation, bool immediate = false)
+        {
+            UpdateFacingFromVector(targetLocation - Location, immediate);
+        }
+
         private async Task SendWalkPathToServerAsync(List<Vector2> path)
         {
             if (path == null || path.Count == 0) return;

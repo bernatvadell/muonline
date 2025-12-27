@@ -323,6 +323,8 @@ namespace Client.Main.Scenes
             if (!TryBeginSkillCast(skill, hero))
                 return false;
 
+            hero.FaceTowards(target.Location, immediate: true);
+
             _logger?.LogInformation("Using targeted skill {SkillId} (Level {Level}) on target {TargetId}",
                 skill.SkillId, skill.SkillLevel, target.NetworkId);
 
@@ -348,6 +350,8 @@ namespace Client.Main.Scenes
             if (!TryBeginSkillCast(skill, hero))
                 return false;
 
+            hero.FaceTowards(target.Location, immediate: true);
+
             _logger?.LogInformation("Using targeted skill {SkillId} (Level {Level}) on duel target player {TargetId}",
                 skill.SkillId, skill.SkillLevel, target.NetworkId);
 
@@ -367,9 +371,6 @@ namespace Client.Main.Scenes
             if (hero.IsDead)
                 return false;
 
-            if (!TryBeginSkillCast(skill, hero))
-                return false;
-
             Vector2 targetTile = hero.Location;
             if (targetLocationOverride.HasValue)
             {
@@ -385,6 +386,11 @@ namespace Client.Main.Scenes
 
             byte targetX = (byte)Math.Clamp((int)targetTile.X, 0, Constants.TERRAIN_SIZE - 1);
             byte targetY = (byte)Math.Clamp((int)targetTile.Y, 0, Constants.TERRAIN_SIZE - 1);
+
+            if (!TryBeginSkillCast(skill, hero))
+                return false;
+
+            hero.FaceTowards(new Vector2(targetX, targetY), immediate: true);
 
             byte animationCounter = NextAreaSkillAnimationCounter();
 
