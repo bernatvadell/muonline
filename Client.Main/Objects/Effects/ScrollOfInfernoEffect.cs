@@ -3,6 +3,7 @@ using System;
 using System.Threading.Tasks;
 using Client.Main.Content;
 using Client.Main.Controllers;
+using Client.Main.Controls;
 using Client.Main.Core.Utilities;
 using Client.Main.Graphics;
 using Client.Main.Helpers;
@@ -53,6 +54,9 @@ namespace Client.Main.Objects.Effects
         private readonly SparkParticle[] _sparks = new SparkParticle[MaxSparks];
 
         private float _lifeFrames = CoreLifeFrames;
+        private float _time;
+        private readonly DynamicLight _coreLight;
+        private bool _lightsAdded;
 
         public ScrollOfInfernoEffect(WalkerObject caster, Vector3 center)
         {
@@ -67,6 +71,14 @@ namespace Client.Main.Objects.Effects
             BoundingBoxLocal = new BoundingBox(
                 new Vector3(-350f, -350f, -80f),
                 new Vector3(350f, 350f, 260f));
+
+            _coreLight = new DynamicLight
+            {
+                Owner = this,
+                Color = new Vector3(1.0f, 0.35f, 0.1f),
+                Radius = 320f,
+                Intensity = 2.1f
+            };
         }
 
         public override async Task LoadContent()
@@ -84,6 +96,12 @@ namespace Client.Main.Objects.Effects
             _explosionTexture = TextureLoader.Instance.GetTexture2D(ExplosionTexturePath) ?? GraphicsManager.Instance.Pixel;
             _sparkTexture = TextureLoader.Instance.GetTexture2D(SparkTexturePath) ?? GraphicsManager.Instance.Pixel;
             _texturesLoaded = true;
+
+            if (World?.Terrain != null && !_lightsAdded)
+            {
+                World.Terrain.AddDynamicLight(_coreLight);
+                _lightsAdded = true;
+            }
         }
 
         public override void Update(GameTime gameTime)
@@ -108,9 +126,11 @@ namespace Client.Main.Objects.Effects
                 InitializeEffect();
 
             float factor = FPSCounter.Instance.FPS_ANIMATION_FACTOR;
+            _time += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
             UpdateBursts(factor);
             UpdateSparks(factor);
+            UpdateDynamicLight();
 
             _lifeFrames -= factor;
             if (_lifeFrames <= 0f)
@@ -286,6 +306,19 @@ namespace Client.Main.Objects.Effects
             }
         }
 
+        private void UpdateDynamicLight()
+        {
+            if (World?.Terrain == null)
+                return;
+
+            float lifeAlpha = MathHelper.Clamp(_lifeFrames / CoreLifeFrames, 0f, 1f);
+            float pulse = 0.8f + 0.2f * MathF.Sin(_time * 12f);
+
+            _coreLight.Position = _center;
+            _coreLight.Intensity = 2.1f * lifeAlpha * pulse;
+            _coreLight.Radius = MathHelper.Lerp(360f, 240f, 1f - lifeAlpha);
+        }
+
         private void DrawBursts()
         {
             for (int i = 0; i < _bursts.Length; i++)
@@ -429,6 +462,17 @@ namespace Client.Main.Objects.Effects
             float theta = RandomRange(0f, MathHelper.TwoPi);
             float r = MathF.Sqrt(MathF.Max(0f, 1f - z * z));
             return new Vector3(r * MathF.Cos(theta), r * MathF.Sin(theta), z);
+        }
+
+        public override void Dispose()
+        {
+            if (_lightsAdded && World?.Terrain != null)
+            {
+                World.Terrain.RemoveDynamicLight(_coreLight);
+                _lightsAdded = false;
+            }
+
+            base.Dispose();
         }
 
         private struct Burst

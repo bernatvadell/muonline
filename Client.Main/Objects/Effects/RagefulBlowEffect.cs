@@ -63,6 +63,9 @@ namespace Client.Main.Objects.Effects
         private Texture2D _jointSparkTexture = null!;
         private Texture2D _sparkTexture = null!;
         private bool _texturesLoaded;
+        private readonly DynamicLight _impactLight;
+        private bool _lightsAdded;
+        private float _time;
 
         private struct ExplosionParticle
         {
@@ -268,6 +271,14 @@ namespace Client.Main.Objects.Effects
                 new Vector3(-320f, -320f, -80f),
                 new Vector3(320f, 320f, 260f));
 
+            _impactLight = new DynamicLight
+            {
+                Owner = this,
+                Color = new Vector3(1.0f, 0.6f, 0.25f),
+                Radius = 280f,
+                Intensity = 1.6f
+            };
+
         }
 
         public override async Task LoadContent()
@@ -285,6 +296,12 @@ namespace Client.Main.Objects.Effects
             _jointSparkTexture = TextureLoader.Instance.GetTexture2D(JointSparkTexturePath) ?? GraphicsManager.Instance.Pixel;
             _sparkTexture = TextureLoader.Instance.GetTexture2D(SparkTexturePath) ?? GraphicsManager.Instance.Pixel;
             _texturesLoaded = true;
+
+            if (World?.Terrain != null && !_lightsAdded)
+            {
+                World.Terrain.AddDynamicLight(_impactLight);
+                _lightsAdded = true;
+            }
         }
 
         public override void Update(GameTime gameTime)
@@ -329,6 +346,7 @@ namespace Client.Main.Objects.Effects
                 UpdateBaseMotion(FPSCounter.Instance.FPS_ANIMATION_FACTOR, _lifeTimeFrames);
 
             UpdateParticles(FPSCounter.Instance.FPS_ANIMATION_FACTOR);
+            UpdateDynamicLight((float)gameTime.ElapsedGameTime.TotalSeconds);
 
             _lifeTimeFrames -= FPSCounter.Instance.FPS_ANIMATION_FACTOR;
             if (_lifeTimeFrames <= 0f)
@@ -409,6 +427,20 @@ namespace Client.Main.Objects.Effects
             SpawnImpactParticles();
             SpawnCoreBurst();
             SpawnPrimaryBursts();
+        }
+
+        private void UpdateDynamicLight(float dt)
+        {
+            if (World?.Terrain == null)
+                return;
+
+            _time += dt;
+            float lifeAlpha = MathHelper.Clamp(_lifeTimeFrames / 20f, 0f, 1f);
+            float pulse = 0.75f + 0.25f * MathF.Sin(_time * 10f);
+
+            _impactLight.Position = _impactTriggered ? _startPosition : _position;
+            _impactLight.Intensity = _impactTriggered ? 1.6f * lifeAlpha * pulse : 0f;
+            _impactLight.Radius = MathHelper.Lerp(280f, 180f, 1f - lifeAlpha);
         }
 
         private void SpawnImpactParticles()
@@ -873,6 +905,12 @@ namespace Client.Main.Objects.Effects
 
         public override void Dispose()
         {
+            if (_lightsAdded && World?.Terrain != null)
+            {
+                World.Terrain.RemoveDynamicLight(_impactLight);
+                _lightsAdded = false;
+            }
+
             base.Dispose();
         }
     }

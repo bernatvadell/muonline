@@ -3,6 +3,7 @@ using System;
 using System.Threading.Tasks;
 using Client.Main.Content;
 using Client.Main.Controllers;
+using Client.Main.Controls;
 using Client.Main.Core.Utilities;
 using Client.Main.Graphics;
 using Client.Main.Models;
@@ -42,6 +43,11 @@ namespace Client.Main.Objects.Effects
         private string _spikePath = "Item/Spear02.bmd";
         private bool _pathsResolved;
 
+        private readonly DynamicLight _chargeLight;
+        private readonly DynamicLight _impactLight;
+        private bool _lightsAdded;
+        private float _time;
+
         public DeathStabEffect(WalkerObject caster, WalkerObject? target)
         {
             _caster = caster ?? throw new ArgumentNullException(nameof(caster));
@@ -55,12 +61,35 @@ namespace Client.Main.Objects.Effects
             BoundingBoxLocal = new BoundingBox(
                 new Vector3(-200f, -200f, -80f),
                 new Vector3(200f, 200f, 200f));
+
+            _chargeLight = new DynamicLight
+            {
+                Owner = this,
+                Color = new Vector3(0.65f, 0.85f, 1.0f),
+                Radius = 220f,
+                Intensity = 1.2f
+            };
+
+            _impactLight = new DynamicLight
+            {
+                Owner = this,
+                Color = new Vector3(0.8f, 0.95f, 1.0f),
+                Radius = 200f,
+                Intensity = 0f
+            };
         }
 
         public override async Task LoadContent()
         {
             await base.LoadContent();
             await ResolvePaths();
+
+            if (World?.Terrain != null && !_lightsAdded)
+            {
+                World.Terrain.AddDynamicLight(_chargeLight);
+                World.Terrain.AddDynamicLight(_impactLight);
+                _lightsAdded = true;
+            }
         }
 
         public override void Update(GameTime gameTime)
@@ -80,6 +109,9 @@ namespace Client.Main.Objects.Effects
                 RemoveSelf();
                 return;
             }
+
+            _time += (float)gameTime.ElapsedGameTime.TotalSeconds;
+            UpdateWeaponTipPosition();
 
             int lifeInt = (int)_lifeTimeFrames;
 
@@ -115,6 +147,8 @@ namespace Client.Main.Objects.Effects
             {
                 RemoveSelf();
             }
+
+            UpdateDynamicLights(lifeInt);
         }
 
         private async Task ResolvePaths()
@@ -153,6 +187,31 @@ namespace Client.Main.Objects.Effects
             );
 
             _weaponTipPosition = _caster.Position + weaponOffset;
+        }
+
+        private void UpdateDynamicLights(int lifeInt)
+        {
+            if (World?.Terrain == null)
+                return;
+
+            float pulse = 0.8f + 0.2f * MathF.Sin(_time * 14f);
+            bool chargeActive = lifeInt >= 8 && lifeInt <= 18;
+
+            _chargeLight.Position = _weaponTipPosition;
+            _chargeLight.Intensity = chargeActive ? 1.2f * pulse : 0f;
+            _chargeLight.Radius = chargeActive ? 220f : 140f;
+
+            if (_impactApplied && _target != null)
+            {
+                _impactLight.Position = _target.Position + new Vector3(0f, 0f, 80f);
+                float impactAlpha = MathHelper.Clamp(_lifeTimeFrames / 10f, 0f, 1f);
+                _impactLight.Intensity = 1.4f * impactAlpha;
+                _impactLight.Radius = 200f + 40f * (1f - impactAlpha);
+            }
+            else
+            {
+                _impactLight.Intensity = 0f;
+            }
         }
 
         private void SpawnEnergyParticles()
@@ -236,6 +295,18 @@ namespace Client.Main.Objects.Effects
                 World?.RemoveObject(this);
 
             Dispose();
+        }
+
+        public override void Dispose()
+        {
+            if (_lightsAdded && World?.Terrain != null)
+            {
+                World.Terrain.RemoveDynamicLight(_chargeLight);
+                World.Terrain.RemoveDynamicLight(_impactLight);
+                _lightsAdded = false;
+            }
+
+            base.Dispose();
         }
 
         private sealed class DeathStabEnergyParticle : ModelObject
