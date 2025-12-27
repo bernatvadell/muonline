@@ -32,7 +32,7 @@ namespace Client.Main.Objects.Effects
         private const string SoundStrike2 = "Sound/eRageBlow_2.wav";
         private const string SoundStrike3 = "Sound/eRageBlow_3.wav";
 
-        private const float ImpactZOffset = 100f;
+        private const float ImpactZOffset = 70f;
         private const int ExplosionFrameCount = 16;
         private const int ExplosionFrameColumns = 4;
         private const int ExplosionFrameRows = 4;

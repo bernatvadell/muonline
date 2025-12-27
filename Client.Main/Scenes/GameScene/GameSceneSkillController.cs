@@ -15,6 +15,7 @@ namespace Client.Main.Scenes
     internal sealed class GameSceneSkillController
     {
         private const ushort TeleportSkillId = 6;
+        private const ushort HellFireSkillId = 10;
 
         private readonly GameScene _scene;
         private readonly SkillQuickSlot _skillQuickSlot;
@@ -108,6 +109,13 @@ namespace Client.Main.Scenes
             var hoveredTarget = GetHoveredSkillTarget();
             if (IsAreaSkill(skill.SkillId))
             {
+                if (skill.SkillId == HellFireSkillId)
+                {
+                    UseAreaSkill(skill);
+                    _scene.SetMouseInputConsumed();
+                    return;
+                }
+
                 var skillTarget = hoveredTarget;
                 var mouseTile = new Vector2(walkableForSkills.MouseTileX, walkableForSkills.MouseTileY);
                 if (skillTarget == null)
@@ -212,6 +220,12 @@ namespace Client.Main.Scenes
         {
             var hero = _scene.Hero;
             if (_pendingSkill == null || hero == null || hero.IsDead)
+            {
+                ClearPendingSkill();
+                return;
+            }
+
+            if (_pendingSkill.SkillId == HellFireSkillId)
             {
                 ClearPendingSkill();
                 return;
@@ -398,16 +412,19 @@ namespace Client.Main.Scenes
                 return false;
 
             Vector2 targetTile = hero.Location;
-            if (targetLocationOverride.HasValue)
+            if (skill.SkillId != HellFireSkillId)
             {
-                targetTile = targetLocationOverride.Value;
-            }
-            else if (_scene.World is WalkableWorldControl world)
-            {
-                if (extraTargetId != 0 && world.TryGetWalkerById(extraTargetId, out var target))
-                    targetTile = target.Location;
-                else
-                    targetTile = new Vector2(world.MouseTileX, world.MouseTileY);
+                if (targetLocationOverride.HasValue)
+                {
+                    targetTile = targetLocationOverride.Value;
+                }
+                else if (_scene.World is WalkableWorldControl world)
+                {
+                    if (extraTargetId != 0 && world.TryGetWalkerById(extraTargetId, out var target))
+                        targetTile = target.Location;
+                    else
+                        targetTile = new Vector2(world.MouseTileX, world.MouseTileY);
+                }
             }
 
             byte targetX = (byte)Math.Clamp((int)targetTile.X, 0, Constants.TERRAIN_SIZE - 1);
