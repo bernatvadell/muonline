@@ -355,7 +355,7 @@ namespace Client.Main.Controllers
                                                                                => AnimationType.Attack,
 
             PlayerAction.PlayerSkillHell or PlayerAction.PlayerSkillHellBegin or
-            PlayerAction.PlayerSkillHellStart => AnimationType.Skill,
+            PlayerAction.PlayerSkillHellStart or PlayerAction.PlayerAttackDeathstab => AnimationType.Skill,
 
             PlayerAction action when action.ToString().Contains("Skill", StringComparison.Ordinal)
                 => AnimationType.Skill,
