@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Text;
 using Client.Main.Core.Client;
 using Client.Main.Networking.Packets;
@@ -372,7 +373,8 @@ namespace Client.Main.Networking.PacketHandling
             byte targetX,
             byte targetY,
             byte rotation,
-            ushort extraTargetId = 0)
+            ushort extraTargetId = 0,
+            byte animationCounter = 0)
         {
             int length = AreaSkill.Length;
             var memory = writer.GetMemory(length).Slice(0, length);
@@ -383,7 +385,40 @@ namespace Client.Main.Networking.PacketHandling
             packet.TargetY = targetY;
             packet.Rotation = rotation;
             packet.ExtraTargetId = extraTargetId;
-            packet.AnimationCounter = 0; // Client can increment this for each cast
+            packet.AnimationCounter = animationCounter;
+
+            return length;
+        }
+
+        /// <summary>
+        /// Builds an area skill hit packet (damage application) for Season 6+ (C3 DB).
+        /// </summary>
+        public static int BuildAreaSkillHitPacket(
+            IBufferWriter<byte> writer,
+            ushort skillId,
+            byte targetX,
+            byte targetY,
+            byte hitCounter,
+            IReadOnlyList<ushort> targetIds,
+            byte animationCounter)
+        {
+            int targetCount = Math.Min(targetIds?.Count ?? 0, byte.MaxValue);
+            int length = AreaSkillHit.GetRequiredSize(targetCount);
+            var memory = writer.GetMemory(length).Slice(0, length);
+            var packet = new AreaSkillHit(memory);
+
+            packet.SkillId = skillId;
+            packet.TargetX = targetX;
+            packet.TargetY = targetY;
+            packet.HitCounter = hitCounter;
+            packet.TargetCount = (byte)targetCount;
+
+            for (int i = 0; i < targetCount; i++)
+            {
+                var target = packet[i];
+                target.TargetId = targetIds[i];
+                target.AnimationCounter = animationCounter;
+            }
 
             return length;
         }

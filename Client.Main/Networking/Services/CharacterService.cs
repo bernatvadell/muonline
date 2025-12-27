@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using MUnique.OpenMU.Network;
 using Client.Main.Networking.PacketHandling;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using MUnique.OpenMU.Network.Packets.ClientToServer;
 using MUnique.OpenMU.Network.Packets;
@@ -909,7 +910,7 @@ namespace Client.Main.Networking.Services
         /// <summary>
         /// Sends an area skill usage request packet to the server (buffs, area attacks, etc.).
         /// </summary>
-        public async Task SendAreaSkillRequestAsync(ushort skillId, byte targetX, byte targetY, byte rotation, ushort extraTargetId = 0)
+        public async Task SendAreaSkillRequestAsync(ushort skillId, byte targetX, byte targetY, byte rotation, ushort extraTargetId = 0, byte animationCounter = 0)
         {
             if (!_connectionManager.IsConnected)
             {
@@ -924,12 +925,42 @@ namespace Client.Main.Networking.Services
             try
             {
                 await _connectionManager.Connection.SendAsync(() =>
-                    PacketBuilder.BuildAreaSkillPacket(_connectionManager.Connection.Output, skillId, targetX, targetY, rotation, extraTargetId));
+                    PacketBuilder.BuildAreaSkillPacket(_connectionManager.Connection.Output, skillId, targetX, targetY, rotation, extraTargetId, animationCounter));
                 _logger.LogInformation("Area skill request sent: SkillID={SkillId}.", skillId);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending area skill request for skill {SkillId}.", skillId);
+            }
+        }
+
+        /// <summary>
+        /// Sends an area skill hit packet (damage application) to the server (Season 6+: C3 DB).
+        /// </summary>
+        public async Task SendAreaSkillHitAsync(ushort skillId, byte targetX, byte targetY, byte hitCounter, IReadOnlyList<ushort> targetIds, byte animationCounter)
+        {
+            if (targetIds == null || targetIds.Count == 0)
+                return;
+
+            if (!_connectionManager.IsConnected)
+            {
+                _logger.LogError("Not connected — cannot send area skill hit.");
+                return;
+            }
+
+            _logger.LogDebug(
+                "Sending area skill hit: SkillID={SkillId}, Position=({X},{Y}), Targets={Count}, HitCounter={HitCounter}, AnimCounter={AnimCounter}...",
+                skillId, targetX, targetY, targetIds.Count, hitCounter, animationCounter);
+
+            try
+            {
+                await _connectionManager.Connection.SendAsync(() =>
+                    PacketBuilder.BuildAreaSkillHitPacket(_connectionManager.Connection.Output, skillId, targetX, targetY, hitCounter, targetIds, animationCounter));
+                _logger.LogTrace("Area skill hit sent: SkillID={SkillId}, Targets={Count}.", skillId, targetIds.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending area skill hit for skill {SkillId}.", skillId);
             }
         }
 

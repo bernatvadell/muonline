@@ -38,7 +38,8 @@ namespace Client.Main.Objects.Effects.Skills
             }
 
             bool isTargeted = context.TargetId != 0;
-            return new ScrollOfFlameEffect(center, isTargeted);
+            bool dealsDamage = context.Caster.IsMainWalker;
+            return new ScrollOfFlameEffect(center, isTargeted, dealsDamage);
         }
     }
 }

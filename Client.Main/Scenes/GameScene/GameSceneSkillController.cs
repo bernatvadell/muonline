@@ -27,6 +27,7 @@ namespace Client.Main.Scenes
         private bool _pendingSkillIsArea;
         private bool _pendingSkillTargetIsPlayer;
         private readonly Dictionary<ushort, double> _nextSkillAllowedMs = new();
+        private byte _nextAreaSkillAnimationCounter;
 
         public GameSceneSkillController(
             GameScene scene,
@@ -385,12 +386,15 @@ namespace Client.Main.Scenes
             byte targetX = (byte)Math.Clamp((int)targetTile.X, 0, Constants.TERRAIN_SIZE - 1);
             byte targetY = (byte)Math.Clamp((int)targetTile.Y, 0, Constants.TERRAIN_SIZE - 1);
 
+            byte animationCounter = NextAreaSkillAnimationCounter();
+
             var characterState = MuGame.Network?.GetCharacterState();
             if (characterState != null)
             {
                 characterState.LastAreaSkillId = skill.SkillId;
                 characterState.LastAreaSkillTargetX = targetX;
                 characterState.LastAreaSkillTargetY = targetY;
+                characterState.LastAreaSkillAnimationCounter = animationCounter;
                 characterState.LastAreaSkillSentAtMs = GetNowMs();
             }
 
@@ -412,7 +416,8 @@ namespace Client.Main.Scenes
                 targetX,
                 targetY,
                 rotation,
-                extraTargetId);
+                extraTargetId: extraTargetId,
+                animationCounter: animationCounter);
 
             return true;
         }
@@ -476,6 +481,17 @@ namespace Client.Main.Scenes
                 return gameTime.TotalGameTime.TotalMilliseconds;
 
             return Environment.TickCount64;
+        }
+
+        private byte NextAreaSkillAnimationCounter()
+        {
+            // Mirrors original client behavior: a small rolling serial number is used
+            // to tie AreaSkillHit packets to the AreaSkill animation.
+            _nextAreaSkillAnimationCounter++;
+            if (_nextAreaSkillAnimationCounter > 50)
+                _nextAreaSkillAnimationCounter = 1;
+
+            return _nextAreaSkillAnimationCounter;
         }
     }
 }

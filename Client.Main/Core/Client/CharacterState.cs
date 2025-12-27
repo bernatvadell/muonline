@@ -109,6 +109,7 @@ namespace Client.Main.Core.Client
         public ushort LastAreaSkillId { get; set; } = 0;
         public byte LastAreaSkillTargetX { get; set; } = 0;
         public byte LastAreaSkillTargetY { get; set; } = 0;
+        public byte LastAreaSkillAnimationCounter { get; set; } = 0;
         public double LastAreaSkillSentAtMs { get; set; } = 0;
 
         // Core Stats (HP, Mana, SD, AG)

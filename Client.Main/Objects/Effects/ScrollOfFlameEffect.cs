@@ -6,6 +6,8 @@ using Client.Main.Controllers;
 using Client.Main.Controls;
 using Client.Main.Graphics;
 using Client.Main.Models;
+using Client.Main.Objects.Player;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -17,6 +19,8 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public sealed class ScrollOfFlameEffect : WorldObject
     {
+        private const ushort FlameSkillId = 5;
+
         private const string FlameTexturePath = "Effect/Flame01.jpg";
         private const string FlameFallbackTexturePath = "Effect/firehik01.jpg";
         private const string SparkTexturePath = "Effect/Spark03.jpg";
@@ -31,6 +35,12 @@ namespace Client.Main.Objects.Effects
         private const float CylinderRadius = 35f;
         private const float CylinderHeight = 450f;
         private const float CylinderThickness = 10f; // very tight spawn area
+
+        // Damage (matches original client behavior: hits in radius ~150 every ~20 frames @ 25fps)
+        private const float DamageRadius = 150f;
+        private const float DamageTickSeconds = 20f / 25f;
+        private const int MaxHitTargets = 5;
+        private const double LastCastMatchWindowMs = 1500;
 
         // Flame particles - dense fire column
         private const int MaxFlameParticles = 350;
@@ -58,8 +68,16 @@ namespace Client.Main.Objects.Effects
 
         private readonly Vector3 _center;
         private readonly bool _isTargeted;
+        private readonly bool _dealsDamage;
         private readonly float _totalDuration;
         private float _time;
+
+        private readonly byte _targetTileX;
+        private readonly byte _targetTileY;
+        private byte _animationCounter;
+        private byte _hitCounter;
+        private readonly System.Collections.Generic.Dictionary<ushort, float> _nextHitTimeByTarget = new();
+        private readonly ILogger? _logger = MuGame.AppLoggerFactory?.CreateLogger<ScrollOfFlameEffect>();
 
         private Texture2D _flameTexture = null!;
         private Texture2D _sparkTexture = null!;
@@ -105,15 +123,19 @@ namespace Client.Main.Objects.Effects
             public float Phase; // for animation offset
         }
 
-        public ScrollOfFlameEffect(Vector3 center, bool isTargeted = false)
+        public ScrollOfFlameEffect(Vector3 center, bool isTargeted = false, bool dealsDamage = false)
         {
             _center = center;
             _isTargeted = isTargeted;
+            _dealsDamage = dealsDamage;
             _totalDuration = isTargeted ? TargetedDurationSeconds : AreaDurationSeconds;
 
             IsTransparent = true;
             AffectedByTransparency = true;
             BlendState = BlendState.Additive;
+
+            _targetTileX = (byte)Math.Clamp((int)(_center.X / Constants.TERRAIN_SCALE), 0, Constants.TERRAIN_SIZE - 1);
+            _targetTileY = (byte)Math.Clamp((int)(_center.Y / Constants.TERRAIN_SCALE), 0, Constants.TERRAIN_SIZE - 1);
 
             float boundSize = CylinderRadius + 120f;
             BoundingBoxLocal = new BoundingBox(
@@ -209,6 +231,8 @@ namespace Client.Main.Objects.Effects
 
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             _time += dt;
+
+            UpdateDamage(dt);
 
             bool isEmitting = _time < _totalDuration - FadeOutSeconds;
 
@@ -657,6 +681,109 @@ namespace Client.Main.Objects.Effects
         private static float RandomRange(float min, float max)
         {
             return (float)(MuGame.Random.NextDouble() * (max - min) + min);
+        }
+
+        private void UpdateDamage(float dt)
+        {
+            if (!_dealsDamage || _isTargeted)
+                return;
+
+            if (_time >= _totalDuration)
+                return;
+
+            if (World is not WalkableWorldControl { Walker: PlayerObject hero })
+                return;
+
+            if (hero.IsDead)
+                return;
+
+            if (MuGame.Network == null || !MuGame.Network.IsConnected)
+                return;
+
+            // Capture animation counter early (before any targets enter range), otherwise we may miss
+            // the matching window and end up sending hits with AnimationCounter=0.
+            EnsureAnimationCounterInitialized();
+
+            Span<ushort> targetBuffer = stackalloc ushort[MaxHitTargets];
+            int targetCount = CollectTargetsToHit(targetBuffer);
+            if (targetCount <= 0)
+                return;
+
+            if (_animationCounter == 0)
+            {
+                _logger?.LogTrace(
+                    "ScrollOfFlame: sending AreaSkillHit with AnimationCounter=0 (tile={X},{Y}, targets={Count}).",
+                    _targetTileX, _targetTileY, targetCount);
+            }
+
+            var targets = new ushort[targetCount];
+            for (int i = 0; i < targetCount; i++)
+                targets[i] = targetBuffer[i];
+
+            unchecked { _hitCounter++; }
+
+            _logger?.LogTrace(
+                "ScrollOfFlame: AreaSkillHit skill={SkillId} tile=({X},{Y}) targets={Count} hitCounter={HitCounter} animCounter={AnimCounter} t={Time:F2}s",
+                FlameSkillId, _targetTileX, _targetTileY, targetCount, _hitCounter, _animationCounter, _time);
+
+            _ = MuGame.Network
+                .GetCharacterService()
+                .SendAreaSkillHitAsync(FlameSkillId, _targetTileX, _targetTileY, _hitCounter, targets, _animationCounter);
+        }
+
+        private void EnsureAnimationCounterInitialized()
+        {
+            if (_animationCounter != 0)
+                return;
+
+            var characterState = MuGame.Network?.GetCharacterState();
+            if (characterState == null)
+                return;
+
+            if (characterState.LastAreaSkillId != FlameSkillId)
+                return;
+
+            double nowMs = MuGame.Instance?.GameTime?.TotalGameTime.TotalMilliseconds ?? Environment.TickCount64;
+            double elapsedMs = nowMs - characterState.LastAreaSkillSentAtMs;
+            if (elapsedMs < 0 || elapsedMs > LastCastMatchWindowMs)
+                return;
+
+            if (characterState.LastAreaSkillTargetX != _targetTileX || characterState.LastAreaSkillTargetY != _targetTileY)
+                return;
+
+            _animationCounter = characterState.LastAreaSkillAnimationCounter;
+        }
+
+        private int CollectTargetsToHit(Span<ushort> targetBuffer)
+        {
+            if (World == null)
+                return 0;
+
+            float rangeSq = DamageRadius * DamageRadius;
+            int count = 0;
+
+            var monsters = World.Monsters;
+            for (int i = 0; i < monsters.Count && count < targetBuffer.Length; i++)
+            {
+                var monster = monsters[i];
+                if (monster == null || monster.IsDead)
+                    continue;
+
+                float dx = monster.Position.X - _center.X;
+                float dy = monster.Position.Y - _center.Y;
+                float distSq = dx * dx + dy * dy;
+                if (distSq > rangeSq)
+                    continue;
+
+                ushort targetId = monster.NetworkId;
+                if (_nextHitTimeByTarget.TryGetValue(targetId, out float nextHitTime) && _time < nextHitTime)
+                    continue;
+
+                _nextHitTimeByTarget[targetId] = _time + DamageTickSeconds;
+                targetBuffer[count++] = targetId;
+            }
+
+            return count;
         }
 
         private void RemoveSelf()
