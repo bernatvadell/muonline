@@ -237,6 +237,7 @@ namespace Client.Main.Controllers
             MainRenderTarget?.Dispose();
             TempTarget1?.Dispose();
             TempTarget2?.Dispose();
+            EffectRenderTarget?.Dispose();
             Pixel?.Dispose();
             ShadowMapRenderer?.Dispose();
 
