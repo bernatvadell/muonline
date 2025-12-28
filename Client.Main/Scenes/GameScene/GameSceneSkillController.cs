@@ -15,6 +15,7 @@ namespace Client.Main.Scenes
     internal sealed class GameSceneSkillController
     {
         private const ushort TeleportSkillId = 6;
+        private const ushort TwisterSkillId = 8;
         private const ushort HellFireSkillId = 10;
         private const ushort InfernoSkillId = 14;
         private const ushort EvilSpiritSkillId = 9;
@@ -431,6 +432,8 @@ namespace Client.Main.Scenes
 
             byte targetX = (byte)Math.Clamp((int)targetTile.X, 0, Constants.TERRAIN_SIZE - 1);
             byte targetY = (byte)Math.Clamp((int)targetTile.Y, 0, Constants.TERRAIN_SIZE - 1);
+            byte requestTargetX = targetX;
+            byte requestTargetY = targetY;
 
             if (skill.SkillId == TeleportSkillId)
             {
@@ -448,6 +451,12 @@ namespace Client.Main.Scenes
             hero.FaceTowards(new Vector2(targetX, targetY), immediate: true);
 
             var characterState = MuGame.Network?.GetCharacterState();
+
+            if (skill.SkillId == TwisterSkillId)
+            {
+                requestTargetX = (byte)Math.Clamp((int)hero.Location.X, 0, Constants.TERRAIN_SIZE - 1);
+                requestTargetY = (byte)Math.Clamp((int)hero.Location.Y, 0, Constants.TERRAIN_SIZE - 1);
+            }
 
             if (skill.SkillId == TeleportSkillId)
             {
@@ -467,8 +476,8 @@ namespace Client.Main.Scenes
             if (characterState != null)
             {
                 characterState.LastAreaSkillId = skill.SkillId;
-                characterState.LastAreaSkillTargetX = targetX;
-                characterState.LastAreaSkillTargetY = targetY;
+                characterState.LastAreaSkillTargetX = requestTargetX;
+                characterState.LastAreaSkillTargetY = requestTargetY;
                 characterState.LastAreaSkillAnimationCounter = animationCounter;
                 characterState.LastAreaSkillSentAtMs = GetNowMs();
             }
@@ -476,12 +485,12 @@ namespace Client.Main.Scenes
             if (extraTargetId != 0)
             {
                 _logger?.LogInformation("Using skill {SkillId} (Level {Level}) at position ({X},{Y}) with target {TargetId}",
-                    skill.SkillId, skill.SkillLevel, targetX, targetY, extraTargetId);
+                    skill.SkillId, skill.SkillLevel, requestTargetX, requestTargetY, extraTargetId);
             }
             else
             {
                 _logger?.LogInformation("Using area skill {SkillId} (Level {Level}) at position ({X},{Y})",
-                    skill.SkillId, skill.SkillLevel, targetX, targetY);
+                    skill.SkillId, skill.SkillLevel, requestTargetX, requestTargetY);
             }
 
             float angleZ = MathHelper.WrapAngle(hero.Angle.Z);
@@ -493,8 +502,8 @@ namespace Client.Main.Scenes
 
             _ = MuGame.Network.GetCharacterService().SendAreaSkillRequestAsync(
                 skill.SkillId,
-                targetX,
-                targetY,
+                requestTargetX,
+                requestTargetY,
                 rotation,
                 extraTargetId: extraTargetId,
                 animationCounter: animationCounter);
