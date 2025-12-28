@@ -215,6 +215,8 @@ namespace Client.Main.Controls.Terrain
                 return cached;
 
             Vector3 result = Vector3.Zero;
+            Vector3 negativeResult = Vector3.Zero;  // Track negative lights separately
+            bool hasNegative = false;
 
             // Use spatial partitioning to only check nearby lights
             int gridX = (int)(position.X / LightGridCellSize);
@@ -248,10 +250,33 @@ namespace Client.Main.Controls.Terrain
                         // Performance optimization: avoid expensive sqrt by using quadratic falloff
                         float normalizedDistSq = distSq * light.InvRadiusSq;
                         float factor = 1f - normalizedDistSq; // Quadratic falloff, no sqrt needed
-                        result += light.ColorScaled * factor;
+                        var contribution = light.ColorScaled * factor;
+
+                        // Handle negative lights (shadows) separately - use Min to prevent stacking
+                        if (light.ColorScaled.X < 0 || light.ColorScaled.Y < 0 || light.ColorScaled.Z < 0)
+                        {
+                            if (!hasNegative)
+                            {
+                                negativeResult = contribution;
+                                hasNegative = true;
+                            }
+                            else
+                            {
+                                // Use Min (most negative) instead of summing
+                                negativeResult = Vector3.Min(negativeResult, contribution);
+                            }
+                        }
+                        else
+                        {
+                            result += contribution;
+                        }
                     }
                 }
             }
+
+            // Combine positive and negative light contributions
+            if (hasNegative)
+                result += negativeResult;
 
             if (_lightInfluenceCache.Count < MaxLightCacheEntries)
                 _lightInfluenceCache[posKey] = result;

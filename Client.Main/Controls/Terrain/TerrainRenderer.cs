@@ -1312,9 +1312,10 @@ namespace Client.Main.Controls.Terrain
             if (dyn.LengthSquared() < 0.0001f)
                 return;
 
-            float r = MathF.Min(baseLight.R + dyn.X, 255f);
-            float g = MathF.Min(baseLight.G + dyn.Y, 255f);
-            float b = MathF.Min(baseLight.B + dyn.Z, 255f);
+            // Clamp to 0-255 range to prevent underflow with negative lights (shadows)
+            float r = MathHelper.Clamp(baseLight.R + dyn.X, 0f, 255f);
+            float g = MathHelper.Clamp(baseLight.G + dyn.Y, 0f, 255f);
+            float b = MathHelper.Clamp(baseLight.B + dyn.Z, 0f, 255f);
 
             baseLight = new Color((byte)r, (byte)g, (byte)b, baseLight.A);
         }
