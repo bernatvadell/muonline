@@ -527,6 +527,28 @@ namespace Client.Main.Scenes
             if (!TryConsumeSkillDelay(skill.SkillId))
                 return false;
 
+            // Check if player has enough mana and AG to use the skill
+            var characterState = MuGame.Network?.GetCharacterState();
+            if (characterState != null)
+            {
+                ushort manaCost = SkillDatabase.GetSkillManaCost(skill.SkillId);
+                ushort agCost = SkillDatabase.GetSkillAGCost(skill.SkillId);
+
+                if (characterState.CurrentMana < manaCost)
+                {
+                    _logger?.LogDebug("Not enough mana to use skill {SkillId}. Required: {Required}, Current: {Current}",
+                        skill.SkillId, manaCost, characterState.CurrentMana);
+                    return false;
+                }
+
+                if (characterState.CurrentAbility < agCost)
+                {
+                    _logger?.LogDebug("Not enough AG to use skill {SkillId}. Required: {Required}, Current: {Current}",
+                        skill.SkillId, agCost, characterState.CurrentAbility);
+                    return false;
+                }
+            }
+
             bool isInSafeZone = false;
             if (_scene.World is WalkableWorldControl walkableWorld)
             {

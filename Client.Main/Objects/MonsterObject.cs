@@ -1,5 +1,6 @@
 ﻿using Client.Data.BMD;
 using Client.Main.Models;
+using Client.Main.Objects.Player;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using System.Collections.Generic;
@@ -284,9 +285,76 @@ namespace Client.Main.Objects
                 int dst = kv.Key;
                 int src = kv.Value;
                 if (src >= 0 && src < srcModel.Actions.Length)
-                    actions[dst] = srcModel.Actions[src];
+                {
+                    var srcAction = srcModel.Actions[src];
+                    // Clone the action to avoid sharing PlaySpeed with player
+                    // Player's dynamic attack speed modifiers should not affect monsters
+                    // Use base PlaySpeed values from PlayerObject.InitializeActionSpeeds()
+                    float basePlaySpeed = GetPlayerActionBaseSpeed(src);
+                    actions[dst] = new BMDTextureAction
+                    {
+                        NumAnimationKeys = srcAction.NumAnimationKeys,
+                        LockPositions = srcAction.LockPositions,
+                        Positions = srcAction.Positions, // Array reference is fine, positions don't change
+                        PlaySpeed = basePlaySpeed
+                    };
+                }
             }
             return actions;
+        }
+
+        /// <summary>
+        /// Returns base PlaySpeed for player actions used by monsters.
+        /// Values mirror PlayerObject.InitializeActionSpeeds() and base attack speeds.
+        /// </summary>
+        private static float GetPlayerActionBaseSpeed(int playerActionIndex)
+        {
+            var action = (PlayerAction)playerActionIndex;
+
+            return action switch
+            {
+                // Stop animations
+                PlayerAction.PlayerStopMale or PlayerAction.PlayerStopFemale => 0.28f,
+                PlayerAction.PlayerStopSword => 0.26f,
+                PlayerAction.PlayerStopTwoHandSword => 0.24f,
+                PlayerAction.PlayerStopSpear => 0.24f,
+                PlayerAction.PlayerStopBow => 0.22f,
+                PlayerAction.PlayerStopCrossbow => 0.22f,
+
+                // Walk animations
+                PlayerAction.PlayerWalkMale or PlayerAction.PlayerWalkFemale or
+                PlayerAction.PlayerWalkSword or PlayerAction.PlayerWalkTwoHandSword or
+                PlayerAction.PlayerWalkSpear or PlayerAction.PlayerWalkBow or
+                PlayerAction.PlayerWalkCrossbow => 0.38f,
+
+                // Run animations
+                PlayerAction.PlayerRun => 0.34f,
+
+                // Attack animations: base 0.25f (without player's attack speed bonus)
+                PlayerAction.PlayerAttackFist => 0.25f,
+                PlayerAction.PlayerAttackSwordRight1 or PlayerAction.PlayerAttackSwordRight2 or
+                PlayerAction.PlayerAttackSwordLeft1 or PlayerAction.PlayerAttackSwordLeft2 or
+                PlayerAction.PlayerAttackTwoHandSword1 or PlayerAction.PlayerAttackTwoHandSword2 or
+                PlayerAction.PlayerAttackTwoHandSword3 or PlayerAction.PlayerAttackSpear1 or
+                PlayerAction.PlayerAttackScythe1 or PlayerAction.PlayerAttackScythe2 or
+                PlayerAction.PlayerAttackScythe3 => 0.25f,
+                PlayerAction.PlayerAttackBow or PlayerAction.PlayerAttackCrossbow => 0.30f,
+
+                // Shock
+                PlayerAction.PlayerShock => 0.40f,
+
+                // Defense
+                PlayerAction.PlayerDefense1 => 0.32f,
+
+                // Die
+                PlayerAction.PlayerDie1 or PlayerAction.PlayerDie2 => 0.45f,
+
+                // Appear/ComeUp
+                PlayerAction.PlayerComeUp => 0.40f,
+
+                // Default fallback for any other action
+                _ => 0.30f
+            };
         }
 
         protected static BMDTextureBone[] BuildBoneArray(

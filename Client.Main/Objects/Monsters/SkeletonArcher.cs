@@ -32,6 +32,7 @@ namespace Client.Main.Objects.Monsters
         {
             Scale = 1.1f; // Set according to C++ Setting_Monster
             RenderShadow = true;
+            AnimationSpeed = 25f; // Uses Player.bmd animations, needs player animation speed
             _rightHandWeapon = new WeaponObject
             {
                 LinkParentAnimation = false,

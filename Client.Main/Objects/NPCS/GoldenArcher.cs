@@ -11,8 +11,13 @@ using System.Threading.Tasks;
 namespace Client.Main.Objects.NPCS
 {
     [NpcInfo(236, "Golden Archer")]
-    public class GoldenArcher : MonsterObject //TODO:
+    public class GoldenArcher : MonsterObject
     {
+        public GoldenArcher()
+        {
+            AnimationSpeed = 25f; // Uses Player.bmd animations, needs player animation speed
+        }
+
         private static readonly Dictionary<MonsterActionType, PlayerAction> _actionMap = new()
         {
             { MonsterActionType.Stop1,   PlayerAction.PlayerStopMale },
