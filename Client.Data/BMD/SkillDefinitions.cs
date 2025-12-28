@@ -28,7 +28,7 @@ namespace Client.Data.BMD
 
             // ID 11-25: Mixed Skills
             { 11, SkillType.Target },  // Power Wave
-            { 12, SkillType.Target },  // Aqua Beam
+            { 12, SkillType.Area },  // Aqua Beam
             { 13, SkillType.Area },    // Cometfall
             { 14, SkillType.Area },    // Inferno
             { 15, SkillType.Self },    // Teleport Ally
