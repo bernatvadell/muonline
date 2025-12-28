@@ -17,6 +17,9 @@ namespace Client.Main.Controls
 {
     public abstract class GameControl : IChildItem<GameControl>, IDisposable
     {
+        public static int DrawCallsCount = 0;
+        public static int UpdateCalls = 0;
+
         // Fields
         private Point _controlSize, _viewSize;
         private bool _isCurrentlyPressedByMouse = false;
@@ -156,6 +159,8 @@ namespace Client.Main.Controls
 
             if (Status != GameControlStatus.Ready || !Visible) return;
 
+            UpdateCalls++;
+
             // Cache mouse and display rectangle to avoid repeated property lookups
             var mouse = CurrentMouseState;
             var prevMouse = PreviousMouseState;
@@ -286,6 +291,8 @@ namespace Client.Main.Controls
         {
             if (Status != GameControlStatus.Ready || !Visible)
                 return;
+
+            DrawCallsCount++;
 
             DrawBackground();
             DrawBorder();

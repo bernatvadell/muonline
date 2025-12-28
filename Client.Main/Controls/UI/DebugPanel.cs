@@ -9,6 +9,7 @@ namespace Client.Main.Controls.UI
     public class DebugPanel : UIControl
     {
         private LabelControl _fpsLabel;
+        private LabelControl _controlsLabel;
         private LabelControl _mousePosLabel;
         private LabelControl _playerCordsLabel;
         private LabelControl _mapTileLabel;
@@ -42,6 +43,7 @@ namespace Client.Main.Controls.UI
             var labelHeight = 20;
 
             Controls.Add(_fpsLabel = new LabelControl { Text = "FPS: {0}", TextColor = Color.LightGreen, X = posX, Y = posY });
+            Controls.Add(_controlsLabel = new LabelControl { Text = "Controls: {0}", TextColor = Color.White, X = posX, Y = posY += labelHeight });
             Controls.Add(_mousePosLabel = new LabelControl { Text = "Mouse Position - X: {0}, Y:{1}", TextColor = Color.LightBlue, X = posX, Y = posY += labelHeight });
             Controls.Add(_playerCordsLabel = new LabelControl { Text = "Player Cords - X: {0}, Y:{1}", TextColor = Color.LightCoral, X = posX, Y = posY += labelHeight });
             Controls.Add(_mapTileLabel = new LabelControl { Text = "MAP Tile - X: {0}, Y:{1}", TextColor = Color.LightYellow, X = posX, Y = posY += labelHeight });
@@ -79,23 +81,20 @@ namespace Client.Main.Controls.UI
             {
                 _updateTimer = 0;
 
-                _sb.Clear().Append("FPS: ").Append((int)FPSCounter.Instance.FPS_AVG);
-                _fpsLabel.Text = _sb.ToString();
+                _fpsLabel.Text = $"FPS: {(int)FPSCounter.Instance.FPS_AVG}, UPS: {(int)UPSCounter.Instance.UPS_AVG}";
+                _controlsLabel.Text = $"Controls Calls - Draw:{GameControl.DrawCallsCount} - Update: {GameControl.UpdateCalls}";
 
                 Point screenMouse = MuGame.Instance.Mouse.Position;
                 Point uiMouse = MuGame.Instance.UiMouseState.Position;
-                _sb.Clear().Append("Mouse Screen (X:").Append(screenMouse.X)
-                   .Append(", Y:").Append(screenMouse.Y)
-                   .Append(") UI (X:").Append(uiMouse.X)
-                   .Append(", Y:").Append(uiMouse.Y).Append(')');
-                _mousePosLabel.Text = _sb.ToString();
 
-                _sb.Clear().Append("FXAA: ").Append(GraphicsManager.Instance.IsFXAAEnabled ? "ON" : "OFF")
-                   .Append(" - AlphaRGB:").Append(GraphicsManager.Instance.IsAlphaRGBEnabled ? "ON" : "OFF");
-                _effectsStatusLabel.Text = _sb.ToString();
+                _mousePosLabel.Text = $"Mouse Screen (X:{screenMouse.X}, Y:{screenMouse.Y}) UI (X:{uiMouse.X}, Y:{uiMouse.Y})";
 
-                _sb.Clear().Append("Cursor Object: ").Append(World?.Scene?.MouseHoverObject != null ? World.Scene.MouseHoverObject.GetType().Name : "N/A");
-                _objectCursorLabel.Text = _sb.ToString();
+                var fxaa = GraphicsManager.Instance.IsFXAAEnabled ? "ON" : "OFF";
+                var alphargb = GraphicsManager.Instance.IsFXAAEnabled ? "ON" : "OFF"; ;
+                _effectsStatusLabel.Text = $"FXAA: {fxaa} - AlphaRGB: {alphargb}";
+
+                var cursorObj = World?.Scene?.MouseHoverObject != null ? World.Scene.MouseHoverObject.GetType().Name : "N/A";
+                _objectCursorLabel.Text = $"Cursor Object: {cursorObj}";
 
                 if (World is WalkableWorldControl walkableWorld && walkableWorld.Walker != null)
                 {
@@ -108,18 +107,13 @@ namespace Client.Main.Controls.UI
                     _bmdMetricsLabel.Visible = true;
                     _lightingStatusLabel.Visible = true;
 
-                    _sb.Clear().Append("Player Cords - X: ").Append(walkableWorld.Walker.Location.X)
-                       .Append(", Y:").Append(walkableWorld.Walker.Location.Y);
-                    _playerCordsLabel.Text = _sb.ToString();
+                    _playerCordsLabel.Text = $"Player Cords - X: {walkableWorld.Walker.Location.X}, Y: {walkableWorld.Walker.Location.Y}";
 
-                    _sb.Clear().Append("MAP Tile - X: ").Append(walkableWorld.MouseTileX)
-                       .Append(", Y:").Append(walkableWorld.MouseTileY);
-                    _mapTileLabel.Text = _sb.ToString();
+                    _mapTileLabel.Text = $"MAP Tile - X: {walkableWorld.MouseTileX}, Y: {walkableWorld.MouseTileY}";
 
                     var flags = walkableWorld.Terrain.RequestTerrainFlag((int)walkableWorld.Walker.Location.X,
                                                                          (int)walkableWorld.Walker.Location.Y);
-                    _sb.Clear().Append("Tile Flags: ").Append(flags);
-                    _tileFlagsLabel.Text = _sb.ToString();
+                    _tileFlagsLabel.Text = $"Tile Flags: {flags}";
 
                     bool terrainGpu = walkableWorld.Terrain?.IsGpuTerrainLighting == true;
                     bool shaderAvailable = walkableWorld.Terrain?.IsDynamicLightingShaderAvailable == true;

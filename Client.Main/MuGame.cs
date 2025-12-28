@@ -16,6 +16,7 @@ using System.Text.Json.Nodes;
 using Client.Main.Core.Client;
 using Client.Main.Content;
 using Client.Main.Graphics;
+using Client.Main.Controls;
 #if ANDROID
 using Android.App;
 #endif
@@ -432,6 +433,9 @@ namespace Client.Main
 
         protected override void Update(GameTime gameTime)
         {
+            GameControl.UpdateCalls = 0;
+            UPSCounter.Instance.CalcUPS(gameTime);
+
             // --- Process Main Thread Actions via TaskScheduler ---
             while (_mainThreadActions.TryDequeue(out var action))
             {
@@ -521,10 +525,11 @@ namespace Client.Main
         {
             try
             {
+                GameControl.DrawCallsCount = 0;
                 // Initialize frame-based optimizations
                 DynamicBufferPool.BeginFrame(FrameIndex);
                 BMDLoader.Instance.BeginFrame();
-                
+
                 FPSCounter.Instance.CalcFPS(gameTime);
                 DrawSceneToMainRenderTarget(gameTime);
                 ApplyPostProcessingEffects();

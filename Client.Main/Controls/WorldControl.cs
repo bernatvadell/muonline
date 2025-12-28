@@ -204,7 +204,7 @@ namespace Client.Main.Controls
 
         public short WorldIndex { get; private set; }
         public bool IsSunWorld { get; protected set; } = true;
-        
+
         public bool EnableShadows { get; protected set; } = true;
 
         public ChildrenCollection<WorldObject> Objects { get; private set; }
@@ -325,7 +325,7 @@ namespace Client.Main.Controls
         public override void Draw(GameTime time)
         {
             if (Status != GameControlStatus.Ready) return;
-            
+
             // Build shadow map before any backbuffer drawing so terrain tiles aren't lost
             if (EnableShadows && Constants.ENABLE_SHADOW_MAPPING && GraphicsManager.Instance.ShadowMapRenderer != null)
             {
@@ -715,10 +715,11 @@ namespace Client.Main.Controls
 
         private void DrawAfterPass(List<WorldObject> list, DepthStencilState state, GameTime time)
         {
-            if (list.Count == 0) return;
+            var objCount = list.Count;
+            if (objCount == 0) return;
             SetDepthState(state);
-            foreach (var obj in list)
-                obj.DrawAfter(time);
+            for (var i = 0; i < objCount; i++)
+                list[i].DrawAfter(time);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

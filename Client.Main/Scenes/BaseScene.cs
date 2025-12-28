@@ -64,6 +64,8 @@ namespace Client.Main.Scenes
 
             World = newWorld;
             progressCallback?.Invoke($"World {typeof(T).Name} Ready.", 1.0f * (progressCallback == null ? 1.0f : 1.0f));
+
+            DebugPanel.Dispose();
         }
 
         public virtual async Task InitializeWithProgressReporting(Action<string, float> progressCallback)
