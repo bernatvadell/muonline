@@ -845,11 +845,17 @@ namespace Client.Main.Scenes
         {
             if (Status == GameControlStatus.NonInitialized)
                 _ = Initialize();
+
+            if (Status != GameControlStatus.Ready || !Visible) return;
+
             base.Update(gameTime);
         }
 
         public override void Draw(GameTime gameTime)
         {
+            if (Status != GameControlStatus.Ready || !Visible)
+                return;
+
             GraphicsDevice.Clear(new Color(12, 12, 20));
             DrawBackground();
             var progress = GetProgress();

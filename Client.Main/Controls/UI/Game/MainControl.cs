@@ -1,10 +1,11 @@
 ﻿using Client.Main.Controllers;
-using Client.Main.Core.Client;
 using Client.Main.Controls.UI;
-using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Controls.UI.Game.Hud;
-using Client.Main.Scenes;
+using Client.Main.Controls.UI.Game.Inventory;
+using Client.Main.Core.Client;
 using Client.Main.Helpers;
+using Client.Main.Models;
+using Client.Main.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -183,6 +184,9 @@ namespace Client.Main.Controls.UI.Game
 
         public override void Draw(GameTime gameTime)
         {
+            if (Status != GameControlStatus.Ready || !Visible)
+                return;
+
             var sb = GraphicsManager.Instance.Sprite;
 
             var snapshot = Controls.GetSnapshot();
