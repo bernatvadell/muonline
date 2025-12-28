@@ -1,5 +1,6 @@
 using Client.Main.Objects.Player;
 using Client.Main.Objects.Wings;
+using Client.Main.Controls;
 using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -111,7 +112,26 @@ namespace Client.Main.Objects
                 }
             }
 
+            if (TryQueueInteraction())
+                return;
+
             HandleClick();
+        }
+
+        internal void ExecuteInteraction()
+        {
+            HandleClick();
+        }
+
+        private bool TryQueueInteraction()
+        {
+            if (MuGame.Instance?.ActiveScene?.World is not WalkableWorldControl world)
+                return false;
+
+            if (world.Walker is not PlayerObject player)
+                return false;
+
+            return player.TryQueueNpcInteraction(this);
         }
         protected abstract void HandleClick();
 

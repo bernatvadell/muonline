@@ -381,26 +381,31 @@ namespace Client.Main.Objects
 
                 MuGame.ScheduleOnMainThread(() =>
                 {
-                    if (MuGame.Instance.ActiveScene?.World != currentWorld || this.Status == GameControlStatus.Disposed)
-                        return;
-
-                    if (path == null || path.Count == 0)
-                    {
-                        _currentPath?.Clear();
-                        _movementIntent = false;
-                        return;
-                    }
-
-                    _currentPath = new Queue<Vector2>(path);
-
-                    UpdateFacingFromVector(path[0] - Location);
-
-                    if (sendToServer && IsMainWalker)
-                    {
-                        Task.Run(() => SendWalkPathToServerAsync(path));
-                    }
+                    ApplyPathOnMainThread(path, sendToServer, currentWorld);
                 });
             });
+        }
+
+        protected void ApplyPathOnMainThread(List<Vector2> path, bool sendToServer, WorldControl expectedWorld)
+        {
+            if (MuGame.Instance.ActiveScene?.World != expectedWorld || Status == GameControlStatus.Disposed)
+                return;
+
+            if (path == null || path.Count == 0)
+            {
+                _currentPath?.Clear();
+                _movementIntent = false;
+                return;
+            }
+
+            _currentPath = new Queue<Vector2>(path);
+
+            UpdateFacingFromVector(path[0] - Location);
+
+            if (sendToServer && IsMainWalker)
+            {
+                Task.Run(() => SendWalkPathToServerAsync(path));
+            }
         }
 
         public void FaceTowards(Vector2 targetLocation, bool immediate = false)

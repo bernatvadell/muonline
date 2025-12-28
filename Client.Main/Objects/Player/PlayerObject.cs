@@ -101,6 +101,10 @@ namespace Client.Main.Objects.Player
         private const float FenrirSpeedExcellent = 19f;
         private const float CursedTempleQuicknessSpeedUnits = 20f;
 
+        private const float NpcInteractionRangeTiles = 4f;
+        private const int NpcApproachSearchRadius = 6;
+        private ushort _pendingNpcNetworkId;
+
         private const byte BuffCursedTempleQuickness = 32;
         private const byte DebuffFreeze = 56;
         private const byte DebuffBlowOfDestruction = 86;
@@ -2674,6 +2678,8 @@ namespace Client.Main.Objects.Player
         // --------------- LOCAL PLAYER (the one we control) ----------------
         private void UpdateLocalPlayer(WalkableWorldControl world, GameTime gameTime)
         {
+            UpdatePendingNpcInteraction(world);
+
             // Rest / sit handling first
             if (HandleRestTarget(world) || HandleSitTarget())
                 return;
@@ -3029,6 +3035,184 @@ namespace Client.Main.Objects.Player
         }
 
         public float GetAttackRangeTiles() => GetAttackRangeForAction(GetAttackAnimation(false));
+
+        public bool TryQueueNpcInteraction(NPCObject npc)
+        {
+            if (!IsMainWalker || npc == null)
+                return false;
+
+            if (World is not WalkableWorldControl world)
+                return false;
+
+            if (!ReferenceEquals(npc.World, world))
+                return false;
+
+            ClearPendingNpcInteraction();
+
+            float distance = Vector2.Distance(Location, npc.Location);
+            if (distance <= NpcInteractionRangeTiles)
+                return false;
+
+            _pendingNpcNetworkId = npc.NetworkId;
+            QueueMoveNearNpc(npc, world);
+            return true;
+        }
+
+        private void QueueMoveNearNpc(NPCObject npc, WalkableWorldControl world)
+        {
+            if (npc == null)
+                return;
+
+            _movementIntent = true;
+            OnPlayerMoved();
+
+            Vector2 start = new((int)Location.X, (int)Location.Y);
+            Vector2 npcTile = new((int)npc.Location.X, (int)npc.Location.Y);
+
+            _ = Task.Run(() =>
+            {
+                var path = BuildNpcApproachPath(start, npcTile, world);
+
+                MuGame.ScheduleOnMainThread(() =>
+                {
+                    ApplyPathOnMainThread(path, sendToServer: true, world);
+                });
+            });
+        }
+
+        private void UpdatePendingNpcInteraction(WalkableWorldControl world)
+        {
+            if (_pendingNpcNetworkId == 0)
+                return;
+
+            if (IsDead)
+            {
+                ClearPendingNpcInteraction();
+                return;
+            }
+
+            if (!world.TryGetWalkerById(_pendingNpcNetworkId, out var walker) || walker is not NPCObject npc)
+            {
+                ClearPendingNpcInteraction();
+                return;
+            }
+
+            float distance = Vector2.Distance(Location, npc.Location);
+            bool isMoving = IsMoving || (_currentPath?.Count ?? 0) > 0 || MovementIntent;
+
+            if (distance <= NpcInteractionRangeTiles && !isMoving)
+            {
+                ClearPendingNpcInteraction();
+                npc.ExecuteInteraction();
+                return;
+            }
+
+            if (!isMoving && distance > NpcInteractionRangeTiles)
+            {
+                ClearPendingNpcInteraction();
+            }
+        }
+
+        private void ClearPendingNpcInteraction()
+        {
+            _pendingNpcNetworkId = 0;
+        }
+
+        private static List<Vector2> BuildNpcApproachPath(Vector2 start, Vector2 npcTile, WalkableWorldControl world)
+        {
+            var directPath = Pathfinding.FindPath(start, npcTile, world);
+            if (directPath != null && directPath.Count > 0)
+            {
+                TrimPathBeforeNpc(directPath, npcTile);
+                if (directPath.Count > 0)
+                    return directPath;
+            }
+
+            var nearbyPath = FindPathToNearbyNpcTile(start, npcTile, world);
+            if (nearbyPath != null && nearbyPath.Count > 0)
+                return nearbyPath;
+
+            var fallback = BuildDirectPathUntilBlocked(start, npcTile, world);
+            return fallback?.Count > 0 ? fallback : null;
+        }
+
+        private static void TrimPathBeforeNpc(List<Vector2> path, Vector2 npcTile)
+        {
+            while (path.Count > 0 && path[^1] == npcTile)
+            {
+                path.RemoveAt(path.Count - 1);
+            }
+        }
+
+        private static List<Vector2> FindPathToNearbyNpcTile(Vector2 start, Vector2 npcTile, WalkableWorldControl world)
+        {
+            for (int radius = 1; radius <= NpcApproachSearchRadius; radius++)
+            {
+                // Top/bottom edges of the square ring
+                for (int dx = -radius; dx <= radius; dx++)
+                {
+                    if (TryFindPathToCandidate(start, new Vector2(npcTile.X + dx, npcTile.Y + radius), world, out var path))
+                        return path;
+                    if (TryFindPathToCandidate(start, new Vector2(npcTile.X + dx, npcTile.Y - radius), world, out path))
+                        return path;
+                }
+
+                // Left/right edges (excluding corners already checked)
+                for (int dy = -radius + 1; dy <= radius - 1; dy++)
+                {
+                    if (TryFindPathToCandidate(start, new Vector2(npcTile.X + radius, npcTile.Y + dy), world, out var path))
+                        return path;
+                    if (TryFindPathToCandidate(start, new Vector2(npcTile.X - radius, npcTile.Y + dy), world, out path))
+                        return path;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool TryFindPathToCandidate(Vector2 start, Vector2 candidate, WalkableWorldControl world, out List<Vector2> path)
+        {
+            path = null;
+
+            if (!IsWithinMapBounds(candidate))
+                return false;
+
+            if (!world.IsWalkable(candidate))
+                return false;
+
+            path = Pathfinding.FindPath(start, candidate, world);
+            return path != null && path.Count > 0;
+        }
+
+        private static bool IsWithinMapBounds(Vector2 position)
+        {
+            return position.X >= 0 && position.X < Constants.TERRAIN_SIZE &&
+                   position.Y >= 0 && position.Y < Constants.TERRAIN_SIZE;
+        }
+
+        private static List<Vector2> BuildDirectPathUntilBlocked(Vector2 start, Vector2 goal, WalkableWorldControl world)
+        {
+            List<Vector2> path = new();
+            Vector2 current = start;
+
+            while (current != goal)
+            {
+                float nextX = current.X + Math.Sign(goal.X - current.X);
+                float nextY = current.Y + Math.Sign(goal.Y - current.Y);
+                Vector2 next = new(nextX, nextY);
+
+                if (next == goal)
+                    break;
+
+                if (!IsWithinMapBounds(next) || !world.IsWalkable(next))
+                    break;
+
+                path.Add(next);
+                current = next;
+            }
+
+            return path;
+        }
 
         /// <summary>
         /// Gets the currently equipped weapon type based on actual equipment

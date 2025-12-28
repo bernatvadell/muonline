@@ -432,13 +432,13 @@ namespace Client.Main.Objects.Effects
 
         private static WeaponObject? GetWeaponSource(PlayerObject player)
         {
-            var right = player.Weapon2;
-            if (right != null && (right.Model != null || !string.IsNullOrEmpty(right.TexturePath)))
-                return right;
-
             var left = player.Weapon1;
             if (left != null && (left.Model != null || !string.IsNullOrEmpty(left.TexturePath)))
                 return left;
+
+            var right = player.Weapon2;
+            if (right != null && (right.Model != null || !string.IsNullOrEmpty(right.TexturePath)))
+                return right;
 
             return null;
         }
