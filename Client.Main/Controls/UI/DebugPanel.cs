@@ -9,7 +9,6 @@ namespace Client.Main.Controls.UI
     public class DebugPanel : UIControl
     {
         private LabelControl _fpsLabel;
-        private LabelControl _controlsLabel;
         private LabelControl _mousePosLabel;
         private LabelControl _playerCordsLabel;
         private LabelControl _mapTileLabel;
@@ -43,7 +42,6 @@ namespace Client.Main.Controls.UI
             var labelHeight = 20;
 
             Controls.Add(_fpsLabel = new LabelControl { Text = "FPS: {0}", TextColor = Color.LightGreen, X = posX, Y = posY });
-            Controls.Add(_controlsLabel = new LabelControl { Text = "Controls: {0}", TextColor = Color.White, X = posX, Y = posY += labelHeight });
             Controls.Add(_mousePosLabel = new LabelControl { Text = "Mouse Position - X: {0}, Y:{1}", TextColor = Color.LightBlue, X = posX, Y = posY += labelHeight });
             Controls.Add(_playerCordsLabel = new LabelControl { Text = "Player Cords - X: {0}, Y:{1}", TextColor = Color.LightCoral, X = posX, Y = posY += labelHeight });
             Controls.Add(_mapTileLabel = new LabelControl { Text = "MAP Tile - X: {0}, Y:{1}", TextColor = Color.LightYellow, X = posX, Y = posY += labelHeight });
@@ -82,7 +80,6 @@ namespace Client.Main.Controls.UI
                 _updateTimer = 0;
 
                 _fpsLabel.Text = $"FPS: {(int)FPSCounter.Instance.FPS_AVG}, UPS: {(int)UPSCounter.Instance.UPS_AVG}";
-                _controlsLabel.Text = $"Controls Calls - Draw:{GameControl.DrawCallsCount} - Update: {GameControl.UpdateCalls}";
 
                 Point screenMouse = MuGame.Instance.Mouse.Position;
                 Point uiMouse = MuGame.Instance.UiMouseState.Position;

@@ -356,44 +356,45 @@ namespace Client.Main.Objects
                 if (!TryBeginHoverCheck(Interactive || Constants.DRAW_BOUNDING_BOXES))
                 {
                     IsMouseHover = false;
-                    goto ChildrenUpdate;
                 }
-
-                // Determine if UI should block hover detection for world objects
-                bool uiBlockingHover = false;
-                if (World?.Scene != null)
+                else
                 {
-                    var scene = World.Scene;
-                    if (scene.MouseHoverControl != null && scene.MouseHoverControl != scene.World)
+                    // Determine if UI should block hover detection for world objects
+                    bool uiBlockingHover = false;
+                    if (World?.Scene != null)
                     {
-                        uiBlockingHover = true; // a UI element is hovered, ignore world hover
+                        var scene = World.Scene;
+                        if (scene.MouseHoverControl != null && scene.MouseHoverControl != scene.World)
+                        {
+                            uiBlockingHover = true; // a UI element is hovered, ignore world hover
+                        }
                     }
+
+                    // Cache parent's mouse hover state
+                    bool parentIsMouseHover = Parent?.IsMouseHover ?? false;
+
+                    // Only calculate intersections if needed and not blocked by UI
+                    bool wouldBeMouseHover = parentIsMouseHover;
+                    if (!parentIsMouseHover && !uiBlockingHover && (Interactive || Constants.DRAW_BOUNDING_BOXES))
+                    {
+                        float? intersectionDistance = MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld);
+                        ContainmentType contains = BoundingBoxWorld.Contains(MuGame.Instance.MouseRay.Position);
+                        wouldBeMouseHover = intersectionDistance.HasValue || contains == ContainmentType.Contains;
+                    }
+
+                    IsMouseHover = !uiBlockingHover && wouldBeMouseHover;
+
+                    if (!parentIsMouseHover && IsMouseHover)
+                        World.Scene.MouseHoverObject = this;
                 }
-
-                // Cache parent's mouse hover state
-                bool parentIsMouseHover = Parent?.IsMouseHover ?? false;
-
-                // Only calculate intersections if needed and not blocked by UI
-                bool wouldBeMouseHover = parentIsMouseHover;
-                if (!parentIsMouseHover && !uiBlockingHover && (Interactive || Constants.DRAW_BOUNDING_BOXES))
-                {
-                    float? intersectionDistance = MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld);
-                    ContainmentType contains = BoundingBoxWorld.Contains(MuGame.Instance.MouseRay.Position);
-                    wouldBeMouseHover = intersectionDistance.HasValue || contains == ContainmentType.Contains;
-                }
-
-                IsMouseHover = !uiBlockingHover && wouldBeMouseHover;
-
-                if (!parentIsMouseHover && IsMouseHover)
-                    World.Scene.MouseHoverObject = this;
             }
             else
             {
                 IsMouseHover = false; // Distant objects can't be hovered
             }
 
-            // Update all children for visible objects
-        ChildrenUpdate:
+
+            // Parallel.ForEach(Children, new ParallelOptions { MaxDegreeOfParallelism = 8 }, (item) => item.Update(gameTime));
             for (int i = 0; i < Children.Count; i++)
                 Children[i].Update(gameTime);
         }

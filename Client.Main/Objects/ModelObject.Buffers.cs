@@ -209,7 +209,7 @@ namespace Client.Main.Objects
                     }
                     catch (Exception exMesh)
                     {
-                        _logger?.LogDebug("SetDynamicBuffers - mesh {MeshIndex}: {Message}", meshIndex, exMesh.Message);
+                        _logger?.LogError(exMesh, "SetDynamicBuffers - mesh {MeshIndex}", meshIndex);
                     }
                 }
 
@@ -217,7 +217,7 @@ namespace Client.Main.Objects
             }
             catch (Exception ex)
             {
-                _logger?.LogDebug("SetDynamicBuffers FATAL: {Message}", ex.Message);
+                _logger?.LogCritical(ex, "SetDynamicBuffers FATAL");
             }
         }
 

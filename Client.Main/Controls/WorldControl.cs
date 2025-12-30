@@ -591,7 +591,8 @@ namespace Client.Main.Controls
             bool chunkCullingActive = _staticChunksReady && _staticChunkCountWithObjects > 0;
             if (chunkCullingActive)
             {
-                UpdateStaticChunkVisibility(cam2D, maxDistSq, frustum);
+                if (!UpdateStaticChunkVisibility(cam2D, maxDistSq, frustum))
+                    return;
             }
 
             // Classify objects using the cached snapshot to avoid per-object locks
@@ -824,12 +825,13 @@ namespace Client.Main.Controls
             return frustum != null && frustum.Contains(obj.BoundingBoxWorld) != ContainmentType.Disjoint;
         }
 
-        private void UpdateStaticChunkVisibility(Vector2 cam2, float maxDistSq, BoundingFrustum frustum)
+        private bool UpdateStaticChunkVisibility(Vector2 cam2, float maxDistSq, BoundingFrustum frustum)
         {
-            if (_staticChunks == null || frustum == null) return;
+            if (_staticChunks == null || frustum == null) return false;
 
             const float DistancePadding = 400f;
             float paddedMaxDistSq = maxDistSq + DistancePadding * DistancePadding;
+            bool someVisible = false;
 
             for (int i = 0; i < _staticChunks.Length; i++)
             {
@@ -847,7 +849,11 @@ namespace Client.Main.Controls
                 }
 
                 chunk.IsVisible = frustum.Contains(chunk.Bounds) != ContainmentType.Disjoint;
+
+                if (chunk.IsVisible) someVisible = true;
             }
+
+            return someVisible;
         }
 
         // --- NEW METHOD FOR LIGHT CULLING ---

@@ -433,7 +433,6 @@ namespace Client.Main
 
         protected override void Update(GameTime gameTime)
         {
-            GameControl.UpdateCalls = 0;
             UPSCounter.Instance.CalcUPS(gameTime);
 
             // --- Process Main Thread Actions via TaskScheduler ---
@@ -525,7 +524,6 @@ namespace Client.Main
         {
             try
             {
-                GameControl.DrawCallsCount = 0;
                 // Initialize frame-based optimizations
                 DynamicBufferPool.BeginFrame(FrameIndex);
                 BMDLoader.Instance.BeginFrame();
