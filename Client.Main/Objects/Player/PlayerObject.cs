@@ -283,10 +283,6 @@ namespace Client.Main.Objects.Player
             UpdateWorldBoundingBox();
         }
 
-        protected override void BeforeUpdatePosition(GameTime gameTime)
-        {
-        }
-
         private static bool IsMouseOverWorld(BaseScene scene)
         {
             return scene?.World != null && scene.MouseHoverControl == scene.World;

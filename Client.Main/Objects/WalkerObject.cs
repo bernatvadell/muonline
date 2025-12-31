@@ -89,7 +89,7 @@ namespace Client.Main.Objects
             {
                 var x = Location.X * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
                 var y = Location.Y * Constants.TERRAIN_SCALE + 0.5f * Constants.TERRAIN_SCALE;
-                var z = World.Terrain.RequestTerrainHeight(x, y);
+                var z = World is null ? 0 : World.Terrain.RequestTerrainHeight(x, y);
                 return new Vector3(x, y, z);
             }
         }
@@ -489,7 +489,7 @@ namespace Client.Main.Objects
                             (int)(newLocation.Y - oldLocation.Y));
         }
 
-        private void UpdatePosition(GameTime gameTime)
+        public void UpdatePosition(GameTime gameTime)
         {
             if (World is not WalkableWorldControl walkableWorld)
                 return;
@@ -707,5 +707,12 @@ namespace Client.Main.Objects
         //     }
         //     base.Dispose(disposing);
         // }
+
+        protected override void OnWorldChanged(WorldControl newWorld, WorldControl prevWorld)
+        {
+            base.OnWorldChanged(newWorld, prevWorld);
+            //UpdateCameraPosition(Position);
+            UpdatePosition(new GameTime());
+        }
     }
 }

@@ -111,15 +111,11 @@ namespace Client.Main.Scenes
             _main.Visible = false;
 
             var previousWorld = _scene.World;
-
-            if (previousWorld is { Objects: { } objects })
-            {
-                objects.Detach(_scene.Hero);
-            }
-
+            previousWorld?.Objects.Remove(_scene.Hero);
             _scene.Hero.Reset();
 
             var nextWorld = (WorldControl)Activator.CreateInstance(worldType);
+
             if (nextWorld is WalkableWorldControl walkable)
                 walkable.Walker = _scene.Hero;
 

@@ -403,7 +403,7 @@ namespace Client.Main.Networking
                     }
 
                     var currentWorld = gs.World as WalkableWorldControl;
-                    bool mapChanged = currentWorld == null || currentWorld.WorldIndex != mapId;
+                    bool mapChanged = currentWorld == null || currentWorld.MapId != mapId;
 
                     _logger.LogDebug("ProcessCharacterRespawn: CurrentWorldIndex: {CurrentIdx}, NewMapId: {NewMapId}, MapChanged: {MapChangedFlag}",
                         currentWorld?.WorldIndex, mapId, mapChanged);

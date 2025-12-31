@@ -240,7 +240,9 @@ namespace Client.Main
 #if DEBUG
         private static void ApplyDebugDefaults()
         {
+            DRAW_BOUNDING_BOXES = false;
             BACKGROUND_MUSIC = false;
+            SOUND_EFFECTS = false;
             SHOW_DEBUG_PANEL = true;
 
 #if WINDOWS

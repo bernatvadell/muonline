@@ -12,13 +12,8 @@ using Client.Main.Objects.Player;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
 
 namespace Client.Main.Controls
 {
@@ -106,82 +101,15 @@ namespace Client.Main.Controls
     /// </summary>
     public abstract class WorldControl : GameControl
     {
-
-        #region Performance Metrics for Objects
-        public struct ObjectPerformanceMetrics
-        {
-            public int TotalObjects;
-            public int ConsideredForRender;
-            public int CulledByFrustum;
-            public int DrawnSolid;
-            public int DrawnTransparent;
-            public int DrawnTotal => DrawnSolid + DrawnTransparent;
-            public int StaticChunksTotal;
-            public int StaticChunksVisible;
-            public int StaticChunksCulled;
-            public int StaticObjectsCulledByChunk;
-        }
-
-        public ObjectPerformanceMetrics ObjectMetrics { get; private set; }
-        #endregion
-
         // --- Fields & Constants ---
-
-        private sealed class StaticChunk : IDisposable
-        {
-            public BoundingBox Bounds;
-            public Vector2 Center2D;
-            public bool HasBounds;
-            public bool IsVisible;
-            public readonly List<WorldObject> Objects = new();
-
-            // Surface caching for static objects
-            public RenderTarget2D CachedSurface;
-            public bool SurfaceDirty = true;
-            public Matrix LastViewProjection;
-            public int CacheableObjectCount;
-
-            public void Dispose()
-            {
-                CachedSurface?.Dispose();
-                CachedSurface = null;
-            }
-        }
-
-        private const int StaticChunkSizeTiles = 16;
-
-        private const float CullingOffset = 800f;
-
         private int _renderCounter;
         private DepthStencilState _currentDepthState = DepthStencilState.Default;
         private readonly WorldObjectDepthAsc _cmpAsc = new();
         private readonly WorldObjectDepthDesc _cmpDesc = new();
         private readonly WorldObjectBatchOptimizedAsc _cmpBatchAsc = new();
-        private readonly WorldObjectBatchOptimizedDesc _cmpBatchDesc = new();
         private static readonly DepthStencilState DepthStateDefault = DepthStencilState.Default;
         private static readonly DepthStencilState DepthStateDepthRead = DepthStencilState.DepthRead;
-        private StaticChunk[] _staticChunks;
-        private int _staticChunkGridSize;
-        private float _staticChunkWorldSize;
-        private bool _staticChunksReady;
-        private int _staticChunkCountWithObjects;
-        private bool _staticChunkCacheDirty;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private bool IsChunkableStaticObject(WorldObject obj)
-        {
-            if (obj == null) return false;
-            int type = obj.Type;
-            if ((uint)type >= (uint)MapTileObjects.Length) return false;
-            var registeredType = MapTileObjects[type];
-            if (registeredType == null) return false;
-
-            // Only chunk map tile style objects (non-walkers, non-players/monsters/items)
-            if (obj is WalkerObject || obj is PlayerObject || obj is MonsterObject || obj is DroppedItemObject)
-                return false;
-
-            return registeredType.IsAssignableFrom(obj.GetType());
-        }
+       
 
         private readonly List<WorldObject> _solidBehind = new();
         private readonly List<WorldObject> _transparentObjects = new();
@@ -190,6 +118,7 @@ namespace Client.Main.Controls
         private readonly List<PlayerObject> _players = new();
         private readonly List<MonsterObject> _monsters = new();
         private readonly List<DroppedItemObject> _droppedItems = new();
+        private readonly CategorizedChildren<WorldObject, CategoryChildrenObject> _categorizedChildren;
 
         public Dictionary<ushort, WalkerObject> WalkerObjectsById { get; } = new();
 
@@ -208,7 +137,7 @@ namespace Client.Main.Controls
         public bool EnableShadows { get; protected set; } = true;
 
         public ChildrenCollection<WorldObject> Objects { get; private set; }
-            = new ChildrenCollection<WorldObject>(null);
+        = new ChildrenCollection<WorldObject>(null);
         public IReadOnlyList<WalkerObject> Walkers => _walkers;
         public IReadOnlyList<PlayerObject> Players => _players;
         public IReadOnlyList<MonsterObject> Monsters => _monsters;
@@ -243,6 +172,27 @@ namespace Client.Main.Controls
             Objects.ControlAdded += OnObjectAdded;
             Objects.ControlRemoved += OnObjectRemoved;
 
+            var rules = new Dictionary<CategoryChildrenObject, CategoryRule<WorldObject>>
+            {
+                [CategoryChildrenObject.ObjectsInView] = new()
+                {
+                    Predicate = o => !o.OutOfView,
+                    Watch = (o, invalidate) =>
+                    {
+                        void Handler(object? sender, EventArgs e) => invalidate();
+
+                        o.Appear += Handler;
+                        o.Dissapear += Handler;
+                        return new ActionDisposable(() =>
+                        {
+                            o.Appear -= Handler;
+                            o.Dissapear -= Handler;
+                        });
+                    }
+                }
+            };
+
+            _categorizedChildren = new CategorizedChildren<WorldObject, CategoryChildrenObject>(Objects, rules);
         }
 
         // --- Lifecycle Methods ---
@@ -258,22 +208,6 @@ namespace Client.Main.Controls
             var dataPath = Constants.DataPath;
             var tasks = new List<Task>();
 
-            // Load terrain OBJ
-            var objPath = Path.Combine(dataPath, worldFolder, $"EncTerrain{WorldIndex}.obj");
-            if (File.Exists(objPath))
-            {
-                var reader = new OBJReader();
-                OBJ obj = await reader.Load(objPath);
-                foreach (var mapObj in obj.Objects)
-                {
-                    var instance = WorldObjectFactory.CreateMapTileObject(this, mapObj);
-                    if (instance != null) tasks.Add(instance.Load());
-                }
-            }
-
-            await Task.WhenAll(tasks);
-            BuildStaticChunkCache();
-
             // Load camera settings
             var capPath = Path.Combine(dataPath, worldFolder, "Camera_Angle_Position.bmd");
             if (File.Exists(capPath))
@@ -287,6 +221,22 @@ namespace Client.Main.Controls
                 Camera.Instance.Position = data.CameraPosition;
                 Camera.Instance.Target = data.HeroPosition;
             }
+
+            // Load terrain OBJ
+            var objPath = Path.Combine(dataPath, worldFolder, $"EncTerrain{WorldIndex}.obj");
+            if (File.Exists(objPath))
+            {
+                var reader = new OBJReader();
+                OBJ obj = await reader.Load(objPath);
+                foreach (var mapObj in obj.Objects)
+                {
+                    var instance = WorldObjectFactory.CreateMapTileObject(this, mapObj);
+                    if (instance != null) tasks.Add(instance.Load());
+                }
+            }
+
+            // tasks.Add(Container.Load());
+            await Task.WhenAll(tasks);
 
             // Play or stop background music
             if (!string.IsNullOrEmpty(BackgroundMusicPath))
@@ -312,11 +262,10 @@ namespace Client.Main.Controls
             base.Update(time);
             if (Status != GameControlStatus.Ready) return;
 
-            // Iterate over a stable snapshot to avoid per-object lock contention
-            var snapshot = Objects.GetSnapshot();
-            for (int i = 0; i < snapshot.Count; i++)
+            var objects = _categorizedChildren.Get(CategoryChildrenObject.ObjectsInView);
+            for (int i = 0; i < objects.Count; i++)
             {
-                var obj = snapshot[i];
+                var obj = objects[i];
                 if (obj != null && obj.Status != GameControlStatus.Disposed)
                     obj.Update(time);
             }
@@ -365,6 +314,7 @@ namespace Client.Main.Controls
         private void OnObjectAdded(object sender, ChildrenEventArgs<WorldObject> e)
         {
             e.Control.World = this;
+
             TrackObjectType(e.Control);
             if (e.Control is WalkerObject walker &&
                 walker.NetworkId != 0 &&
@@ -381,9 +331,6 @@ namespace Client.Main.Controls
                 }
                 WalkerObjectsById[walker.NetworkId] = walker; // Always update/add
             }
-
-            if (e.Control is MapTileObject)
-                _staticChunkCacheDirty = true;
         }
 
         private void OnObjectRemoved(object sender, ChildrenEventArgs<WorldObject> e)
@@ -407,9 +354,6 @@ namespace Client.Main.Controls
                     }
                 }
             }
-
-            if (e.Control is MapTileObject)
-                _staticChunkCacheDirty = true;
         }
 
         private void TrackObjectType(WorldObject obj)
@@ -567,51 +511,30 @@ namespace Client.Main.Controls
             _transparentObjects.Clear();
             _solidInFront.Clear();
 
-            var objects = Objects.GetSnapshot();
-            var metrics = new ObjectPerformanceMetrics
-            {
-                TotalObjects = objects.Count,
-                StaticChunksTotal = _staticChunkCountWithObjects
-            };
+            var objects = _categorizedChildren.Get(CategoryChildrenObject.ObjectsInView);
 
-            var cam = Camera.Instance;
-            var frustum = cam?.Frustum;
-            if (cam == null || frustum == null) return;
 
-            Vector2 cam2D = new(cam.Position.X, cam.Position.Y);
-            float maxDist = cam.ViewFar + CullingOffset;
-            float maxDistSq = maxDist * maxDist;
-
-            if (_staticChunkCacheDirty || !_staticChunksReady)
-            {
-                BuildStaticChunkCache();
-                _staticChunkCacheDirty = false;
-            }
-
-            bool chunkCullingActive = _staticChunksReady && _staticChunkCountWithObjects > 0;
-            if (chunkCullingActive)
-            {
-                if (!UpdateStaticChunkVisibility(cam2D, maxDistSq, frustum))
-                    return;
-            }
-
-            // Classify objects using the cached snapshot to avoid per-object locks
-            for (int i = 0; i < objects.Count; i++)
+            for (var i = 0; i < objects.Count; i++)
             {
                 var obj = objects[i];
-                if (chunkCullingActive && IsChunkableStaticObject(obj))
-                    continue; // Static objects handled via chunk culling
 
-                ClassifyObject(obj, cam2D, maxDistSq, frustum, ref metrics, skipViewCheck: false);
+                if (obj is WalkerObject)
+                {
+                    _solidInFront.Add(obj);
+                }
+                else if (obj.IsTransparent)
+                {
+                    _transparentObjects.Add(obj);
+                }
+                else if (obj.AffectedByTransparency)
+                {
+                    _solidBehind.Add(obj);
+                }
+                else
+                {
+                    _solidInFront.Add(obj);
+                }
             }
-
-            // Chunk-based culling/classification for static map objects
-            if (chunkCullingActive)
-            {
-                ClassifyStaticChunks(cam2D, maxDistSq, frustum, ref metrics);
-            }
-
-            ObjectMetrics = metrics;
 
             // Draw solid behind objects
             if (_solidBehind.Count > 1)
@@ -733,87 +656,6 @@ namespace Client.Main.Controls
             }
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void ClassifyObject(WorldObject obj, Vector2 cam2D, float maxDistSq, BoundingFrustum frustum,
-            ref ObjectPerformanceMetrics metrics, bool skipViewCheck)
-        {
-            if (obj == null) return;
-            if (obj.Status == GameControlStatus.Disposed || !obj.Visible) return;
-
-            metrics.ConsideredForRender++;
-
-            if (!skipViewCheck && !IsObjectInView(obj, cam2D, maxDistSq, frustum))
-            {
-                metrics.CulledByFrustum++;
-                return;
-            }
-
-            if (obj.IsTransparent)
-            {
-                _transparentObjects.Add(obj);
-                metrics.DrawnTransparent++;
-            }
-            else if (obj.AffectedByTransparency)
-            {
-                _solidBehind.Add(obj);
-                metrics.DrawnSolid++;
-            }
-            else
-            {
-                _solidInFront.Add(obj);
-                metrics.DrawnSolid++;
-            }
-        }
-
-        private void ClassifyStaticChunks(Vector2 cam2D, float maxDistSq, BoundingFrustum frustum,
-            ref ObjectPerformanceMetrics metrics)
-        {
-            if (_staticChunks == null) return;
-
-            for (int i = 0; i < _staticChunks.Length; i++)
-            {
-                var chunk = _staticChunks[i];
-                if (chunk.Objects.Count == 0) continue;
-
-                if (!chunk.IsVisible)
-                {
-                    metrics.StaticChunksCulled++;
-                    // Count all valid objects in this chunk as culled
-                    for (int n = 0; n < chunk.Objects.Count; n++)
-                    {
-                        var obj = chunk.Objects[n];
-                        if (obj == null) continue;
-                        if (obj.Status == GameControlStatus.Disposed) continue;
-                        metrics.ConsideredForRender++;
-                        metrics.CulledByFrustum++;
-                        metrics.StaticObjectsCulledByChunk++;
-                    }
-                    continue;
-                }
-
-                metrics.StaticChunksVisible++;
-                for (int n = 0; n < chunk.Objects.Count; n++)
-                    ClassifyObject(chunk.Objects[n], cam2D, maxDistSq, frustum, ref metrics, skipViewCheck: true);
-            }
-        }
-
-        // --- View Frustum & Culling ---
-
-        public bool IsObjectInView(WorldObject obj)
-        {
-            var pos3 = obj.WorldPosition.Translation;
-            var cam = Camera.Instance;
-            if (cam == null) return false;
-
-            var cam2 = new Vector2(cam.Position.X, cam.Position.Y);
-            var obj2 = new Vector2(pos3.X, pos3.Y);
-            var maxDist = cam.ViewFar + CullingOffset;
-            if (Vector2.DistanceSquared(cam2, obj2) > maxDist * maxDist)
-                return false;
-
-            return cam.Frustum.Contains(obj.BoundingBoxWorld) != ContainmentType.Disjoint;
-        }
-
         // Fast path for loops where camera info is already cached
         private static bool IsObjectInView(WorldObject obj, Vector2 cam2, float maxDistSq, BoundingFrustum frustum)
         {
@@ -823,37 +665,6 @@ namespace Client.Main.Controls
                 return false;
 
             return frustum != null && frustum.Contains(obj.BoundingBoxWorld) != ContainmentType.Disjoint;
-        }
-
-        private bool UpdateStaticChunkVisibility(Vector2 cam2, float maxDistSq, BoundingFrustum frustum)
-        {
-            if (_staticChunks == null || frustum == null) return false;
-
-            const float DistancePadding = 400f;
-            float paddedMaxDistSq = maxDistSq + DistancePadding * DistancePadding;
-            bool someVisible = false;
-
-            for (int i = 0; i < _staticChunks.Length; i++)
-            {
-                var chunk = _staticChunks[i];
-                if (!chunk.HasBounds || chunk.Objects.Count == 0)
-                {
-                    chunk.IsVisible = false;
-                    continue;
-                }
-
-                if (Vector2.DistanceSquared(cam2, chunk.Center2D) > paddedMaxDistSq)
-                {
-                    chunk.IsVisible = false;
-                    continue;
-                }
-
-                chunk.IsVisible = frustum.Contains(chunk.Bounds) != ContainmentType.Disjoint;
-
-                if (chunk.IsVisible) someVisible = true;
-            }
-
-            return someVisible;
         }
 
         // --- NEW METHOD FOR LIGHT CULLING ---
@@ -872,81 +683,6 @@ namespace Client.Main.Controls
 
             // Use the highly optimized Intersects check. This is much faster than manual distance calculations.
             return frustum.Intersects(lightSphere);
-        }
-
-        private void BuildStaticChunkCache()
-        {
-            _staticChunksReady = false;
-            _staticChunkCountWithObjects = 0;
-            _staticChunkCacheDirty = false;
-
-            _staticChunkGridSize = Constants.TERRAIN_SIZE / StaticChunkSizeTiles;
-            if (_staticChunkGridSize <= 0)
-                return;
-
-            _staticChunkWorldSize = StaticChunkSizeTiles * Constants.TERRAIN_SCALE;
-            int chunkCount = _staticChunkGridSize * _staticChunkGridSize;
-            _staticChunks = new StaticChunk[chunkCount];
-            for (int i = 0; i < chunkCount; i++)
-                _staticChunks[i] = new StaticChunk();
-
-            var snapshot = Objects.GetSnapshot();
-            for (int i = 0; i < snapshot.Count; i++)
-            {
-                var obj = snapshot[i];
-                if (!IsChunkableStaticObject(obj))
-                    continue;
-
-                // Use Position (object-space) to bucket; safer if WorldPosition not yet recalculated
-                var pos = obj.Position;
-                int cx = (int)(pos.X / _staticChunkWorldSize);
-                int cy = (int)(pos.Y / _staticChunkWorldSize);
-                cx = Math.Max(0, Math.Min(cx, _staticChunkGridSize - 1));
-                cy = Math.Max(0, Math.Min(cy, _staticChunkGridSize - 1));
-
-                int idx = cy * _staticChunkGridSize + cx;
-                var chunk = _staticChunks[idx];
-                chunk.Objects.Add(obj);
-
-                var bbox = obj.BoundingBoxWorld;
-                if (chunk.HasBounds)
-                    chunk.Bounds = BoundingBox.CreateMerged(chunk.Bounds, bbox);
-                else
-                {
-                    chunk.Bounds = bbox;
-                    chunk.HasBounds = true;
-                }
-            }
-
-            bool anyObjects = false;
-            for (int i = 0; i < _staticChunks.Length; i++)
-            {
-                var chunk = _staticChunks[i];
-                if (!chunk.HasBounds) continue;
-
-                chunk.Center2D = new Vector2(
-                    (chunk.Bounds.Min.X + chunk.Bounds.Max.X) * 0.5f,
-                    (chunk.Bounds.Min.Y + chunk.Bounds.Max.Y) * 0.5f);
-                chunk.IsVisible = false;
-                chunk.SurfaceDirty = true;
-
-                // Count cacheable objects for future surface caching
-                int cacheableCount = 0;
-                for (int n = 0; n < chunk.Objects.Count; n++)
-                {
-                    if (chunk.Objects[n] is ModelObject model && model.IsStaticForCaching)
-                        cacheableCount++;
-                }
-                chunk.CacheableObjectCount = cacheableCount;
-
-                if (chunk.Objects.Count > 0)
-                {
-                    anyObjects = true;
-                    _staticChunkCountWithObjects++;
-                }
-            }
-
-            _staticChunksReady = anyObjects;
         }
 
         // --- Map Tile Initialization ---
@@ -982,15 +718,6 @@ namespace Client.Main.Controls
             _players.Clear();
             _monsters.Clear();
             _droppedItems.Clear();
-
-            // Dispose static chunk cached surfaces
-            if (_staticChunks != null)
-            {
-                for (int i = 0; i < _staticChunks.Length; i++)
-                    _staticChunks[i]?.Dispose();
-                _staticChunks = null;
-            }
-            _staticChunksReady = false;
 
             sw.Stop();
             var elapsedObjects = sw.ElapsedMilliseconds;

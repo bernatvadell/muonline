@@ -6,14 +6,16 @@ using Client.Main.Core.Utilities;
 using Client.Main.Graphics;
 using Client.Main.Helpers;
 using Client.Main.Models;
+using Client.Main.Objects.Player;
 using Client.Main.Scenes;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Extensions.Logging;
 using System;
 using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
+using static LEA.Symmetric.Lea;
 
 namespace Client.Main.Objects
 {
@@ -27,6 +29,8 @@ namespace Client.Main.Objects
         private WorldControl _world;
         private bool _interactive;
         private bool _isTransformDirty = true;
+        private bool _hidden = false;
+        private readonly CategorizedChildren<WorldObject, CategoryChildrenObject> _categorizedChildren;
 
         private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<WorldObject>();
 
@@ -41,16 +45,6 @@ namespace Client.Main.Objects
 
         private SpriteFont _font;
         private Texture2D _whiteTexture;
-        private float _cullingCheckTimer = 0;
-        private const float CullingCheckInterval = 0.1f; // Check culling every 100ms instead of every frame
-
-        // Advanced update optimization for invisible objects
-        private float _lowPriorityUpdateTimer = 0;
-        private const float LowPriorityUpdateInterval = 0.25f; // Update invisible objects every 250ms
-        private const float FarObjectUpdateInterval = 0.5f; // Update very far objects every 500ms
-        private float _lastDistanceToCamera = float.MaxValue;
-        private bool _wasOutOfView = true;
-        private const int MaxSkipFrames = 15; // Skip up to 15 frames for very distant objects
 
         // PERFORMANCE: Static bbox indices to avoid per-frame allocation
         private static readonly int[] BoundingBoxIndices = new int[]
@@ -88,27 +82,31 @@ namespace Client.Main.Objects
         }
 
         public bool LinkParentAnimation { get; set; }
-        public bool OutOfView { get; private set; } = true;
-        public ChildrenCollection<WorldObject> Children { get; private set; }
-        public WorldObject Parent { get => _parent; set { var prev = _parent; _parent = value; OnParentChanged(value, prev); } }
 
-        public BoundingBox BoundingBoxLocal { get => _boundingBoxLocal; set { _boundingBoxLocal = value; OnBoundingBoxLocalChanged(); } }
+        private bool _outOfView = true;
+        public virtual bool OutOfView { get => _outOfView; private set { if (value != _outOfView) { _outOfView = value; OnOutOfViewChanged(); } } }
+        public event EventHandler Appear;
+        public event EventHandler Dissapear;
+        public ChildrenCollection<WorldObject> Children { get; private set; }
+        public WorldObject Parent { get => _parent; set { if (_parent != value) { var prev = _parent; _parent = value; OnParentChanged(value, prev); } } }
+
+        public BoundingBox BoundingBoxLocal { get => _boundingBoxLocal; set { if (_boundingBoxLocal != value) { _boundingBoxLocal = value; OnBoundingBoxLocalChanged(); } } }
         public BoundingBox BoundingBoxWorld { get; protected set; }
 
         public GameControlStatus Status { get; protected set; } = GameControlStatus.NonInitialized;
-        public bool Hidden { get; set; }
+        public bool Hidden { get => _hidden; set { if (_hidden != value) { _hidden = value; OnHiddenChanged(); } } }
         public string ObjectName => GetType().Name;
         public virtual string DisplayName => ObjectName;
         public BlendState BlendState { get; set; } = BlendState.Opaque;
         public float Alpha { get; set; } = 1f;
         public float TotalAlpha { get => (Parent?.TotalAlpha ?? 1f) * Alpha; }
-        public Vector3 Position { get => _position; set { if (_position != value) { _position = value; OnPositionChanged(); } } }
-        public Vector3 Angle { get => _angle; set { if (_angle != value) { _angle = value; OnAngleChanged(); } } }
+        public Vector3 Position { get => _position; set { if (_position != value) { if (_position != value) { _position = value; OnPositionChanged(); } } } }
+        public Vector3 Angle { get => _angle; set { if (_angle != value) { if (_angle != value) { _angle = value; OnAngleChanged(); } } } }
         public Vector3 TotalAngle { get => (Parent?.TotalAngle ?? Vector3.Zero) + Angle; }
 
-        public float Scale { get => _scale; set { if (_scale != value) { _scale = value; OnScaleChanged(); } } }
+        public float Scale { get => _scale; set { if (_scale != value) { if (_scale != value) { _scale = value; OnScaleChanged(); } } } }
         public float TotalScale { get => (Parent?.Scale ?? 1f) * Scale; }
-        public Matrix WorldPosition { get => _worldPosition; set { _worldPosition = value; OnWorldPositionChanged(); } }
+        public Matrix WorldPosition { get => _worldPosition; set { if (_worldPosition != value) { _worldPosition = value; OnWorldPositionChanged(); } } }
         public bool Interactive { get => _interactive || (Parent?.Interactive ?? false); set { _interactive = value; } }
         public Vector3 Light { get; set; } = new Vector3(0f, 0f, 0f);
         public bool LightEnabled { get; set; } = true;
@@ -117,7 +115,7 @@ namespace Client.Main.Objects
         /// </summary>
         public bool LowQuality { get; private set; }
         public bool Visible => Status == GameControlStatus.Ready && !OutOfView && !Hidden;
-        public WorldControl World { get => _world; set { _world = value; OnChangeWorld(); } }
+        public WorldControl World { get => _world; set { if (_world != value) { var prev = _world; _world = value; OnWorldChanged(value, prev); } } }
         public short Type { get; set; }
         public Color BoundingBoxColor { get; set; } = Color.GreenYellow;
         protected GraphicsDevice GraphicsDevice => MuGame.Instance.GraphicsDevice;
@@ -133,10 +131,49 @@ namespace Client.Main.Objects
             Children = new ChildrenCollection<WorldObject>(this);
             Children.ControlAdded += Children_ControlAdded;
 
+            var rules = new Dictionary<CategoryChildrenObject, CategoryRule<WorldObject>>
+            {
+                [CategoryChildrenObject.ObjectsInView] = new()
+                {
+                    Predicate = o => !o.OutOfView,
+                    Watch = (o, invalidate) =>
+                    {
+                        void Handler(object? sender, EventArgs e) => invalidate();
+
+                        o.Appear += Handler;
+                        o.Dissapear += Handler;
+                        return new ActionDisposable(() =>
+                        {
+                            o.Appear -= Handler;
+                            o.Dissapear -= Handler;
+                        });
+                    }
+                }
+            };
+
+            _categorizedChildren = new CategorizedChildren<WorldObject, CategoryChildrenObject>(Children, rules);
+
             _font = GraphicsManager.Instance.Font;
 
             // Initialize update offset for staggered updates - spread objects across frames
             _updateOffset = GetHashCode() % 60; // Spread across ~1 second at 60fps
+
+            Camera.Instance.CameraMoved += Camera_Moved;
+        }
+
+        private void Camera_Moved(object sender, EventArgs e)
+        {
+            CalculateOutOfView();
+        }
+
+        private void CalculateOutOfView()
+        {
+            OutOfView = World is null || Hidden || Camera.Instance.Frustum.Contains(BoundingBoxWorld) == ContainmentType.Disjoint;
+        }
+
+        private void OnHiddenChanged()
+        {
+            CalculateOutOfView();
         }
 
         public virtual void OnClick()
@@ -149,14 +186,29 @@ namespace Client.Main.Objects
             e.Control.World = World;
         }
 
-        private void OnChangeWorld()
+        private void OnOutOfViewChanged()
+        {
+            if (_outOfView)
+            {
+                Dissapear?.Invoke(this, EventArgs.Empty);
+            }
+            else
+            {
+                Appear?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        protected virtual void OnWorldChanged(WorldControl newWorld, WorldControl prevWorld)
         {
             var children = Children.ToArray();
             for (var i = 0; i < children.Length; i++)
-                Children[i].World = World;
+                Children[i].World = newWorld;
 
-            if (World is WalkableWorldControl && this is WalkerObject walker)
+            if (newWorld is WalkableWorldControl && this is WalkerObject walker)
                 walker.OnDirectionChanged();
+
+            OnPositionChanged();
+            CalculateOutOfView();
         }
 
         public virtual async Task Load()
@@ -174,10 +226,15 @@ namespace Client.Main.Objects
 
                 tasks[0] = LoadContent();
 
-                for (var i = 0; i < Children.Count; i++)
-                    tasks[i + 1] = Children[i].Load();
+                var snapshot = Children.GetSnapshot();
 
-                await Task.WhenAll(tasks);
+                for (var i = 0; i < snapshot.Count; i++)
+                    tasks[i + 1] = snapshot[i].Load();
+
+                await Task.WhenAny(
+                    Task.WhenAll(tasks),
+                    Task.Delay(5000)
+                );
 
                 RecalculateWorldPosition();
                 UpdateWorldBoundingBox();
@@ -209,110 +266,6 @@ namespace Client.Main.Objects
 
             float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-            // Update OutOfView flag with intelligent frequency based on object state
-            bool shouldCheckCulling = false;
-            if (World != null)
-            {
-                _cullingCheckTimer += deltaTime;
-
-                // Adjust culling check frequency based on object state
-                float checkInterval = _wasOutOfView ? CullingCheckInterval * 2f : CullingCheckInterval;
-                if (_cullingCheckTimer >= checkInterval)
-                {
-                    shouldCheckCulling = true;
-                }
-            }
-
-            if (shouldCheckCulling)
-            {
-                _cullingCheckTimer = 0;
-                _wasOutOfView = OutOfView;
-                OutOfView = World != null && !World.IsObjectInView(this);
-
-                // If object was just marked as out of view, give it another chance soon
-                if (!_wasOutOfView && OutOfView)
-                {
-                    _cullingCheckTimer = CullingCheckInterval - 0.016f; // Check again in ~1 frame
-                }
-            }
-
-            // AGGRESSIVE: Skip most updates for invisible objects
-            if (OutOfView)
-            {
-                _lowPriorityUpdateTimer += deltaTime;
-
-                // Much more aggressive - update invisible objects only every 1 second!
-                if (_lowPriorityUpdateTimer < 1.0f && _globalFrameCounter % 60 != (_updateOffset % 60))
-                {
-                    TotalSkippedUpdates++;
-                    return; // Skip this frame entirely for invisible objects - VERY aggressive
-                }
-
-                _lowPriorityUpdateTimer = 0;
-
-                // Only update critical children for invisible objects
-                for (int i = 0; i < Children.Count; i++)
-                {
-                    var child = Children[i];
-                    // Only update if it's a player or monster - skip everything else
-                    if (child is Player.PlayerObject || child is MonsterObject)
-                    {
-                        child.Update(gameTime);
-                    }
-                }
-                return;
-            }
-
-            // Reset low priority timer when object becomes visible
-            _lowPriorityUpdateTimer = 0;
-
-            // Simplified distance-based optimization for visible objects
-            float distanceToCamera = float.MaxValue;
-            if (World != null && Camera.Instance != null)
-            {
-                distanceToCamera = Vector3.Distance(Camera.Instance.Position, WorldPosition.Translation);
-                _lastDistanceToCamera = distanceToCamera;
-
-                // AGGRESSIVE: Skip every other frame for very distant visible objects
-                if (distanceToCamera > Constants.LOW_QUALITY_DISTANCE * 2f)
-                {
-                    if (_globalFrameCounter % 2 != (_updateOffset % 2))
-                    {
-                        TotalSkippedUpdates++;
-                        return; // Skip every other frame for distant objects
-                    }
-                }
-            }
-
-            // Full update for all visible objects (simplified)
-            PerformFullUpdate(gameTime, distanceToCamera);
-        }
-
-        private void UpdateChildrenSelectively(GameTime gameTime)
-        {
-            // Only update children that are likely to be important (players, animated objects, etc.)
-            for (int i = 0; i < Children.Count; i++)
-            {
-                var child = Children[i];
-
-                // Always update players and important objects
-                if (child is Player.PlayerObject ||
-                    child is MonsterObject ||
-                    child.Interactive ||
-                    !child.OutOfView)
-                {
-                    child.Update(gameTime);
-                }
-                // For other children, use staggered updates
-                else if (((_globalFrameCounter + child._updateOffset) % (MaxSkipFrames * 2)) == 0)
-                {
-                    child.Update(gameTime);
-                }
-            }
-        }
-
-        private void PerformFullUpdate(GameTime gameTime, float distanceToCamera)
-        {
             TotalUpdatesPerformed++;
 
             // Reset debug counters every 5 seconds
@@ -324,29 +277,9 @@ namespace Client.Main.Objects
                 TotalSkippedUpdates = 0;
                 TotalUpdatesPerformed = 0;
             }
-            // Determine whether the object should be rendered in low quality based on distance to the camera
-            if (World != null)
-            {
-                bool isLoginScene = World.Scene is LoginScene;
-                if (!Constants.ENABLE_LOW_QUALITY_SWITCH ||
-                    (isLoginScene && !Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE))
-                {
-                    LowQuality = false;
-                }
-                else
-                {
-                    LowQuality = distanceToCamera > Constants.LOW_QUALITY_DISTANCE;
-                }
-            }
-            else
-            {
-                LowQuality = false;
-            }
 
-            // Mouse hover detection optimization - skip for distant/out-of-view objects
-            bool withinHoverRange = distanceToCamera < Constants.LOW_QUALITY_DISTANCE * 1.5f;
             // Cache frustum result only when within hover range
-            bool inFrustum = withinHoverRange && (Camera.Instance?.Frustum.Contains(BoundingBoxWorld) != ContainmentType.Disjoint);
+            bool inFrustum = (Camera.Instance?.Frustum.Contains(BoundingBoxWorld) != ContainmentType.Disjoint);
             // Defer expensive hover checks when many objects spawn: use a staggered cadence for non-interactive objects
             bool hoverBudgetThisFrame = (_globalFrameCounter + _updateOffset) % 3 == 0; // 1/3 frames
             bool shouldCheckMouseHover = inFrustum && (Interactive || Constants.DRAW_BOUNDING_BOXES || hoverBudgetThisFrame);
@@ -393,11 +326,11 @@ namespace Client.Main.Objects
                 IsMouseHover = false; // Distant objects can't be hovered
             }
 
-
-            // Parallel.ForEach(Children, new ParallelOptions { MaxDegreeOfParallelism = 8 }, (item) => item.Update(gameTime));
-            for (int i = 0; i < Children.Count; i++)
-                Children[i].Update(gameTime);
+            var objects = _categorizedChildren.Get(CategoryChildrenObject.ObjectsInView);
+            for (int i = 0; i < objects.Count; i++)
+                objects[i].Update(gameTime);
         }
+
 
         public virtual void Draw(GameTime gameTime)
         {
@@ -405,10 +338,9 @@ namespace Client.Main.Objects
 
             DrawBoundingBox3D();
 
-            // Avoid enumeration overhead
-            int count = Children.Count;
-            for (int i = 0; i < count; i++)
-                Children[i].Draw(gameTime);
+            var objects = _categorizedChildren.Get(CategoryChildrenObject.ObjectsInView);
+            for (int i = 0; i < objects.Count; i++)
+                objects[i].Draw(gameTime);
         }
 
         public virtual void DrawAfter(GameTime gameTime)
@@ -418,10 +350,9 @@ namespace Client.Main.Objects
             DrawBoundingBox2D();
             DrawHoverName();
 
-            // Avoid enumeration overhead
-            int count = Children.Count;
-            for (int i = 0; i < count; i++)
-                Children[i].DrawAfter(gameTime);
+            var objects = _categorizedChildren.Get(CategoryChildrenObject.ObjectsInView);
+            for (int i = 0; i < objects.Count; i++)
+                objects[i].DrawAfter(gameTime);
         }
 
         /// <summary>
@@ -515,7 +446,18 @@ namespace Client.Main.Objects
 
         public virtual void Dispose()
         {
+            if (Status == GameControlStatus.Disposed)
+                return;
+
+            if (Status == GameControlStatus.Initializing)
+            {
+                Thread.Sleep(100);
+                Dispose();
+            }
+
             Status = GameControlStatus.Disposed;
+
+            Camera.Instance.CameraMoved -= Camera_Moved;
 
             var children = Children.ToArray();
             for (int i = 0; i < children.Length; i++)
@@ -564,6 +506,7 @@ namespace Client.Main.Objects
         {
             MarkTransformDirty();
             RecalculateWorldPosition();
+            CalculateOutOfView();
         }
 
         protected void MarkTransformDirty()
@@ -578,9 +521,6 @@ namespace Client.Main.Objects
         public void ForceInView()
         {
             OutOfView = false;
-            _wasOutOfView = false;
-            _cullingCheckTimer = 0f;
-            _lowPriorityUpdateTimer = 0f;
         }
         protected virtual void RecalculateWorldPosition()
         {
@@ -611,6 +551,7 @@ namespace Client.Main.Objects
         private void OnWorldPositionChanged()
         {
             UpdateWorldBoundingBox();
+            CalculateOutOfView();
             MatrixChanged?.Invoke(this, EventArgs.Empty);
         }
 

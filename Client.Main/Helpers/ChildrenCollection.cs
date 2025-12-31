@@ -175,9 +175,6 @@ namespace Client.Main.Helpers
             {
                 control.Parent = null;
                 ControlRemoved?.Invoke(this, new ChildrenEventArgs<T>(control));
-
-                if (control is Client.Main.Objects.WorldObject wo)
-                    wo.Dispose();
             }
 
             return removed;
@@ -195,9 +192,6 @@ namespace Client.Main.Helpers
 
             control.Parent = null;
             ControlRemoved?.Invoke(this, new ChildrenEventArgs<T>(control));
-
-            if (control is Client.Main.Objects.WorldObject wo)
-                wo.Dispose();
         }
 
         public void Clear()
@@ -214,9 +208,6 @@ namespace Client.Main.Helpers
             {
                 control.Parent = null;
                 ControlRemoved?.Invoke(this, new ChildrenEventArgs<T>(control));
-
-                if (control is Client.Main.Objects.WorldObject wo)
-                    wo.Dispose();
             }
         }
 

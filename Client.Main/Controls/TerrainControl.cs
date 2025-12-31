@@ -201,9 +201,9 @@ namespace Client.Main.Controls
         }
 
         // --- Public Query Methods (Facade) ---
-        public TWFlags RequestTerrainFlag(int x, int y) => _physics.RequestTerrainFlag(x, y);
-        public float RequestTerrainHeight(float xf, float yf) => _physics.RequestTerrainHeight(xf, yf);
-        public Vector3 EvaluateTerrainLight(float xf, float yf) => _physics.RequestTerrainLight(xf, yf, AmbientLight);
+        public TWFlags RequestTerrainFlag(int x, int y) => _physics?.RequestTerrainFlag(x, y) ?? 0f;
+        public float RequestTerrainHeight(float xf, float yf) => _physics?.RequestTerrainHeight(xf, yf) ?? 0f;
+        public Vector3 EvaluateTerrainLight(float xf, float yf) => _physics?.RequestTerrainLight(xf, yf, AmbientLight) ?? Vector3.Zero;
         public Vector3 EvaluateDynamicLight(Vector2 position) => _lightManager.EvaluateDynamicLight(position);
         public byte GetBaseTextureIndexAt(int x, int y) => _physics.GetBaseTextureIndexAt(x, y);
         public float GetWindValue(int x, int y) => _wind.GetWindValue(x, y);

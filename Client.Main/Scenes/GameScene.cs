@@ -35,7 +35,7 @@ namespace Client.Main.Scenes
     public class GameScene : BaseScene
     {
         // ──────────────────────────── Fields ────────────────────────────
-        private readonly PlayerObject _hero;
+        private readonly HeroObject _hero;
         private readonly MainControl _main;
         private GameSceneMapController _mapController;
         private MapListControl _mapListControl;
@@ -70,7 +70,7 @@ namespace Client.Main.Scenes
 
         // Performance optimization fields - track object IDs for O(1) lookups
         // ───────────────────────── Properties ─────────────────────────
-        public PlayerObject Hero => _hero;
+        public HeroObject Hero => _hero;
         public ChatLogWindow ChatLog => _chatLog;
         public InventoryControl InventoryControl => _inventoryControl;
         public TradeControl TradeControl => TradeControl.Instance;
@@ -106,7 +106,7 @@ namespace Client.Main.Scenes
             _logger?.LogDebug($"GameScene constructor called for Character: {_characterInfo.Name} ({_characterInfo.Class})");
 
             // Create the hero with the appearance data from the character list
-            _hero = new PlayerObject(new AppearanceData(characterInfo.Appearance));
+            _hero = new HeroObject(new AppearanceData(characterInfo.Appearance));
 
             _main = new MainControl(MuGame.Network.GetCharacterState());
             Controls.Add(_main);
