@@ -16,7 +16,7 @@ namespace Client.Main.Objects.Effects
     /// Ultimate Meteorite visual effect: fiery descent with magical accents,
     /// massive impact with debris, shockwave, sparks fountain, and dynamic lighting.
     /// </summary>
-    public sealed class ScrollOfMeteoriteEffect : WorldObject
+    public sealed class ScrollOfMeteoriteEffect : EffectObject
     {
         private const string CoreTexturePath = "Effect/flare01.jpg";
         private const string GlowTexturePath = "Effect/flare.jpg";

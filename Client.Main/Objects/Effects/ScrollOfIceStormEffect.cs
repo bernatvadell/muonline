@@ -17,7 +17,7 @@ namespace Client.Main.Objects.Effects
     /// Scroll of Ice Storm visual effect (Skill ID 39) using Blizzard models.
     /// Creates 10 cascading falling ice shards with particle trails and ground debris.
     /// </summary>
-    public sealed class ScrollOfIceStormEffect : WorldObject
+    public sealed class ScrollOfIceStormEffect : EffectObject
     {
         private const string BlizzardBaseName = "Blizzard";
         private const string IceStoneBaseName = "ice_stone0";

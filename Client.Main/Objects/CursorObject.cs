@@ -6,6 +6,8 @@ namespace Client.Main.Objects
 {
     public class CursorObject : WorldObject
     {
+        public override bool OutOfView => false;
+
         public float _visibleTime = 0f;
 
         public override async Task Load()

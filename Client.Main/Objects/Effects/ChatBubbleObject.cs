@@ -15,7 +15,7 @@ namespace Client.Main.Objects.Effects
     /// <summary>
     /// Simple chat bubble displayed above a player for a short time.
     /// </summary>
-    public class ChatBubbleObject : WorldObject
+    public class ChatBubbleObject : EffectObject
     {
         private const float DefaultLifetime = 5f;
         private const float OffsetZ = 60f;

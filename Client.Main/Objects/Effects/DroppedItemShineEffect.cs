@@ -10,6 +10,8 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public class DroppedItemShineEffect : SpriteObject
     {
+        public override bool OutOfView => false;
+
         private const float FlashDuration = 0.55f;
         private const float MinInterval = 2.4f;
         private const float MaxInterval = 4.2f;

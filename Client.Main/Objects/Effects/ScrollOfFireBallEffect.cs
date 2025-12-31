@@ -15,7 +15,7 @@ namespace Client.Main.Objects.Effects
     /// <summary>
     /// Fire Ball visual effect: red fire orb with tail, sparks, and dynamic lighting.
     /// </summary>
-    public sealed class ScrollOfFireBallEffect : WorldObject
+    public sealed class ScrollOfFireBallEffect : EffectObject
     {
         private const string CoreTexturePath = "Effect/flare01.jpg";
         private const string GlowTexturePath = "Effect/flare.jpg";

@@ -17,7 +17,7 @@ namespace Client.Main.Objects.Effects
     /// Death Stab (Orb of Blow) visual effect (Skill ID 43) using original MU assets.
     /// Three-phase effect: energy charge-up, spike attack, and victim lightning impact.
     /// </summary>
-    public sealed class DeathStabEffect : WorldObject
+    public sealed class DeathStabEffect : EffectObject
     {
         private const string EnergyParticleBaseName = "RidingSpear";
         private const string SpikeBaseName = "Spear";

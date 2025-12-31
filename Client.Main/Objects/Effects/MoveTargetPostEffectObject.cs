@@ -10,6 +10,7 @@ namespace Client.Main.Objects.Effects
 {
     public class MoveTargetPostEffectObject : ModelObject
     {
+        public override bool OutOfView => false;
         public override async Task Load()
         {
             Model = await BMDLoader.Instance.Prepare("Effect/MoveTargetPosEffect.bmd");

@@ -17,7 +17,7 @@ namespace Client.Main.Objects.Effects
     /// <summary>
     /// Scroll of Twister visual effect (Skill ID 8) based on original MU client MODEL_STORM behavior.
     /// </summary>
-    public sealed class ScrollOfTwisterEffect : WorldObject
+    public sealed class ScrollOfTwisterEffect : EffectObject
     {
         private const ushort TwisterSkillId = 8;
         private const string StormBaseName = "Storm";

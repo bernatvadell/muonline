@@ -12,6 +12,8 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public class ElfBuffSparkle : SpriteObject
     {
+        public override bool OutOfView => false;
+
         private static readonly ConcurrentBag<ElfBuffSparkle> _pool = new();
 
         private Vector3 _velocity;

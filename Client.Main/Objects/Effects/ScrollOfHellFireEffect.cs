@@ -16,7 +16,7 @@ namespace Client.Main.Objects.Effects
     /// <summary>
     /// Scroll of HellFire visual effect (Skill ID 10) using original Circle models.
     /// </summary>
-    public sealed class ScrollOfHellFireEffect : WorldObject
+    public sealed class ScrollOfHellFireEffect : EffectObject
     {
         private const string CircleBaseName = "Circle";
         private const string StoneBaseName = "Stone";

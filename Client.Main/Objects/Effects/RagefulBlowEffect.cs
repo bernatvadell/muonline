@@ -18,7 +18,7 @@ namespace Client.Main.Objects.Effects
     /// Rageful Blow (Fury Strike) visual effect built from original MU assets:
     /// EarthQuake (Skill/EarthQuake*.bmd), flashing (Skill/flashing.bmd), tail (Skill/tail.bmd).
     /// </summary>
-    public sealed class RagefulBlowEffect : WorldObject
+    public sealed class RagefulBlowEffect : EffectObject
     {
         private const string WaveModelPath = "Skill/flashing.bmd";
         private const string TailModelPath = "Skill/tail.bmd";

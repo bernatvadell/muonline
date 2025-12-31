@@ -10,6 +10,7 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public class LevelUpMagicCircle : SpriteObject
     {
+        public override bool OutOfView => false;
         private const float _lifeTotal = 3.5f;
         private float _life = _lifeTotal;
 

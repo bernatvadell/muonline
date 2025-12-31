@@ -11,7 +11,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Client.Main.Objects.Worlds.Devias
 {
-    public sealed class DeviasSnowAmbientEffect : WorldObject
+    public sealed class DeviasSnowAmbientEffect : EffectObject
     {
         private const float SpawnOffsetX = 850f;
         private const float SpawnOffsetBack = 600f;

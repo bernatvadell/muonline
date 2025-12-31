@@ -12,7 +12,7 @@ namespace Client.Main.Objects.Effects
     /// <summary>
     /// Simple sprite effect representing blood on the ground.
     /// </summary>
-    public class BloodStainEffect : WorldObject
+    public class BloodStainEffect : EffectObject
     {
         private const float BaseSize = 40f;
         private const float LifeTotal = 3.5f;

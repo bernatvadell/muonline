@@ -11,7 +11,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Client.Main.Objects.Worlds.Lorencia
 {
-    public sealed class LorenciaLeafAmbientEffect : WorldObject
+    public sealed class LorenciaLeafAmbientEffect : EffectObject
     {
         private readonly float _spawnOffsetX;
         private readonly float _spawnOffsetBack;

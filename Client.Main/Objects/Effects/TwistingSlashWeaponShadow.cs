@@ -9,6 +9,7 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public sealed class TwistingSlashWeaponShadow : ModelObject
     {
+        public override bool OutOfView => false;
         public TwistingSlashWeaponShadow()
         {
             IsTransparent = true;

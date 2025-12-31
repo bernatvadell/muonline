@@ -17,7 +17,7 @@ namespace Client.Main.Objects.Effects
     /// Renders as 3D cross-shaped ribbons (two perpendicular quads per segment).
     /// Based on original MU client: ZzzEffectJoint.cpp
     /// </summary>
-    public sealed class ScrollOfEvilSpiritEffect : WorldObject
+    public sealed class ScrollOfEvilSpiritEffect : EffectObject
     {
         private const string JointSpiritTexturePath = "Effect/JointSpirit01.jpg";
         private const string SoundEvil = "Sound/sEvil.wav";

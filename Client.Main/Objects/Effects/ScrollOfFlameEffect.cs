@@ -17,7 +17,7 @@ namespace Client.Main.Objects.Effects
     /// Flame (Scroll of Flame) effect - cylindrical fire wall with volumetric flames.
     /// Combines cylinder structure with organic rising fire particles.
     /// </summary>
-    public sealed class ScrollOfFlameEffect : WorldObject
+    public sealed class ScrollOfFlameEffect : EffectObject
     {
         private const ushort FlameSkillId = 5;
 

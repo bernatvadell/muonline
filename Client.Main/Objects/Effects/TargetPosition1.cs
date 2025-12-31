@@ -5,6 +5,7 @@ namespace Client.Main.Objects.Effects
 {
     public class TargetPosition1 : SpriteObject
     {
+        public override bool OutOfView => false;
         public override string TexturePath => $"Effect/cursorpin02.jpg";
 
 

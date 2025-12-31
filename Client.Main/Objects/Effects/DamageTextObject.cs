@@ -17,6 +17,8 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public class DamageTextObject : WorldObject
     {
+        public override bool OutOfView => false;
+
         // Public readonly data -------------------------------------------------
         public string Text { get; private set; }
         public Color TextColor { get; private set; }

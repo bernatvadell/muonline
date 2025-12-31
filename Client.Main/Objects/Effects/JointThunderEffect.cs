@@ -5,6 +5,7 @@ namespace Client.Main.Objects.Effects
 {
     public class JointThunderEffect : SpriteObject
     {
+        public override bool OutOfView => false;
         public override string TexturePath => $"Effect/JointThunder01.jpg";
 
         public JointThunderEffect()

@@ -5,6 +5,7 @@ namespace Client.Main.Objects.Effects
 {
     public class Spark03Effect : SpriteObject
     {
+        public override bool OutOfView => false;
         public override string TexturePath => $"Effect/Spark03.jpg";
 
         public Spark03Effect()

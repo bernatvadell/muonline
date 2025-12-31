@@ -11,6 +11,8 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public class ElfBuffTrailParticle : SpriteObject
     {
+        public override bool OutOfView => false;
+
         private readonly float _lifetime;
         private readonly float _initialScale;
         private readonly float _initialAlpha;

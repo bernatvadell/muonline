@@ -17,7 +17,7 @@ namespace Client.Main.Objects.Effects
     /// Twisting Slash visual effect: rotating slash arcs, sparks, and dynamic lighting.
     /// Inspired by original MU wheel skill visuals.
     /// </summary>
-    public sealed class TwistingSlashEffect : WorldObject
+    public sealed class TwistingSlashEffect : EffectObject
     {
         private const string SlashTexturePath = "Effect/flare01.jpg";
         private const string GlowTexturePath = "Effect/flare.jpg";

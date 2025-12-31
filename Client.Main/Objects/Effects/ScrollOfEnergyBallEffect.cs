@@ -15,7 +15,7 @@ namespace Client.Main.Objects.Effects
     /// <summary>
     /// Energy Ball visual effect (original MU uses BITMAP_ENERGY / Thunder01).
     /// </summary>
-    public sealed class ScrollOfEnergyBallEffect : WorldObject
+    public sealed class ScrollOfEnergyBallEffect : EffectObject
     {
         private const string EnergyTexturePath = "Effect/Thunder01.OZJ";
         private const string GlowTexturePath = "Effect/flare.OZJ";

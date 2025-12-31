@@ -34,6 +34,10 @@ namespace Client.Main.Objects
 
         private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<WorldObject>();
 
+        public event EventHandler Appear;
+        public event EventHandler Dissapear;
+        public event EventHandler PositionChanged;
+
         public virtual float Depth
         {
             get => Position.Y + Position.Z;
@@ -85,8 +89,7 @@ namespace Client.Main.Objects
 
         private bool _outOfView = true;
         public virtual bool OutOfView { get => _outOfView; private set { if (value != _outOfView) { _outOfView = value; OnOutOfViewChanged(); } } }
-        public event EventHandler Appear;
-        public event EventHandler Dissapear;
+        
         public ChildrenCollection<WorldObject> Children { get; private set; }
         public WorldObject Parent { get => _parent; set { if (_parent != value) { var prev = _parent; _parent = value; OnParentChanged(value, prev); } } }
 
@@ -476,6 +479,7 @@ namespace Client.Main.Objects
         {
             MarkTransformDirty();
             RecalculateWorldPosition();
+            PositionChanged?.Invoke(this, EventArgs.Empty);
         }
 
         protected virtual void OnAngleChanged()

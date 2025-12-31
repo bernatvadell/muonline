@@ -10,6 +10,7 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public class LevelUpFlare : SpriteObject
     {
+        public override bool OutOfView => false;
         private static readonly Random _rng = new Random();
 
         private Vector3 _velocity;

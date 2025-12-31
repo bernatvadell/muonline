@@ -5,6 +5,7 @@ namespace Client.Main.Objects.Effects
 {
     public class CloudsEffect : SpriteObject
     {
+        public override bool OutOfView => false;
         public override string TexturePath => $"Effect/clouds.jpg";
 
         public CloudsEffect()

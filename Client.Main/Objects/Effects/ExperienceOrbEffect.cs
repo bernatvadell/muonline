@@ -14,6 +14,8 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public class ExperienceOrbEffect : SpriteObject
     {
+        public override bool OutOfView => false;
+
         private const float MaxLifetime = 3.5f;
         private const float CatchDistance = 45f;
         private const float CatchDistanceSq = CatchDistance * CatchDistance;

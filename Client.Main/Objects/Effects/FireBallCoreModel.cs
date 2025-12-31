@@ -11,6 +11,8 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public sealed class FireBallCoreModel : ModelObject
     {
+        public override bool OutOfView => false;
+
         public FireBallCoreModel()
         {
             ContinuousAnimation = true;

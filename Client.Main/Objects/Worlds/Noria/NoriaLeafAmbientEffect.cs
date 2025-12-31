@@ -11,7 +11,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Client.Main.Objects.Worlds.Noria
 {
-    public sealed class NoriaLeafAmbientEffect : WorldObject
+    public sealed class NoriaLeafAmbientEffect : EffectObject
     {
         private const float SpawnOffsetX = 800f;
         private const float SpawnOffsetBack = 500f;

@@ -16,7 +16,7 @@ namespace Client.Main.Objects.Effects
     /// Scroll of Aqua Beam visual effect (Skill ID 12).
     /// Based on original MU client BITMAP_BOSS_LASER rendering.
     /// </summary>
-    public sealed class ScrollOfAquaBeamEffect : WorldObject
+    public sealed class ScrollOfAquaBeamEffect : EffectObject
     {
         private const string BeamTexturePath = "Effect/Spark03.OZJ"; // BITMAP_SPARK + 1
         private const string SoundAquaBeam = "Sound/sAquaFlash.wav";

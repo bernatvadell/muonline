@@ -16,7 +16,7 @@ namespace Client.Main.Objects.Effects
     /// Trail positions are stored relative to a reference point (owner) so the trail
     /// moves with the player.
     /// </summary>
-    public class ElfBuffOrbTrail : WorldObject
+    public class ElfBuffOrbTrail : EffectObject
     {
         private const int MaxPoints = 48;
         private const float MinDistance = 2f;

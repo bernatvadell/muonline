@@ -17,7 +17,7 @@ namespace Client.Main.Objects.Effects
     /// <summary>
     /// Scroll of Inferno visual effect (Skill ID 14) based on original MU client behavior.
     /// </summary>
-    public sealed class ScrollOfInfernoEffect : WorldObject
+    public sealed class ScrollOfInfernoEffect : EffectObject
     {
         private const string InfernoModelPath = "Skill/inferno01.bmd";
         private const string InfernoTexturePath = "Effect/inferno.jpg";

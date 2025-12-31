@@ -5,6 +5,8 @@ namespace Client.Main.Objects.Effects
 {
     public class FireHik01Effect : SpriteObject
     {
+        public override bool OutOfView => false;
+
         public override string TexturePath => $"Effect/firehik01.jpg";
 
         public FireHik01Effect()

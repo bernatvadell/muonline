@@ -10,6 +10,7 @@ namespace Client.Main.Objects.Effects
 {
     public class FlareEffect : SpriteObject
     {
+        public override bool OutOfView => false;
         public override string TexturePath => "Effect/flare.jpg";
 
         public FlareEffect()

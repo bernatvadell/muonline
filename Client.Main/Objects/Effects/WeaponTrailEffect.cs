@@ -8,7 +8,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace Client.Main.Objects.Effects
 {
-    public class WeaponTrailEffect : WorldObject
+    public class WeaponTrailEffect : EffectObject
     {
         private const int MaxSamples = 24;
         private readonly List<TrailSample> _samples = new(MaxSamples);

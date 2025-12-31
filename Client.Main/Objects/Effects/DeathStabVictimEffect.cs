@@ -12,7 +12,7 @@ namespace Client.Main.Objects.Effects
     /// Death Stab victim impact effect - creates lightning bolts between random bones
     /// on the victim's body for 35 frames after being struck.
     /// </summary>
-    public sealed class DeathStabVictimEffect : WorldObject
+    public sealed class DeathStabVictimEffect : EffectObject
     {
         private const float VictimEffectLifeFrames = 35f;
         private const float LightningScale = 20f;

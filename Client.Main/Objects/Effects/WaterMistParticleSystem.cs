@@ -12,7 +12,7 @@ namespace Client.Main.Objects.Effects
     /// High-performance water mist particle system with procedural texture generation.
     /// Optimized for minimal allocations and GPU-friendly rendering.
     /// </summary>
-    public class WaterMistParticleSystem : WorldObject
+    public class WaterMistParticleSystem : EffectObject
     {
         // Fixed-size particle pool - no allocations during runtime
         private const int MAX_PARTICLES = 256;
