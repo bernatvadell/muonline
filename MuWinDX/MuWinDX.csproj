@@ -29,14 +29,18 @@
     <Optimize>true</Optimize>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="MonoGame.Framework.WindowsDX" Version="3.8.4.1" />
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
   </ItemGroup>
-
   <ItemGroup>
-    <ProjectReference Include="..\Client.Main\Client.Main.Windows.csproj" AdditionalProperties="MonoGameFramework=$(MonoGameFramework)" />
+    <ProjectReference Include="..\Client.Main\Client.Main.csproj" AdditionalProperties="MonoGameFramework=$(MonoGameFramework)" />
   </ItemGroup>
+
 
   <ItemGroup>
     <TrimmerRootAssembly Include="MonoGame.Framework" />

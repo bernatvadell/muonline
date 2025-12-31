@@ -18,6 +18,10 @@
     <UseAppHost>true</UseAppHost>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);MACOS</DefineConstants>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <Optimize>true</Optimize>
   </PropertyGroup>
@@ -28,7 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Client.Main\Client.Main.Desktop.csproj" />
+    <ProjectReference Include="..\Client.Main\Client.Main.csproj" />
   </ItemGroup>
 
   <ItemGroup>

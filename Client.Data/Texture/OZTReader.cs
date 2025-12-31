@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace Client.Data.Texture
 {
@@ -51,7 +50,7 @@ namespace Client.Data.Texture
                 Components = COMPONENTS,
                 Data = data,
                 IsCompressed = false,
-                Format = SurfaceFormat.Color
+                Format = TextureSurfaceFormat.Color
             };
         }
 

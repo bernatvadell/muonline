@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ClientDataTargetFramework>net10.0</ClientDataTargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PublishAot>true</PublishAot>
+    <TargetFramework>$(ClientDataTargetFramework)</TargetFramework>
+    <AssemblyName>Client.Data</AssemblyName>
+    <RootNamespace>Client.Data</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BCnEncoder.Net" Version="2.2.1" />
+    <PackageReference Include="BouncyCastle.NetCore" Version="2.2.1" />
+    <PackageReference Include="cryptopp" Version="5.6.5.4" />
+    <PackageReference Include="Delizious.Ini" Version="1.20.0" />
+    <PackageReference Include="LEA.NET" Version="1.0.1" />
+    <PackageReference Include="SharpZipLib" Version="1.4.2" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
+    <PackageReference Include="NVorbis" Version="0.10.5" />
+  </ItemGroup>
+</Project>

@@ -32,8 +32,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Client.Main\Client.Main.Android.csproj" />
+    <ProjectReference Include="..\Client.Data\Client.Data.csproj" />
+    <ProjectReference Include="..\Client.Main\Client.Main.csproj" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);ANDROID</DefineConstants>
+  </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <AndroidUseInterpreter>true</AndroidUseInterpreter>

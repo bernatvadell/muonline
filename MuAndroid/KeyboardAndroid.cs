@@ -1,12 +1,11 @@
-#if ANDROID
-using Android.App;
+﻿using Android.App;
 using Android.Content;
 using Android.Views.InputMethods;
 using Client.Main;
 using Microsoft.Xna.Framework.Input;
 using System;
 
-namespace Client.Main.Platform.Android
+namespace MuAndroid
 {
     /// <summary>
     /// Event args for text input on Android.
@@ -109,4 +108,3 @@ namespace Client.Main.Platform.Android
         }
     }
 }
-#endif

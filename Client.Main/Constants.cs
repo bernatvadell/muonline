@@ -185,9 +185,6 @@ namespace Client.Main
 #if DEBUG
             ApplyDebugDefaults();
 #endif
-#if ANDROID
-            ApplyAndroidDefaults();
-#endif
         }
 
         private static void ApplyBaseDefaults()
@@ -244,28 +241,6 @@ namespace Client.Main
             BACKGROUND_MUSIC = false;
             SOUND_EFFECTS = false;
             SHOW_DEBUG_PANEL = true;
-
-#if WINDOWS
-            DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
-#endif
-        }
-#endif
-
-#if ANDROID
-        private static void ApplyAndroidDefaults()
-        {
-            DRAW_GRASS = false;
-            ENABLE_DYNAMIC_LIGHTS = false;
-            ENABLE_DYNAMIC_LIGHTING_SHADER = true;
-            ENABLE_TERRAIN_GPU_LIGHTING = false;
-            OPTIMIZE_FOR_INTEGRATED_GPU = true;
-            ENABLE_LOW_QUALITY_IN_LOGIN_SCENE = true;
-            ENABLE_ITEM_MATERIAL_SHADER = true;
-            ENABLE_MONSTER_MATERIAL_SHADER = true;
-            ENABLE_WEAPON_TRAIL = false;
-            HIGH_QUALITY_TEXTURES = false;
-            RENDER_SCALE = 0.75f;
-            DYNAMIC_LIGHT_UPDATE_FPS = 30;
         }
 #endif
     }

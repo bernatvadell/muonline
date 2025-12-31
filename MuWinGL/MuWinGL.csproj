@@ -29,13 +29,17 @@
     <Optimize>true</Optimize>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Client.Main\Client.Main.Windows.csproj" AdditionalProperties="MonoGameFramework=$(MonoGameFramework)" />
+    <ProjectReference Include="..\Client.Main\Client.Main.csproj" />
   </ItemGroup>
 
   <ItemGroup>

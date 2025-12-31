@@ -1,7 +1,4 @@
-﻿using Microsoft.Xna.Framework.Graphics;
-
-
-namespace Client.Data.Texture
+﻿namespace Client.Data.Texture
 {
     public class OZDReader : BaseReader<TextureData>
     {
@@ -38,11 +35,11 @@ namespace Client.Data.Texture
             br.BaseStream.Seek(84, SeekOrigin.Begin);
             var pixelFormat = br.ReadString(4);
 
-            SurfaceFormat surfaceFormat = pixelFormat switch
+            TextureSurfaceFormat surfaceFormat = pixelFormat switch
             {
-                "DXT1" => SurfaceFormat.Dxt1,
-                "DXT3" => SurfaceFormat.Dxt3,
-                "DXT5" => SurfaceFormat.Dxt5,
+                "DXT1" => TextureSurfaceFormat.Dxt1,
+                "DXT3" => TextureSurfaceFormat.Dxt3,
+                "DXT5" => TextureSurfaceFormat.Dxt5,
                 _ => throw new ApplicationException($"Unsupported DDS format: {pixelFormat}")
             };
 

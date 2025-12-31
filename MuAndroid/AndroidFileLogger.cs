@@ -1,5 +1,4 @@
-#if ANDROID
-using Android.App;
+﻿using Android.App;
 using Android.Content;
 using Android.Provider;
 using Microsoft.Extensions.Logging;
@@ -10,7 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Client.Main.Platform.Android
+namespace MuAndroid
 {
     /// <summary>
     /// File logger provider for Android that writes logs to Downloads folder.
@@ -104,8 +103,8 @@ namespace Client.Main.Platform.Android
             // Try legacy path first (Android < 10)
             try
             {
-                var downloadsPath = global::Android.OS.Environment
-                    .GetExternalStoragePublicDirectory(global::Android.OS.Environment.DirectoryDownloads)
+                var downloadsPath = Android.OS.Environment
+                    .GetExternalStoragePublicDirectory(Android.OS.Environment.DirectoryDownloads)
                     .AbsolutePath;
 
                 _logFilePath = Path.Combine(downloadsPath, fileName);
@@ -140,7 +139,7 @@ namespace Client.Main.Platform.Android
             var values = new ContentValues();
             values.Put(MediaStore.IMediaColumns.DisplayName, fileName);
             values.Put(MediaStore.IMediaColumns.MimeType, "text/plain");
-            values.Put(MediaStore.IMediaColumns.RelativePath, global::Android.OS.Environment.DirectoryDownloads);
+            values.Put(MediaStore.IMediaColumns.RelativePath, Android.OS.Environment.DirectoryDownloads);
 
             var uri = ctx.ContentResolver.Insert(MediaStore.Downloads.ExternalContentUri, values);
 
@@ -206,7 +205,7 @@ namespace Client.Main.Platform.Android
                 }
                 catch (Exception ex)
                 {
-                    global::Android.Util.Log.Error("AndroidFileLogWriter", $"Error writing log: {ex}");
+                    Android.Util.Log.Error("AndroidFileLogWriter", $"Error writing log: {ex}");
                 }
             }
 
@@ -268,7 +267,7 @@ namespace Client.Main.Platform.Android
             }
             catch (Exception ex)
             {
-                global::Android.Util.Log.Error("AndroidFileLogWriter", $"MediaStore write error: {ex}");
+                Android.Util.Log.Error("AndroidFileLogWriter", $"MediaStore write error: {ex}");
             }
         }
 
@@ -283,7 +282,7 @@ namespace Client.Main.Platform.Android
 
             if (!_writerThread.Join(TimeSpan.FromSeconds(2)))
             {
-                global::Android.Util.Log.Warn("AndroidFileLogWriter", "Writer thread did not exit in time");
+                Android.Util.Log.Warn("AndroidFileLogWriter", "Writer thread did not exit in time");
             }
 
             _logQueue.Dispose();
@@ -291,4 +290,3 @@ namespace Client.Main.Platform.Android
         }
     }
 }
-#endif

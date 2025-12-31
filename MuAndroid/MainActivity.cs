@@ -4,12 +4,15 @@ using Android.Content;
 using Android.Content.PM;
 using Android.OS;
 using Android.Provider;
-using Android.Views;
 using Android.Util;
-using AndroidGameActivity = Microsoft.Xna.Framework.AndroidGameActivity;
+using Android.Views;
+using Client.Data.Texture;
+using Client.Main;
+using Client.Main.Content;
+using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.IO;
-using Client.Main.Platform.Android;
+using AndroidGameActivity = Microsoft.Xna.Framework.AndroidGameActivity;
 
 namespace MuAndroid
 {
@@ -154,12 +157,43 @@ namespace MuAndroid
                 return $"/storage/emulated/0/Download/{name}";
             }
         }
+        private void ApplyAndroidDefaults()
+        {
+            Constants.DRAW_GRASS = false;
+            Constants.ENABLE_DYNAMIC_LIGHTS = false;
+            Constants.ENABLE_DYNAMIC_LIGHTING_SHADER = true;
+            Constants.ENABLE_TERRAIN_GPU_LIGHTING = false;
+            Constants.OPTIMIZE_FOR_INTEGRATED_GPU = true;
+            Constants.ENABLE_LOW_QUALITY_IN_LOGIN_SCENE = true;
+            Constants.ENABLE_ITEM_MATERIAL_SHADER = true;
+            Constants.ENABLE_MONSTER_MATERIAL_SHADER = true;
+            Constants.ENABLE_WEAPON_TRAIL = false;
+            Constants.HIGH_QUALITY_TEXTURES = false;
+            Constants.RENDER_SCALE = 0.75f;
+            Constants.DYNAMIC_LIGHT_UPDATE_FPS = 30;
+        }
 
         protected override void OnCreate(Bundle bundle)
         {
             base.OnCreate(bundle);
             Instance = this;
             AndroidKeyboard.Activity = this;
+
+            TextureLoader.Instance.CustomDecompressFunction = (textureInfo) =>
+            {
+                byte[] decompressedData = null;
+
+                if (textureInfo.Format == TextureSurfaceFormat.Dxt1)
+                    decompressedData = DxtDecoder.DecompressDXT1(textureInfo.Data, textureInfo.Width, textureInfo.Height);
+                else if (textureInfo.Format == TextureSurfaceFormat.Dxt3)
+                    decompressedData = DxtDecoder.DecompressDXT3(textureInfo.Data, textureInfo.Width, textureInfo.Height);
+                else if (textureInfo.Format == TextureSurfaceFormat.Dxt5)
+                    decompressedData = DxtDecoder.DecompressDXT5(textureInfo.Data, textureInfo.Width, textureInfo.Height);
+                else
+                    throw new NotSupportedException("Unsupported DXT format for decompression.");
+
+                return decompressedData;
+            };
 
             // Set window flags that don't require InsetsController
             Window.AddFlags(WindowManagerFlags.KeepScreenOn);

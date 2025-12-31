@@ -1,6 +1,5 @@
 ﻿using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace Client.Data.Texture
 {
@@ -34,7 +33,7 @@ namespace Client.Data.Texture
                 Components = 4,
                 Data = data,
                 IsCompressed = false,
-                Format = SurfaceFormat.Color
+                Format = TextureSurfaceFormat.Color
             };
         }
     }

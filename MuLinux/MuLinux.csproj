@@ -23,10 +23,13 @@
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
   </ItemGroup>
-
   <ItemGroup>
-    <ProjectReference Include="..\Client.Main\Client.Main.Desktop.csproj" />
+    <ProjectReference Include="..\Client.Main\Client.Main.csproj" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);LINUX</DefineConstants>
+  </PropertyGroup>
 
   <ItemGroup>
     <TrimmerRootAssembly Include="MonoGame.Framework" />

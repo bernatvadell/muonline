@@ -17,6 +17,8 @@ namespace Client.Main.Content
     {
         public static TextureLoader Instance { get; } = new TextureLoader();
 
+        public Func<TextureData, byte[]> CustomDecompressFunction = null;
+
         private readonly ConcurrentDictionary<string, Lazy<Task<TextureData>>> _textureTasks = new();
         private readonly ConcurrentDictionary<string, ClientTexture> _textures = new();
 
@@ -26,7 +28,6 @@ namespace Client.Main.Content
         private readonly CancellationTokenSource _cleanupCts = new();
         private readonly TimeSpan _cleanupInterval = TimeSpan.FromSeconds(60);
         private readonly TimeSpan _textureTtl = TimeSpan.FromMinutes(5);
-        private readonly Task _cleanupTask;
         private GraphicsDevice _graphicsDevice;
 
         private readonly Dictionary<string, BaseReader<TextureData>> _readers = new()
@@ -55,7 +56,7 @@ namespace Client.Main.Content
 
         private TextureLoader()
         {
-            _cleanupTask = Task.Run(() => CleanupLoopAsync(_cleanupCts.Token));
+            Task.Run(() => CleanupLoopAsync(_cleanupCts.Token));
         }
 
         public void SetGraphicsDevice(GraphicsDevice graphicsDevice) => _graphicsDevice = graphicsDevice;
@@ -300,38 +301,17 @@ namespace Client.Main.Content
                 Texture2D texture;
                 bool isCompressed = textureInfo.IsCompressed;
 
-#if ANDROID
-                // Android doesn't support DXT (S3TC) compression natively on most GPUs.
-                // Use software decompression for DXT formats.
-                if (isCompressed && (
-                    textureInfo.Format == SurfaceFormat.Dxt1 ||
-                    textureInfo.Format == SurfaceFormat.Dxt3 ||
-                    textureInfo.Format == SurfaceFormat.Dxt5))
+                if (CustomDecompressFunction != null && isCompressed)
                 {
-                    byte[] decompressedData = null;
-
-                    if (textureInfo.Format == SurfaceFormat.Dxt1)
-                        decompressedData = DxtDecoder.DecompressDXT1(textureInfo.Data, textureInfo.Width, textureInfo.Height);
-                    else if (textureInfo.Format == SurfaceFormat.Dxt3)
-                        decompressedData = DxtDecoder.DecompressDXT3(textureInfo.Data, textureInfo.Width, textureInfo.Height);
-                    else if (textureInfo.Format == SurfaceFormat.Dxt5)
-                        decompressedData = DxtDecoder.DecompressDXT5(textureInfo.Data, textureInfo.Width, textureInfo.Height);
-
-                    if (decompressedData != null)
-                    {
-                        // Create texture as uncompressed Color format (RGBA8888)
-                        texture = new Texture2D(_graphicsDevice, textureInfo.Width, textureInfo.Height, false, SurfaceFormat.Color);
-                        texture.SetData(decompressedData);
-
-                        clientTexture.Texture = texture;
-                        return texture;
-                    }
+                    var data = CustomDecompressFunction(textureInfo);
+                    texture = new Texture2D(_graphicsDevice, textureInfo.Width, textureInfo.Height, false, SurfaceFormat.Color);
+                    texture.SetData(data);
+                    clientTexture.Texture = texture;
+                    return texture;
                 }
-#endif
-
-                if (isCompressed)
+                else if (isCompressed)
                 {
-                    texture = new Texture2D(_graphicsDevice, textureInfo.Width, textureInfo.Height, false, textureInfo.Format);
+                    texture = new Texture2D(_graphicsDevice, textureInfo.Width, textureInfo.Height, false, textureInfo.Format.ToXNA());
                     texture.SetData(textureInfo.Data);
                 }
                 else
