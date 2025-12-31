@@ -89,7 +89,7 @@ namespace Client.Main.Objects
 
         private bool _outOfView = true;
         public virtual bool OutOfView { get => _outOfView; private set { if (value != _outOfView) { _outOfView = value; OnOutOfViewChanged(); } } }
-        
+
         public ChildrenCollection<WorldObject> Children { get; private set; }
         public WorldObject Parent { get => _parent; set { if (_parent != value) { var prev = _parent; _parent = value; OnParentChanged(value, prev); } } }
 
@@ -171,7 +171,7 @@ namespace Client.Main.Objects
 
         private void CalculateOutOfView()
         {
-            OutOfView = World is null || Hidden || Camera.Instance.Frustum.Contains(BoundingBoxWorld) == ContainmentType.Disjoint;
+            OutOfView = World is null || Hidden || !Camera.Instance.Frustum.Intersects(BoundingBoxWorld);
         }
 
         private void OnHiddenChanged()
@@ -709,7 +709,7 @@ namespace Client.Main.Objects
             var min = BoundingBoxLocal.Min;
             var max = BoundingBoxLocal.Max;
 
-            // Write corners directly into the reusable buffer (avoids GetCorners allocation)
+            // Write corners directly into the reusable buffer(avoids GetCorners allocation)
             _bboxCorners[0] = Vector3.Transform(new Vector3(min.X, min.Y, min.Z), worldPos);
             _bboxCorners[1] = Vector3.Transform(new Vector3(max.X, min.Y, min.Z), worldPos);
             _bboxCorners[2] = Vector3.Transform(new Vector3(max.X, max.Y, min.Z), worldPos);

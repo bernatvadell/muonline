@@ -15,7 +15,7 @@ namespace Client.Main.Graphics
         private float _viewFar = 1800f;
         private Vector3 _position = Vector3.Zero;
         private Vector3 _target = Vector3.Zero;
-        private readonly BoundingFrustum _frustum = new BoundingFrustum(Matrix.Identity);
+        private readonly BoundingFrustum _frustum = new(Matrix.Identity);
 
         // Public Properties
         public float AspectRatio

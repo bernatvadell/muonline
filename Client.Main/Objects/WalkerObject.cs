@@ -536,6 +536,9 @@ namespace Client.Main.Objects
 
         private void UpdateMoveTargetPosition(GameTime time)
         {
+            if (!IsMoving && MoveTargetPosition == Camera.Instance.Target)
+                return;
+
             if (MoveTargetPosition == Vector3.Zero)
             {
                 MoveTargetPosition = TargetPosition;
@@ -580,10 +583,7 @@ namespace Client.Main.Objects
             var cameraOffset = new Vector3(x, y, z);
             var cameraPosition = position + cameraOffset;
 
-            Camera.Instance.FOV = 35;
-#if ANDROID
-            Camera.Instance.FOV *= Constants.ANDROID_FOV_SCALE;
-#endif
+            Camera.Instance.FOV = 35 * Constants.FOV_SCALE;
             Camera.Instance.Position = cameraPosition;
             Camera.Instance.Target = position;
         }

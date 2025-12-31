@@ -214,10 +214,7 @@ namespace Client.Main.Controls
             {
                 var capReader = new CAPReader();
                 var data = await capReader.Load(capPath);
-                Camera.Instance.FOV = data.CameraFOV;
-#if ANDROID
-                Camera.Instance.FOV *= Constants.ANDROID_FOV_SCALE;
-#endif
+                Camera.Instance.FOV = data.CameraFOV * Constants.FOV_SCALE;
                 Camera.Instance.Position = data.CameraPosition;
                 Camera.Instance.Target = data.HeroPosition;
             }

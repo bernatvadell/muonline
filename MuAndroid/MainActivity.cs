@@ -171,11 +171,13 @@ namespace MuAndroid
             Constants.HIGH_QUALITY_TEXTURES = false;
             Constants.RENDER_SCALE = 0.75f;
             Constants.DYNAMIC_LIGHT_UPDATE_FPS = 30;
+            Constants.FOV_SCALE = 0.8f;
         }
 
         protected override void OnCreate(Bundle bundle)
         {
             base.OnCreate(bundle);
+            ApplyAndroidDefaults();
             Instance = this;
             AndroidKeyboard.Activity = this;
 

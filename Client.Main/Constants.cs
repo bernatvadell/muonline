@@ -176,8 +176,7 @@ namespace Client.Main
         public static string DataPathUrl = "http://192.168.55.220/Data.zip";
         public static string DefaultDataPathUrl = "https://full-wkr.mu.webzen.co.kr/muweb/full/MU_Red_1_20_61_Full.zip";
 
-        // Android-specific
-        public const float ANDROID_FOV_SCALE = 0.8f;
+        public static float FOV_SCALE = 1f;
 
         static Constants()
         {

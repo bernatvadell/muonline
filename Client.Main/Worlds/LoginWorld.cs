@@ -10,10 +10,7 @@ namespace Client.Main.Worlds
         {
             Camera.Instance.ViewFar = 2500f;
             Camera.Instance.ViewNear = 1;
-            Camera.Instance.FOV = 65f;
-#if ANDROID
-            Camera.Instance.FOV *= Constants.ANDROID_FOV_SCALE;
-#endif
+            Camera.Instance.FOV = 65f * Constants.FOV_SCALE;
         }
 
         protected override void CreateMapTileObjects()
