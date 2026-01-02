@@ -25,7 +25,7 @@ namespace Client.Main.Controls.UI
 
         public static TextFieldControl Create()
         {
-            return (TextFieldControl)Activator.CreateInstance(ControlType);
+            return (TextFieldControl)Activator.CreateInstance(ControlType, true);
         }
 
         protected readonly StringBuilder _inputText = new();

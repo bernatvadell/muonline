@@ -274,7 +274,8 @@ namespace Client.Main
 
         protected override void Initialize()
         {
-            ConfigDirectory = Path.GetDirectoryName(Constants.SETTINGS_PATH)!;
+            var fullPath = Path.GetFullPath(Constants.SETTINGS_PATH);
+            ConfigDirectory = Path.GetDirectoryName(fullPath)!;
             AppConfiguration = new ConfigurationBuilder()
                 .SetBasePath(ConfigDirectory)
                 .AddJsonFile(Constants.SETTINGS_PATH, optional: false, reloadOnChange: true)
