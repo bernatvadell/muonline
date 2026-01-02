@@ -9,6 +9,7 @@ using Android.Views;
 using Client.Data.Texture;
 using Client.Main;
 using Client.Main.Content;
+using Client.Main.Controls.UI;
 using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.IO;
@@ -112,6 +113,27 @@ namespace MuAndroid
             }
         }
 
+        private static string EnsureAndroidConfig()
+        {
+            var ctx = Application.Context!;
+            var dst = Path.Combine(ctx.FilesDir!.AbsolutePath, "appsettings.json");
+
+            if (!File.Exists(dst))
+            {
+                try
+                {
+                    using var src = ctx.Assets!.Open("appsettings.json");
+                    using var trg = File.Create(dst);
+                    src.CopyTo(trg);
+                }
+                catch (Exception copyEx)
+                {
+                    Android.Util.Log.Error("MuGame", "Cannot copy appsettings.json: " + copyEx);
+                }
+            }
+            return dst;
+        }
+
         private static string SaveCrashLog(string text)
         {
             var ctx = Application.Context!;
@@ -177,6 +199,9 @@ namespace MuAndroid
         protected override void OnCreate(Bundle bundle)
         {
             base.OnCreate(bundle);
+            Constants.SETTINGS_PATH = EnsureAndroidConfig();
+            TextFieldControl.ControlType = typeof(AndroidTextFieldControl);
+
             ApplyAndroidDefaults();
             Instance = this;
             AndroidKeyboard.Activity = this;

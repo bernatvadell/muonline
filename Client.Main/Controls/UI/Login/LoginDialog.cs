@@ -99,20 +99,17 @@ namespace Client.Main.Controls.UI.Login
                 Alpha = 0.7f
             });
 
-            _userInput = new TextFieldControl
-            {
-                X = 100,
-                Y = 87,
-                Skin = TextFieldSkin.NineSlice
-            };
+            _userInput = TextFieldControl.Create();
+            _userInput.X = 100;
+            _userInput.Y = 87;
+            _userInput.Skin = TextFieldSkin.NineSlice;
 
-            _passwordInput = new TextFieldControl
-            {
-                X = 100,
-                Y = 117,
-                MaskValue = true,
-                Skin = TextFieldSkin.NineSlice
-            };
+            _passwordInput = TextFieldControl.Create();
+            _passwordInput.X = 100;
+            _passwordInput.Y = 117;
+            _passwordInput.MaskValue = true;
+            _passwordInput.Skin = TextFieldSkin.NineSlice;
+
             _passwordInput.ValueChanged += PasswordInput_EnterPressed; // Use dedicated method
             Controls.Add(_userInput);
             Controls.Add(_passwordInput);

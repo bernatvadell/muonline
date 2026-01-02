@@ -24,7 +24,7 @@
     <PackageReference Include="MUnique.OpenMU.Network" Version="0.9.8" />
     <PackageReference Include="MUnique.OpenMU.Network.Packets" Version="0.9.8" ExcludeAssets="contentFiles" />
     <PackageReference Include="NLayer" Version="1.16.0" />
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1">
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>

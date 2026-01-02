@@ -1,8 +1,9 @@
-﻿#----------------------------- Global Properties ----------------------------#
+
+#----------------------------- Global Properties ----------------------------#
 
 /outputDir:bin/$(Platform)
 /intermediateDir:obj/$(Platform)
-/platform:iOS
+/platform:DesktopGL
 /config:
 /profile:Reach
 /compress:False

@@ -98,9 +98,9 @@ namespace Client.Main.Graphics
             if (preset != GraphicsQualityPreset.Auto)
                 return preset;
 
-#if ANDROID
-            return GraphicsQualityPreset.Low;
-#else
+            if (OperatingSystem.IsAndroid())
+                return GraphicsQualityPreset.Low;
+
             LastAdapterInfo = GetAdapterInfo(adapter);
 
             if (LastAdapterInfo.IsSoftware || LastAdapterInfo.IsIntegrated)
@@ -111,7 +111,6 @@ namespace Client.Main.Graphics
 
             // Unknown adapters default to Medium for safety.
             return GraphicsQualityPreset.Medium;
-#endif
         }
 
         private static void ApplyProfile(GraphicsQualityPreset preset)

@@ -251,15 +251,13 @@ namespace Client.Main.Scenes
                 TextColor = Color.LightGray
             });
 
-            _hostInput = new TextFieldControl
-            {
-                X = 110,
-                Y = 68,
-                Skin = TextFieldSkin.NineSlice,
-                ControlSize = new Point(240, 30),
-                FontSize = 12f,
-                Interactive = true
-            };
+            _hostInput = TextFieldControl.Create();
+            _hostInput.X = 110;
+            _hostInput.Y = 68;
+            _hostInput.Skin = TextFieldSkin.NineSlice;
+            _hostInput.ControlSize = new Point(240, 30);
+            _hostInput.FontSize = 12f;
+            _hostInput.Interactive = true;
 
             Controls.Add(_hostInput);
 
@@ -275,15 +273,13 @@ namespace Client.Main.Scenes
                 TextColor = Color.LightGray
             });
 
-            _portInput = new TextFieldControl
-            {
-                X = 110,
-                Y = 104,
-                Skin = TextFieldSkin.NineSlice,
-                ControlSize = new Point(120, 30),
-                FontSize = 12f,
-                Interactive = true
-            };
+            _portInput = TextFieldControl.Create();
+            _portInput.X = 110;
+            _portInput.Y = 104;
+            _portInput.Skin = TextFieldSkin.NineSlice;
+            _portInput.ControlSize = new Point(120, 30);
+            _portInput.FontSize = 12f;
+            _portInput.Interactive = true;
 
             Controls.Add(_portInput);
 

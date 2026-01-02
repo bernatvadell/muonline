@@ -40,11 +40,13 @@
     <TrimmerRootAssembly Include="mscorlib" />
   </ItemGroup>
 
-  <ItemGroup>
-    <MonoGameContentReference Include="Content\Content.mgcb" />
+    <ItemGroup>
+    <MonoGameContentReference Include="..\Client.Main\MGContent\Content.mgcb">
+      <Link>Content\Content.mgcb</Link>
+    </MonoGameContentReference>
   </ItemGroup>
 
-  <Target Name="RestoreDotnetTools" BeforeTargets="Restore">
+  <Target Name="RestoreDotnetTools" BeforeTargets="CollectPackageReferences">
     <Message Text="Restoring dotnet tools" Importance="High" />
     <Exec Command="dotnet tool restore" />
   </Target>

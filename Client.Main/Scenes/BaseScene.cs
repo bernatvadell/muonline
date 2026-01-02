@@ -139,29 +139,6 @@ namespace Client.Main.Scenes
             GameControl topmostHoverForTooltip = null;
             GameControl topmostInteractiveForScroll = null;
 
-            #if ANDROID
-            // Optimized touch input for Android
-            var touchState = MuGame.Instance.Touch;
-            if (touchState.Count > 0)
-            {
-                var touch = touchState[0];
-                int x = (int)touch.Position.X;
-                int y = (int)touch.Position.Y;
-                bool isTouchDown = touch.State == TouchLocationState.Pressed || touch.State == TouchLocationState.Moved;
-
-                // Directly update mouse state based on touch (keep pressed while finger stays on screen)
-                Mouse.SetPosition(x, y);
-                MuGame.Instance.Mouse = new MouseState(
-                    x,
-                    y,
-                    0,
-                    isTouchDown ? ButtonState.Pressed : ButtonState.Released,
-                    ButtonState.Released,
-                    ButtonState.Released,
-                    ButtonState.Released,
-                    ButtonState.Released);
-            }
-#else
             // Simulate mouse click by touch input
             var touchState = MuGame.Instance.Touch;
             if (touchState.Count > 0)
@@ -170,9 +147,9 @@ namespace Client.Main.Scenes
                 int x = (int)touch.Position.X;
                 int y = (int)touch.Position.Y;
                 bool isTouchDown = touch.State == TouchLocationState.Pressed || touch.State == TouchLocationState.Moved;
-            
+
                 Mouse.SetPosition(x, y);
-            
+
                 MuGame.Instance.Mouse = new MouseState(
                     x,
                     y,
@@ -184,8 +161,7 @@ namespace Client.Main.Scenes
                     ButtonState.Released
                 );
             }
-#endif
-            
+
             // set scene's MouseControl (which is the target for scroll)
             MouseControl = null;
 
@@ -238,13 +214,13 @@ namespace Client.Main.Scenes
                 return;
 
             if (World == null) return;
-            
+
             // Clear MouseHoverObject if no object is currently being hovered
             if (MouseHoverObject != null && !MouseHoverObject.IsMouseHover)
             {
                 MouseHoverObject = null;
             }
-            
+
             // Update cursor after world objects have been updated
             Cursor.Update(gameTime);
 

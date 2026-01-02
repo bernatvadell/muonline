@@ -26,14 +26,34 @@
     <AcceptAndroidSDKLicenses>true</AcceptAndroidSDKLicenses>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <_MGCBRidSuffix Condition="'$(RuntimeIdentifier)' != ''">/$(RuntimeIdentifier)</_MGCBRidSuffix>
+    <_MGCBRidSuffix Condition="'$(RuntimeIdentifier)' == ''"></_MGCBRidSuffix>
+  </PropertyGroup>
+
+  <Target Name="PatchMGCBPaths" AfterTargets="CollectContentReferences" Condition="'$(MonoGamePlatform)' == 'Android'">
+    <ItemGroup>
+      <ContentReference Update="@(ContentReference)">
+        <ContentIntermediateOutputDir>%(ContentReference.FullDir)obj/$(MonoGamePlatform)/$(TargetFramework)$(_MGCBRidSuffix)/%(ContentReference.OutputFolder)</ContentIntermediateOutputDir>
+        <ContentOutputDir>%(ContentReference.FullDir)bin/$(MonoGamePlatform)$(_MGCBRidSuffix)/%(ContentReference.OutputFolder)</ContentOutputDir>
+      </ContentReference>
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
     <PackageReference Include="MonoGame.Framework.Android" Version="3.8.4.1" />
   </ItemGroup>
 
   <ItemGroup>
+    <MonoGameContentReference Include="..\Client.Main\MGContent\Content.mgcb">
+      <Link>Content\Content.mgcb</Link>
+    </MonoGameContentReference>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Client.Data\Client.Data.csproj" />
-    <ProjectReference Include="..\Client.Main\Client.Main.csproj" />
+    <ProjectReference Include="..\Client.Main\Client.Main.csproj"/>
   </ItemGroup>
 
   <PropertyGroup>
@@ -58,8 +78,7 @@
     <AndroidApiLevel>35</AndroidApiLevel>
   </PropertyGroup>
 
-  <Target Name="RestoreDotnetTools" BeforeTargets="Restore">
-    <Message Text="Restoring dotnet tools" Importance="High" />
+  <Target Name="RestoreDotnetTools" BeforeTargets="CollectPackageReferences" Condition="'$(DesignTimeBuild)'!='true' AND '$(RuntimeIdentifier)'==''">
     <Exec Command="dotnet tool restore" />
   </Target>
 

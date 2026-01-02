@@ -141,25 +141,23 @@ namespace Client.Main.Controls.UI
             Controls.Add(_background);
 
             // 2. Text Input Fields
-            _chatInput = new TextFieldControl
-            {
-                X = 72,
-                Y = 30,
-                ViewSize = new Point(176, 14), // Width adjusted slightly.
-                FontSize = 10f, // Adjust as needed.
-                BackgroundColor = Color.Black * 0.1f,
-                TextColor = new Color(230, 210, 255)
-            };
-            _whisperIdInput = new TextFieldControl
-            {
-                X = 5,
-                Y = 30,
-                ViewSize = new Point(60, 14), // Width adjusted slightly.
-                FontSize = 10f,
-                BackgroundColor = Color.Black * 0.1f,
-                TextColor = new Color(200, 200, 200, 255),
-                Visible = false // Start hidden.
-            };
+            _chatInput = TextFieldControl.Create();
+            _chatInput.X = 72;
+            _chatInput.Y = 30;
+            _chatInput.ViewSize = new Point(176, 14);
+            _chatInput.FontSize = 10f;
+            _chatInput.BackgroundColor = Color.Black * 0.1f;
+            _chatInput.TextColor = new Color(230, 210, 255);
+
+            _whisperIdInput = TextFieldControl.Create();
+            _whisperIdInput.X = 5;
+            _whisperIdInput.Y = 30;
+            _whisperIdInput.ViewSize = new Point(60, 14);
+            _whisperIdInput.FontSize = 10f;
+            _whisperIdInput.BackgroundColor = Color.Black * 0.1f;
+            _whisperIdInput.TextColor = new Color(200, 200, 200, 255);
+            _whisperIdInput.Visible = false;
+
             Controls.Add(_chatInput);
             Controls.Add(_whisperIdInput);
 
