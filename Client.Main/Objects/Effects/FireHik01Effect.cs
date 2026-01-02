@@ -5,7 +5,6 @@ namespace Client.Main.Objects.Effects
 {
     public class FireHik01Effect : SpriteObject
     {
-        public override bool OutOfView => false;
 
         public override string TexturePath => $"Effect/firehik01.jpg";
 
@@ -22,18 +21,13 @@ namespace Client.Main.Objects.Effects
             };
         }
 
-        public override void Update(GameTime gameTime)
-        {
-            base.Update(gameTime);
-        }
-
         public override void Draw(GameTime gameTime)
         {
         }
 
-        public override void DrawAfter(GameTime gameTime)
+        protected override void CalculateOutOfView()
         {
-            base.Draw(gameTime);
+            OutOfView = false;
         }
     }
 }

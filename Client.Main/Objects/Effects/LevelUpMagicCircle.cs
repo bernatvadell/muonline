@@ -10,7 +10,6 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public class LevelUpMagicCircle : SpriteObject
     {
-        public override bool OutOfView => false;
         private const float _lifeTotal = 3.5f;
         private float _life = _lifeTotal;
 
@@ -23,6 +22,11 @@ namespace Client.Main.Objects.Effects
             BlendState = BlendState.NonPremultiplied;
             Scale = 0.1f;
             LightEnabled = false;
+        }
+
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
 
         public override void Update(GameTime gameTime)

@@ -5,7 +5,6 @@ namespace Client.Main.Objects.Effects
 {
     public class CloudLightEffect : SpriteObject
     {
-        public override bool OutOfView => false;
         public override string TexturePath => $"Effect/cloudLight.jpg";
 
         public CloudLightEffect()
@@ -13,6 +12,11 @@ namespace Client.Main.Objects.Effects
             BlendState = BlendState.Additive;
             LightEnabled = true;
             Light = Vector3.One;
+        }
+
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
 
         public override void Update(GameTime gameTime)

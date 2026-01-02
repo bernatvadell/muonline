@@ -5,7 +5,6 @@ namespace Client.Main.Objects.Effects
 {
     public class CloudsEffect : SpriteObject
     {
-        public override bool OutOfView => false;
         public override string TexturePath => $"Effect/clouds.jpg";
 
         public CloudsEffect()
@@ -18,6 +17,11 @@ namespace Client.Main.Objects.Effects
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
+        }
+
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
     }
 }

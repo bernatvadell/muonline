@@ -17,8 +17,6 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public class DamageTextObject : WorldObject
     {
-        public override bool OutOfView => false;
-
         // Public readonly data -------------------------------------------------
         public string Text { get; private set; }
         public Color TextColor { get; private set; }
@@ -71,6 +69,11 @@ namespace Client.Main.Objects.Effects
         public DamageTextObject(string text, ushort targetId, Color color)
         {
             Reset(text, targetId, color);
+        }
+
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
 
         public static DamageTextObject Rent(string text, ushort targetId, Color color)

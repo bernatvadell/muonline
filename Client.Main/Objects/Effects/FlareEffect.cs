@@ -10,7 +10,6 @@ namespace Client.Main.Objects.Effects
 {
     public class FlareEffect : SpriteObject
     {
-        public override bool OutOfView => false;
         public override string TexturePath => "Effect/flare.jpg";
 
         public FlareEffect()
@@ -26,6 +25,10 @@ namespace Client.Main.Objects.Effects
 
             var lumi = (MathF.Sin((float)gameTime.TotalGameTime.TotalMilliseconds * 0.039f) + 1) * 0.2f + 0.6f;
             Light = new Vector3(lumi * 0.7f, lumi * 0.7f, lumi * 0.7f);
+        }
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
     }
 }

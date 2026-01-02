@@ -11,8 +11,6 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public sealed class FireBallCoreModel : ModelObject
     {
-        public override bool OutOfView => false;
-
         public FireBallCoreModel()
         {
             ContinuousAnimation = true;
@@ -30,6 +28,10 @@ namespace Client.Main.Objects.Effects
         {
             Model = await BMDLoader.Instance.Prepare("Skill/Fire.bmd");
             await base.Load();
+        }
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
     }
 }

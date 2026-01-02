@@ -9,7 +9,6 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public class LevelUpEffect : EffectObject
     {
-        public override bool OutOfView => false;
         private const float _lifetimeTotal = 3.5f;
         private float _lifetime = _lifetimeTotal;
 
@@ -47,6 +46,10 @@ namespace Client.Main.Objects.Effects
                 World?.RemoveObject(this);
                 Dispose();
             }
+        }
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
     }
 }

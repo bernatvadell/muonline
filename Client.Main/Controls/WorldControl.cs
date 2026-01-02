@@ -510,7 +510,6 @@ namespace Client.Main.Controls
 
             var objects = _categorizedChildren.Get(CategoryChildrenObject.ObjectsInView);
 
-
             for (var i = 0; i < objects.Count; i++)
             {
                 var obj = objects[i];

@@ -5,7 +5,6 @@ namespace Client.Main.Objects.Effects
 {
     public class TargetPosition1 : SpriteObject
     {
-        public override bool OutOfView => false;
         public override string TexturePath => $"Effect/cursorpin02.jpg";
 
 
@@ -20,6 +19,11 @@ namespace Client.Main.Objects.Effects
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
+        }
+
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
     }
 }

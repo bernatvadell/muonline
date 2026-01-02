@@ -473,6 +473,8 @@ namespace Client.Main.Objects
                 for (int i = 0; i < _cachedModelChildren.Length; i++)
                 {
                     var childModel = _cachedModelChildren[i];
+                    // if (!childModel.Visible) continue;
+
                     if (childModel.ParentBoneLink >= 0 || childModel.LinkParentAnimation)
                     {
                         childModel.CurrentAction = this.CurrentAction;
@@ -480,7 +482,7 @@ namespace Client.Main.Objects
                         childModel._isBlending = this._isBlending;
                         childModel._blendElapsed = this._blendElapsed;
 
-                        childModel.RecalculateWorldPosition();
+                        // childModel.RecalculateWorldPosition();
 
                         if (this._isBlending || this.BoneTransform != null)
                         {

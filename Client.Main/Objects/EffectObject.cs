@@ -6,6 +6,9 @@ namespace Client.Main.Objects
 {
     public abstract class EffectObject : WorldObject
     {
-        public override bool OutOfView => false;
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
+        }
     }
 }

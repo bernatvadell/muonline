@@ -5,7 +5,6 @@ namespace Client.Main.Objects.Effects
 {
     public class Lightning2Effect : SpriteObject
     {
-        public override bool OutOfView => false;
         public override string TexturePath => $"Effect/lightning2.jpg";
 
         public Lightning2Effect()
@@ -18,6 +17,11 @@ namespace Client.Main.Objects.Effects
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
+        }
+
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
     }
 }

@@ -9,7 +9,6 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public sealed class TwistingSlashWeaponShadow : ModelObject
     {
-        public override bool OutOfView => false;
         public TwistingSlashWeaponShadow()
         {
             IsTransparent = true;
@@ -24,6 +23,10 @@ namespace Client.Main.Objects.Effects
             RenderShadow = false;
             UseSunLight = false;
             DepthState = DepthStencilState.DepthRead;
+        }
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
     }
 }

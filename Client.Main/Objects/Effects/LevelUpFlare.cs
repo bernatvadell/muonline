@@ -10,7 +10,6 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public class LevelUpFlare : SpriteObject
     {
-        public override bool OutOfView => false;
         private static readonly Random _rng = new Random();
 
         private Vector3 _velocity;
@@ -42,6 +41,10 @@ namespace Client.Main.Objects.Effects
             _life = _lifeTotal = (float)(_rng.NextDouble() * 1.5 + 2.5);
             _scale0 = (float)(_rng.NextDouble() * 1.2 + 1.0);
             Scale = _scale0;
+        }
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
 
         public override void Update(GameTime gameTime)

@@ -10,7 +10,6 @@ namespace Client.Main.Objects.Effects
 {
     public class Flare01Effect : SpriteObject
     {
-        public override bool OutOfView => false;
         public override string TexturePath => "Effect/flare01.jpg";
 
         public Flare01Effect()
@@ -18,6 +17,10 @@ namespace Client.Main.Objects.Effects
             BlendState = BlendState.Additive;
             LightEnabled = true;
             Light = new Vector3(1f, 0.2f, 0f);
+        }
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
     }
 }

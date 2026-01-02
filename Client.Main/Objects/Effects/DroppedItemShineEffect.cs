@@ -10,8 +10,6 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public class DroppedItemShineEffect : SpriteObject
     {
-        public override bool OutOfView => false;
-
         private const float FlashDuration = 0.55f;
         private const float MinInterval = 2.4f;
         private const float MaxInterval = 4.2f;
@@ -37,6 +35,11 @@ namespace Client.Main.Objects.Effects
             BoundingBoxLocal = new BoundingBox(Vector3.Zero, Vector3.Zero);
 
             ScheduleNextFlash();
+        }
+
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
 
         public override void Update(GameTime gameTime)

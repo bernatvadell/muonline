@@ -1422,6 +1422,11 @@ namespace Client.Main.Objects.Player
             UpdateWingAnimationSpeed();
         }
 
+        public override void Draw(GameTime gameTime)
+        {
+            base.Draw(gameTime);
+        }
+
         private void UpdateEquipmentAnimationStride()
         {
             int desiredStride = 1;

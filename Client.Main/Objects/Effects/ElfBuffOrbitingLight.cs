@@ -14,8 +14,6 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public class ElfBuffOrbitingLight : SpriteObject
     {
-        public override bool OutOfView => false;
-
         private readonly PlayerObject _owner;
         private readonly ElfBuffOrbTrail _trail;
         private readonly float _baseRadius;
@@ -114,6 +112,11 @@ namespace Client.Main.Objects.Effects
                 Radius = _lightBaseRadius,
                 Intensity = 1f
             };
+        }
+
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
 
         /// <summary>

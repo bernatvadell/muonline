@@ -88,7 +88,7 @@ namespace Client.Main.Objects
         public bool LinkParentAnimation { get; set; }
 
         private bool _outOfView = true;
-        public virtual bool OutOfView { get => _outOfView; private set { if (value != _outOfView) { _outOfView = value; OnOutOfViewChanged(); } } }
+        public bool OutOfView { get => _outOfView; protected set { if (value != _outOfView) { _outOfView = value; OnOutOfViewChanged(); } } }
 
         public ChildrenCollection<WorldObject> Children { get; private set; }
         public WorldObject Parent { get => _parent; set { if (_parent != value) { var prev = _parent; _parent = value; OnParentChanged(value, prev); } } }
@@ -169,9 +169,21 @@ namespace Client.Main.Objects
             CalculateOutOfView();
         }
 
-        private void CalculateOutOfView()
+        protected virtual void CalculateOutOfView()
         {
-            OutOfView = World is null || Hidden || !Camera.Instance.Frustum.Intersects(BoundingBoxWorld);
+            if (World is null || Hidden)
+            {
+                OutOfView = true;
+                return;
+            }
+
+            if (Parent is not null)
+            {
+                OutOfView = Parent.OutOfView;
+                return;
+            }
+
+            OutOfView = !Camera.Instance.Frustum.Intersects(BoundingBoxWorld);
         }
 
         private void OnHiddenChanged()
@@ -329,7 +341,7 @@ namespace Client.Main.Objects
                 IsMouseHover = false; // Distant objects can't be hovered
             }
 
-            var objects = _categorizedChildren.Get(CategoryChildrenObject.ObjectsInView);
+            var objects = Children;
             for (int i = 0; i < objects.Count; i++)
                 objects[i].Update(gameTime);
         }
@@ -341,7 +353,7 @@ namespace Client.Main.Objects
 
             DrawBoundingBox3D();
 
-            var objects = _categorizedChildren.Get(CategoryChildrenObject.ObjectsInView);
+            var objects = Children;
             for (int i = 0; i < objects.Count; i++)
                 objects[i].Draw(gameTime);
         }
@@ -353,7 +365,7 @@ namespace Client.Main.Objects
             DrawBoundingBox2D();
             DrawHoverName();
 
-            var objects = _categorizedChildren.Get(CategoryChildrenObject.ObjectsInView);
+            var objects = Children;
             for (int i = 0; i < objects.Count; i++)
                 objects[i].DrawAfter(gameTime);
         }
@@ -498,12 +510,31 @@ namespace Client.Main.Objects
             if (prev != null)
             {
                 prev.MatrixChanged -= OnParentMatrixChanged;
+                prev.Appear -= OnParentAppear;
+                prev.Dissapear -= OnParentDissapear;
                 prev.Children.Remove(this);
             }
-            if (current != null) current.MatrixChanged += OnParentMatrixChanged;
+            if (current != null)
+            {
+                current.MatrixChanged += OnParentMatrixChanged;
+                current.Appear += OnParentAppear;
+                current.Dissapear += OnParentDissapear;
+            }
             MarkTransformDirty();
             RecalculateWorldPosition();
+            CalculateOutOfView();
         }
+
+        private void OnParentDissapear(object sender, EventArgs e)
+        {
+            CalculateOutOfView();
+        }
+
+        private void OnParentAppear(object sender, EventArgs e)
+        {
+            CalculateOutOfView();
+        }
+
         protected virtual void OnBoundingBoxLocalChanged() => UpdateWorldBoundingBox();
 
         private void OnParentMatrixChanged(Object s, EventArgs e)

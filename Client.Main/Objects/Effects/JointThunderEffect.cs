@@ -5,7 +5,6 @@ namespace Client.Main.Objects.Effects
 {
     public class JointThunderEffect : SpriteObject
     {
-        public override bool OutOfView => false;
         public override string TexturePath => $"Effect/JointThunder01.jpg";
 
         public JointThunderEffect()
@@ -18,6 +17,10 @@ namespace Client.Main.Objects.Effects
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
+        }
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
     }
 }

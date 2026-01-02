@@ -5,7 +5,6 @@ namespace Client.Main.Objects.Effects
 {
     public class Spark03Effect : SpriteObject
     {
-        public override bool OutOfView => false;
         public override string TexturePath => $"Effect/Spark03.jpg";
 
         public Spark03Effect()
@@ -19,6 +18,11 @@ namespace Client.Main.Objects.Effects
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
+        }
+
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
     }
 }

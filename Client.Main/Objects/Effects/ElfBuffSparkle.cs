@@ -12,8 +12,6 @@ namespace Client.Main.Objects.Effects
     /// </summary>
     public class ElfBuffSparkle : SpriteObject
     {
-        public override bool OutOfView => false;
-
         private static readonly ConcurrentBag<ElfBuffSparkle> _pool = new();
 
         private Vector3 _velocity;
@@ -38,6 +36,11 @@ namespace Client.Main.Objects.Effects
             }
 
             return new ElfBuffSparkle(startPosition, hueShift, customLifetime, customColor);
+        }
+
+        protected override void CalculateOutOfView()
+        {
+            OutOfView = false;
         }
 
         private void Reset(Vector3 startPosition, float hueShift, float customLifetime = -1, Vector3? customColor = null)
