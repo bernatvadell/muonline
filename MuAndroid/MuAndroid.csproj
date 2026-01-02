@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0-android</TargetFramework>
     <TargetPlatformVersion>36.0</TargetPlatformVersion>
-    <SupportedOSPlatformVersion>23</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion>29</SupportedOSPlatformVersion>
     <ClientMainTargetFramework>net10.0-android</ClientMainTargetFramework>
     <NoWarn>$(NoWarn);XA0141;XA4211</NoWarn>
 
@@ -56,30 +56,8 @@
     <ProjectReference Include="..\Client.Main\Client.Main.csproj"/>
   </ItemGroup>
 
-  <PropertyGroup>
-    <DefineConstants>$(DefineConstants);ANDROID</DefineConstants>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)'=='Release'">
-    <AndroidUseInterpreter>true</AndroidUseInterpreter>
-
-    <DebugType>none</DebugType>
-    <Optimize>true</Optimize>
-
-    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
-    <AndroidUseSharedRuntime>false</AndroidUseSharedRuntime>
-
-    <AndroidLinkMode>None</AndroidLinkMode>
-
-    <!-- Work around JNI registration issues on some devices -->
-    <AndroidEnableMarshalMethods>false</AndroidEnableMarshalMethods>
-
-    <AndroidCreatePackagePerAbi>false</AndroidCreatePackagePerAbi>
-    <AndroidApiLevel>35</AndroidApiLevel>
-  </PropertyGroup>
-
-  <Target Name="RestoreDotnetTools" BeforeTargets="CollectPackageReferences" Condition="'$(DesignTimeBuild)'!='true' AND '$(RuntimeIdentifier)'==''">
+  <Target Name="RestoreDotnetTools" BeforeTargets="CollectPackageReferences">
+    <Message Text="Restoring dotnet tools (this might take a while depending on your internet speed and should only happen upon building your project for the first time, or after upgrading MonoGame, or clearing your nuget cache)" Importance="High" />
     <Exec Command="dotnet tool restore" />
   </Target>
-
 </Project>
