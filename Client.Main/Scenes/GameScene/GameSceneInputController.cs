@@ -84,7 +84,10 @@ namespace Client.Main.Scenes
             // Process global hotkeys ONLY if a UI input element is NOT active.
             if (!isUiInputActive)
             {
-                if (currentKeyboardState.IsKeyDown(Keys.I) && !_previousKeyboardState.IsKeyDown(Keys.I))
+                var toggleInventory = (currentKeyboardState.IsKeyDown(Keys.I) && !_previousKeyboardState.IsKeyDown(Keys.I))
+                     || (currentKeyboardState.IsKeyDown(Keys.V) && !_previousKeyboardState.IsKeyDown(Keys.V));
+
+                if (toggleInventory)
                 {
                     bool wasVisible = _inventoryControl.Visible;
                     if (wasVisible)
