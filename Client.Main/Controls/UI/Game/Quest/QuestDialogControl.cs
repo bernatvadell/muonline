@@ -178,6 +178,7 @@ namespace Client.Main.Controls.UI.Game.Quest
             BuildLayoutMetrics();
         }
 
+        public override bool NonDisposable => true;
         public static QuestDialogControl Instance => _instance ??= new QuestDialogControl();
 
         // ═══════════════════════════════════════════════════════════════

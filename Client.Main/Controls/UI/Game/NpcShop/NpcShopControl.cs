@@ -147,6 +147,7 @@ namespace Client.Main.Controls.UI.Game
             EnsureCharacterState();
         }
 
+        public override bool NonDisposable => true;
         public static NpcShopControl Instance => _instance ??= new NpcShopControl();
         public static bool IsOpen => _instance?.Visible == true;
 

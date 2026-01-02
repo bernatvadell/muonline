@@ -65,6 +65,7 @@ namespace Client.Main.Controls.UI.Game
             _closeButtonRect = new Rectangle(WINDOW_WIDTH - 38, 10, 26, 22);
         }
 
+        public override bool NonDisposable => true;
         public static BloodCastleResultControl Instance => _instance ??= new BloodCastleResultControl();
 
         public override async Task Load()

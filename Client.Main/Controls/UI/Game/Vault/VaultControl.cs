@@ -168,6 +168,7 @@ namespace Client.Main.Controls.UI.Game
             EnsureCharacterState();
         }
 
+        public override bool NonDisposable => true;
         public static VaultControl Instance => _instance ??= new VaultControl();
 
         /// <summary>

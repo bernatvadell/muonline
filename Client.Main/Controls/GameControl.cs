@@ -17,6 +17,8 @@ namespace Client.Main.Controls
 {
     public abstract class GameControl : IChildItem<GameControl>, IDisposable
     {
+        public virtual bool NonDisposable => false;
+
         // Fields
         private Point _controlSize, _viewSize;
         private bool _isCurrentlyPressedByMouse = false;
@@ -310,6 +312,8 @@ namespace Client.Main.Controls
 
         public virtual void Dispose()
         {
+            if (NonDisposable) return;
+
             // Use reverse iteration to avoid ToArray() allocation
             for (int i = Controls.Count - 1; i >= 0; i--)
             {

@@ -118,7 +118,7 @@ namespace Client.Main.Objects
             CurrentFrame = f0;
 
             // Only applies to objects that specifically request it (e.g., portals with stuttering)
-            if (PreventLastFrameInterpolation && totalFrames > 1 && f0 == totalFrames - 1)
+            if (totalFrames > 1 && f0 == totalFrames - 1)
             {
                 // Instead of interpolating lastFrame->firstFrame, restart smoothly
                 // This eliminates the visual "jump" that causes animation stuttering

@@ -137,6 +137,7 @@ namespace Client.Main.Controls.UI.Game
             EnsureCharacterState();
         }
 
+        public override bool NonDisposable => true;
         public static DevilSquareEnterControl Instance => _instance ??= new DevilSquareEnterControl();
 
         public override async Task Load()

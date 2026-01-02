@@ -61,6 +61,7 @@ namespace Client.Main.Controls.UI.Game
             Y = 10;  // Offset from top edge
         }
 
+        public override bool NonDisposable => true;
         public static BloodCastleTimeControl Instance => _instance ??= new BloodCastleTimeControl();
 
         public override async Task Load()

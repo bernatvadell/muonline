@@ -23,7 +23,6 @@ namespace Client.Main.Objects.Worlds.Atlans
             CurrentAction = 0;
             AnimationSpeed = 2.0f; // Consistent animation speed
             ContinuousAnimation = true; // Enable continuous looping
-            PreventLastFrameInterpolation = true; // Fix stuttering at loop point
 
             await base.Load();
         }

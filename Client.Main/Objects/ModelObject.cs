@@ -291,7 +291,6 @@ namespace Client.Main.Objects
         public bool RenderShadow { get => _renderShadow; set { _renderShadow = value; OnRenderShadowChanged(); } }
         public float AnimationSpeed { get; set; } = 4f;
         public bool ContinuousAnimation { get; set; }
-        public bool PreventLastFrameInterpolation { get; set; }
 
         /// <summary>
         /// Indicates if this object can be rendered to a static cache surface.

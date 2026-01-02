@@ -88,6 +88,7 @@ namespace Client.Main.Controls.UI.Game.Hud
             BuildLayoutMetrics();
         }
 
+        public override bool NonDisposable => true;
         public static DevilSquareCountdownControl Instance => _instance ??= new DevilSquareCountdownControl();
 
         public override async System.Threading.Tasks.Task Load()

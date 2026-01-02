@@ -153,6 +153,8 @@ namespace Client.Main.Controls.UI.Game
             EnsureCharacterState();
         }
 
+        public override bool NonDisposable => true;
+
         public static BloodCastleEnterControl Instance => _instance ??= new BloodCastleEnterControl();
 
         public override async Task Load()

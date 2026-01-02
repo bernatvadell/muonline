@@ -167,6 +167,8 @@ namespace Client.Main.Controls.UI.Game
             EnsureCharacterState();
         }
 
+
+        public override bool NonDisposable => true;
         public static ChaosMixControl Instance => _instance ??= new ChaosMixControl();
 
         public static bool IsOpen => _instance?.Visible == true;

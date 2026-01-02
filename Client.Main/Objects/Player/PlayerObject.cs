@@ -2971,6 +2971,9 @@ namespace Client.Main.Objects.Player
                 return;
             }
 
+            if (IsMoving)
+                return;
+
             if (IsAttackOrSkillAnimationPlaying())
                 return;
 
