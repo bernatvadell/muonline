@@ -236,6 +236,7 @@ namespace Client.Main
 #if DEBUG
         private static void ApplyDebugDefaults()
         {
+            Constants.DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
             DRAW_BOUNDING_BOXES = false;
             BACKGROUND_MUSIC = false;
             SOUND_EFFECTS = false;

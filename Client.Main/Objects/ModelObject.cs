@@ -482,7 +482,7 @@ namespace Client.Main.Objects
                         childModel._isBlending = this._isBlending;
                         childModel._blendElapsed = this._blendElapsed;
 
-                        // childModel.RecalculateWorldPosition();
+                        childModel.RecalculateWorldPosition();
 
                         if (this._isBlending || this.BoneTransform != null)
                         {
