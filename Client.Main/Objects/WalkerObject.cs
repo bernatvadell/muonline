@@ -541,9 +541,6 @@ namespace Client.Main.Objects
 
         private void UpdateMoveTargetPosition(GameTime time)
         {
-            if (!IsMoving && MoveTargetPosition == Camera.Instance.Target)
-                return;
-
             if (MoveTargetPosition == Vector3.Zero)
             {
                 MoveTargetPosition = TargetPosition;
@@ -716,7 +713,7 @@ namespace Client.Main.Objects
         protected override void OnWorldChanged(WorldControl newWorld, WorldControl prevWorld)
         {
             base.OnWorldChanged(newWorld, prevWorld);
-            //UpdateCameraPosition(Position);
+            UpdateCameraPosition(Position);
             UpdatePosition(new GameTime());
         }
     }
