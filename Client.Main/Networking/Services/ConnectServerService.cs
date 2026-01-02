@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using MUnique.OpenMU.Network;
 using Client.Main.Networking.PacketHandling;
+using MUnique.OpenMU.Network.Packets.ConnectServer;
 
 namespace Client.Main.Networking.Services
 {
@@ -43,8 +44,8 @@ namespace Client.Main.Networking.Services
             _logger.LogInformation("Sending ServerListRequest packet...");
             try
             {
-                await _connectionManager.Connection.SendAsync(() =>
-                    PacketBuilder.BuildServerListRequestPacket(_connectionManager.Connection.Output));
+                await _connectionManager.Connection.SendServerListRequestAsync();
+
                 _logger.LogInformation("ServerListRequest packet sent.");
             }
             catch (Exception ex)
@@ -68,8 +69,8 @@ namespace Client.Main.Networking.Services
             _logger.LogInformation("Requesting connection info for Server ID {ServerId}...", serverId);
             try
             {
-                await _connectionManager.Connection.SendAsync(() =>
-                    PacketBuilder.BuildServerInfoRequestPacket(_connectionManager.Connection.Output, serverId));
+                await _connectionManager.Connection.SendConnectionInfoRequestAsync(serverId);
+
                 _logger.LogInformation("ConnectionInfoRequest packet sent for Server ID {ServerId}.", serverId);
             }
             catch (Exception ex)

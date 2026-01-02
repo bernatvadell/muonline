@@ -160,13 +160,6 @@ namespace Client.Main.Objects
 
             // Initialize update offset for staggered updates - spread objects across frames
             _updateOffset = GetHashCode() % 60; // Spread across ~1 second at 60fps
-
-            Camera.Instance.CameraMoved += Camera_Moved;
-        }
-
-        private void Camera_Moved(object sender, EventArgs e)
-        {
-            CalculateOutOfView();
         }
 
         protected virtual void CalculateOutOfView()
@@ -472,8 +465,6 @@ namespace Client.Main.Objects
 
             Status = GameControlStatus.Disposed;
 
-            Camera.Instance.CameraMoved -= Camera_Moved;
-
             var children = Children.ToArray();
             for (int i = 0; i < children.Length; i++)
             {
@@ -482,7 +473,7 @@ namespace Client.Main.Objects
             Children.Clear();
 
             Parent?.Children.Remove(this);
-            Parent = null;
+            Parent = null;  
 
             _whiteTexture?.Dispose();
         }

@@ -1,69 +1,82 @@
-﻿// AlphaRGB.fx
+// AlphaRGB.fx (MonoGame cross-platform)
+// - WindowsDX (SM4): Texture2D/SamplerState + ps_4_0_level_9_1
+// - DesktopGL/OpenGL: sampler2D/tex2D + ps_3_0
 
-// Effect parameters
 float4x4 WorldViewProjection;
 
-// Declaration of texture and sampler
-Texture2D TextureSampler;
-SamplerState SamplerState0
+#if SM4
+// -------------------- DX11 / WindowsDX --------------------
+Texture2D TextureSampler : register(t0);
+SamplerState PointClamp : register(s0)
 {
+    Filter   = MIN_MAG_MIP_POINT;
     AddressU = Clamp;
     AddressV = Clamp;
 };
 
-// Input and output structures
-struct VertexInput
+struct VS_IN  { float3 Pos:POSITION0; float2 Tex:TEXCOORD0; };
+struct VS_OUT { float4 Pos:SV_POSITION; float2 Tex:TEXCOORD0; };
+
+VS_OUT VS_Main(VS_IN v)
 {
-    float3 Position : POSITION0;
-    float3 Normal   : NORMAL0;
-    float2 TexCoord : TEXCOORD0;
-};
-
-struct PixelInput
-{
-    float4 Position : SV_POSITION;
-    float2 TexCoord : TEXCOORD0;
-};
-
-// Vertex Shader
-PixelInput VS_Main(VertexInput input)
-{
-    PixelInput output;
-
-    // Position transformation
-    output.Position = mul(float4(input.Position, 1.0), WorldViewProjection);
-
-    // Passing texture coordinates
-    output.TexCoord = input.TexCoord;
-
-    return output;
+    VS_OUT o;
+    o.Pos = mul(float4(v.Pos, 1), WorldViewProjection);
+    o.Tex = v.Tex;
+    return o;
 }
 
-// Pixel Shader
-float4 PS_Main(PixelInput input) : SV_Target
+float4 PS_Main(VS_OUT pin) : SV_Target
 {
-    // Sampling color from texture
-    float4 texColor = TextureSampler.Sample(SamplerState0, input.TexCoord);
+    float4 col = TextureSampler.Sample(PointClamp, pin.Tex);
 
-    // Calculating brightness as the average of RGB values
-    float brightness = (texColor.r + texColor.g + texColor.b) / 3.0;
+    // Promedio simple (corrige el dot inválido)
+    float lum = (col.r + col.g + col.b) / 3.0;
 
-    // Calculating alpha value
-    float alpha = lerp(brightness / 0.25, 1.0, step(0.25, brightness));
-
-    // Setting color with new alpha value
-    return float4(texColor.rgb, alpha);
+    float a = saturate(lum / 0.25);
+    return float4(col.rgb, a);
 }
 
-// Techniques
-technique Technique1
+technique AlphaRGB
 {
-    pass Pass1
+    pass P0
     {
-        // Compiling Vertex Shader
-        VertexShader = compile vs_3_0 VS_Main();
-
-        // Compiling Pixel Shader
-        PixelShader = compile ps_3_0 PS_Main();
+        VertexShader = compile vs_4_0_level_9_1 VS_Main();
+        PixelShader  = compile ps_4_0_level_9_1 PS_Main();
     }
 }
+
+#else
+// -------------------- OpenGL / DesktopGL (XNA-style) --------------------
+sampler2D TextureSampler : register(s0);
+
+struct VS_IN  { float4 Pos:POSITION0; float2 Tex:TEXCOORD0; };
+struct VS_OUT { float4 Pos:POSITION0; float2 Tex:TEXCOORD0; };
+
+VS_OUT VS_Main(VS_IN v)
+{
+    VS_OUT o;
+    o.Pos = mul(v.Pos, WorldViewProjection);
+    o.Tex = v.Tex;
+    return o;
+}
+
+float4 PS_Main(VS_OUT pin) : COLOR0
+{
+    float4 col = tex2D(TextureSampler, pin.Tex);
+
+    // Promedio simple
+    float lum = (col.r + col.g + col.b) / 3.0;
+
+    float a = saturate(lum / 0.25);
+    return float4(col.rgb, a);
+}
+
+technique AlphaRGB
+{
+    pass P0
+    {
+        VertexShader = compile vs_3_0 VS_Main();
+        PixelShader  = compile ps_3_0 PS_Main();
+    }
+}
+#endif

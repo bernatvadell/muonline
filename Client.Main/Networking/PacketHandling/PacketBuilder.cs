@@ -3,7 +3,6 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
 using Client.Main.Core.Client;
-using Client.Main.Networking.Packets;
 using MUnique.OpenMU.Network.Packets;
 using MUnique.OpenMU.Network.Packets.ClientToServer;
 using MUnique.OpenMU.Network.Packets.ConnectServer;
@@ -307,25 +306,6 @@ namespace Client.Main.Networking.PacketHandling
             return length;
         }
 
-        /// <summary>
-        /// Builds a hit request packet for a basic attack.
-        /// </summary>
-        public static int BuildHitRequestPacket(
-            IBufferWriter<byte> writer,
-            ushort targetId,
-            byte attackAnimation,
-            byte lookingDirection)
-        {
-            int length = HitRequest.Length;
-            var memory = writer.GetMemory(length).Slice(0, length);
-            var packet = new HitRequest(memory);
-
-            packet.TargetId = targetId;
-            packet.AttackAnimation = attackAnimation;
-            packet.LookingDirection = lookingDirection;
-
-            return length;
-        }
 
         /// <summary>
         /// Builds a skill usage request packet using TargetedSkill.
@@ -345,50 +325,6 @@ namespace Client.Main.Networking.PacketHandling
             return length;
         }
 
-        /// <summary>
-        /// Builds a consume item request packet (potions, jewels, etc.).
-        /// </summary>
-        public static int BuildConsumeItemPacket(
-            IBufferWriter<byte> writer,
-            byte itemSlot,
-            byte targetSlot = 0)
-        {
-            int length = ConsumeItemRequest.Length;
-            var memory = writer.GetMemory(length).Slice(0, length);
-            var packet = new ConsumeItemRequest(memory);
-
-            packet.ItemSlot = itemSlot;
-            packet.TargetSlot = targetSlot; // Used for jewels that target another item
-            packet.FruitConsumption = ConsumeItemRequest.FruitUsage.AddPoints; // Default for fruits
-
-            return length;
-        }
-
-        /// <summary>
-        /// Builds an area skill usage request packet (buffs, area attacks, etc.).
-        /// </summary>
-        public static int BuildAreaSkillPacket(
-            IBufferWriter<byte> writer,
-            ushort skillId,
-            byte targetX,
-            byte targetY,
-            byte rotation,
-            ushort extraTargetId = 0,
-            byte animationCounter = 0)
-        {
-            int length = AreaSkill.Length;
-            var memory = writer.GetMemory(length).Slice(0, length);
-            var packet = new AreaSkill(memory);
-
-            packet.SkillId = skillId;
-            packet.TargetX = targetX;
-            packet.TargetY = targetY;
-            packet.Rotation = rotation;
-            packet.ExtraTargetId = extraTargetId;
-            packet.AnimationCounter = animationCounter;
-
-            return length;
-        }
 
         /// <summary>
         /// Builds an area skill hit packet (damage application) for Season 6+ (C3 DB).
@@ -423,113 +359,6 @@ namespace Client.Main.Networking.PacketHandling
             return length;
         }
 
-        /// <summary>
-        /// Builds a packet to request increasing a character's stat point.
-        /// </summary>
-        /// <param name="writer">The buffer writer to write the packet to.</param>
-        /// <param name="attribute">The attribute to increase.</param>
-        /// <returns>The length of the built packet.</returns>
-        public static int BuildIncreaseCharacterStatPointPacket(
-            IBufferWriter<byte> writer,
-            CharacterStatAttribute attribute)
-        {
-            int length = IncreaseCharacterStatPoint.Length;
-            var memory = writer.GetMemory(length).Slice(0, length);
-            var packet = new IncreaseCharacterStatPoint(memory);
-
-            packet.StatType = attribute;
-
-            return length;
-        }
-        /// <summary>
-        /// Builds a packet to create a new character.
-        /// C1 F3 01 - CreateCharacter (by client)
-        /// </summary>
-        /// <param name="writer">The buffer writer to write the packet to.</param>
-        /// <param name="characterName">The name of the new character (max 10 characters).</param>
-        /// <param name="characterClass">The class of the new character.</param>
-        /// <returns>The length of the built packet.</returns>
-        public static int BuildCreateCharacterPacket(
-            IBufferWriter<byte> writer,
-            string characterName,
-            CharacterClassNumber characterClass)
-        {
-            int length = CreateCharacterRequest.Length;
-            var memory = writer.GetMemory(length).Slice(0, length);
-            var packet = new CreateCharacterRequest(memory.Span);
-
-            packet.Name = characterName;
-            packet.CharacterClass = characterClass;
-
-#if DEBUG
-            // Log packet bytes for debugging
-            var span = memory.Span.Slice(0, length);
-            var hexBytes = BitConverter.ToString(span.ToArray()).Replace("-", " ");
-            System.Diagnostics.Debug.WriteLine($"[CreateCharacter] Packet bytes: {hexBytes}");
-            System.Diagnostics.Debug.WriteLine($"[CreateCharacter] Name: '{characterName}', Class: {characterClass} ({(byte)characterClass}), ClassByte: 0x{span[14]:X2}");
-#endif
-
-            return length;
-        }
-
-        /// <summary>
-        /// Builds a packet to delete a character.
-        /// C1 F3 02 - DeleteCharacter (by client)
-        /// </summary>
-        /// <param name="writer">The buffer writer to write the packet to.</param>
-        /// <param name="characterName">The name of the character to delete (max 10 characters).</param>
-        /// <param name="securityCode">The security code (max 10 characters, default empty for no security).</param>
-        /// <returns>The length of the built packet.</returns>
-        public static int BuildDeleteCharacterPacket(
-            IBufferWriter<byte> writer,
-            string characterName,
-            string securityCode = "")
-        {
-            int length = DeleteCharacterRequest.Length;
-            var memory = writer.GetMemory(length).Slice(0, length);
-            var packet = new DeleteCharacterRequest(memory.Span);
-
-            packet.Name = characterName;
-            packet.SecurityCode = securityCode;
-
-#if DEBUG
-            // Log packet bytes for debugging
-            var span = memory.Span.Slice(0, length);
-            var hexBytes = BitConverter.ToString(span.ToArray()).Replace("-", " ");
-            System.Diagnostics.Debug.WriteLine($"[DeleteCharacter] Packet bytes: {hexBytes}");
-            System.Diagnostics.Debug.WriteLine($"[DeleteCharacter] Name: '{characterName}', SecurityCode: '{securityCode}'");
-#endif
-
-            return length;
-        }
-
-        // ───────────────────── Connect Server Packets ──────────────────────
-
-        /// <summary>
-        /// Builds a request packet for the game server list from the connect server.
-        /// </summary>
-        public static int BuildServerListRequestPacket(IBufferWriter<byte> writer)
-        {
-            int length = ServerListRequest.Length;
-            var memory = writer.GetMemory(length).Slice(0, length);
-            _ = new ServerListRequest(memory);
-            return length;
-        }
-
-        /// <summary>
-        /// Builds a request packet for connection info of a specific game server.
-        /// </summary>
-        public static int BuildServerInfoRequestPacket(
-            IBufferWriter<byte> writer,
-            ushort serverId)
-        {
-            int length = ConnectionInfoRequest.Length;
-            var memory = writer.GetMemory(length).Slice(0, length);
-            var packet = new ConnectionInfoRequest(memory);
-
-            packet.ServerId = serverId;
-            return length;
-        }
 
         // ──────────────────────────── Helpers ─────────────────────────────
 
