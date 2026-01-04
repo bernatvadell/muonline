@@ -1304,10 +1304,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             };
 
                             if (Objects.Effects.Skills.SkillVisualEffectRegistry.TrySpawn(skillId, effectContext, out var effect))
-                            {
                                 world.Objects.Add(effect!);
-                                _ = effect!.Load();
-                            }
                         }
                     }
                     else
