@@ -160,6 +160,13 @@ namespace Client.Main.Objects
 
             // Initialize update offset for staggered updates - spread objects across frames
             _updateOffset = GetHashCode() % 60; // Spread across ~1 second at 60fps
+
+            Camera.Instance.CameraMoved += Camera_Moved;
+        }
+
+        private void Camera_Moved(object sender, EventArgs e)
+        {
+            CalculateOutOfView();
         }
 
         protected virtual void CalculateOutOfView()
@@ -462,6 +469,8 @@ namespace Client.Main.Objects
                 Thread.Sleep(100);
                 Dispose();
             }
+
+            Camera.Instance.CameraMoved -= Camera_Moved;
 
             Status = GameControlStatus.Disposed;
 

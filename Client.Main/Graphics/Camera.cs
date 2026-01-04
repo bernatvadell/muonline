@@ -1,5 +1,6 @@
 ﻿using Microsoft.Xna.Framework;
 using System;
+using System.Diagnostics;
 
 namespace Client.Main.Graphics
 {
@@ -16,6 +17,11 @@ namespace Client.Main.Graphics
         private Vector3 _position = Vector3.Zero;
         private Vector3 _target = Vector3.Zero;
         private readonly BoundingFrustum _frustum = new(Matrix.Identity);
+        
+        // Throttle CameraMoved events to avoid flooding subscribers during rapid camera updates
+        private long _lastCameraMovedTimeMs = 0;
+        private const int CAMERA_MOVED_COOLDOWN_MS = 300; // milliseconds
+        private readonly object _cameraMovedLock = new object();
 
         // Public Properties
         public float AspectRatio
@@ -87,7 +93,7 @@ namespace Client.Main.Graphics
             );
 
             UpdateFrustum();
-            CameraMoved?.Invoke(this, EventArgs.Empty);
+            RaiseCameraMovedThrottled();
         }
 
         private void UpdateView()
@@ -99,12 +105,28 @@ namespace Client.Main.Graphics
             View = Matrix.CreateLookAt(Position, Target, cameraUp);
 
             UpdateFrustum();
-            CameraMoved?.Invoke(this, EventArgs.Empty);
+            RaiseCameraMovedThrottled();
         }
 
         private void UpdateFrustum()
         {
             _frustum.Matrix = View * Projection;
+        }
+
+        /// <summary>
+        /// Raises the CameraMoved event but limits firing to once every CAMERA_MOVED_COOLDOWN_MS milliseconds.
+        /// </summary>
+        private void RaiseCameraMovedThrottled()
+        {
+            long nowMs = Stopwatch.GetTimestamp() * 1000 / Stopwatch.Frequency;
+            lock (_cameraMovedLock)
+            {
+                if (nowMs - _lastCameraMovedTimeMs >= CAMERA_MOVED_COOLDOWN_MS)
+                {
+                    _lastCameraMovedTimeMs = nowMs;
+                    CameraMoved?.Invoke(this, EventArgs.Empty);
+                }
+            }
         }
     }
 }
