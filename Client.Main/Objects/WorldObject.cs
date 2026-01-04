@@ -231,7 +231,7 @@ namespace Client.Main.Objects
 
             if (Interactive || Constants.DRAW_BOUNDING_BOXES)
             {
-                bool uiBlockingHover = false;
+                bool uiBlockingHover = World.Scene.MouseHoverControl is not null && World.Scene.MouseHoverControl != World.Scene.World;
                 if (World?.Scene != null)
                 {
                     var scene = World.Scene;
@@ -241,7 +241,9 @@ namespace Client.Main.Objects
                     }
                 }
 
-                if (!uiBlockingHover)
+                bool objectBlockingHover = World.Scene.MouseHoverObject is not null;
+
+                if (!uiBlockingHover && !objectBlockingHover)
                 {
                     bool parentIsMouseHover = Parent?.IsMouseHover ?? false;
 
@@ -261,7 +263,7 @@ namespace Client.Main.Objects
             }
             else
             {
-                IsMouseHover = false; // Distant objects can't be hovered
+                IsMouseHover = false;
             }
 
             var objects = Children;
