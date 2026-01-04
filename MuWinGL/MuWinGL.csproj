@@ -2,35 +2,12 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <ClientMainTargetFramework>net10.0-windows</ClientMainTargetFramework>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-
-    <!-- Specify OpenGL backend for MonoGame (default) -->
-    <MonoGameFramework>MonoGame.Framework.DesktopGL</MonoGameFramework>
-    <MonoGamePlatform>DesktopGL</MonoGamePlatform>
-
-    <RollForward>Major</RollForward>
-    <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
-
-    <PublishTrimmed>false</PublishTrimmed>
+    <TargetFramework>net10.0</TargetFramework>
     <PublishReadyToRun>false</PublishReadyToRun>
-    <TieredCompilation>true</TieredCompilation>
-
+    <TieredCompilation>false</TieredCompilation>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Icon.ico</ApplicationIcon>
-    <RestoreAdditionalProjectProperties>
-      $(RestoreAdditionalProjectProperties);MonoGameFramework
-    </RestoreAdditionalProjectProperties>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <Optimize>true</Optimize>
-  </PropertyGroup>
-
-  <PropertyGroup>
-    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+    <AssemblyName>MuMono</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
@@ -39,18 +16,17 @@
     </MonoGameContentReference>
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
-    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
-  </ItemGroup>
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+  </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Client.Main\Client.Main.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <TrimmerRootAssembly Include="MonoGame.Framework" />
-    <TrimmerRootAssembly Include="mscorlib" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.4.1" />
+    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.4.1" />
   </ItemGroup>
 
   <Target Name="RestoreDotnetTools" BeforeTargets="CollectPackageReferences">

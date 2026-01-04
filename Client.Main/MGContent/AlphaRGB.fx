@@ -9,7 +9,7 @@ float4x4 WorldViewProjection;
 Texture2D TextureSampler : register(t0);
 SamplerState PointClamp : register(s0)
 {
-    Filter   = MIN_MAG_MIP_POINT;
+    Filter   = Linear;
     AddressU = Clamp;
     AddressV = Clamp;
 };

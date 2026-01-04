@@ -4,25 +4,13 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <ClientMainTargetFramework>net10.0-windows</ClientMainTargetFramework>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-
-    <!-- Specify DirectX backend for MonoGame -->
-    <MonoGameFramework>MonoGame.Framework.WindowsDX</MonoGameFramework>
-    <MonoGamePlatform>Windows</MonoGamePlatform>
-
     <RollForward>Major</RollForward>
-    <PublishSingleFile>true</PublishSingleFile>
-    <SelfContained>true</SelfContained>
-
-    <PublishTrimmed>false</PublishTrimmed>
     <PublishReadyToRun>false</PublishReadyToRun>
-    <TieredCompilation>true</TieredCompilation>
-
+    <TieredCompilation>false</TieredCompilation>
+    <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Icon.ico</ApplicationIcon>
-    <RestoreAdditionalProjectProperties>
-      $(RestoreAdditionalProjectProperties);MonoGameFramework
-    </RestoreAdditionalProjectProperties>
+    <AssemblyName>MuMono</AssemblyName>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -33,7 +21,7 @@
     <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
   </PropertyGroup>
 
-    <ItemGroup>
+  <ItemGroup>
     <MonoGameContentReference Include="..\Client.Main\MGContent\Content.mgcb">
       <Link>Content\Content.mgcb</Link>
     </MonoGameContentReference>

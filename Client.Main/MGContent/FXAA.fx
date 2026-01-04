@@ -9,7 +9,7 @@ float2 Resolution;
 Texture2D SceneTexture : register(t0);
 SamplerState LinearClamp : register(s0)
 {
-    Filter   = MIN_MAG_MIP_LINEAR;
+    Filter   = Point;
     AddressU = Clamp;
     AddressV = Clamp;
 };
