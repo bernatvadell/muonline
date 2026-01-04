@@ -276,7 +276,7 @@ namespace Client.Main.Controls
             }
 
             var objects = _visibleObjects;
-            for (int i = 0; i < objects.Count; i++)
+            for (int i = objects.Count - 1; i >= 0; i--)
                 objects[i].Update(time);
         }
 
@@ -340,6 +340,8 @@ namespace Client.Main.Controls
                 }
                 WalkerObjectsById[walker.NetworkId] = walker; // Always update/add
             }
+
+            _visibleObjects.Add(e.Control);
         }
 
         private void OnObjectRemoved(object sender, ChildrenEventArgs<WorldObject> e)
@@ -363,6 +365,8 @@ namespace Client.Main.Controls
                     }
                 }
             }
+
+            _visibleObjects.Remove(e.Control);
         }
 
         private void TrackObjectType(WorldObject obj)

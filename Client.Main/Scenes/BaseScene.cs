@@ -130,6 +130,7 @@ namespace Client.Main.Scenes
             var currentMouseControl = MouseControl;
 
             MouseControl = null;
+            MouseHoverObject = null;
             IsMouseInputConsumedThisFrame = false;
             IsKeyboardEnterConsumedThisFrame = false;
             IsKeyboardEscapeConsumedThisFrame = false;
@@ -161,9 +162,6 @@ namespace Client.Main.Scenes
                     ButtonState.Released
                 );
             }
-
-            // set scene's MouseControl (which is the target for scroll)
-            MouseControl = null;
 
             for (int i = Controls.Count - 1; i >= 0; i--)
             {

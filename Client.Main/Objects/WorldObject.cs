@@ -229,46 +229,33 @@ namespace Client.Main.Objects
                 TotalUpdatesPerformed = 0;
             }
 
-            // Cache frustum result only when within hover range
-            bool inFrustum = (Camera.Instance?.Frustum.Contains(BoundingBoxWorld) != ContainmentType.Disjoint);
-            // Defer expensive hover checks when many objects spawn: use a staggered cadence for non-interactive objects
-            bool hoverBudgetThisFrame = (_globalFrameCounter + _updateOffset) % 3 == 0; // 1/3 frames
-            bool shouldCheckMouseHover = inFrustum && (Interactive || Constants.DRAW_BOUNDING_BOXES || hoverBudgetThisFrame);
-
-            if (shouldCheckMouseHover)
+            if (Interactive || Constants.DRAW_BOUNDING_BOXES)
             {
-                if (!TryBeginHoverCheck(Interactive || Constants.DRAW_BOUNDING_BOXES))
+                bool uiBlockingHover = false;
+                if (World?.Scene != null)
                 {
-                    IsMouseHover = false;
-                }
-                else
-                {
-                    // Determine if UI should block hover detection for world objects
-                    bool uiBlockingHover = false;
-                    if (World?.Scene != null)
+                    var scene = World.Scene;
+                    if (scene.MouseHoverControl != null && scene.MouseHoverControl != scene.World)
                     {
-                        var scene = World.Scene;
-                        if (scene.MouseHoverControl != null && scene.MouseHoverControl != scene.World)
-                        {
-                            uiBlockingHover = true; // a UI element is hovered, ignore world hover
-                        }
+                        uiBlockingHover = true;
                     }
+                }
 
-                    // Cache parent's mouse hover state
+                if (!uiBlockingHover)
+                {
                     bool parentIsMouseHover = Parent?.IsMouseHover ?? false;
 
-                    // Only calculate intersections if needed and not blocked by UI
                     bool wouldBeMouseHover = parentIsMouseHover;
-                    if (!parentIsMouseHover && !uiBlockingHover && (Interactive || Constants.DRAW_BOUNDING_BOXES))
+                    if (!parentIsMouseHover && (Interactive || Constants.DRAW_BOUNDING_BOXES))
                     {
                         float? intersectionDistance = MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld);
                         ContainmentType contains = BoundingBoxWorld.Contains(MuGame.Instance.MouseRay.Position);
                         wouldBeMouseHover = intersectionDistance.HasValue || contains == ContainmentType.Contains;
                     }
 
-                    IsMouseHover = !uiBlockingHover && wouldBeMouseHover;
+                    IsMouseHover = wouldBeMouseHover;
 
-                    if (!parentIsMouseHover && IsMouseHover)
+                    if (!parentIsMouseHover && IsMouseHover && World.Scene.MouseHoverObject is null)
                         World.Scene.MouseHoverObject = this;
                 }
             }
@@ -278,7 +265,7 @@ namespace Client.Main.Objects
             }
 
             var objects = Children;
-            for (int i = 0; i < objects.Count; i++)
+            for (int i = objects.Count - 1; i >= 0; i--)
                 objects[i].Update(gameTime);
         }
 
