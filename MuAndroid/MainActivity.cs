@@ -10,7 +10,6 @@ using Client.Data.Texture;
 using Client.Main;
 using Client.Main.Content;
 using Client.Main.Controls.UI;
-using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.IO;
 using AndroidGameActivity = Microsoft.Xna.Framework.AndroidGameActivity;

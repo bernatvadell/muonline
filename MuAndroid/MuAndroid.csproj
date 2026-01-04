@@ -52,6 +52,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <AndroidAsset Include="..\Client.Main\appsettings.json">
+      <Link>appsettings.json</Link>
+    </AndroidAsset>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Client.Data\Client.Data.csproj" />
     <ProjectReference Include="..\Client.Main\Client.Main.csproj"/>
   </ItemGroup>
