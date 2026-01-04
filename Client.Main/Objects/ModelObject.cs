@@ -125,7 +125,7 @@ namespace Client.Main.Objects
         private float _blendElapsed = 0f;
         private float _blendDuration = 0.25f;
 
-        protected int _priorAction = 0;
+        protected int _priorActionIndex = 0;
         protected double _animTime = 0.0;
 
         private LocalAnimationState _lastAnimationState;

@@ -65,19 +65,19 @@ namespace Client.Main.Objects
 
             if (totalFrames == 1 && !ContinuousAnimation)
             {
-                if (_priorAction != currentActionIndex)
+                if (_priorActionIndex != currentActionIndex)
                 {
                     GenerateBoneMatrix(currentActionIndex, 0, 0, 0);
-                    _priorAction = currentActionIndex;
+                    _priorActionIndex = currentActionIndex;
                     InvalidateBuffers(BUFFER_FLAG_ANIMATION);
                 }
                 CurrentFrame = 0;
                 return;
             }
 
-            if (_priorAction != currentActionIndex)
+            if (_priorActionIndex != currentActionIndex)
             {
-                _blendFromAction = _priorAction;
+                _blendFromAction = _priorActionIndex;
                 _blendFromTime = _animTime;
                 _blendElapsed = 0f;
                 _isBlending = true;
@@ -88,6 +88,7 @@ namespace Client.Main.Objects
 
             _animTime += delta * (action.PlaySpeed == 0 ? 1.0f : action.PlaySpeed) * AnimationSpeed;
             double framePos;
+
             if (isDeathAction || HoldOnLastFrame)
             {
                 int endIdx = Math.Max(0, totalFrames - 2);
@@ -112,21 +113,19 @@ namespace Client.Main.Objects
             {
                 framePos = _animTime % totalFrames;
             }
+
             int f0 = (int)framePos;
             int f1 = (f0 + 1) % totalFrames;
             float t = (float)(framePos - f0);
             CurrentFrame = f0;
 
-            // Only applies to objects that specifically request it (e.g., portals with stuttering)
-            if (totalFrames > 1 && f0 == totalFrames - 1)
+            var forceRestartSmoothly = f0 == totalFrames - 1 && action.LockPositions && action.Positions[f0] == Vector3.Zero;
+            if (forceRestartSmoothly)
             {
-                // Instead of interpolating lastFrame->firstFrame, restart smoothly
-                // This eliminates the visual "jump" that causes animation stuttering
                 f0 = 0;
                 f1 = 1;
                 t = 0.0f;
-                framePos = 0.0;
-                _animTime = _animTime - (totalFrames - 1); // Adjust time to maintain continuity
+                _animTime = _animTime - (totalFrames - 1);
             }
 
             GenerateBoneMatrix(currentActionIndex, f0, f1, t);
@@ -163,7 +162,7 @@ namespace Client.Main.Objects
                 InvalidateBuffers(BUFFER_FLAG_ANIMATION);
             }
 
-            _priorAction = currentActionIndex;
+            _priorActionIndex = currentActionIndex;
         }
 
         protected void GenerateBoneMatrix(int actionIdx, int frame0, int frame1, float t)

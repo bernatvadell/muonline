@@ -236,101 +236,13 @@ namespace Client.Main.Objects
         }
 
         /// <summary>
-        /// Advances the current animation and builds bone matrices for this frame.
-        /// </summary>
-        private void Animation(GameTime gameTime)
-        {
-            // Fast exits ──────────────────────────────────────────────────────
-            if (LinkParentAnimation) return;
-            if (Model?.Actions == null || Model.Actions.Length == 0) return;
-
-            int actionIdx = CurrentAction;
-            if (actionIdx < 0 || actionIdx >= Model.Actions.Length)
-            {
-                actionIdx = 0;
-                if (actionIdx >= Model.Actions.Length) return;
-            }
-
-            var action = Model.Actions[actionIdx];
-            int totalFrames = Math.Max(action.NumAnimationKeys, 1);
-
-            float delta = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            float objFps = AnimationSpeed;
-            float playMul = action.PlaySpeed == 0 ? 1.0f : action.PlaySpeed;
-            float effectiveFps = Math.Max(0.01f, objFps * playMul);
-
-            AnimationType animType = _animationController.GetAnimationType((ushort)actionIdx);
-
-            // Reset animation time when switching actions
-            if (_priorAction != actionIdx)
-                _animTime = 0.0;
-
-            //------------------------------------------------------------------
-            // Frame position calculation
-            //------------------------------------------------------------------
-            double framePos;
-
-            if (animType == AnimationType.Death)
-            {
-                // Keep advancing but clamp to second-to-last key to hold the pose
-                int endIdx = Math.Max(0, totalFrames - 2);
-                _animTime += delta * effectiveFps;
-                _animTime = Math.Min(_animTime, endIdx + 0.0001f);
-                framePos = _animTime;
-            }
-            else if (animType is AnimationType.Attack or AnimationType.Skill or AnimationType.Emote)
-            {
-                if (_animationController.IsOneShotPlaying)
-                {
-                    _animTime += delta * effectiveFps;
-
-                    if (_animTime >= totalFrames - 1.0f)
-                    {
-                        _animationController.NotifyAnimationCompleted();
-                        framePos = totalFrames - 0.0001f; // last key
-                    }
-                    else
-                    {
-                        framePos = _animTime;
-                    }
-                }
-                else
-                {
-                    framePos = 0; // one-shot not playing
-                }
-            }
-            else // Looping (Idle / Walk / Rest / Sit)
-            {
-                _animTime += delta * effectiveFps;
-                framePos = _animTime % totalFrames;
-            }
-
-            //------------------------------------------------------------------
-            // Key selection & interpolation
-            //------------------------------------------------------------------
-            int f0 = Math.Max(0, (int)framePos);
-            int f1 = (totalFrames > 1) ? ((f0 + 1) % totalFrames) : f0;
-            float t = (float)(framePos - f0);
-
-            // Clamp indices (safety)
-            f0 = Math.Min(f0, totalFrames - 1);
-            f1 = Math.Min(f1, totalFrames - 1);
-
-            //------------------------------------------------------------------
-            // Build the final bone matrices
-            //------------------------------------------------------------------
-            GenerateBoneMatrix(actionIdx, f0, f1, t);
-            _priorAction = actionIdx;
-        }
-
-        /// <summary>
         /// Plays the specified action using the centralized animation controller.
         /// </summary>
         public void PlayAction(ushort actionIndex, bool fromServer = false)
         {
             // If we re-trigger a one-shot while already in the same action, restart it.
             // This avoids "stuck" or jittery attacks/skills at low FPS / packet bursts.
-            if (_priorAction == actionIndex)
+            if (_priorActionIndex == actionIndex)
             {
                 var kind = _animationController.GetAnimationType(actionIndex);
                 if (kind is AnimationType.Attack or AnimationType.Skill or AnimationType.Emote or AnimationType.Appear)
