@@ -24,11 +24,6 @@ namespace Client.Main.Objects.Effects
             LightEnabled = false;
         }
 
-        protected override void CalculateOutOfView()
-        {
-            OutOfView = false;
-        }
-
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);

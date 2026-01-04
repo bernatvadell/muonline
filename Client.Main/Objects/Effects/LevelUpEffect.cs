@@ -47,9 +47,5 @@ namespace Client.Main.Objects.Effects
                 Dispose();
             }
         }
-        protected override void CalculateOutOfView()
-        {
-            OutOfView = false;
-        }
     }
 }

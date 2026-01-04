@@ -29,9 +29,5 @@ namespace Client.Main.Objects.Effects
             Model = await BMDLoader.Instance.Prepare("Skill/Fire.bmd");
             await base.Load();
         }
-        protected override void CalculateOutOfView()
-        {
-            OutOfView = false;
-        }
     }
 }

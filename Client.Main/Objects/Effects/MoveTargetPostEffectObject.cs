@@ -18,9 +18,5 @@ namespace Client.Main.Objects.Effects
             Light = new Vector3(1f, 0.7f, 0.3f);
             await base.Load();
         }
-        protected override void CalculateOutOfView()
-        {
-            OutOfView = false;
-        }
     }
 }

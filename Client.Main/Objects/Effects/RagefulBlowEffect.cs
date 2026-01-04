@@ -314,8 +314,6 @@ namespace Client.Main.Objects.Effects
             if (Status != GameControlStatus.Ready)
                 return;
 
-            ForceInView();
-
             if (_caster.Status == GameControlStatus.Disposed || _caster.World == null)
             {
                 RemoveSelf();

@@ -163,8 +163,6 @@ namespace Client.Main.Objects.Effects
             if (Status != GameControlStatus.Ready)
                 return;
 
-            ForceInView();
-
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             _time += dt;
             _spin += dt * 6.5f;

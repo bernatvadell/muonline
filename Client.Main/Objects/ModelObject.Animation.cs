@@ -3,6 +3,7 @@ using Client.Main.Content;
 using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Models;
 using Client.Main.Objects.Player;
+using Client.Main.Objects.Wings;
 using Microsoft.Xna.Framework;
 using System;
 using System.Buffers;
@@ -120,7 +121,8 @@ namespace Client.Main.Objects
             CurrentFrame = f0;
 
             var forceRestartSmoothly = f0 == totalFrames - 1 && action.LockPositions && action.Positions[f0] == Vector3.Zero;
-            if (forceRestartSmoothly)
+
+            if (forceRestartSmoothly && this is not WingObject)
             {
                 f0 = 0;
                 f1 = 1;
@@ -225,9 +227,7 @@ namespace Client.Main.Objects
             // Rent temp array from pool for safer hierarchical calculations
             // ArrayPool may return larger array, so we use bones.Length for actual operations
             Matrix[] tempBoneTransforms = _matrixArrayPool.Rent(bones.Length);
-#if DEBUG
-            Interlocked.Increment(ref _poolRentCount);
-#endif
+
             try
             {
                 bool lockPositions = action.LockPositions;
@@ -376,9 +376,6 @@ namespace Client.Main.Objects
                 // CRITICAL: Always return rented array to pool to prevent memory leaks
                 // clearArray: false because we don't need to zero out Matrix structs (performance)
                 _matrixArrayPool.Return(tempBoneTransforms, clearArray: false);
-#if DEBUG
-                Interlocked.Increment(ref _poolReturnCount);
-#endif
             }
         }
 

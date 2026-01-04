@@ -55,11 +55,6 @@ namespace Client.Main.Objects.Effects
             return new ExperienceOrbEffect(startPosition, targetProvider);
         }
 
-        protected override void CalculateOutOfView()
-        {
-            OutOfView = false;
-        }
-
         private void Reset(Vector3 startPosition, Func<Vector3> targetProvider)
         {
             Position = startPosition;

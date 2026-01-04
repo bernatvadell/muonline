@@ -24,9 +24,5 @@ namespace Client.Main.Objects.Effects
             UseSunLight = false;
             DepthState = DepthStencilState.DepthRead;
         }
-        protected override void CalculateOutOfView()
-        {
-            OutOfView = false;
-        }
     }
 }

@@ -84,11 +84,6 @@ namespace Client.Main.Objects.Effects
             Light *= (1f - dt * 2f);
         }
 
-        protected override void CalculateOutOfView()
-        {
-            OutOfView = false;
-        }
-
         private void Despawn()
         {
             World?.RemoveObject(this);

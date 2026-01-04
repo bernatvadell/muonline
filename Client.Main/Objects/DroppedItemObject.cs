@@ -504,7 +504,7 @@ namespace Client.Main.Objects
 
         public override void DrawHoverName()
         {
-            if (_pickedUp || Hidden || OutOfView)
+            if (_pickedUp || Hidden)
                 return;
 
             if (_font == null)

@@ -127,11 +127,6 @@ namespace Client.Main.Objects
             RenderShadow = true; // All walkers (players, NPCs, monsters) should cast shadows
         }
 
-        protected override void CalculateOutOfView()
-        {
-            OutOfView = false;
-        }
-
         public new virtual async Task Load()
         {
             MoveTargetPosition = Vector3.Zero;

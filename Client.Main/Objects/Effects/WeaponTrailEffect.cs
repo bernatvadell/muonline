@@ -143,7 +143,7 @@ namespace Client.Main.Objects.Effects
             if (parentModel != null)
             {
                 Hidden = parentModel.Hidden || parentModel.Model == null;
-                if (parentModel.OutOfView || parentModel.LowQuality)
+                if (parentModel.LowQuality)
                 {
                     _samples.Clear();
                     _hasLast = false;

@@ -30,12 +30,9 @@ namespace Client.Main.Objects
         private bool _interactive;
         private bool _isTransformDirty = true;
         private bool _hidden = false;
-        private readonly CategorizedChildren<WorldObject, CategoryChildrenObject> _categorizedChildren;
 
         private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<WorldObject>();
 
-        public event EventHandler Appear;
-        public event EventHandler Dissapear;
         public event EventHandler PositionChanged;
 
         public virtual float Depth
@@ -86,10 +83,6 @@ namespace Client.Main.Objects
         }
 
         public bool LinkParentAnimation { get; set; }
-
-        private bool _outOfView = true;
-        public bool OutOfView { get => _outOfView; protected set { if (value != _outOfView) { _outOfView = value; OnOutOfViewChanged(); } } }
-
         public ChildrenCollection<WorldObject> Children { get; private set; }
         public WorldObject Parent { get => _parent; set { if (_parent != value) { var prev = _parent; _parent = value; OnParentChanged(value, prev); } } }
 
@@ -97,7 +90,7 @@ namespace Client.Main.Objects
         public BoundingBox BoundingBoxWorld { get; protected set; }
 
         public GameControlStatus Status { get; protected set; } = GameControlStatus.NonInitialized;
-        public bool Hidden { get => _hidden; set { if (_hidden != value) { _hidden = value; OnHiddenChanged(); } } }
+        public bool Hidden { get => _hidden; set { if (_hidden != value) { _hidden = value; } } }
         public string ObjectName => GetType().Name;
         public virtual string DisplayName => ObjectName;
         public BlendState BlendState { get; set; } = BlendState.Opaque;
@@ -117,7 +110,7 @@ namespace Client.Main.Objects
         /// Indicates that the object is far from the camera and should be rendered in lower quality.
         /// </summary>
         public bool LowQuality { get; private set; }
-        public bool Visible => Status == GameControlStatus.Ready && !OutOfView && !Hidden;
+        public bool Visible => Status == GameControlStatus.Ready && !Hidden;
         public WorldControl World { get => _world; set { if (_world != value) { var prev = _world; _world = value; OnWorldChanged(value, prev); } } }
         public short Type { get; set; }
         public Color BoundingBoxColor { get; set; } = Color.GreenYellow;
@@ -134,61 +127,10 @@ namespace Client.Main.Objects
             Children = new ChildrenCollection<WorldObject>(this);
             Children.ControlAdded += Children_ControlAdded;
 
-            var rules = new Dictionary<CategoryChildrenObject, CategoryRule<WorldObject>>
-            {
-                [CategoryChildrenObject.ObjectsInView] = new()
-                {
-                    Predicate = o => !o.OutOfView,
-                    Watch = (o, invalidate) =>
-                    {
-                        void Handler(object? sender, EventArgs e) => invalidate();
-
-                        o.Appear += Handler;
-                        o.Dissapear += Handler;
-                        return new ActionDisposable(() =>
-                        {
-                            o.Appear -= Handler;
-                            o.Dissapear -= Handler;
-                        });
-                    }
-                }
-            };
-
-            _categorizedChildren = new CategorizedChildren<WorldObject, CategoryChildrenObject>(Children, rules);
-
             _font = GraphicsManager.Instance.Font;
 
             // Initialize update offset for staggered updates - spread objects across frames
             _updateOffset = GetHashCode() % 60; // Spread across ~1 second at 60fps
-
-            Camera.Instance.CameraMoved += Camera_Moved;
-        }
-
-        private void Camera_Moved(object sender, EventArgs e)
-        {
-            CalculateOutOfView();
-        }
-
-        protected virtual void CalculateOutOfView()
-        {
-            if (World is null || Hidden)
-            {
-                OutOfView = true;
-                return;
-            }
-
-            if (Parent is not null)
-            {
-                OutOfView = Parent.OutOfView;
-                return;
-            }
-
-            OutOfView = !Camera.Instance.Frustum.Intersects(BoundingBoxWorld);
-        }
-
-        private void OnHiddenChanged()
-        {
-            CalculateOutOfView();
         }
 
         public virtual void OnClick()
@@ -201,18 +143,6 @@ namespace Client.Main.Objects
             e.Control.World = World;
         }
 
-        private void OnOutOfViewChanged()
-        {
-            if (_outOfView)
-            {
-                Dissapear?.Invoke(this, EventArgs.Empty);
-            }
-            else
-            {
-                Appear?.Invoke(this, EventArgs.Empty);
-            }
-        }
-
         protected virtual void OnWorldChanged(WorldControl newWorld, WorldControl prevWorld)
         {
             var children = Children.ToArray();
@@ -223,7 +153,6 @@ namespace Client.Main.Objects
                 walker.OnDirectionChanged();
 
             OnPositionChanged();
-            CalculateOutOfView();
         }
 
         public virtual async Task Load()
@@ -470,8 +399,6 @@ namespace Client.Main.Objects
                 Dispose();
             }
 
-            Camera.Instance.CameraMoved -= Camera_Moved;
-
             Status = GameControlStatus.Disposed;
 
             var children = Children.ToArray();
@@ -482,7 +409,7 @@ namespace Client.Main.Objects
             Children.Clear();
 
             Parent?.Children.Remove(this);
-            Parent = null;  
+            Parent = null;
 
             _whiteTexture?.Dispose();
         }
@@ -510,30 +437,16 @@ namespace Client.Main.Objects
             if (prev != null)
             {
                 prev.MatrixChanged -= OnParentMatrixChanged;
-                prev.Appear -= OnParentAppear;
-                prev.Dissapear -= OnParentDissapear;
                 prev.Children.Remove(this);
             }
             if (current != null)
             {
                 current.MatrixChanged += OnParentMatrixChanged;
-                current.Appear += OnParentAppear;
-                current.Dissapear += OnParentDissapear;
             }
             MarkTransformDirty();
             RecalculateWorldPosition();
-            CalculateOutOfView();
         }
 
-        private void OnParentDissapear(object sender, EventArgs e)
-        {
-            CalculateOutOfView();
-        }
-
-        private void OnParentAppear(object sender, EventArgs e)
-        {
-            CalculateOutOfView();
-        }
 
         protected virtual void OnBoundingBoxLocalChanged() => UpdateWorldBoundingBox();
 
@@ -541,7 +454,6 @@ namespace Client.Main.Objects
         {
             MarkTransformDirty();
             RecalculateWorldPosition();
-            CalculateOutOfView();
         }
 
         protected void MarkTransformDirty()
@@ -549,14 +461,6 @@ namespace Client.Main.Objects
             _isTransformDirty = true;
         }
 
-        /// <summary>
-        /// Forces the object to be treated as in-view for the next update cycle.
-        /// Useful for short-lived effects that shouldn't wait for culling checks.
-        /// </summary>
-        public void ForceInView()
-        {
-            OutOfView = false;
-        }
         protected virtual void RecalculateWorldPosition()
         {
             if (!_isTransformDirty)
@@ -586,7 +490,6 @@ namespace Client.Main.Objects
         private void OnWorldPositionChanged()
         {
             UpdateWorldBoundingBox();
-            CalculateOutOfView();
             MatrixChanged?.Invoke(this, EventArgs.Empty);
         }
 

@@ -180,8 +180,6 @@ namespace Client.Main.Objects.Effects
             if (Status != GameControlStatus.Ready)
                 return;
 
-            ForceInView();
-
             if (!_positionsReady)
             {
                 InitializePositions();

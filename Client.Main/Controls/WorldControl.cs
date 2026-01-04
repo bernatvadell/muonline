@@ -109,18 +109,19 @@ namespace Client.Main.Controls
         private readonly WorldObjectBatchOptimizedAsc _cmpBatchAsc = new();
         private static readonly DepthStencilState DepthStateDefault = DepthStencilState.Default;
         private static readonly DepthStencilState DepthStateDepthRead = DepthStencilState.DepthRead;
-       
 
-        private readonly List<WorldObject> _solidBehind = new();
-        private readonly List<WorldObject> _transparentObjects = new();
-        private readonly List<WorldObject> _solidInFront = new();
-        private readonly List<WalkerObject> _walkers = new();
-        private readonly List<PlayerObject> _players = new();
-        private readonly List<MonsterObject> _monsters = new();
-        private readonly List<DroppedItemObject> _droppedItems = new();
-        private readonly CategorizedChildren<WorldObject, CategoryChildrenObject> _categorizedChildren;
 
-        public Dictionary<ushort, WalkerObject> WalkerObjectsById { get; } = new();
+        private readonly List<WorldObject> _solidBehind = [];
+        private readonly List<WorldObject> _transparentObjects = [];
+        private readonly List<WorldObject> _solidInFront = [];
+        private readonly List<WalkerObject> _walkers = [];
+        private readonly List<PlayerObject> _players = [];
+        private readonly List<MonsterObject> _monsters = [];
+        private readonly List<DroppedItemObject> _droppedItems = [];
+        private readonly List<WorldObject> _visibleObjects = [];
+        private bool _dirtyVisibleObjects = true;
+
+        public Dictionary<ushort, WalkerObject> WalkerObjectsById { get; } = [];
 
         private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<WorldControl>();
 
@@ -172,27 +173,12 @@ namespace Client.Main.Controls
             Objects.ControlAdded += OnObjectAdded;
             Objects.ControlRemoved += OnObjectRemoved;
 
-            var rules = new Dictionary<CategoryChildrenObject, CategoryRule<WorldObject>>
-            {
-                [CategoryChildrenObject.ObjectsInView] = new()
-                {
-                    Predicate = o => !o.OutOfView,
-                    Watch = (o, invalidate) =>
-                    {
-                        void Handler(object? sender, EventArgs e) => invalidate();
+            Camera.Instance.CameraMoved += Camera_Moved;
+        }
 
-                        o.Appear += Handler;
-                        o.Dissapear += Handler;
-                        return new ActionDisposable(() =>
-                        {
-                            o.Appear -= Handler;
-                            o.Dissapear -= Handler;
-                        });
-                    }
-                }
-            };
-
-            _categorizedChildren = new CategorizedChildren<WorldObject, CategoryChildrenObject>(Objects, rules);
+        private void Camera_Moved(object sender, EventArgs e)
+        {
+            _dirtyVisibleObjects = true;
         }
 
         // --- Lifecycle Methods ---
@@ -257,9 +243,28 @@ namespace Client.Main.Controls
         public override void Update(GameTime time)
         {
             base.Update(time);
+
             if (Status != GameControlStatus.Ready) return;
 
-            var objects = _categorizedChildren.Get(CategoryChildrenObject.ObjectsInView);
+            if (_dirtyVisibleObjects)
+            {
+                _visibleObjects.Clear();
+
+                for (var i = 0; i < Objects.Count; i++)
+                {
+                    var obj = Objects[i];
+
+                    if (obj.Status != GameControlStatus.Ready || !obj.Visible)
+                        continue;
+
+                    if (Camera.Instance.Frustum.Intersects(obj.BoundingBoxWorld))
+                        _visibleObjects.Add(obj);
+                }
+
+                _dirtyVisibleObjects = false;
+            }
+
+            var objects = _visibleObjects;
             for (int i = 0; i < objects.Count; i++)
             {
                 var obj = objects[i];
@@ -508,7 +513,7 @@ namespace Client.Main.Controls
             _transparentObjects.Clear();
             _solidInFront.Clear();
 
-            var objects = _categorizedChildren.Get(CategoryChildrenObject.ObjectsInView);
+            var objects = _visibleObjects;
 
             for (var i = 0; i < objects.Count; i++)
             {

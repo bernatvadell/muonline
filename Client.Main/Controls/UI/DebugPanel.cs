@@ -17,7 +17,6 @@ namespace Client.Main.Controls.UI
         private LabelControl _tileFlagsLabel;
         private LabelControl _performanceMetricsLabel;
         private LabelControl _bmdMetricsLabel;    // New label for BMD buffer metrics
-        private LabelControl _poolingMetricsLabel; // NEW: Matrix pooling stats
         private LabelControl _batchSortingLabel;   // NEW: Batch sorting status
         private LabelControl _lightingStatusLabel; // NEW: Lighting mode status
         private double _updateTimer = 0;
@@ -49,7 +48,6 @@ namespace Client.Main.Controls.UI
             Controls.Add(_lightingStatusLabel = new LabelControl { Text = "Lighting: {0}", TextColor = Color.White, X = posX, Y = posY += labelHeight });
             Controls.Add(_performanceMetricsLabel = new LabelControl { Text = "Perf: {0}", TextColor = Color.OrangeRed, X = posX, Y = posY += labelHeight });
             Controls.Add(_bmdMetricsLabel = new LabelControl { Text = "BMD: {0}", TextColor = Color.LightSkyBlue, X = posX, Y = posY += labelHeight });
-            Controls.Add(_poolingMetricsLabel = new LabelControl { Text = "Pool: {0}", TextColor = Color.Cyan, X = posX, Y = posY += labelHeight });
             Controls.Add(_batchSortingLabel = new LabelControl { Text = "Batch: {0}", TextColor = Color.Magenta, X = posX, Y = posY += labelHeight });
         }
 
@@ -58,16 +56,6 @@ namespace Client.Main.Controls.UI
             base.Update(gameTime);
 
             if (!Visible) return;
-
-#if DEBUG
-            // Capture pooling stats once per frame (double-buffered to avoid race conditions)
-            int currentFrame = MuGame.FrameIndex;
-            if (currentFrame != _lastFrameIndex)
-            {
-                _lastFrameIndex = currentFrame;
-                Client.Main.Objects.ModelObject.CaptureFrameStats();
-            }
-#endif
 
             _updateTimer += gameTime.ElapsedGameTime.TotalMilliseconds;
 
@@ -134,18 +122,6 @@ namespace Client.Main.Controls.UI
                       .Append($"Cache:{bmd.LastFrameCacheHits}/{bmd.LastFrameCacheMisses}");
                     _bmdMetricsLabel.Text = _sb.ToString();
 
-#if DEBUG
-                    // Update Matrix pooling metrics (DEBUG only) - per frame stats
-                    var poolStats = Client.Main.Objects.ModelObject.GetPoolingStats();
-                    _sb.Clear()
-                      .Append($"Pool/Frame: Rent:{poolStats.Rents} Ret:{poolStats.Returns} ")
-                      .Append($"Leak:{poolStats.Rents - poolStats.Returns}");
-                    _poolingMetricsLabel.Text = _sb.ToString();
-                    _poolingMetricsLabel.Visible = true;
-#else
-                    _poolingMetricsLabel.Visible = false;
-#endif
-
                     // Update batch sorting status
                     _sb.Clear()
                       .Append($"Batch Sort: {(Constants.ENABLE_BATCH_OPTIMIZED_SORTING ? "ON" : "OFF")} ")
@@ -160,7 +136,6 @@ namespace Client.Main.Controls.UI
                     _tileFlagsLabel.Visible = false;
                     _performanceMetricsLabel.Visible = false;
                     _bmdMetricsLabel.Visible = false;
-                    _poolingMetricsLabel.Visible = false;
                     _batchSortingLabel.Visible = false;
                     _lightingStatusLabel.Visible = false;
                 }

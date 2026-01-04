@@ -8,11 +8,6 @@ namespace Client.Main.Objects
     {
         public float _visibleTime = 0f;
 
-        protected override void CalculateOutOfView()
-        {
-            OutOfView = false;
-        }
-
         public override async Task Load()
         {
             Scale = 0.7f;

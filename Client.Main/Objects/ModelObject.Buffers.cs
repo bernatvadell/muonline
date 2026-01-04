@@ -44,7 +44,7 @@ namespace Client.Main.Objects
                 if (meshCount == 0) return;
 
                 // Early exit if not visible - huge optimization
-                if (!Visible || OutOfView)
+                if (!Visible)
                 {
                     _invalidatedBufferFlags = 0;
                     return;

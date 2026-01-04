@@ -114,11 +114,6 @@ namespace Client.Main.Objects.Effects
             };
         }
 
-        protected override void CalculateOutOfView()
-        {
-            OutOfView = false;
-        }
-
         /// <summary>
         /// Gets the current world position of the owner/player.
         /// </summary>

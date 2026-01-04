@@ -71,11 +71,6 @@ namespace Client.Main.Objects.Effects
             Reset(text, targetId, color);
         }
 
-        protected override void CalculateOutOfView()
-        {
-            OutOfView = false;
-        }
-
         public static DamageTextObject Rent(string text, ushort targetId, Color color)
         {
             if (_pool.TryTake(out var obj))
@@ -215,7 +210,7 @@ namespace Client.Main.Objects.Effects
 
             // ------------------------------------------------ target + projection
             WalkerObject target = ResolveTarget();
-            if (target == null || target.Hidden || target.Status == GameControlStatus.Disposed || target.OutOfView)
+            if (target == null || target.Hidden || target.Status == GameControlStatus.Disposed)
             {
                 Hidden = true;
                 return;

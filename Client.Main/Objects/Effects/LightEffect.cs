@@ -19,10 +19,5 @@ namespace Client.Main.Objects.Effects
         {
             base.Update(gameTime);
         }
-
-        protected override void CalculateOutOfView()
-        {
-            OutOfView = false;
-        }
     }
 }

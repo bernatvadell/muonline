@@ -24,10 +24,5 @@ namespace Client.Main.Objects.Effects
         public override void Draw(GameTime gameTime)
         {
         }
-
-        protected override void CalculateOutOfView()
-        {
-            OutOfView = false;
-        }
     }
 }

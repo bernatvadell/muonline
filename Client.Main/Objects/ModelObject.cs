@@ -37,24 +37,6 @@ namespace Client.Main.Objects
         // Object pooling for Matrix arrays to reduce GC pressure
         // ArrayPool is thread-safe and extremely efficient for temporary arrays
         private static readonly ArrayPool<Matrix> _matrixArrayPool = ArrayPool<Matrix>.Shared;
-
-#if DEBUG
-        // Performance tracking for pooling (DEBUG only) - double buffered for accurate per-frame stats
-        private static long _poolRentCount = 0;
-        private static long _poolReturnCount = 0;
-        private static long _lastFrameRentCount = 0;
-        private static long _lastFrameReturnCount = 0;
-
-        public static (long Rents, long Returns) GetPoolingStats() => (_lastFrameRentCount, _lastFrameReturnCount);
-
-        public static void CaptureFrameStats()
-        {
-            // Capture current counts for display, then reset for next frame
-            _lastFrameRentCount = Interlocked.Exchange(ref _poolRentCount, 0);
-            _lastFrameReturnCount = Interlocked.Exchange(ref _poolReturnCount, 0);
-        }
-#endif
-
         private static readonly Dictionary<string, BlendState> _blendStateCache = new Dictionary<string, BlendState>();
 
         // Cached arrays for dynamic lighting to avoid allocations

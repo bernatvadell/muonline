@@ -18,9 +18,5 @@ namespace Client.Main.Objects.Effects
             LightEnabled = true;
             Light = new Vector3(1f, 0.2f, 0f);
         }
-        protected override void CalculateOutOfView()
-        {
-            OutOfView = false;
-        }
     }
 }
