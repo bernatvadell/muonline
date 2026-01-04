@@ -118,6 +118,7 @@ namespace Client.Main.Controls
         private readonly List<PlayerObject> _players = [];
         private readonly List<MonsterObject> _monsters = [];
         private readonly List<DroppedItemObject> _droppedItems = [];
+        private readonly Queue<WorldObject> _objectsToInitialize = [];
         private readonly List<WorldObject> _visibleObjects = [];
         private bool _dirtyVisibleObjects = true;
 
@@ -246,6 +247,16 @@ namespace Client.Main.Controls
 
             if (Status != GameControlStatus.Ready) return;
 
+            if (_objectsToInitialize.Count > 0)
+            {
+                int initCount = Math.Min(100, _objectsToInitialize.Count);
+                for (int i = 0; i < initCount; i++)
+                {
+                    var obj = _objectsToInitialize.Dequeue();
+                    obj.Load().ConfigureAwait(false);
+                }
+            }
+
             if (_dirtyVisibleObjects)
             {
                 _visibleObjects.Clear();
@@ -254,10 +265,10 @@ namespace Client.Main.Controls
                 {
                     var obj = Objects[i];
 
-                    if (obj.Status != GameControlStatus.Ready || !obj.Visible)
+                    if (!obj.Visible)
                         continue;
 
-                    if (Camera.Instance.Frustum.Intersects(obj.BoundingBoxWorld))
+                    if (obj is EffectObject || Camera.Instance.Frustum.Intersects(obj.BoundingBoxWorld))
                         _visibleObjects.Add(obj);
                 }
 
@@ -266,11 +277,7 @@ namespace Client.Main.Controls
 
             var objects = _visibleObjects;
             for (int i = 0; i < objects.Count; i++)
-            {
-                var obj = objects[i];
-                if (obj != null && obj.Status != GameControlStatus.Disposed)
-                    obj.Update(time);
-            }
+                objects[i].Update(time);
         }
 
         public override void Draw(GameTime time)
@@ -519,6 +526,9 @@ namespace Client.Main.Controls
             {
                 var obj = objects[i];
 
+                if (!obj.Visible)
+                    continue;
+
                 if (obj is WalkerObject)
                 {
                     _solidInFront.Add(obj);
@@ -537,26 +547,20 @@ namespace Client.Main.Controls
                 }
             }
 
-            // Draw solid behind objects
+            // Sort lists
             if (_solidBehind.Count > 1)
-            {
                 _solidBehind.Sort(Constants.ENABLE_BATCH_OPTIMIZED_SORTING ? _cmpBatchAsc : _cmpAsc);
-            }
-            DrawListWithSpriteBatchGrouping(_solidBehind, DepthStateDefault, time);
 
-            // Draw transparent objects
             if (_transparentObjects.Count > 1)
-            {
-                // Transparent rendering requires strict back-to-front ordering, so never batch-optimize.
                 _transparentObjects.Sort(_cmpDesc);
-            }
-            DrawListWithSpriteBatchGrouping(_transparentObjects, DepthStateDepthRead, time);
 
-            // Draw solid in front objects
             if (_solidInFront.Count > 1)
-            {
                 _solidInFront.Sort(Constants.ENABLE_BATCH_OPTIMIZED_SORTING ? _cmpBatchAsc : _cmpAsc);
-            }
+
+
+            // Draws
+            DrawListWithSpriteBatchGrouping(_solidBehind, DepthStateDefault, time);
+            DrawListWithSpriteBatchGrouping(_transparentObjects, DepthStateDepthRead, time);
             DrawListWithSpriteBatchGrouping(_solidInFront, DepthStateDefault, time);
 
             // Draw post-pass (DrawAfter)
@@ -729,6 +733,14 @@ namespace Client.Main.Controls
             sw.Stop();
             var elapsedBase = sw.ElapsedMilliseconds;
             _logger?.LogDebug($"Dispose WorldControl {WorldIndex} - Objects: {elapsedObjects}ms, Base: {elapsedBase}ms");
+        }
+
+        public void OnWorldObjectStatusChanged(WorldObject worldObject)
+        {
+            if (worldObject.Status == GameControlStatus.NonInitialized)
+            {
+                _objectsToInitialize.Enqueue(worldObject);
+            }
         }
     }
 }

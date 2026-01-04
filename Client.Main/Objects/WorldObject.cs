@@ -30,6 +30,7 @@ namespace Client.Main.Objects
         private bool _interactive;
         private bool _isTransformDirty = true;
         private bool _hidden = false;
+        private GameControlStatus _status = GameControlStatus.NonInitialized;
 
         private ILogger _logger = ModelObject.AppLoggerFactory?.CreateLogger<WorldObject>();
 
@@ -89,7 +90,7 @@ namespace Client.Main.Objects
         public BoundingBox BoundingBoxLocal { get => _boundingBoxLocal; set { if (_boundingBoxLocal != value) { _boundingBoxLocal = value; OnBoundingBoxLocalChanged(); } } }
         public BoundingBox BoundingBoxWorld { get; protected set; }
 
-        public GameControlStatus Status { get; protected set; } = GameControlStatus.NonInitialized;
+        public GameControlStatus Status { get => _status; protected set { if (_status != value) { _status = value; OnStatusChange(); } } }
         public bool Hidden { get => _hidden; set { if (_hidden != value) { _hidden = value; } } }
         public string ObjectName => GetType().Name;
         public virtual string DisplayName => ObjectName;
@@ -133,6 +134,11 @@ namespace Client.Main.Objects
             _updateOffset = GetHashCode() % 60; // Spread across ~1 second at 60fps
         }
 
+        public virtual void OnStatusChange()
+        {
+            World?.OnWorldObjectStatusChanged(this);
+        }
+
         public virtual void OnClick()
         {
             Click?.Invoke(this, EventArgs.Empty);
@@ -153,6 +159,7 @@ namespace Client.Main.Objects
                 walker.OnDirectionChanged();
 
             OnPositionChanged();
+            OnStatusChange();
         }
 
         public virtual async Task Load()
