@@ -1465,15 +1465,15 @@ namespace Client.Main.Objects.Player
             bool isFlyingAction = CurrentAction == PlayerAction.PlayerFly ||
                                   CurrentAction == PlayerAction.PlayerFlyCrossbow;
 
-            float desiredSpeed = 0.25f;
+            float desiredSpeed = 7f;
 
             if (wingIndex == WingOfRuinIndex)
             {
-                desiredSpeed = 0.15f;
+                desiredSpeed *= 1.15f;
             }
             else if (isFlyingAction)
             {
-                desiredSpeed = wingIndex == WingOfStormIndex ? 0.5f : 1f;
+                desiredSpeed *= wingIndex == WingOfStormIndex ? 1.5f : 2.5f;
             }
 
             if (Math.Abs(desiredSpeed - _lastWingAnimationSpeed) > 0.0001f)

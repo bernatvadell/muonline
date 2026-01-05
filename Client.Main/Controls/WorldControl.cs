@@ -238,7 +238,6 @@ namespace Client.Main.Controls
         public override void AfterLoad()
         {
             base.AfterLoad();
-            SendToBack();
         }
 
         public override void Update(GameTime time)

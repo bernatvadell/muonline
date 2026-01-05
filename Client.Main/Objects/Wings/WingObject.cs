@@ -451,19 +451,6 @@ namespace Client.Main.Objects.Wings
         public override void Draw(GameTime gameTime)
         {
             base.Draw(gameTime);
-            foreach (var child in Children)
-            {
-                child.Draw(gameTime);
-            }
-        }
-
-        public override void DrawAfter(GameTime gameTime)
-        {
-            base.DrawAfter(gameTime);
-            foreach (var child in Children)
-            {
-                child.DrawAfter(gameTime);
-            }
         }
     }
 }

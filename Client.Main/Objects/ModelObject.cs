@@ -456,20 +456,21 @@ namespace Client.Main.Objects
                     var childModel = _cachedModelChildren[i];
                     // if (!childModel.Visible) continue;
 
-                    if (childModel.ParentBoneLink >= 0 || childModel.LinkParentAnimation)
+                    if (childModel.LinkParentAnimation)
                     {
                         childModel.CurrentAction = this.CurrentAction;
                         childModel._animTime = this._animTime;
                         childModel._isBlending = this._isBlending;
                         childModel._blendElapsed = this._blendElapsed;
 
-                        childModel.RecalculateWorldPosition();
-
                         if (this._isBlending || this.BoneTransform != null)
                         {
                             childModel.InvalidateBuffers(BUFFER_FLAG_ANIMATION);
                         }
                     }
+
+                    if (childModel.ParentBoneLink >= 0 || childModel.LinkParentAnimation)
+                        childModel.RecalculateWorldPosition();
                 }
             }
 

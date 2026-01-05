@@ -120,9 +120,9 @@ namespace Client.Main.Objects
             float t = (float)(framePos - f0);
             CurrentFrame = f0;
 
-            var forceRestartSmoothly = f0 == totalFrames - 1 && action.LockPositions && action.Positions[f0] == Vector3.Zero;
+            var forceRestartSmoothly = f0 == totalFrames - 1 && action.Positions.Length > f0 && action.Positions[f0] == Vector3.Zero;
 
-            if (forceRestartSmoothly && this is not WingObject)
+            if (forceRestartSmoothly)
             {
                 f0 = 0;
                 f1 = 1;
