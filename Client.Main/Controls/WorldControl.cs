@@ -322,6 +322,7 @@ namespace Client.Main.Controls
         private void OnObjectAdded(object sender, ChildrenEventArgs<WorldObject> e)
         {
             e.Control.World = this;
+            e.Control.HiddenChanged += Object_HiddenChanged;
 
             TrackObjectType(e.Control);
             if (e.Control is WalkerObject walker &&
@@ -341,6 +342,13 @@ namespace Client.Main.Controls
             }
 
             _visibleObjects.Add(e.Control);
+        }
+
+        private void Object_HiddenChanged(object sender, EventArgs e)
+        {
+            var obj = sender as WorldObject;
+            if (obj.Hidden) _visibleObjects.Remove(obj);
+            else _visibleObjects.Add(obj);
         }
 
         private void OnObjectRemoved(object sender, ChildrenEventArgs<WorldObject> e)
@@ -364,6 +372,8 @@ namespace Client.Main.Controls
                     }
                 }
             }
+
+            e.Control.HiddenChanged -= Object_HiddenChanged;
 
             _visibleObjects.Remove(e.Control);
         }

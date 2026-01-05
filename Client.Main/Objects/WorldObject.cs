@@ -90,8 +90,10 @@ namespace Client.Main.Objects
         public BoundingBox BoundingBoxLocal { get => _boundingBoxLocal; set { if (_boundingBoxLocal != value) { _boundingBoxLocal = value; OnBoundingBoxLocalChanged(); } } }
         public BoundingBox BoundingBoxWorld { get; protected set; }
 
-        public GameControlStatus Status { get => _status; protected set { if (_status != value) { _status = value; OnStatusChange(); } } }
-        public bool Hidden { get => _hidden; set { if (_hidden != value) { _hidden = value; } } }
+        public event EventHandler StatusChanged;
+        public GameControlStatus Status { get => _status; protected set { if (_status != value) { _status = value; OnStatusChanged(); } } }
+        public event EventHandler HiddenChanged;
+        public bool Hidden { get => _hidden; set { if (_hidden != value) { _hidden = value; OnHiddenChanged(); } } }
         public string ObjectName => GetType().Name;
         public virtual string DisplayName => ObjectName;
         public BlendState BlendState { get; set; } = BlendState.Opaque;
@@ -134,9 +136,15 @@ namespace Client.Main.Objects
             _updateOffset = GetHashCode() % 60; // Spread across ~1 second at 60fps
         }
 
-        public virtual void OnStatusChange()
+        private void OnStatusChanged()
         {
+            StatusChanged?.Invoke(this, EventArgs.Empty);
             World?.OnWorldObjectStatusChanged(this);
+        }
+
+        private void OnHiddenChanged()
+        {
+           HiddenChanged?.Invoke(this, EventArgs.Empty);
         }
 
         public virtual void OnClick()
@@ -159,7 +167,7 @@ namespace Client.Main.Objects
                 walker.OnDirectionChanged();
 
             OnPositionChanged();
-            OnStatusChange();
+            OnStatusChanged();
         }
 
         public virtual async Task Load()
