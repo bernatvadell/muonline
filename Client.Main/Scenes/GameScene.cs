@@ -60,7 +60,7 @@ namespace Client.Main.Scenes
         private GameSceneSkillController _skillController;
         private GameSceneNotificationController _notificationController;
         private GameScenePlayerMenuController _playerMenuController;
-        private GameSceneInputController _inputController;
+        private GameSceneHotkeys _hotkeys;
         private GameSceneScopeImportController _scopeImportController;
         private GameSceneObjectEditorController _objectEditorController;
         private GameSceneDuelController _duelController;
@@ -209,7 +209,9 @@ namespace Client.Main.Scenes
             DevilSquareCountdownControl.Instance.BringToFront();
             _playerMenuController = new GameScenePlayerMenuController(this, StartWhisperToPlayer, _duelController.OnDuelRequestedFromContextMenu);
             _playerMenuController.Initialize();
-            _inputController = new GameSceneInputController(
+            _objectEditorController = new GameSceneObjectEditorController(this, _logger);
+            _objectEditorController.Initialize();
+            _hotkeys = new GameSceneHotkeys(
                 this,
                 _pauseMenu,
                 _playerMenuController,
@@ -217,9 +219,9 @@ namespace Client.Main.Scenes
                 _inventoryControl,
                 _characterInfoWindow,
                 _chatInput,
-                _chatLog);
-            _objectEditorController = new GameSceneObjectEditorController(this, _logger);
-            _objectEditorController.Initialize();
+                _chatLog,
+                _objectEditorController,
+                _logger);
 
             try
             {
@@ -510,9 +512,10 @@ namespace Client.Main.Scenes
             }
 
             var currentKeyboardState = MuGame.Instance.Keyboard;
+            var previousKeyboardState = MuGame.Instance.PrevKeyboard;
 
             base.Update(gameTime);
-            _inputController?.HandleGlobalInput(currentKeyboardState);
+            _hotkeys?.HandleGlobal(currentKeyboardState, previousKeyboardState);
 
             _notificationManager?.Update(gameTime);
             _notificationController?.ProcessPending();
@@ -526,7 +529,6 @@ namespace Client.Main.Scenes
             {
                 _playerMenuController?.ResetOnWorldUnavailable();
                 _skillController?.ClearPending();
-                _inputController?.UpdatePreviousKeyboardState(currentKeyboardState);
                 return;
             }
 
@@ -572,28 +574,7 @@ namespace Client.Main.Scenes
 
             // Handle skill usage with right-click
             _skillController?.HandleRightClickSkillUsage();
-
-            // Handle blending editor activation with left mouse click + "/" key
-            if (!IsMouseInputConsumedThisFrame &&
-                currentKeyboardState.IsKeyDown(Keys.OemQuestion) && // "/" key
-                MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
-                MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released)
-            {
-                _objectEditorController?.HandleBlendingEditorActivation();
-                SetMouseInputConsumed();
-            }
-
-            // Handle object deletion with left mouse click + DEL key
-            if (!IsMouseInputConsumedThisFrame &&
-                currentKeyboardState.IsKeyDown(Keys.Delete) && // DEL key
-                MuGame.Instance.Mouse.LeftButton == ButtonState.Pressed &&
-                MuGame.Instance.PrevMouseState.LeftButton == ButtonState.Released)
-            {
-                _objectEditorController?.HandleObjectDeletion();
-                SetMouseInputConsumed();
-            }
-
-            _inputController?.HandleChatLogInput(currentKeyboardState);
+            _hotkeys?.HandleInWorld(currentKeyboardState, previousKeyboardState);
 
             // Update ping every 5 seconds to reduce network overhead
             _pingTimer += gameTime.ElapsedGameTime.TotalSeconds;
