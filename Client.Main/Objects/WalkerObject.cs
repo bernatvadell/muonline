@@ -54,8 +54,7 @@ namespace Client.Main.Objects
         private static readonly float _maxPitch = Constants.MAX_PITCH;
         private static readonly float _minPitch = Constants.MIN_PITCH;
 
-        // private CancellationTokenSource _autoIdleCts; // Now managed by AnimationController
-        private const float RotationSpeed = 8f;
+        private const float RotationSpeed = 10f;
         private int _previousActionForSound = -1;
         private bool _serverControlledAnimation = false;
 
