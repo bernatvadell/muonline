@@ -125,6 +125,7 @@ namespace Client.Main.Objects
             _animationController = new AnimationController(this);
             UseSunLight = false; // Characters (players/NPCs/monsters) rely on dynamic lights only, no sun-tint
             RenderShadow = true; // All walkers (players, NPCs, monsters) should cast shadows
+            BoundingBoxLocal = new BoundingBox(new Vector3(-40, -40, 0), new Vector3(40, 40, 180));
         }
 
         public new virtual async Task Load()

@@ -171,35 +171,10 @@ namespace Client.Main.Objects
             }
         }
 
-        protected override void UpdateWorldBoundingBox()
-        {
-            base.UpdateWorldBoundingBox();
-
-            var allCorners = new List<Vector3>(BoundingBoxWorld.GetCorners());
-
-            foreach (var child in Children)
-            {
-                if (child is ModelObject modelChild && modelChild.Visible && modelChild.Model != null)
-                {
-                    allCorners.AddRange(modelChild.BoundingBoxWorld.GetCorners());
-                }
-            }
-
-            if (allCorners.Count > 0)
-            {
-                BoundingBoxWorld = BoundingBox.CreateFromPoints(allCorners);
-            }
-        }
-
         public override void Update(GameTime gameTime)
         {
             bool wasMoving = IsMoving;
             base.Update(gameTime);
-
-            if (Status == GameControlStatus.Ready)
-            {
-                UpdateWorldBoundingBox();
-            }
 
             if (wasMoving && !IsMoving && !IsOneShotPlaying)
             {

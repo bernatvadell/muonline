@@ -106,7 +106,7 @@ namespace Client.Main.Objects
         public float Scale { get => _scale; set { if (_scale != value) { if (_scale != value) { _scale = value; OnScaleChanged(); } } } }
         public float TotalScale { get => (Parent?.Scale ?? 1f) * Scale; }
         public Matrix WorldPosition { get => _worldPosition; set { if (_worldPosition != value) { _worldPosition = value; OnWorldPositionChanged(); } } }
-        public bool Interactive { get => _interactive || (Parent?.Interactive ?? false); set { _interactive = value; } }
+        public bool Interactive { get => _interactive; set { _interactive = value; } }
         public Vector3 Light { get; set; } = new Vector3(0f, 0f, 0f);
         public bool LightEnabled { get; set; } = true;
         /// <summary>

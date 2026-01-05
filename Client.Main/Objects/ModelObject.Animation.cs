@@ -356,7 +356,6 @@ namespace Client.Main.Objects
                             _lastAnimationUpdateTime = _lastFrameTimeMs;
                         }
                     }
-                    UpdateBoundings();
                 }
 
                 // Always update cache for objects that should use it

@@ -129,7 +129,6 @@ namespace Client.Main.Worlds
                     World = this,
                     CurrentAction = PlayerAction.PlayerStopMale,
                     Hidden = true,
-                    BoundingBoxLocal = new BoundingBox(new Vector3(-40, -40, 0), new Vector3(40, 40, 180))
                 };
 
                 player.Click += PlayerObject_Click;
@@ -211,8 +210,6 @@ namespace Client.Main.Worlds
                     CurrentAction = PlayerAction.PlayerStopMale,
                     Hidden = true
                 };
-
-                player.BoundingBoxLocal = new BoundingBox(new Vector3(-40, -40, 0), new Vector3(40, 40, 180));
 
                 player.Click += PlayerObject_Click;
 
