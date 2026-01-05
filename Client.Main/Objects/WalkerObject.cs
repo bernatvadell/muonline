@@ -261,6 +261,9 @@ namespace Client.Main.Objects
         {
             if (World == null) return;
 
+            if (targetLocation == Location)
+                return;
+
             // Don't allow movement if player is dead
             if (!this.IsAlive()) return;
 
