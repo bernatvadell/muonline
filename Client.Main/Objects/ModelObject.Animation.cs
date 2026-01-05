@@ -4,6 +4,7 @@ using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Models;
 using Client.Main.Objects.Player;
 using Client.Main.Objects.Wings;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using System;
 using System.Buffers;
@@ -120,14 +121,25 @@ namespace Client.Main.Objects
             float t = (float)(framePos - f0);
             CurrentFrame = f0;
 
-            var forceRestartSmoothly = f0 == totalFrames - 1 && action.Positions.Length > f0 && action.Positions[f0] == Vector3.Zero;
-
-            if (forceRestartSmoothly)
+            // Diagnostic: detect loop interpolation opportunity (last->first)
+            if (f1 == 0 && t > 0.0001f)
             {
+                _logger?.LogDebug("[AnimLoopDiag] {Type} Action={Action} totalFrames={Total} f0={F0} f1={F1} t={T:F4} animTime={AnimTime:F4} PreventLast={PreventLast}",
+                    GetType().Name, currentActionIndex, totalFrames, f0, f1, t, _animTime, PreventLastFrameInterpolation);
+            }
+
+            // Only apply smooth restart if explicitly requested (avoid auto heuristic)
+            if (PreventLastFrameInterpolation && totalFrames > 1 && f0 == totalFrames - 1)
+            {
+                // Instead of interpolating lastFrame->firstFrame, restart smoothly
+                // This eliminates the visual "jump" that causes animation stuttering
                 f0 = 0;
                 f1 = 1;
                 t = 0.0f;
-                _animTime = _animTime - (totalFrames - 1);
+                _animTime = _animTime - (totalFrames - 1); // Adjust time to maintain continuity
+
+                _logger?.LogDebug("[AnimLoopDiag] {Type} PreventedLastFrameInterp Action={Action} totalFrames={Total} new_f0={F0} new_f1={F1} t={T:F4} animTime={AnimTime:F4}",
+                    GetType().Name, currentActionIndex, totalFrames, f0, f1, t, _animTime);
             }
 
             GenerateBoneMatrix(currentActionIndex, f0, f1, t);
@@ -216,6 +228,8 @@ namespace Client.Main.Objects
                     BoneTransform != null && BoneTransform.Length == bones.Length)
                 {
                     // Animation state hasn't changed - no need to recalculate
+                    _logger?.LogDebug("[AnimCache] {Type} Action={Action} Frame0={Frame0} Frame1={Frame1} t={T:F4} - Skipping recompute",
+                        GetType().Name, actionIdx, frame0, frame1, t);
                     return;
                 }
             }
