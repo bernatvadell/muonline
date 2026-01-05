@@ -176,10 +176,6 @@ namespace Client.Main.Objects
 
         #region Instance Fields - Cached State
 
-        // Cached ModelObject children to avoid per-frame type checks and allocations
-        private ModelObject[] _cachedModelChildren = Array.Empty<ModelObject>();
-        private int _cachedChildrenCount = -1;
-
         private double _lastAnimationUpdateTime = 0;
         private double _lastFrameTimeMs = 0; // To track timing in methods without GameTime
         private double _lastStrideAnimationBufferUpdateTimeMs = double.NegativeInfinity;
@@ -432,78 +428,43 @@ namespace Client.Main.Objects
 
         public override void Update(GameTime gameTime)
         {
-            if (World == null || !_contentLoaded) return;
+            if (World == null || !_contentLoaded || !Visible) return;
 
-            bool isVisible = Visible;
-
-            // Process animation for the parent first. This ensures its BoneTransform is up-to-date.
-            // Centralized animation (includes cross-action blending). LinkParentAnimation skips.
-            if (isVisible && !LinkParentAnimation)
+            if (!LinkParentAnimation)
             {
                 Animation(gameTime);
             }
 
+            if (LinkParentAnimation && Parent is ModelObject parent)
+            {
+                CurrentAction = parent.CurrentAction;
+                _animTime = parent._animTime;
+                _isBlending = parent._isBlending;
+                _blendElapsed = parent._blendElapsed;
+
+                if (parent._isBlending || parent.BoneTransform != null)
+                    InvalidateBuffers(BUFFER_FLAG_ANIMATION);
+            }
+
+            if (ParentBoneLink >= 0 || LinkParentAnimation)
+            {
+                RecalculateWorldPosition();
+
+                if (Parent is WalkerObject walker)
+                {
+                    int desiredStride = 1;
+                    if (!walker.IsMainWalker)
+                    {
+                        // Keep nearby animations smooth; only throttle when low-quality is active.
+                        desiredStride = walker.IsOneShotPlaying ? 1 : (LowQuality ? 4 : 1);
+                    }
+
+                    if (AnimationUpdateStride != desiredStride)
+                        SetAnimationUpdateStride(desiredStride);
+                }
+            }
+
             base.Update(gameTime);
-
-            if (isVisible)
-            {
-                // Update cached children if collection changed
-                EnsureModelChildrenCache();
-
-                // Use cached array to avoid per-frame type checks
-                for (int i = 0; i < _cachedModelChildren.Length; i++)
-                {
-                    var childModel = _cachedModelChildren[i];
-                    // if (!childModel.Visible) continue;
-
-                    if (childModel.LinkParentAnimation)
-                    {
-                        childModel.CurrentAction = this.CurrentAction;
-                        childModel._animTime = this._animTime;
-                        childModel._isBlending = this._isBlending;
-                        childModel._blendElapsed = this._blendElapsed;
-
-                        if (this._isBlending || this.BoneTransform != null)
-                        {
-                            childModel.InvalidateBuffers(BUFFER_FLAG_ANIMATION);
-                        }
-                    }
-
-                    if (childModel.ParentBoneLink >= 0 || childModel.LinkParentAnimation)
-                        childModel.RecalculateWorldPosition();
-                }
-            }
-
-            // Throttle CPU skinning / buffer rebuild frequency for distant walkers (monsters/NPC/remote players).
-            // This affects SetDynamicBuffers() later in this Update call via AnimationUpdateStride.
-            if (this is WalkerObject walker)
-            {
-                int desiredStride = 1;
-                if (!walker.IsMainWalker)
-                {
-                    // Keep nearby animations smooth; only throttle when low-quality is active.
-                    desiredStride = walker.IsOneShotPlaying ? 1 : (LowQuality ? 4 : 1);
-                }
-
-                if (AnimationUpdateStride != desiredStride)
-                    SetAnimationUpdateStride(desiredStride);
-
-                // Apply the same stride to linked child models (equipment/attachments) to avoid rebuilding all parts every frame.
-                if (isVisible && _cachedModelChildren.Length > 0)
-                {
-                    for (int i = 0; i < _cachedModelChildren.Length; i++)
-                    {
-                        var child = _cachedModelChildren[i];
-                        if (child.ParentBoneLink < 0 && !child.LinkParentAnimation)
-                            continue;
-
-                        if (child.AnimationUpdateStride != desiredStride)
-                            child.SetAnimationUpdateStride(desiredStride);
-                    }
-                }
-            }
-
-            if (!isVisible) return;
 
             // Like old code: Check if lighting has changed significantly (for static objects)
             bool hasDynamicLightingShader = Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
@@ -634,35 +595,6 @@ namespace Client.Main.Objects
                 _cachedTime = currentTick * 0.001f;
             }
             return _cachedTime;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void EnsureModelChildrenCache()
-        {
-            // Check if children collection changed by comparing count
-            int currentCount = Children.Count;
-            if (_cachedChildrenCount == currentCount && _cachedModelChildren.Length > 0)
-                return;
-
-            // Rebuild cache - filter to ModelObject children only
-            int modelObjectCount = 0;
-            for (int i = 0; i < currentCount; i++)
-            {
-                if (Children[i] is ModelObject)
-                    modelObjectCount++;
-            }
-
-            if (_cachedModelChildren.Length != modelObjectCount)
-                _cachedModelChildren = new ModelObject[modelObjectCount];
-
-            int index = 0;
-            for (int i = 0; i < currentCount; i++)
-            {
-                if (Children[i] is ModelObject modelChild)
-                    _cachedModelChildren[index++] = modelChild;
-            }
-
-            _cachedChildrenCount = currentCount;
         }
 
         public void SetAnimationUpdateStride(int stride)
