@@ -1,57 +1,38 @@
-﻿using Client.Main.Controllers;
 using Client.Main.Controls;
-using Client.Main.Controls.UI; // Added for LabelControl
+using Client.Main.Controls.UI;
+using Client.Main.Controllers;
 using Client.Main.Graphics;
-using Client.Main.Models; // Added for LabelControl
-using Client.Main.Objects;
-using Client.Main.Objects.Player;
+using Client.Main.Models;
 using Client.Main.Objects.Worlds.SelectWrold;
-using Client.Main.Scenes;
+using Client.Main.Scenes.SelectCharacter;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Input;
-using MUnique.OpenMU.Network.Packets;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework.Graphics;
-using Client.Main.Core.Utilities;
+using Microsoft.Xna.Framework.Input;
 
 namespace Client.Main.Worlds
 {
-
     public class SelectWorld : WorldControl
     {
-        private readonly List<PlayerObject> _characterObjects = new();
-        private readonly List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)> _characterInfos = new();
-        private readonly Dictionary<PlayerObject, LabelControl> _characterLabels = new();
         private readonly Vector3 _characterDisplayPosition = new(14000, 12295, 250);
         private readonly Vector3 _characterDisplayAngle = new(0, 0, MathHelper.ToRadians(90));
         private ILogger<SelectWorld> _logger;
-        private int _currentCharacterIndex = -1;
+        private CharacterSelectionController _controller;
 
-        // Random animation system for character selection
-        private readonly Random _animationRandom = new Random();
-        
-        // Double-click detection
-        private DateTime _lastClickTime = DateTime.MinValue;
-        private string _lastClickedCharacter = null;
-        private const double DoubleClickThresholdMs = 500;
-        
-        // Callback for character selection events
-        public event EventHandler<string> CharacterClicked;
+        public Vector3 CharacterDisplayPosition => _characterDisplayPosition;
+        public Vector3 CharacterDisplayAngle => _characterDisplayAngle;
 
         public SelectWorld() : base(worldIndex: 94)
         {
             EnableShadows = false;
-            _logger = MuGame.AppLoggerFactory?.CreateLogger<SelectWorld>() ?? throw new InvalidOperationException("LoggerFactory not initialized in MuGame");
+            _logger = MuGame.AppLoggerFactory?.CreateLogger<SelectWorld>() ?? throw new System.InvalidOperationException("LoggerFactory not initialized in MuGame");
             Camera.Instance.ViewFar = 5500f;
         }
 
-        public int CharacterCount => _characterObjects.Count;
-
-        public int CurrentCharacterIndex => _currentCharacterIndex;
+        public void SetController(CharacterSelectionController controller)
+        {
+            _controller = controller;
+        }
 
         protected override void CreateMapTileObjects()
         {
@@ -81,315 +62,8 @@ namespace Client.Main.Worlds
             Terrain.DistortionAmplitude = 0.2f;
             Terrain.DistortionFrequency = 1.0f;
 
-            // TODO: Camera position check
             Camera.Instance.Target = new Vector3(14229.295898f, 12340.358398f, 380);
             Camera.Instance.FOV = 29 * Constants.FOV_SCALE;
-        }
-
-        public async Task CreateCharacterObjects(List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)> characters)
-        {
-            _logger.LogInformation("Creating {Count} character objects...", characters.Count);
-
-            foreach (var old in _characterObjects)
-            {
-                old.Click -= PlayerObject_Click;
-                Objects.Remove(old);
-                old.Dispose();
-            }
-            _characterObjects.Clear();
-
-            foreach (var lbl in _characterLabels.Values)
-            {
-                Scene?.Controls.Remove(lbl);
-                lbl.Dispose();
-            }
-            _characterLabels.Clear();
-
-            _characterInfos.Clear();
-            _characterInfos.AddRange(characters);
-            _currentCharacterIndex = -1;
-
-            if (characters.Count == 0)
-            {
-                _logger.LogInformation("No characters provided for selection.");
-                return;
-            }
-
-            var loading = new List<Task>(characters.Count);
-
-            foreach (var (name, cls, lvl, appearanceBytes) in characters)
-            {
-                var player = new PlayerObject(new AppearanceData(appearanceBytes))
-                {
-                    Name = name,
-                    CharacterClass = cls,
-                    Position = _characterDisplayPosition,
-                    Angle = _characterDisplayAngle,
-                    Interactive = false,
-                    World = this,
-                    CurrentAction = PlayerAction.PlayerStopMale,
-                    Hidden = true,
-                };
-
-                player.Click += PlayerObject_Click;
-
-                _characterObjects.Add(player);
-                Objects.Add(player);
-                loading.Add(player.Load());
-
-                var label = new LabelControl
-                {
-                    Text = $"Lv.{lvl}  {name}",
-                    FontSize = 14,
-                    TextColor = Color.White,
-                    HasShadow = true,
-                    ShadowColor = Color.Black * 0.8f,
-                    ShadowOffset = new Vector2(1, 1),
-                    UseManualPosition = true,
-                    Visible = false
-                };
-
-                _characterLabels.Add(player, label);
-                Scene?.Controls.Add(label);
-                label.BringToFront();
-            }
-
-            await Task.WhenAll(loading);
-
-            Scene?.Cursor?.BringToFront();
-            Scene?.Controls.OfType<LabelControl>()
-                   .FirstOrDefault(l => l.Text.StartsWith("Select"))?
-                   .BringToFront();
-
-            _logger.LogInformation("Finished creating and loading character objects and labels.");
-
-            SetActiveCharacter(0);
-        }
-        public async Task CreateCharacterObjects(List<(string Name, PlayerClass Class, ushort Level, AppearanceConfig Appearance)> characters)
-        {
-            _logger.LogInformation("Creating {Count} character objects...", characters.Count);
-
-            foreach (var old in _characterObjects)
-            {
-                old.Click -= PlayerObject_Click;
-                Objects.Remove(old);
-                old.Dispose();
-            }
-            _characterObjects.Clear();
-
-            foreach (var lbl in _characterLabels.Values)
-            {
-                Scene?.Controls.Remove(lbl);
-                lbl.Dispose();
-            }
-            _characterLabels.Clear();
-
-            _characterInfos.Clear();
-
-            var _characters = characters.Select<(string Name, PlayerClass Class, ushort Level, AppearanceConfig Appearance), (string Name, CharacterClassNumber Class, ushort Level, byte[])>(p => (p.Name, (CharacterClassNumber)p.Class, p.Level, []));
-            _characterInfos.AddRange(_characters);
-            _currentCharacterIndex = -1;
-
-            if (characters.Count == 0)
-            {
-                _logger.LogInformation("No characters provided for selection.");
-                return;
-            }
-
-
-            foreach (var (name, cls, lvl, appearanceBytes) in characters)
-            {
-                var player = new PlayerObject(new AppearanceData())
-                {
-                    Name = name,
-                    CharacterClass = CharacterClassNumber.DarkWizard,
-                    Position = _characterDisplayPosition,
-                    Angle = _characterDisplayAngle,
-                    Interactive = false,
-                    World = this,
-                    CurrentAction = PlayerAction.PlayerStopMale,
-                    Hidden = true
-                };
-
-                player.Click += PlayerObject_Click;
-
-                _characterObjects.Add(player);
-                Objects.Add(player);
-                await player.Load(appearanceBytes.PlayerClass);
-                await player.UpdateEquipmentAppearanceFromConfig(appearanceBytes);
-
-                var label = new LabelControl
-                {
-                    Text = $"Lv.{lvl}  {name}",
-                    FontSize = 14,
-                    TextColor = Color.White,
-                    HasShadow = true,
-                    ShadowColor = Color.Black * 0.8f,
-                    ShadowOffset = new Vector2(1, 1),
-                    UseManualPosition = true,
-                    Visible = false
-                };
-
-                _characterLabels.Add(player, label);
-                Scene?.Controls.Add(label);
-                label.BringToFront();
-            }
-
-            Scene?.Cursor?.BringToFront();
-            Scene?.Controls.OfType<LabelControl>()
-                   .FirstOrDefault(l => l.Text.StartsWith("Select"))?
-                   .BringToFront();
-
-            _logger.LogInformation("Finished creating and loading character objects and labels.");
-
-            SetActiveCharacter(0);
-        }
-
-        // *** ADD GETTER FOR LABELS (used by Scene) ***
-        public Dictionary<PlayerObject, LabelControl> GetCharacterLabels() => _characterLabels;
-
-        public void SetActiveCharacter(int index)
-        {
-            if (_characterObjects.Count == 0)
-            {
-                _currentCharacterIndex = -1;
-                return;
-            }
-
-            if (index < 0 || index >= _characterObjects.Count)
-            {
-                _logger.LogWarning("Attempted to activate character at invalid index {Index}", index);
-                return;
-            }
-
-            if (_currentCharacterIndex == index)
-            {
-                return;
-            }
-
-            for (int i = 0; i < _characterObjects.Count; i++)
-            {
-                var player = _characterObjects[i];
-                bool isActive = i == index;
-
-                player.Hidden = !isActive;
-                player.Interactive = isActive;
-
-                if (isActive)
-                {
-                    if (player.Position != _characterDisplayPosition)
-                        player.Position = _characterDisplayPosition;
-                    if (player.Angle != _characterDisplayAngle)
-                        player.Angle = _characterDisplayAngle;
-                }
-
-                if (_characterLabels.TryGetValue(player, out var label))
-                {
-                    label.Visible = isActive;
-                }
-            }
-
-            _currentCharacterIndex = index;
-
-            // Play a random emote animation when character is selected
-            var activePlayer = _characterObjects[index];
-            if (activePlayer != null && !activePlayer.Hidden)
-            {
-                PlayRandomEmoteForActiveCharacter();
-            }
-        }
-
-        private void PlayRandomEmoteForActiveCharacter()
-        {
-            if (_currentCharacterIndex < 0 || _currentCharacterIndex >= _characterObjects.Count)
-                return;
-
-            var activePlayer = _characterObjects[_currentCharacterIndex];
-            if (activePlayer == null || activePlayer.Hidden)
-                return;
-
-            // Check if character is already playing an animation
-            if (activePlayer.IsOneShotPlaying)
-                return;
-
-            // Define available emote animations based on gender
-            bool isFemale = PlayerActionMapper.IsCharacterFemale(activePlayer.CharacterClass);
-            var availableEmotes = isFemale
-                ? new[] { PlayerAction.PlayerSeeFemale1, PlayerAction.PlayerWinFemale1, PlayerAction.PlayerSmileFemale1 }
-                : new[] { PlayerAction.PlayerSee1, PlayerAction.PlayerWin1, PlayerAction.PlayerSmile1 };
-
-            // Select random emote
-            var randomEmote = availableEmotes[_animationRandom.Next(availableEmotes.Length)];
-
-            _logger.LogDebug("Playing random emote {Emote} for character {CharacterName} (Female: {IsFemale})",
-                randomEmote, activePlayer.Name, isFemale);
-
-            // Play the animation using the new method
-            activePlayer.PlayEmoteAnimation(randomEmote);
-        }
-
-        public void PlayEmoteAnimation(PlayerAction action)
-        {
-            if (_currentCharacterIndex < 0 || _currentCharacterIndex >= _characterObjects.Count)
-                return;
-
-            var activePlayer = _characterObjects[_currentCharacterIndex];
-            if (activePlayer == null || activePlayer.Hidden)
-                return;
-
-            // Check if character is already playing an animation
-            if (activePlayer.IsOneShotPlaying)
-                return;
-            activePlayer.PlayEmoteAnimation(action);
-        }
-
-
-        private void PlayerObject_Click(object sender, EventArgs e)
-        {
-            PlayerObject clickedPlayer = null;
-            
-            if (sender is PlayerObject player)
-            {
-                clickedPlayer = player;
-            }
-            else if (sender is ModelObject bodyPart && bodyPart.Parent is PlayerObject parentPlayer)
-            {
-                clickedPlayer = parentPlayer;
-            }
-            
-            if (clickedPlayer == null)
-                return;
-                
-            if (_currentCharacterIndex < 0 || _characterObjects[_currentCharacterIndex] != clickedPlayer)
-            {
-                _logger.LogDebug("Ignoring click on inactive character '{Name}'.", clickedPlayer.Name);
-                return;
-            }
-            
-            // Check for double-click
-            DateTime now = DateTime.UtcNow;
-            double timeSinceLastClick = (now - _lastClickTime).TotalMilliseconds;
-            bool isDoubleClick = timeSinceLastClick < DoubleClickThresholdMs && 
-                                _lastClickedCharacter == clickedPlayer.Name;
-            
-            _lastClickTime = now;
-            _lastClickedCharacter = clickedPlayer.Name;
-            
-            if (isDoubleClick)
-            {
-                // Double-click: join game
-                _logger.LogInformation("Character '{Name}' double-clicked - joining game.", clickedPlayer.Name);
-                if (Scene is SelectCharacterScene selectScene)
-                {
-                    selectScene.CharacterSelected(clickedPlayer.Name);
-                }
-            }
-            else
-            {
-                // Single click: notify scene (for selection visual feedback and delete button)
-                _logger.LogInformation("Character '{Name}' clicked.", clickedPlayer.Name);
-                CharacterClicked?.Invoke(this, clickedPlayer.Name);
-            }
         }
 
         public override void Update(GameTime time)
@@ -397,11 +71,12 @@ namespace Client.Main.Worlds
             base.Update(time);
             if (!Visible) return;
 
-            if (Status == GameControlStatus.Ready && _characterLabels.Count > 0)
+            // Update label positions using controller data
+            if (Status == GameControlStatus.Ready && _controller != null)
             {
-                foreach (var (player, label) in _characterLabels)
+                foreach (var (player, label) in _controller.Labels)
                 {
-                    if (player.Status != GameControlStatus.Ready || !player.Visible)
+                    if (player.Status != GameControlStatus.Ready || player.Hidden)
                     {
                         label.Visible = false;
                         continue;
@@ -418,7 +93,6 @@ namespace Client.Main.Worlds
                                  Camera.Instance.View,
                                  Matrix.Identity);
 
-                    // Projected coordinates are already in the correct space
                     if (sp.Z is < 0 or > 1)
                     {
                         label.Visible = false;
@@ -426,10 +100,9 @@ namespace Client.Main.Worlds
                     }
 
                     var font = GraphicsManager.Instance.Font;
-                    float k = label.FontSize / Constants.BASE_FONT_SIZE; // Remove RENDER_SCALE - UI system handles this
+                    float k = label.FontSize / Constants.BASE_FONT_SIZE;
                     Vector2 s = font.MeasureString(label.Text) * k;
 
-                    // Convert screen coordinates to virtual coordinates for UI system
                     var virtualPos = UiScaler.ToVirtual(new Point((int)sp.X, (int)sp.Y));
 
                     label.X = (int)(virtualPos.X - s.X / 2f);
@@ -439,6 +112,7 @@ namespace Client.Main.Worlds
                 }
             }
 
+            // Debug key handling
             if (MuGame.Instance.PrevKeyboard.IsKeyDown(Keys.Delete) && MuGame.Instance.Keyboard.IsKeyUp(Keys.Delete))
             {
                 if (Objects.Count > 0)
@@ -465,17 +139,8 @@ namespace Client.Main.Worlds
             gd.BlendState = BlendState.AlphaBlend;
             gd.DepthStencilState = DepthStencilState.Default;
             gd.SamplerStates[0] = SamplerState.LinearClamp;
-            // This prevents state leakage and texture corruption, especially on DirectX
 
             base.Draw(gameTime);
         }
-
-        // Keep existing DrawAfter if needed, otherwise remove if labels are handled by base Draw
-        // public override void DrawAfter(GameTime gameTime)
-        // {
-        //     base.DrawAfter(gameTime);
-        //     // Labels are now part of Controls, so base.DrawAfter handles them if they implement DrawAfter.
-        //     // If LabelControl doesn't override DrawAfter, this method might not be needed here.
-        // }
     }
 }
