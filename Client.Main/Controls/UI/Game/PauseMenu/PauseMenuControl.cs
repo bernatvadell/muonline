@@ -225,7 +225,8 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                 {
                     try
                     {
-                        var next = new SelectCharacterScene(list, net);
+                        var next = new SelectCharacterScene();
+                        next.SetConnectionInfo(list, net);
                         MuGame.Instance.ChangeScene(next);
                     }
                     finally
@@ -291,7 +292,9 @@ namespace Client.Main.Controls.UI.Game.PauseMenu
                         try
                         {
                             _logger?.LogInformation("Using cached character list as fallback after timeout.");
-                            MuGame.Instance.ChangeScene(new SelectCharacterScene(cached.ToList(), net));
+                            var scene = new SelectCharacterScene();
+                            scene.SetConnectionInfo([.. cached], net);
+                            MuGame.Instance.ChangeScene(scene);
                             return;
                         }
                         catch { /* if anything fails, reopen menu below */ }

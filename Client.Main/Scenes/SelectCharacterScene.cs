@@ -71,10 +71,10 @@ namespace Client.Main.Scenes
         private const int CHAR_CARD_SPACING = 6;
 
         // Fields
-        private readonly List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)> _characters;
+        private List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)> _characters;
         private SelectWorld _selectWorld;
         private CharacterSelectionController _characterController;
-        private readonly NetworkManager _networkManager;
+        private NetworkManager _networkManager;
         private ILogger<SelectCharacterScene> _logger;
         private (string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)? _selectedCharacterInfo = null;
         private LoadingScreenControl _loadingScreen;
@@ -107,17 +107,12 @@ namespace Client.Main.Scenes
         private bool _previousMousePressed = false;
 
         // Constructors
-        public SelectCharacterScene(List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)> characters, NetworkManager networkManager)
+        public SelectCharacterScene()
         {
-            _characters = characters ?? new List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)>();
-            _networkManager = networkManager ?? throw new ArgumentNullException(nameof(networkManager));
             _logger = MuGame.AppLoggerFactory.CreateLogger<SelectCharacterScene>();
-
             _loadingScreen = new LoadingScreenControl { Visible = true, Message = "Loading Characters..." };
             Controls.Add(_loadingScreen);
             _loadingScreen.BringToFront();
-
-            InitializeModernUI();
 
             try
             {
@@ -130,7 +125,14 @@ namespace Client.Main.Scenes
 
             _progressBar = new ProgressBarControl();
             Controls.Add(_progressBar);
+        }
 
+        public void SetConnectionInfo(List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)> characters, NetworkManager networkManager)
+        {
+            _characters = characters ?? new List<(string Name, CharacterClassNumber Class, ushort Level, byte[] Appearance)>();
+            _networkManager = networkManager ?? throw new ArgumentNullException(nameof(networkManager));
+
+            InitializeModernUI();
             SubscribeToNetworkEvents();
         }
 
@@ -714,7 +716,8 @@ namespace Client.Main.Scenes
                 try
                 {
                     _logger.LogInformation("Reloading SelectCharacterScene with updated list...");
-                    var newScene = new SelectCharacterScene(characters, _networkManager);
+                    var newScene = new SelectCharacterScene();
+                    newScene.SetConnectionInfo(characters, _networkManager);
                     MuGame.Instance.ChangeScene(newScene);
                 }
                 catch (Exception ex)

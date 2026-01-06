@@ -17,6 +17,7 @@ using Client.Main.Core.Client;
 using Client.Main.Content;
 using Client.Main.Graphics;
 using Client.Main.Controls;
+using Microsoft.Extensions.DependencyInjection;
 
 
 namespace Client.Main
@@ -58,6 +59,9 @@ namespace Client.Main
 
         // Static Properties
         public static MuGame Instance { get; private set; }
+
+        private readonly IServiceProvider _serviceProvider;
+
         public static Random Random { get; } = new Random();
         public static IConfiguration AppConfiguration { get; private set; }
         public static ILoggerFactory AppLoggerFactory { get; private set; }
@@ -108,9 +112,10 @@ namespace Client.Main
         };
 
         // Constructors
-        public MuGame()
+        public MuGame(IServiceProvider serviceProvider)
         {
             Instance = this;
+            _serviceProvider = serviceProvider;
 
             _graphics = new GraphicsDeviceManager(this)
             {
@@ -604,7 +609,8 @@ namespace Client.Main
         private async Task ChangeSceneAsync(Type sceneType)
         {
             ActiveScene?.Dispose();
-            ActiveScene = (BaseScene)Activator.CreateInstance(sceneType);
+            ActiveScene = (BaseScene)_serviceProvider.GetRequiredService(sceneType);
+            // ActiveScene = (BaseScene)Activator.CreateInstance(sceneType);
             await ActiveScene.Initialize();
         }
 
