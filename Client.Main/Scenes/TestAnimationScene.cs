@@ -84,6 +84,7 @@ public class TestAnimationScene : BaseScene
 
     // CONTROLS
     private SelectWorld _selectWorld;
+    private SelectCharacter.CharacterSelectionController _characterController;
 
     private readonly ILogger<TestAnimationScene> _logger;
     private LoadingScreenControl _loadingScreen;
@@ -515,6 +516,12 @@ public class TestAnimationScene : BaseScene
             {
                 _selectWorld.Terrain.AmbientLight = 0.6f;
             }
+
+            // Create controller
+            _characterController = new SelectCharacter.CharacterSelectionController(
+                MuGame.AppLoggerFactory.CreateLogger<SelectCharacter.CharacterSelectionController>());
+            _selectWorld.SetController(_characterController);
+
             UiState = TestAnimationUiState.EditCharacter;
         }
         catch (Exception ex)
@@ -609,12 +616,24 @@ public class TestAnimationScene : BaseScene
 
     private void RefreshCharacter()
     {
+        if (_characterController == null) return;
+
         if (!character.HasValue)
         {
-            _ = _selectWorld.CreateCharacterObjects(new List<(string Name, PlayerClass Class, ushort Level, AppearanceConfig Appearance)>());
+            _ = _characterController.CreateCharactersAsync(
+                new List<(string Name, PlayerClass Class, ushort Level, AppearanceConfig Appearance)>(),
+                _selectWorld,
+                this,
+                _selectWorld.CharacterDisplayPosition,
+                _selectWorld.CharacterDisplayAngle);
             return;
         }
-        _ = _selectWorld.CreateCharacterObjects([character.Value]);
+        _ = _characterController.CreateCharactersAsync(
+            [character.Value],
+            _selectWorld,
+            this,
+            _selectWorld.CharacterDisplayPosition,
+            _selectWorld.CharacterDisplayAngle);
     }
 
     public void HandleChangeCharacterClass(object sender, KeyValuePair<string, int> newCharacter)
@@ -682,8 +701,8 @@ public class TestAnimationScene : BaseScene
 
     private void HandleChangeAnimation(object sender, KeyValuePair<string, int>? newAnimation)
     {
-        if (!newAnimation.HasValue) return;
-        _selectWorld.PlayEmoteAnimation((PlayerAction)newAnimation.Value.Value);
+        if (!newAnimation.HasValue || _characterController == null) return;
+        _characterController.PlayEmoteAnimation((PlayerAction)newAnimation.Value.Value);
     }
 
     private void HandleChangeItemLevel(object sender, KeyValuePair<string, int> level)
