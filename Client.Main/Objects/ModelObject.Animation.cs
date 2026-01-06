@@ -120,17 +120,6 @@ namespace Client.Main.Objects
             float t = (float)(framePos - f0);
             CurrentFrame = f0;
 
-            // var forceRestartSmoothly = f0 == totalFrames - 1 && action.Positions.Length > f0 && action.Positions[f0] == Vector3.Zero;
-            //var forceRestartSmoothly = f0 == totalFrames - 1;// && (action.Positions.Length - 1 == f0 && action.Positions[f0] == Vector3.Zero);
-
-            //if (forceRestartSmoothly)
-            //{
-            //    f0 = 0;
-            //    f1 = 1;
-            //    t = 0.0f;
-            //    _animTime = _animTime - (totalFrames - 1);
-            //}
-
             GenerateBoneMatrix(currentActionIndex, f0, f1, t);
 
             if (_isBlending)
