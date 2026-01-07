@@ -34,14 +34,16 @@ namespace Client.Main.Controls
         public int ActiveLightsVersion => _lightManager.ActiveLightsVersion;
         public Texture2D HeightMapTexture => _data?.HeightMapTexture;
         private Dictionary<int, string> _pendingTextureMap = new();
+        private bool _replaceTextureMapping;
 
         public Dictionary<int, string> TextureMappingFiles
         {
             get => _data != null ? _data.TextureMappingFiles : _pendingTextureMap;
             set
             {
+                _replaceTextureMapping = true;
                 if (_data != null)
-                    _data.TextureMappingFiles = value;
+                    _data.TextureMappingFiles = value ?? new Dictionary<int, string>();
                 else
                     _pendingTextureMap = value ?? new Dictionary<int, string>();
             }
@@ -121,13 +123,14 @@ namespace Client.Main.Controls
         {
             _loader = new TerrainLoader(WorldIndex);
 
-            if (_pendingTextureMap.Count > 0)
+            if (_pendingTextureMap.Count > 0 || _replaceTextureMapping)
             {
-                _loader.SetTextureMapping(_pendingTextureMap);
+                _loader.SetTextureMapping(_pendingTextureMap, _replaceTextureMapping);
             }
 
             _data = await _loader.LoadAsync();
             _pendingTextureMap.Clear();
+            _replaceTextureMapping = false;
 
             if (_data == null)
             {
