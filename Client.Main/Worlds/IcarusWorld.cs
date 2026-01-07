@@ -18,6 +18,7 @@ namespace Client.Main.Worlds
         public IcarusWorld() : base(worldIndex: 11)
         {
             EnableShadows = false;
+            // Intentionally load only specified terrain tile textures for Icarus.
             Terrain.TextureMappingFiles = new Dictionary<int, string>
             {
                 { 10, "TileRock04.OZJ" }

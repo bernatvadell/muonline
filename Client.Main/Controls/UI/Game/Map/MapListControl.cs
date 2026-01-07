@@ -87,7 +87,7 @@ namespace Client.Main.Controls.UI.Game.Map
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World101World>
+            Controls.Add(new MapButton<UrukMountainWorld>
             {
                 Name = "Uruk Mountain",
                 ControlSize = new Point(buttonWidth, buttonHeight),
@@ -111,115 +111,115 @@ namespace Client.Main.Controls.UI.Game.Map
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World031World>
+            Controls.Add(new MapButton<ValleyOfLorenWorld>
             {
                 Name = "Valley Of Loren",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World032World>
+            Controls.Add(new MapButton<LandOfTrialsWorld>
             {
                 Name = "Land Of Trials",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World034World>
+            Controls.Add(new MapButton<AidaWorld>
             {
                 Name = "Aida",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World035World>
+            Controls.Add(new MapButton<CrywolfWorld>
             {
                 Name = "Cry Wolf",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World038World>
+            Controls.Add(new MapButton<KanturuWorld>
             {
                 Name = "Kanturu (RUINS)",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World039World>
+            Controls.Add(new MapButton<KanturuRemainWorld>
             {
                 Name = "Kanturu Remain (RELICS)",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World040World>
+            Controls.Add(new MapButton<RefineTowerWorld>
             {
                 Name = "Refine Tower",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World041World>
+            Controls.Add(new MapButton<SilentMapWorld>
             {
                 Name = "Silent Map",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World042World>
+            Controls.Add(new MapButton<BalgassBarracksWorld>
             {
                 Name = "Barracks",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World043World>
+            Controls.Add(new MapButton<BalgassRefugeWorld>
             {
                 Name = "Refuge",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World047World>
+            Controls.Add(new MapButton<IllusionTempleWorld>
             {
                 Name = "Illusion Temple",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World057World>
+            Controls.Add(new MapButton<SwampOfPeaceWorld>
             {
                 Name = "Swamp of Peace",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World058World>
+            Controls.Add(new MapButton<RaklionWorld>
             {
                 Name = "Raklion",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World059World>
+            Controls.Add(new MapButton<RaklionBossWorld>
             {
                 Name = "Raklion Boss",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World063World>
+            Controls.Add(new MapButton<SantaVillageWorld>
             {
                 Name = "Santa Village",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World064World>
+            Controls.Add(new MapButton<VulcanusWorld>
             {
                 Name = "Vulcanus",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World065World>
+            Controls.Add(new MapButton<DuelArenaWorld>
             {
                 Name = "Duel Arena",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World066World>
+            Controls.Add(new MapButton<DoppelgangerIceWorld>
             {
                 Name = "Doppelganger Ice Zone",
                 ControlSize = new Point(buttonWidth, buttonHeight),
                 FontSize = ButtonFontSize
             });
-            Controls.Add(new MapButton<World143World>
+            Controls.Add(new MapButton<DoppelgangerIceNewWorld>
             {
                 Name = "Doppelganger Ice Zone new",
                 ControlSize = new Point(buttonWidth, buttonHeight),
