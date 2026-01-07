@@ -80,6 +80,7 @@ namespace Client.Main.Controls.UI.Game
 
             Visible = false;
             Interactive = true;
+            AutoViewSize = false;
 
             ControlSize = new Point(WINDOW_TARGET_WIDTH, WINDOW_TARGET_HEIGHT);
             ViewSize = ControlSize;
@@ -336,6 +337,7 @@ namespace Client.Main.Controls.UI.Game
                 _currentScrollOffset = 0;
                 if (_scrollBar != null) _scrollBar.Value = 0;
                 LoadMapData();
+                BringToFront();
                 Scene.FocusControl = this;
             }
             else
@@ -356,6 +358,12 @@ namespace Client.Main.Controls.UI.Game
             if (!Visible) return;
             base.Update(gameTime);
 
+            var mouse = MuGame.Instance.UiMouseState;
+            if (IsMouseOver && (mouse.LeftButton == ButtonState.Pressed || mouse.RightButton == ButtonState.Pressed))
+            {
+                Scene?.SetMouseInputConsumed();
+            }
+
             var playerState = _networkManager.GetCharacterState();
             bool listNeedsVisualRefresh = false;
             for (int i = 0; i < _currentlyDisplayableMaps.Count; ++i)
@@ -370,7 +378,6 @@ namespace Client.Main.Controls.UI.Game
                 }
             }
 
-            var mouse = MuGame.Instance.UiMouseState;
             int oldHoveredMapIndex = _hoveredMapIndex;
             _hoveredMapIndex = -1;
 
@@ -426,11 +433,14 @@ namespace Client.Main.Controls.UI.Game
             if (!Visible || !IsMouseOver) // only process if visible and mouse is over this control
                 return false;
 
+            int scrollDirection = scrollDelta > 0 ? 1 : -1;
+
             if (_scrollBar != null && _scrollBar.Visible && _scrollBar.IsMouseOver)
             {
                 // if the scrollbar handles it, then the MoveCommandWindow also considers it handled.
-                if (_scrollBar.ProcessMouseScroll(scrollDelta))
+                if (_scrollBar.ProcessMouseScroll(scrollDirection))
                 {
+                    Scene?.SetMouseInputConsumed();
                     return true;
                 }
             }
@@ -442,7 +452,8 @@ namespace Client.Main.Controls.UI.Game
             // For simplicity and to prevent pass-through if the window is clearly the focus:
             if (_scrollBar != null && _scrollBar.Visible)  // a scrollbar exists, assume scroll should be for it
             {
-                _scrollBar.Value -= scrollDelta; // scrollDelta: positive for up, negative for down
+                _scrollBar.Value -= scrollDirection; // scrollDelta: positive for up, negative for down
+                Scene?.SetMouseInputConsumed();
                 return true;
             }
 
