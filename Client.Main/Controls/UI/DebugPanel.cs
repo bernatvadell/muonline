@@ -22,7 +22,6 @@ namespace Client.Main.Controls.UI
         private double _updateTimer = 0;
         private const double UPDATE_INTERVAL_MS = 100; // 100ms
         private StringBuilder _sb = new StringBuilder(350); // Increased capacity for new metrics
-        private int _lastFrameIndex = -1; // Track frame changes for per-frame stats
 
         public DebugPanel()
         {

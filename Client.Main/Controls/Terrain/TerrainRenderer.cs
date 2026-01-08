@@ -88,9 +88,6 @@ namespace Client.Main.Controls.Terrain
         private readonly float[] _cachedLightIntensities = new float[16];
         private readonly float[] _cachedLightScores = new float[16];
         private const float MinLightInfluence = 0.001f;
-        private int _cachedSelectedLightsVersion = -1;
-        private int _cachedSelectedLightsMax = -1;
-        private int _cachedSelectedLightCount = 0;
 
         private Vector2 _waterFlowDir = Vector2.UnitX;
         private float _waterTotal = 0f;
