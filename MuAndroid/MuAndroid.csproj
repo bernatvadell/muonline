@@ -24,6 +24,8 @@
 
     <!-- Accept Android SDK licenses -->
     <AcceptAndroidSDKLicenses>true</AcceptAndroidSDKLicenses>
+
+    <UseSourceGenerators>true</UseSourceGenerators>
   </PropertyGroup>
 
   <PropertyGroup>

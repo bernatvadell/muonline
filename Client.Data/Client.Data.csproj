@@ -7,6 +7,7 @@
     <TargetFramework>$(ClientDataTargetFramework)</TargetFramework>
     <AssemblyName>Client.Data</AssemblyName>
     <RootNamespace>Client.Data</RootNamespace>
+    <UseSourceGenerators>true</UseSourceGenerators>
   </PropertyGroup>
 
   <ItemGroup>

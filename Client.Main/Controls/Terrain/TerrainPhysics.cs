@@ -134,7 +134,18 @@ namespace Client.Main.Controls.Terrain
             };
         }
 
-        private static int GetTerrainIndex(int x, int y)
+        public static int GetTerrainIndex(float xf, float yf)
+        {
+            xf /= Constants.TERRAIN_SCALE;
+            yf /= Constants.TERRAIN_SCALE;
+
+            int xi = (int)xf, yi = (int)yf;
+            int index = GetTerrainIndex(xi, yi);
+
+            return index;
+        }
+
+        public static int GetTerrainIndex(int x, int y)
             => y * Constants.TERRAIN_SIZE + x;
     }
 }

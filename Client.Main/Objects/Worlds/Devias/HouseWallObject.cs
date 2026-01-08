@@ -62,7 +62,7 @@ namespace Client.Main.Objects.Worlds.Devias
             _isTransparent = false;
             base.Update(gameTime);
 
-            if (!(World is WalkableWorldControl walkableWorld))
+            if (World is not WalkableWorldControl walkableWorld)
                 return;
 
             if (_flickerEnabled)
@@ -98,10 +98,10 @@ namespace Client.Main.Objects.Worlds.Devias
                 _alpha = MathHelper.Lerp(_alpha, targetAlpha, FADE_SPEED);
                 Alpha = _alpha;
             }
-            else if (Type == (ushort)ModelType.Fence01 || Type == (ushort)ModelType.Fence02 || Type == 98 || Type == 99)
+            else if (Type == (ushort)ModelType.Fence01 || Type == (ushort)ModelType.Fence02 || Type == (ushort)ModelType.Carriage01 || Type == (ushort)ModelType.Carriage02)
             {
                 // Fade fence objects when player is under the roof
-                bool playerInside = IsPlayerUnderRoof(walkableWorld);
+                bool playerInside = walkableWorld.HeroTile == 3 || walkableWorld.HeroTile >= 10;
                 float targetAlpha = playerInside ? 0f : 1f;
                 Alpha = MathHelper.Lerp(Alpha, targetAlpha, FADE_SPEED);
             }
@@ -124,6 +124,7 @@ namespace Client.Main.Objects.Worlds.Devias
 
                 if (_isTransparent)
                 {
+                    device.BlendState = BlendState.AlphaBlend;
                     // Apply minimum alpha with flicker when transparent
                     Alpha = Math.Max(TARGET_ALPHA, originalAlpha) * _flickerAlpha;
                 }
@@ -142,21 +143,6 @@ namespace Client.Main.Objects.Worlds.Devias
             {
                 base.DrawMesh(mesh);
             }
-        }
-
-        /// <summary>
-        /// Determines if the player is inside the building (under the roof).
-        /// </summary>
-        private bool IsPlayerUnderRoof(WalkableWorldControl walkableWorld)
-        {
-            Vector2 playerPos = walkableWorld.Walker.Location * ScaleLocation;
-            Vector3 playerPos3D = new Vector3(playerPos.X, playerPos.Y, Position.Z);
-
-            Vector3 minOffset = new Vector3(500f, 400f, 1000f);
-            Vector3 maxOffset = new Vector3(400f, 500f, 1000f);
-            BoundingBox buildingBounds = new BoundingBox(Position - minOffset, Position + maxOffset);
-
-            return buildingBounds.Contains(playerPos3D) == ContainmentType.Contains;
         }
     }
 }

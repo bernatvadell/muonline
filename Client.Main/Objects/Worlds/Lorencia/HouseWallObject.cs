@@ -1,5 +1,6 @@
 ﻿using Client.Data;
 using Client.Main.Content;
+using Client.Main.Controllers;
 using Client.Main.Controls;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -67,6 +68,9 @@ namespace Client.Main.Objects.Worlds.Lorencia
             _isTransparent = false;
             base.Update(gameTime);
 
+            if (World is not WalkableWorldControl world)
+                return;
+
             // Set IsTransparent only when actual transparency is active
             IsTransparent = (Alpha < 0.99f) || _isTransparent;
 
@@ -92,8 +96,7 @@ namespace Client.Main.Objects.Worlds.Lorencia
             // Fade when player is behind the wall
             if (Type >= 121 && Type <= 124)
             {
-                var walkable = World as WalkableWorldControl;
-                Vector2 pPos = walkable != null ? walkable.Walker.Location : Vector2.Zero;
+                Vector2 pPos = world.Walker.Location;
 
                 bool behind = pPos.X * 100 < Position.X
                               && Math.Abs(pPos.X * 100 - Position.X) < 300f;
@@ -111,7 +114,7 @@ namespace Client.Main.Objects.Worlds.Lorencia
             if (Type == (ushort)ModelType.HouseWall05 ||
                 Type == (ushort)ModelType.HouseWall06)
             {
-                _playerInside = IsPlayerUnderRoof();
+                _playerInside = world.HeroTile == 4;
                 float target = _playerInside ? 0f : 1f;
                 Alpha = MathHelper.Lerp(Alpha, target, FADE_SPEED);
             }
@@ -145,24 +148,6 @@ namespace Client.Main.Objects.Worlds.Lorencia
             {
                 base.DrawMesh(mesh);
             }
-        }
-
-        private bool IsPlayerUnderRoof()
-        {
-            if (World is WalkableWorldControl walk)
-            {
-                Vector2 p2 = walk.Walker.Location;
-                Vector3 p3 = new Vector3(p2.X * 100, p2.Y * 100, Position.Z);
-
-                var bounds = new BoundingBox(
-                    Position - new Vector3(600f, 600f, 1000f),
-                    Position + new Vector3(400f, 600f, 1000f)
-                );
-
-                return bounds.Contains(p3) == ContainmentType.Contains;
-            }
-
-            return false;
         }
     }
 }
