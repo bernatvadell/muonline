@@ -1,23 +1,24 @@
-﻿using Client.Main.Controllers;
+﻿using Client.Main.Configuration;
+using Client.Main.Content;
+using Client.Main.Controllers;
+using Client.Main.Controls;
+using Client.Main.Core.Client;
+using Client.Main.Data;
+using Client.Main.Graphics;
+using Client.Main.Networking;
 using Client.Main.Scenes;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Input.Touch;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
-using Client.Main.Configuration;
-using Client.Main.Networking;
 using System;
 using System.Collections.Concurrent;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Client.Main.Core.Client;
-using Client.Main.Content;
-using Client.Main.Graphics;
-using Client.Main.Controls;
-using Client.Main.Data;
 
 
 namespace Client.Main
@@ -112,6 +113,8 @@ namespace Client.Main
         public MuGame()
         {
             Instance = this;
+
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
             _graphics = new GraphicsDeviceManager(this)
             {

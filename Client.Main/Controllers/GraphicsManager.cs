@@ -111,7 +111,7 @@ namespace Client.Main.Controllers
             };
 
             Sprite = new SpriteBatch(_graphicsDevice);
-            Font = _contentManager.Load<SpriteFont>("Arial");
+            Font = _contentManager.Load<SpriteFont>(Constants.FONT_NAME);
         }
 
         private void InitializeFXAAEffect()

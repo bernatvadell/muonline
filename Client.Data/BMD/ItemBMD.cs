@@ -17,8 +17,8 @@ namespace Client.Data.BMD
         public string szModelFolder;
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
         public string szModelName;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
-        public string szItemName;
+        [MarshalAs(UnmanagedType.ByValArray, SizeConst = 64)]
+        public byte[] szItemName;
         public byte KindA;
         public byte KindB;
         public byte Type;

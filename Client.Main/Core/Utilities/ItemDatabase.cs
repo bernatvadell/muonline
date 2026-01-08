@@ -36,48 +36,13 @@ namespace Client.Main.Core.Utilities
         {
             var data = new Dictionary<(byte, short), ItemDefinition>();
 
-            var assembly = Assembly.GetExecutingAssembly();
-
-            // Find *one* resource whose name ends with "item.bmd"
-            var resourceName = assembly.GetManifestResourceNames()
-                                       .SingleOrDefault(n =>
-                                           n.EndsWith("item.bmd", StringComparison.OrdinalIgnoreCase));
-
-            if (resourceName == null)
-            {
-                Console.WriteLine(
-                    "Embedded resource 'item.bmd' not found. " +
-                    "Verify Build Action = Embedded Resource and correct RootNamespace.");
-                return data;
-            }
-
             try
             {
-                using var resourceStream = assembly.GetManifestResourceStream(resourceName);
-                if (resourceStream == null)
-                {
-                    Console.WriteLine($"Failed to open resource stream '{resourceName}'.");
-                    return data;
-                }
-
                 var reader = new ItemBMDReader();
 
-                // Some ItemBMDReader implementations accept only a file path.
-                // Copy the resource to a temporary file and load it from disk.
-                IEnumerable<ItemBMD> items;
-                var tempPath = Path.GetTempFileName();
-                try
-                {
-                    using (var tempFs = File.OpenWrite(tempPath))
-                        await resourceStream.CopyToAsync(tempFs);
+                var itemsPath = Path.Combine(Constants.DataPath, "Local", "item.bmd");
 
-                    // Load asynchronously to avoid blocking the thread
-                    items = await reader.Load(tempPath).ConfigureAwait(false);
-                }
-                finally
-                {
-                    try { File.Delete(tempPath); } catch { /* ignore IO errors */ }
-                }
+                var items = await reader.Load(itemsPath).ConfigureAwait(false);
 
                 foreach (var item in items)
                 {
@@ -96,7 +61,9 @@ namespace Client.Main.Core.Utilities
                                           .Replace("\\", "/");
                     }
 
-                    var itemName = item.szItemName?.Split('\t')[0].Trim() ?? string.Empty;
+                    var itemName = Constants.DATA_TEXT_ENCODING
+            .GetString(item.szItemName)
+            .TrimEnd('\0');
 
                     int width = item.Width;
                     int height = item.Height;

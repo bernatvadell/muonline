@@ -18,6 +18,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.8" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.8" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.8" />
+    <PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -32,11 +33,6 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Controls\UI\Game\Layouts\*.json" />
-    <EmbeddedResource Include="Data\S6\item.bmd" />
-    <EmbeddedResource Include="Data\S6\mix.bmd" />
-    <EmbeddedResource Include="Data\S6\player.bmd" />
-    <EmbeddedResource Include="Data\S6\skill_eng.bmd" />
-    <EmbeddedResource Include="Data\S6\movereq_eng.bmd" />
     <EmbeddedResource Include="Data\bmd_blending_config.json" />
   </ItemGroup>
 

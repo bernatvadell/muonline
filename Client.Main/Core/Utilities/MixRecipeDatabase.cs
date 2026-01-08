@@ -186,25 +186,12 @@ namespace Client.Main.Core.Utilities
                 recipesByType[i] = Array.Empty<MixRecipe>();
             }
 
-            var assembly = Assembly.GetExecutingAssembly();
-            var resourceName = assembly.GetManifestResourceNames()
-                .SingleOrDefault(n => n.EndsWith("mix.bmd", StringComparison.OrdinalIgnoreCase));
-
-            if (resourceName == null)
-            {
-                s_logger?.LogWarning("Embedded resource 'mix.bmd' not found. Add it to Client.Main.Shared.props as EmbeddedResource.");
-                return new MixDatabaseState { RecipesByType = recipesByType };
-            }
-
-            using var stream = assembly.GetManifestResourceStream(resourceName);
-            if (stream == null)
-            {
-                s_logger?.LogWarning("Failed to open embedded resource stream '{ResourceName}'.", resourceName);
-                return new MixDatabaseState { RecipesByType = recipesByType };
-            }
 
             try
             {
+                var mixPath = Path.Combine(Constants.DataPath, "Local", "mix.bmd");
+                using var stream = File.OpenRead(mixPath);
+
                 using var br = new BinaryReader(stream);
 
                 byte[] headerEnc = br.ReadBytes(sizeof(int) * MaxMixTypes);

@@ -65,30 +65,12 @@ namespace Client.Main.Data
         private static bool TryLoadFromMovereq(out List<MoveCommandInfo> moveCommands)
         {
             moveCommands = null;
-            var assembly = typeof(MoveCommandDataManager).Assembly;
-            var resourceNames = assembly.GetManifestResourceNames();
-            var resourceName = resourceNames.FirstOrDefault(name =>
-                name.Contains(".Data.S6.", StringComparison.OrdinalIgnoreCase) &&
-                name.EndsWith("movereq_eng.bmd", StringComparison.OrdinalIgnoreCase));
-            resourceName ??= resourceNames.FirstOrDefault(name =>
-                name.Contains(".Data.S6.", StringComparison.OrdinalIgnoreCase) &&
-                name.Contains("movereq_", StringComparison.OrdinalIgnoreCase) &&
-                name.EndsWith(".bmd", StringComparison.OrdinalIgnoreCase));
 
             try
             {
-                if (string.IsNullOrWhiteSpace(resourceName))
-                {
-                    return false;
-                }
-
-                using var stream = assembly.GetManifestResourceStream(resourceName);
-                if (stream == null)
-                {
-                    return false;
-                }
-
-                var records = LoadMovereqRecords(stream);
+                var movereqPath = Path.Combine(Constants.DataPath, "Local", "movereq.bmd");
+                using var fileStream = new FileStream(movereqPath, FileMode.Open, FileAccess.Read);
+                var records = LoadMovereqRecords(fileStream);
                 moveCommands = BuildMoveCommandInfos(records);
                 return moveCommands.Count > 0;
             }
