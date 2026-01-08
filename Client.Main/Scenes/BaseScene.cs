@@ -311,6 +311,28 @@ namespace Client.Main.Scenes
             World.Draw(gameTime);
             World.DrawAfter(gameTime);
 
+#if !ANDROID
+            var worldObjects = World.Objects.GetSnapshot();
+            var droppedItems = World.DroppedItems;
+
+            // --- Pass 2a: Render batched dropped-item shine sprites ---
+            // Drawn as a single SpriteBatch to avoid per-item Begin/End overhead.
+            using (new SpriteBatchScope(
+                       GraphicsManager.Instance.Sprite,
+                       SpriteSortMode.BackToFront,
+                       BlendState.Additive,
+                       GraphicsManager.GetQualityLinearSamplerState(),
+                       DepthStencilState.DepthRead))
+            {
+                for (int i = 0; i < droppedItems.Count; i++)
+                {
+                    var item = droppedItems[i];
+                    if (item == null) continue;
+                    item.DrawShineEffect(gameTime);
+                }
+            }
+#endif
+
             // --- Pass 2: Render 3D-aware UI (Nameplates, 2D BBoxes) ---
             // This batch respects the depth buffer populated by the 3D world.
             using (new SpriteBatchScope(
@@ -321,7 +343,6 @@ namespace Client.Main.Scenes
                        DepthStencilState.DepthRead))     // Read depth buffer but don't write to it
             {
 #if !ANDROID
-                var worldObjects = World.Objects.GetSnapshot();
                 for (int i = 0; i < worldObjects.Count; i++)
                 {
                     var worldObject = worldObjects[i];
@@ -329,11 +350,35 @@ namespace Client.Main.Scenes
                         continue;
 
                     // Call the public methods to draw depth-aware UI elements
-                    worldObject.DrawHoverName();
                     worldObject.DrawBoundingBox2D();
+
+                    // Dropped items draw their labels in a separate pass (Depth=None) to avoid depth occlusion
+                    // while still batching all labels in one SpriteBatch.
+                    if (worldObject is DroppedItemObject)
+                        continue;
+
+                    worldObject.DrawHoverName();
                 }
 #endif
             }
+
+#if !ANDROID
+            // --- Pass 2b: Render batched dropped-item labels (always visible) ---
+            using (new SpriteBatchScope(
+                       GraphicsManager.Instance.Sprite,
+                       SpriteSortMode.Deferred,
+                       BlendState.NonPremultiplied,
+                       SamplerState.PointClamp,
+                       DepthStencilState.None))
+            {
+                for (int i = 0; i < droppedItems.Count; i++)
+                {
+                    var item = droppedItems[i];
+                    if (item == null) continue;
+                    item.DrawHoverName();
+                }
+            }
+#endif
 
             // --- Pass 3: Render standard 2D UI (HUD overlays) ---
             // This batch ignores the depth buffer and draws on top of everything.

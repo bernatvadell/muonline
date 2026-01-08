@@ -274,6 +274,7 @@ namespace Client.Main.Objects
 
         public void InvalidateBuffers(uint flags = BUFFER_FLAG_ALL)
         {
+            _dynamicBuffersFrozen = false;
             _invalidatedBufferFlags |= flags;
             if ((flags & BUFFER_FLAG_TEXTURE) != 0)
             {

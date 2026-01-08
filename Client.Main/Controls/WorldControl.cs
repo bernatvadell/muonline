@@ -17,31 +17,55 @@ using System.Runtime.CompilerServices;
 
 namespace Client.Main.Controls
 {
+    // Shared helper for reference comparison in comparers
+    internal static class ComparerHelper
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int CompareRefs<T>(T a, T b) where T : class
+        {
+            if (ReferenceEquals(a, b)) return 0;
+            if (a is null) return -1;
+            if (b is null) return 1;
+            return RuntimeHelpers.GetHashCode(a).CompareTo(RuntimeHelpers.GetHashCode(b));
+        }
+    }
+
     // Comparers for sorting world objects by depth
     sealed class WorldObjectDepthAsc : IComparer<WorldObject>
     {
+        public static readonly WorldObjectDepthAsc Instance = new();
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Compare(WorldObject a, WorldObject b) => a.Depth.CompareTo(b.Depth);
+        public int Compare(WorldObject a, WorldObject b)
+        {
+            int cmp = a.Depth.CompareTo(b.Depth);
+            if (cmp != 0) return cmp;
+
+            // Tie-break for deterministic ordering (prevents flicker when many objects share the same depth).
+            return a.NetworkId.CompareTo(b.NetworkId);
+        }
     }
 
     sealed class WorldObjectDepthDesc : IComparer<WorldObject>
     {
+        public static readonly WorldObjectDepthDesc Instance = new();
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public int Compare(WorldObject a, WorldObject b) => b.Depth.CompareTo(a.Depth);
+        public int Compare(WorldObject a, WorldObject b)
+        {
+            int cmp = b.Depth.CompareTo(a.Depth);
+            if (cmp != 0) return cmp;
+
+            // Tie-break for deterministic ordering (prevents flicker when many objects share the same depth).
+            return b.NetworkId.CompareTo(a.NetworkId);
+        }
     }
 
     // Optimized comparer that sorts by Model+Texture first, then depth
     // This minimizes state changes and improves GPU cache coherency
     sealed class WorldObjectBatchOptimizedAsc : IComparer<WorldObject>
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int CompareRefs<T>(T a, T b) where T : class
-        {
-            if (ReferenceEquals(a, b)) return 0;
-            if (a is null) return -1;
-            if (b is null) return 1;
-            return RuntimeHelpers.GetHashCode(a).CompareTo(RuntimeHelpers.GetHashCode(b));
-        }
+        public static readonly WorldObjectBatchOptimizedAsc Instance = new();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Compare(WorldObject a, WorldObject b)
@@ -49,31 +73,27 @@ namespace Client.Main.Controls
             if (a is ModelObject ma && b is ModelObject mb)
             {
                 // Prioritize by texture and blend state to minimize state changes
-                int texCmp = CompareRefs(ma.GetSortTextureHint(), mb.GetSortTextureHint());
+                int texCmp = ComparerHelper.CompareRefs(ma.GetSortTextureHint(), mb.GetSortTextureHint());
                 if (texCmp != 0) return texCmp;
 
-                int blendCmp = CompareRefs(ma.BlendState, mb.BlendState);
+                int blendCmp = ComparerHelper.CompareRefs(ma.BlendState, mb.BlendState);
                 if (blendCmp != 0) return blendCmp;
 
-                int modelCmp = CompareRefs(ma.Model, mb.Model);
+                int modelCmp = ComparerHelper.CompareRefs(ma.Model, mb.Model);
                 if (modelCmp != 0) return modelCmp;
             }
 
             // Then by depth for correct rendering order
-            return a.Depth.CompareTo(b.Depth);
+            int depthCmp = a.Depth.CompareTo(b.Depth);
+            if (depthCmp != 0) return depthCmp;
+
+            return a.NetworkId.CompareTo(b.NetworkId);
         }
     }
 
     sealed class WorldObjectBatchOptimizedDesc : IComparer<WorldObject>
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static int CompareRefs<T>(T a, T b) where T : class
-        {
-            if (ReferenceEquals(a, b)) return 0;
-            if (a is null) return -1;
-            if (b is null) return 1;
-            return RuntimeHelpers.GetHashCode(a).CompareTo(RuntimeHelpers.GetHashCode(b));
-        }
+        public static readonly WorldObjectBatchOptimizedDesc Instance = new();
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int Compare(WorldObject a, WorldObject b)
@@ -81,18 +101,21 @@ namespace Client.Main.Controls
             if (a is ModelObject ma && b is ModelObject mb)
             {
                 // Prioritize by texture and blend state to minimize state changes
-                int texCmp = CompareRefs(ma.GetSortTextureHint(), mb.GetSortTextureHint());
+                int texCmp = ComparerHelper.CompareRefs(ma.GetSortTextureHint(), mb.GetSortTextureHint());
                 if (texCmp != 0) return texCmp;
 
-                int blendCmp = CompareRefs(ma.BlendState, mb.BlendState);
+                int blendCmp = ComparerHelper.CompareRefs(ma.BlendState, mb.BlendState);
                 if (blendCmp != 0) return blendCmp;
 
-                int modelCmp = CompareRefs(ma.Model, mb.Model);
+                int modelCmp = ComparerHelper.CompareRefs(ma.Model, mb.Model);
                 if (modelCmp != 0) return modelCmp;
             }
 
             // Then by depth (descending) for correct rendering order
-            return b.Depth.CompareTo(a.Depth);
+            int depthCmp = b.Depth.CompareTo(a.Depth);
+            if (depthCmp != 0) return depthCmp;
+
+            return b.NetworkId.CompareTo(a.NetworkId);
         }
     }
 
@@ -104,9 +127,6 @@ namespace Client.Main.Controls
         // --- Fields & Constants ---
         private int _renderCounter;
         private DepthStencilState _currentDepthState = DepthStencilState.Default;
-        private readonly WorldObjectDepthAsc _cmpAsc = new();
-        private readonly WorldObjectDepthDesc _cmpDesc = new();
-        private readonly WorldObjectBatchOptimizedAsc _cmpBatchAsc = new();
         private static readonly DepthStencilState DepthStateDefault = DepthStencilState.Default;
         private static readonly DepthStencilState DepthStateDepthRead = DepthStencilState.DepthRead;
 
@@ -562,13 +582,13 @@ namespace Client.Main.Controls
 
             // Sort lists
             if (_solidBehind.Count > 1)
-                _solidBehind.Sort(Constants.ENABLE_BATCH_OPTIMIZED_SORTING ? _cmpBatchAsc : _cmpAsc);
+                _solidBehind.Sort(Constants.ENABLE_BATCH_OPTIMIZED_SORTING ? WorldObjectBatchOptimizedAsc.Instance : WorldObjectDepthAsc.Instance);
 
             if (_transparentObjects.Count > 1)
-                _transparentObjects.Sort(_cmpDesc);
+                _transparentObjects.Sort(WorldObjectDepthDesc.Instance);
 
             if (_solidInFront.Count > 1)
-                _solidInFront.Sort(Constants.ENABLE_BATCH_OPTIMIZED_SORTING ? _cmpBatchAsc : _cmpAsc);
+                _solidInFront.Sort(Constants.ENABLE_BATCH_OPTIMIZED_SORTING ? WorldObjectBatchOptimizedAsc.Instance : WorldObjectDepthAsc.Instance);
 
 
             // Draws
