@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using Client.Data;
 using Client.Main;
 using Client.Main.Controls.UI.Game.Inventory;
 using Microsoft.Extensions.Logging;
@@ -110,7 +111,6 @@ namespace Client.Main.Core.Utilities
     {
         private const int MaxMixTypes = 14;
         private const int RecipeSizeBytes = 656;
-        private static readonly byte[] s_buxCode = { 0xfc, 0xcf, 0xab };
 
         private static readonly ILogger s_logger = MuGame.AppLoggerFactory?.CreateLogger("MixRecipeDatabase");
 
@@ -214,7 +214,7 @@ namespace Client.Main.Core.Utilities
                     return new MixDatabaseState { RecipesByType = recipesByType };
                 }
 
-                byte[] header = BuxConvert(headerEnc);
+                byte[] header = BuxCryptor.Convert(headerEnc);
                 int[] counts = new int[MaxMixTypes];
                 for (int i = 0; i < counts.Length; i++)
                 {
@@ -246,7 +246,7 @@ namespace Client.Main.Core.Utilities
                             break;
                         }
 
-                        byte[] rec = BuxConvert(recEnc);
+                        byte[] rec = BuxCryptor.Convert(recEnc);
                         list.Add(ParseRecipe(rec));
                     }
 
@@ -339,17 +339,6 @@ namespace Client.Main.Core.Utilities
                 Sources = sources,
                 NumSources = numSources
             };
-        }
-
-        private static byte[] BuxConvert(byte[] buffer)
-        {
-            // Same behavior as original: XOR with repeating key, starting at index 0 for each converted block.
-            var dst = new byte[buffer.Length];
-            for (int i = 0; i < buffer.Length; i++)
-            {
-                dst[i] = (byte)(buffer[i] ^ s_buxCode[i % s_buxCode.Length]);
-            }
-            return dst;
         }
 
         // ──────────────────────── Evaluation ─────────────────────────

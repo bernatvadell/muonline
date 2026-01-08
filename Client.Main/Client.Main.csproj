@@ -32,7 +32,6 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Controls\UI\Game\Layouts\*.json" />
-    <EmbeddedResource Include="Data\gates.json" />
     <EmbeddedResource Include="Data\S6\item.bmd" />
     <EmbeddedResource Include="Data\S6\mix.bmd" />
     <EmbeddedResource Include="Data\S6\player.bmd" />
