@@ -693,14 +693,9 @@ namespace Client.Main.Controls
         /// <returns>True if the light's sphere is at least partially in view, otherwise false.</returns>
         public bool IsLightInView(DynamicLight light)
         {
-            var frustum = Camera.Instance?.Frustum;
-            if (frustum == null) return true;
-
-            // Create a bounding sphere representing the light's full radius of effect.
-            var lightSphere = new BoundingSphere(light.Position, light.Radius);
-
-            // Use the highly optimized Intersects check. This is much faster than manual distance calculations.
-            return frustum.Intersects(lightSphere);
+            // Always include all lights - let the shader handle distance falloff
+            // This prevents culling issues that cause lighting to stutter
+            return true;
         }
 
         // --- Map Tile Initialization ---

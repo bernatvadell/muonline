@@ -608,35 +608,19 @@ namespace Client.Main.Controls.Terrain
             var activeLights = _lightManager.ActiveLights;
             int maxLights = Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16;
             int count = 0;
-            int version = _lightManager.ActiveLightsVersion;
 
-            if (activeLights != null && activeLights.Count > 0 && Camera.Instance != null)
+            // Simplified: just upload all active lights directly without selection
+            if (activeLights != null && activeLights.Count > 0)
             {
-                if (_cachedSelectedLightsVersion != version || _cachedSelectedLightsMax != maxLights)
+                count = Math.Min(activeLights.Count, maxLights);
+                for (int i = 0; i < count; i++)
                 {
-                    if (TryGetVisibleTerrainBounds(out Vector2 visibleMin, out Vector2 visibleMax))
-                    {
-                        _cachedSelectedLightCount = SelectRelevantLights(activeLights, visibleMin, visibleMax, maxLights);
-                    }
-                    else
-                    {
-                        // Fallback: select around what the camera is looking at (target).
-                        var camTarget = Camera.Instance.Target;
-                        var referencePos = new Vector2(camTarget.X, camTarget.Y);
-                        _cachedSelectedLightCount = SelectRelevantLights(activeLights, referencePos, maxLights);
-                    }
-
-                    _cachedSelectedLightsVersion = version;
-                    _cachedSelectedLightsMax = maxLights;
+                    var light = activeLights[i];
+                    _cachedLightPositions[i] = light.Position;
+                    _cachedLightColors[i] = light.Color;
+                    _cachedLightRadii[i] = light.Radius;
+                    _cachedLightIntensities[i] = light.Intensity;
                 }
-
-                count = _cachedSelectedLightCount;
-            }
-            else
-            {
-                _cachedSelectedLightCount = 0;
-                _cachedSelectedLightsVersion = version;
-                _cachedSelectedLightsMax = maxLights;
             }
 
             effect.Parameters["ActiveLightCount"]?.SetValue(count);
@@ -1322,10 +1306,11 @@ namespace Client.Main.Controls.Terrain
 
         private void ApplyAlphaToLights(byte a1, byte a2, byte a3, byte a4)
         {
-            _tempTerrainLights[0] *= a1 / 255f; _tempTerrainLights[0].A = a1;
-            _tempTerrainLights[1] *= a2 / 255f; _tempTerrainLights[1].A = a2;
-            _tempTerrainLights[2] *= a3 / 255f; _tempTerrainLights[2].A = a3;
-            _tempTerrainLights[3] *= a4 / 255f; _tempTerrainLights[3].A = a4;
+            // Keep lighting intact; alpha controls only the blend factor in shader.
+            _tempTerrainLights[0].A = a1;
+            _tempTerrainLights[1].A = a2;
+            _tempTerrainLights[2].A = a3;
+            _tempTerrainLights[3].A = a4;
         }
 
         private static bool SupportsProceduralTerrainUv(Effect effect)
@@ -1401,19 +1386,14 @@ namespace Client.Main.Controls.Terrain
                 }
                 _terrainVertexBufferBase.SetData(verts, 0, total);
 
-                // Alpha buffer: premultiply baked light by alpha map (matches old CPU path).
+                // Alpha buffer: keep baked light intact; alpha controls layer blend in shader.
                 for (int i = 0; i < total; i++)
                 {
                     Color baseLight = _cachedVertexBaseLights[i];
                     byte a = alphaMap != null ? alphaMap[i] : (byte)0;
-
-                    int r = baseLight.R * a / 255;
-                    int g = baseLight.G * a / 255;
-                    int b = baseLight.B * a / 255;
-
                     verts[i] = new TerrainVertexPositionColorNormalTexture(
                         _cachedVertexPositions[i],
-                        new Color((byte)r, (byte)g, (byte)b, a),
+                        new Color(baseLight.R, baseLight.G, baseLight.B, a),
                         _cachedVertexNormals[i],
                         Vector2.Zero);
                 }
@@ -1481,7 +1461,7 @@ namespace Client.Main.Controls.Terrain
             if (effect == null || effect.CurrentTechnique == null)
                 return;
 
-            var blendState = alphaLayer ? BlendState.AlphaBlend : BlendState.Opaque;
+            var blendState = alphaLayer ? BlendState.NonPremultiplied : BlendState.Opaque;
             if (_lastBlendState != blendState)
             {
                 _graphicsDevice.BlendState = blendState;
@@ -1593,7 +1573,7 @@ namespace Client.Main.Controls.Terrain
             var batch = GetTileBatchBuffer(texIndex, alphaLayer);
             var texture = _data.Textures[texIndex];
             if (texture == null) return; // Added null check for texture
-            var blendState = alphaLayer ? BlendState.AlphaBlend : BlendState.Opaque;
+            var blendState = alphaLayer ? BlendState.NonPremultiplied : BlendState.Opaque;
 
             if (_useDynamicLightingShader)
             {
