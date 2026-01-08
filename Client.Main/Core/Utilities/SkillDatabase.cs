@@ -14,69 +14,26 @@ namespace Client.Main.Core.Utilities
     /// </summary>
     public static class SkillDatabase
     {
-        /// <summary>Lookup cache: SkillId → skill definition.</summary>
-        private static readonly Dictionary<int, SkillBMD> _skillDefinitions;
-
         private static readonly ILogger? _logger = MuGame.AppLoggerFactory?.CreateLogger("SkillDatabase");
 
-        static SkillDatabase() => _skillDefinitions = InitializeSkillData();
+        /// <summary>Lookup cache: SkillId → skill definition.</summary>
+        private static Dictionary<int, SkillBMD> _skillDefinitions = [];
+
+        public static async Task Initialize()
+        {
+            _skillDefinitions = await InitializeSkillData();
+        }
 
         /// <summary>
         /// Loads skill_eng.bmd from an embedded resource and builds the definition table.
         /// </summary>
-        private static Dictionary<int, SkillBMD> InitializeSkillData()
+        private static async Task<Dictionary<int, SkillBMD>> InitializeSkillData()
         {
-            var data = new Dictionary<int, SkillBMD>();
-
-            var assembly = Assembly.GetExecutingAssembly();
-
-            // Find resource whose name ends with "skill_eng.bmd"
-            var resourceName = assembly.GetManifestResourceNames()
-                                       .SingleOrDefault(n =>
-                                           n.EndsWith("skill_eng.bmd", StringComparison.OrdinalIgnoreCase));
-
-            if (resourceName == null)
-            {
-                _logger?.LogError(
-                    "Embedded resource 'skill_eng.bmd' not found. " +
-                    "Verify Build Action = Embedded Resource and correct RootNamespace.");
-                return data;
-            }
-
-            try
-            {
-                using var resourceStream = assembly.GetManifestResourceStream(resourceName);
-                if (resourceStream == null)
-                {
-                    _logger?.LogError($"Failed to open resource stream '{resourceName}'.");
-                    return data;
-                }
-
-                // Copy the resource to a temporary file and load it from disk
-                Dictionary<int, SkillBMD> skills;
-                var tempPath = Path.GetTempFileName();
-                try
-                {
-                    using (var tempFs = File.OpenWrite(tempPath))
-                        resourceStream.CopyTo(tempFs);
-
-                    skills = SkillBMDReader.LoadSkills(tempPath);
-                }
-                finally
-                {
-                    try { File.Delete(tempPath); } catch { /* ignore IO errors */ }
-                }
-
-                _logger?.LogInformation($"Loaded {skills.Count} skills from skill_eng.bmd");
-
-                return skills;
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Error while loading 'skill_eng.bmd'");
-            }
-
-            return data;
+            var skillPath = Path.Combine(Constants.DataPath, "Local", "skill.bmd");
+            var reader = new SkillBMDReader();
+            var skills = await reader.Load(skillPath);
+            _logger?.LogInformation($"Loaded {skills.Count} skills from skill_eng.bmd");
+            return skills;
         }
 
         #region Public API ------------------------------------------------------

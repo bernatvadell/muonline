@@ -1,5 +1,6 @@
 using Client.Main.Controllers;
 using Client.Main.Controls.UI;
+using Client.Main.Core.Utilities;
 using Client.Main.Data;
 using Client.Main.Helpers;
 using Client.Main.Models;
@@ -240,6 +241,7 @@ namespace Client.Main.Scenes
                 }
 
                 await GateDataManager.Instance.LoadData();
+                await SkillDatabase.Initialize();
 
                 await TransitionToNextSceneAsync(ct);
             }
