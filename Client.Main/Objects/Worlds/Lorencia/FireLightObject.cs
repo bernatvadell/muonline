@@ -126,7 +126,10 @@ namespace Client.Main.Objects.Worlds.Lorencia
                 UpdateIndividualWindEffects(time, elapsed);
                 float baseLuminosity = CalculateBaseLuminosity(time);
 
-                if (WorldPosition.Down.Y != -1)
+                // Use stable position based on object rotation (avoid float comparison instability)
+                // Check if object is rotated (Down.Y close to -1 means upright)
+                bool isRotated = WorldPosition.Down.Y > -0.9f;
+                if (isRotated)
                     _basePosition = BoneTransform[1].Translation + new Vector3(40f, 30f, 0f);
                 else
                     _basePosition = BoneTransform[1].Translation + new Vector3(0f, 0f, 0f);
@@ -148,40 +151,16 @@ namespace Client.Main.Objects.Worlds.Lorencia
         {
             if (World?.Terrain == null) return;
 
-            _dynamicLight.Position = GetFlameClusterCenter();
+            _dynamicLight.Position = GetLightAnchorWorld();
             _dynamicLight.Intensity = intensity;
         }
 
-        private Vector3 GetFlameClusterCenter()
+        private Vector3 GetLightAnchorWorld()
         {
-            Vector3 sum = Vector3.Zero;
-            int count = 0;
-
-            AccumulateFlamePositions(_baseFlames, ref sum, ref count);
-            AccumulateFlamePositions(_middleFlames, ref sum, ref count);
-            AccumulateFlamePositions(_topFlames, ref sum, ref count);
-
-            if (count > 0)
-            {
-                return sum / count;
-            }
-
-            Vector3 fallbackLocal = _basePosition + new Vector3(0f, OFFSET_Y, _baseHeight);
-            return Vector3.Transform(fallbackLocal, WorldPosition);
-        }
-
-        private static void AccumulateFlamePositions<T>(IReadOnlyList<T> flames, ref Vector3 sum, ref int count)
-            where T : SpriteObject
-        {
-            for (int i = 0; i < flames.Count; i++)
-            {
-                var flame = flames[i];
-                if (flame?.Status == GameControlStatus.Ready)
-                {
-                    sum += flame.WorldPosition.Translation;
-                    count++;
-                }
-            }
+            // Use same reliable pattern as BridgeObject - transform a local anchor to world space
+            // Position light slightly above the base flame position for best illumination
+            Vector3 localAnchor = _basePosition + new Vector3(0f, OFFSET_Y, _baseHeight + MIDDLE_FLAME_ADDITIONAL_Z);
+            return Vector3.Transform(localAnchor, WorldPosition);
         }
 
         private void UpdateIndividualWindEffects(float time, float elapsed)
