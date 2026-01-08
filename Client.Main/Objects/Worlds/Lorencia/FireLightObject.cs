@@ -157,10 +157,9 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
         private Vector3 GetLightAnchorWorld()
         {
-            // Use same reliable pattern as BridgeObject - transform a local anchor to world space
-            // Position light slightly above the base flame position for best illumination
-            Vector3 localAnchor = _basePosition + new Vector3(0f, OFFSET_Y, _baseHeight + MIDDLE_FLAME_ADDITIONAL_Z);
-            return Vector3.Transform(localAnchor, WorldPosition);
+            // Match flame position calculation - use translation + offset (not full matrix transform)
+            // This ensures light stays aligned with flame textures regardless of object rotation
+            return WorldPosition.Translation + _basePosition + new Vector3(0f, OFFSET_Y, _baseHeight + MIDDLE_FLAME_ADDITIONAL_Z);
         }
 
         private void UpdateIndividualWindEffects(float time, float elapsed)
