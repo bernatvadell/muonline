@@ -97,8 +97,6 @@ namespace Client.Main.Scenes
         private bool _isIntentionalLogout = false;
 
         // UI Panel rendering
-        private RenderTarget2D _characterPanelSurface;
-        private bool _panelNeedsRedraw = true;
         private Rectangle _characterPanelRect;
         private Rectangle _buttonSectionRect;
         private Rectangle _characterListRect;
@@ -363,7 +361,6 @@ namespace Client.Main.Scenes
                 _exitButton.Visible = ready;
             }
 
-            _panelNeedsRedraw = true;
         }
 
         private void UpdateNavigationButtonState()
@@ -431,7 +428,6 @@ namespace Client.Main.Scenes
                 UpdateNavigationButtonState();
             }
 
-            _panelNeedsRedraw = true;
         }
 
         protected override async Task LoadSceneContentWithProgress(Action<string, float> progressCallback)
@@ -967,7 +963,6 @@ namespace Client.Main.Scenes
 
             PositionNavigationButtons();
             UpdateNavigationButtonState();
-            _panelNeedsRedraw = true;
         }
 
         private void OnControllerCharacterDoubleClicked(object sender, string characterName)
@@ -1001,8 +996,7 @@ namespace Client.Main.Scenes
                     // Clear selection
                     _currentlySelectedCharacterName = null;
                     UpdateNavigationButtonState();
-                    _panelNeedsRedraw = true;
-                }
+                        }
                 else
                 {
                     _logger.LogError("CharacterService not available - cannot delete character.");
@@ -1115,8 +1109,7 @@ namespace Client.Main.Scenes
                     
                     if (previousHovered != _hoveredCardIndex)
                     {
-                        _panelNeedsRedraw = true;
-                    }
+                                }
 
                     // Handle click (on mouse release)
                     if (mouseClicked)
@@ -1130,8 +1123,7 @@ namespace Client.Main.Scenes
 
             if (previousHovered != _hoveredCardIndex && previousHovered != -1)
             {
-                _panelNeedsRedraw = true;
-            }
+                }
         }
 
         private void SelectCharacterByIndex(int index)
@@ -1145,7 +1137,6 @@ namespace Client.Main.Scenes
             _characterController.SetActiveCharacter(_currentCharacterIndex);
             PositionNavigationButtons();
             UpdateNavigationButtonState();
-            _panelNeedsRedraw = true;
 
             _logger.LogInformation("Character '{Name}' selected via card click.", character.Name);
         }

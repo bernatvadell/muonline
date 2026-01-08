@@ -685,18 +685,6 @@ namespace Client.Main.Controls
             return frustum != null && frustum.Contains(obj.BoundingBoxWorld) != ContainmentType.Disjoint;
         }
 
-        // --- NEW METHOD FOR LIGHT CULLING ---
-        /// <summary>
-        /// Efficiently checks if a dynamic light's area of effect intersects with the camera's view frustum.
-        /// </summary>
-        /// <param name="light">The dynamic light to check.</param>
-        /// <returns>True if the light's sphere is at least partially in view, otherwise false.</returns>
-        public bool IsLightInView(DynamicLight light)
-        {
-            // Always include all lights - let the shader handle distance falloff
-            // This prevents culling issues that cause lighting to stutter
-            return true;
-        }
 
         // --- Map Tile Initialization ---
 

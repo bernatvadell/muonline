@@ -181,9 +181,6 @@ namespace Client.Main.Controls.Terrain
                         continue;
                 }
 
-                if (!world.IsLightInView(light))
-                    continue;
-
                 // Snapshot values so lighting updates are throttled (not per-frame).
                 _activeLights.Add(new DynamicLightSnapshot(light.Position, light.Color, light.Radius, light.Intensity));
             }
