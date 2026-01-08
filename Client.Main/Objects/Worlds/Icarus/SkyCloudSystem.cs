@@ -158,6 +158,16 @@ namespace Client.Main.Objects.Worlds.Icarus
         private Vector2 _mapCenter = new Vector2(1280, 1280);
         private Vector3[] _emissionPoints;
 
+        public SkyCloudSystem()
+        {
+            // Set a very large bounding box to ensure frustum culling doesn't hide the cloud system
+            // Particles are spread across the entire sky, so the bounding box must cover a large area
+            BoundingBoxLocal = new BoundingBox(
+                new Vector3(-20000, -20000, -500),
+                new Vector3(20000, 20000, 500)
+            );
+        }
+
         // Cloud layer heights (constant for each layer)
         private static readonly float[] LayerHeights = { -100f, 0f, 150f };
 

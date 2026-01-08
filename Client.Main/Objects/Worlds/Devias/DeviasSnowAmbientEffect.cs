@@ -321,6 +321,9 @@ namespace Client.Main.Objects.Worlds.Devias
             var previousRasterizer = device.RasterizerState;
             var previousTexture = alphaEffect.Texture;
             int previousReferenceAlpha = alphaEffect.ReferenceAlpha;
+            bool previousVertexColorEnabled = alphaEffect.VertexColorEnabled;
+            Vector3 previousDiffuseColor = alphaEffect.DiffuseColor;
+            float previousAlpha = alphaEffect.Alpha;
             Matrix prevWorld = alphaEffect.World;
             Matrix prevView = alphaEffect.View;
             Matrix prevProj = alphaEffect.Projection;
@@ -334,6 +337,9 @@ namespace Client.Main.Objects.Worlds.Devias
             alphaEffect.View = Camera.Instance.View;
             alphaEffect.Projection = Camera.Instance.Projection;
             alphaEffect.ReferenceAlpha = AlphaTestReference;
+            alphaEffect.VertexColorEnabled = true;
+            alphaEffect.DiffuseColor = Vector3.One;
+            alphaEffect.Alpha = 1f;
 
             for (int t = 0; t < _textures.Length; t++)
             {
@@ -358,6 +364,9 @@ namespace Client.Main.Objects.Worlds.Devias
 
             alphaEffect.Texture = previousTexture;
             alphaEffect.ReferenceAlpha = previousReferenceAlpha;
+            alphaEffect.VertexColorEnabled = previousVertexColorEnabled;
+            alphaEffect.DiffuseColor = previousDiffuseColor;
+            alphaEffect.Alpha = previousAlpha;
             alphaEffect.World = prevWorld;
             alphaEffect.View = prevView;
             alphaEffect.Projection = prevProj;

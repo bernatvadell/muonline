@@ -298,6 +298,9 @@ namespace Client.Main.Objects.Worlds.Lorencia
             var previousRasterizer = device.RasterizerState;
             var previousTexture = alphaEffect.Texture;
             int previousReferenceAlpha = alphaEffect.ReferenceAlpha;
+            bool previousVertexColorEnabled = alphaEffect.VertexColorEnabled;
+            Vector3 previousDiffuseColor = alphaEffect.DiffuseColor;
+            float previousAlpha = alphaEffect.Alpha;
             Matrix prevWorld = alphaEffect.World;
             Matrix prevView = alphaEffect.View;
             Matrix prevProj = alphaEffect.Projection;
@@ -309,6 +312,9 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
             alphaEffect.Texture = _texture;
             alphaEffect.ReferenceAlpha = 40;
+            alphaEffect.VertexColorEnabled = true;
+            alphaEffect.DiffuseColor = Vector3.One;
+            alphaEffect.Alpha = 1f;
             alphaEffect.World = Matrix.Identity;
             alphaEffect.View = Camera.Instance.View;
             alphaEffect.Projection = Camera.Instance.Projection;
@@ -328,6 +334,9 @@ namespace Client.Main.Objects.Worlds.Lorencia
 
             alphaEffect.Texture = previousTexture;
             alphaEffect.ReferenceAlpha = previousReferenceAlpha;
+            alphaEffect.VertexColorEnabled = previousVertexColorEnabled;
+            alphaEffect.DiffuseColor = previousDiffuseColor;
+            alphaEffect.Alpha = previousAlpha;
             alphaEffect.World = prevWorld;
             alphaEffect.View = prevView;
             alphaEffect.Projection = prevProj;
