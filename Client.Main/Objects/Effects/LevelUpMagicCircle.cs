@@ -63,6 +63,7 @@ namespace Client.Main.Objects.Effects
 
             Vector3 originalDiffuse = effect.DiffuseColor;
             float originalAlpha = effect.Alpha;
+            bool originalVertexColorEnabled = effect.VertexColorEnabled;
 
             try
             {
@@ -100,6 +101,7 @@ namespace Client.Main.Objects.Effects
             {
                 effect.DiffuseColor = originalDiffuse;
                 effect.Alpha = originalAlpha;
+                effect.VertexColorEnabled = originalVertexColorEnabled;
             }
         }
     }
