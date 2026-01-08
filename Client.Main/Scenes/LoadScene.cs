@@ -1,3 +1,11 @@
+using Client.Main.Controllers;
+using Client.Main.Controls.UI;
+using Client.Main.Data;
+using Client.Main.Helpers;
+using Client.Main.Models;
+using Client.Main.Worlds;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
@@ -11,13 +19,6 @@ using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Client.Main.Controllers;
-using Client.Main.Controls.UI;
-using Client.Main.Helpers;
-using Client.Main.Models;
-using Client.Main.Worlds;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace Client.Main.Scenes
 {
@@ -237,6 +238,8 @@ namespace Client.Main.Scenes
                 {
                     await DownloadAndExtractAssetsAsync(localZip, extractPath, ct);
                 }
+
+                await GateDataManager.Instance.LoadData();
 
                 await TransitionToNextSceneAsync(ct);
             }

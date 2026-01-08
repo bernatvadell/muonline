@@ -210,7 +210,7 @@ namespace Client.Main.Objects.Player
 
             // Enable mouse hover interactions so the name is shown
             Interactive = true;
-            
+
             Scale = 0.85f;
             AnimationSpeed = 25f;
             CurrentAction = PlayerAction.PlayerStopMale;
@@ -3565,19 +3565,19 @@ namespace Client.Main.Objects.Player
             base.OnLocationChanged(oldLocation, newLocation);
             if (IsMainWalker)
             {
-                CheckForGateEntry((int)newLocation.X, (int)newLocation.Y);
+                CheckForGateEntry((byte)newLocation.X, (byte)newLocation.Y);
             }
         }
 
-        private void CheckForGateEntry(int x, int y)
+        private void CheckForGateEntry(byte x, byte y)
         {
             if (World == null) return;
-            var gate = GateDataManager.Instance.GetGate((int)World.MapId, x, y);
-            if (gate != null && gate.Flag != 0)
+            var teleport = GateDataManager.Instance.GetTeleport((byte)World.MapId, x, y);
+            if (teleport != null)
             {
                 var charState = MuGame.Network.GetCharacterState();
-                if (charState.Level >= gate.Level)
-                    _characterService?.SendEnterGateRequestAsync((ushort)gate.Id);
+                if (charState.Level >= teleport.Source.Level)
+                    _characterService?.SendEnterGateRequestAsync(teleport.Index);
             }
         }
 
