@@ -349,8 +349,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     return Task.CompletedTask;
                 }
 
-                // Adjust map ID (server uses zero-based)
-                mapId = (ushort)(mapNumber + 1); // Server map IDs are 0-based, client/world uses 1-based.
+                mapId = mapNumber;
 
                 // Update state
                 _characterState.UpdatePosition(x, y);
