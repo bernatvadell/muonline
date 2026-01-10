@@ -827,6 +827,14 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     healthFraction = Math.Clamp(hs * statusScale, 0f, 1f);
                 }
+                else if (healthStatus.HasValue)
+                {
+                    _logger.LogDebug("ObjectHit 0x11: HealthStatus unknown (0xFF) for {Id:X4}.", maskedId);
+                }
+                else
+                {
+                    _logger.LogDebug("ObjectHit 0x11: HealthStatus missing (short packet) for {Id:X4}.", maskedId);
+                }
 
                 if (shieldStatus is { } ss && ss != byte.MaxValue)
                 {
