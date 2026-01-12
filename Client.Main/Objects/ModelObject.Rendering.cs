@@ -236,7 +236,8 @@ namespace Client.Main.Objects
                                       GraphicsManager.Instance.MonsterMaterialEffect != null;
 
             // Dynamic lighting shader (used when no special material is active)
-            bool useDynamicLighting = !useItemMaterial && !useMonsterMaterial &&
+            bool useDynamicLighting = AllowDynamicLightingShader &&
+                                      !useItemMaterial && !useMonsterMaterial &&
                                       Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
                                       GraphicsManager.Instance.DynamicLightingEffect != null;
 

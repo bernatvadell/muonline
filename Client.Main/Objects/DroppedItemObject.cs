@@ -33,6 +33,17 @@ namespace Client.Main.Objects
         private const float LabelOffsetZ = 10f;
         private const int LabelPixelGap = 20;
         private const float BoundingPadding = 2f; // Small padding for interaction
+        private const int MaxCoinModels = 30;
+        private const int RenderCullStartCount = 80;
+        private const int MaxRenderedModelsPerFrame = 220;
+        private const double FrameTimeMs = 1000.0 / 60.0; // ~16.67ms at 60 FPS, used for frame ID generation
+        private const float LabelVisibilityDistSq = 2000f * 2000f; // Squared distance for label visibility check
+
+        // Per-tile stable selection to avoid flicker when many drops stack on the same tile.
+        private static readonly Dictionary<int, ushort> _tileSelectedRawId = new(512);
+        private static uint _cullFrameId = uint.MaxValue;
+        private static uint _strideFrameId = uint.MaxValue;
+        private static int _globalStride = 1;
 
         // ─────────────────── deps / state
         private ScopeObject _scope;
@@ -45,9 +56,12 @@ namespace Client.Main.Objects
         private ModelObject _modelObj; // Optional 3D model when available
         private ItemDefinition _definition;
         private bool _isMoney;
-        private float _yawRadians;   // Static orientation in world (does not follow camera)
+        private Color _labelColor;
         private readonly List<ModelObject> _coinModels = new List<ModelObject>(); // Multiple coins for money piles
         private DroppedItemShineEffect _shineEffect;
+        private bool _renderVisualsThisFrame = true;
+        private uint _cachedFrameId;
+        private int _cachedTileKey;
 
         // ─────────────────── public helpers
         public ushort RawId => _scope?.RawId ?? 0;
@@ -113,6 +127,7 @@ namespace Client.Main.Objects
             _isMoney = false;
             _coinModels.Clear();
             _shineEffect = null;
+            _renderVisualsThisFrame = true;
 
             // Initialize position at ground level (will be adjusted in Load() after terrain height is known)
             Position = new(
@@ -138,9 +153,7 @@ namespace Client.Main.Objects
             }
 
             DisplayName = FormatItemDisplayName(baseName, itemDetails);
-
-            // Initialize a deterministic static yaw based on the raw id to make items look natural but stable
-            _yawRadians = ((RawId & 0xFF) / 255f) * MathHelper.TwoPi;
+            _labelColor = GetLabelColor(scope, itemDetails);
         }
 
         // =====================================================================
@@ -170,7 +183,7 @@ namespace Client.Main.Objects
 
                     // Determine coin count based on amount (more zen = more coins, capped at reasonable number)
                     var moneyScope = _scope as MoneyScopeObject;
-                    int coinCount = CalculateCoinCount(moneyScope?.Amount ?? 0);
+                    int coinCount = Math.Min(CalculateCoinCount(moneyScope?.Amount ?? 0), MaxCoinModels);
 
                     // Use deterministic random based on RawId for consistent results
                     var random = new Random(RawId);
@@ -400,12 +413,52 @@ namespace Client.Main.Objects
         public override void Update(GameTime gameTime)
         {
             base.Update(gameTime);
+
+            if (!Visible)
+                return;
+
+            UpdateCullSelection(gameTime);
         }
 
         // =====================================================================
         public override void Draw(GameTime gameTime)
         {
-            base.Draw(gameTime);
+            if (!Visible) return;
+
+            DrawBoundingBox3D();
+
+            _renderVisualsThisFrame = ShouldRenderVisualsThisFrame();
+            if (!_renderVisualsThisFrame)
+                return;
+
+            var objects = Children;
+            for (int i = 0; i < objects.Count; i++)
+            {
+                var child = objects[i];
+                if (ReferenceEquals(child, _shineEffect))
+                    continue;
+
+                child.Draw(gameTime);
+            }
+        }
+
+        // =====================================================================
+        public override void DrawAfter(GameTime gameTime)
+        {
+            if (!Visible) return;
+
+            if (!_renderVisualsThisFrame)
+                return;
+
+            var objects = Children;
+            for (int i = 0; i < objects.Count; i++)
+            {
+                var child = objects[i];
+                if (ReferenceEquals(child, _shineEffect))
+                    continue;
+
+                child.DrawAfter(gameTime);
+            }
         }
 
         // =====================================================================
@@ -514,20 +567,20 @@ namespace Client.Main.Objects
 
             bool near = false;
             if (World is Controls.WalkableWorldControl w && w.Walker != null)
-                near = Vector3.Distance(w.Walker.Position, Position) <= 2000f;
+                near = Vector3.DistanceSquared(w.Walker.Position, Position) <= LabelVisibilityDistSq;
             if (!near || World?.Scene?.Status != GameControlStatus.Ready)
                 return;
 
-            var scope = _scope;
+            // CONTRACT: Dropped item labels are batched in BaseScene.Draw() with a single
+            // SpriteBatch Begin/End. Callers MUST ensure a SpriteBatch is active before calling.
+            // This avoids expensive per-item Begin/End overhead when many items are on screen.
+            if (!SpriteBatchScope.BatchIsBegun)
+                return;
+
             string text = DisplayName;
             float baseScale = 10f / Client.Main.Constants.BASE_FONT_SIZE;
             float scale = baseScale * UiScaler.Scale * Constants.RENDER_SCALE;
-            ReadOnlySpan<byte> itemSpan = ReadOnlySpan<byte>.Empty;
-            if (scope is ItemScopeObject iso)
-            {
-                itemSpan = iso.ItemData.Span;
-            }
-            var color = GetLabelColor(scope, ItemDatabase.ParseItemDetails(itemSpan));
+            var color = _labelColor;
 
             Vector3 anchor = new(Position.X, Position.Y, BoundingBoxWorld.Max.Z + LabelOffsetZ);
             Vector3 screen = GraphicsDevice.Viewport.Project(
@@ -548,62 +601,27 @@ namespace Client.Main.Objects
                 (int)(screen.X - width / 2f),
                 (int)(screen.Y - height - LabelPixelGap),
                 width, height);
-            float layer = screen.Z;
-
-            void draw()
-            {
-                sb.Draw(GraphicsManager.Instance.Pixel, rect, null, new Color(0, 0, 0, 160), 0f, Vector2.Zero, SpriteEffects.None, layer);
-                sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.X, rect.Y, rect.Width, 1), null, Color.White * 0.3f, 0f, Vector2.Zero, SpriteEffects.None, layer);
-                sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.X, rect.Bottom - 1, rect.Width, 1), null, Color.White * 0.3f, 0f, Vector2.Zero, SpriteEffects.None, layer);
-                sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.X, rect.Y, 1, rect.Height), null, Color.White * 0.3f, 0f, Vector2.Zero, SpriteEffects.None, layer);
-                sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.Right - 1, rect.Y, 1, rect.Height), null, Color.White * 0.3f, 0f, Vector2.Zero, SpriteEffects.None, layer);
-                sb.DrawString(
-                    _font,
-                    text,
-                    new Vector2(rect.X + padX, rect.Y + padY),
-                    color,
-                    0f,
-                    Vector2.Zero,
-                    scale,
-                    SpriteEffects.None,
-                    layer);
-            }
-
-            if (!SpriteBatchScope.BatchIsBegun)
-            {
-                using (new SpriteBatchScope(sb, SpriteSortMode.BackToFront, BlendState.NonPremultiplied, SamplerState.PointClamp, DepthStencilState.None))
-                {
-                    draw();
-                }
-            }
-            else
-            {
-                sb.End();
-                sb.Begin(SpriteSortMode.BackToFront, BlendState.NonPremultiplied, SamplerState.PointClamp, DepthStencilState.None, RasterizerState.CullNone);
-                draw();
-                sb.End();
-                sb.Begin(SpriteSortMode.BackToFront, BlendState.NonPremultiplied, SamplerState.PointClamp, DepthStencilState.DepthRead, RasterizerState.CullNone);
-            }
+            float layer = 0f;
+            sb.Draw(GraphicsManager.Instance.Pixel, rect, null, new Color(0, 0, 0, 160), 0f, Vector2.Zero, SpriteEffects.None, layer);
+            sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.X, rect.Y, rect.Width, 1), null, Color.White * 0.3f, 0f, Vector2.Zero, SpriteEffects.None, layer);
+            sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.X, rect.Bottom - 1, rect.Width, 1), null, Color.White * 0.3f, 0f, Vector2.Zero, SpriteEffects.None, layer);
+            sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.X, rect.Y, 1, rect.Height), null, Color.White * 0.3f, 0f, Vector2.Zero, SpriteEffects.None, layer);
+            sb.Draw(GraphicsManager.Instance.Pixel, new Rectangle(rect.Right - 1, rect.Y, 1, rect.Height), null, Color.White * 0.3f, 0f, Vector2.Zero, SpriteEffects.None, layer);
+            sb.DrawString(
+                _font,
+                text,
+                new Vector2(rect.X + padX, rect.Y + padY),
+                color,
+                0f,
+                Vector2.Zero,
+                scale,
+                SpriteEffects.None,
+                layer);
         }
-
-        private static Color GetLabelColor(ScopeObject s) =>
-            s switch
-            {
-                ItemScopeObject item when item.ItemDescription.StartsWith("Jewel", StringComparison.OrdinalIgnoreCase) => Color.Yellow,
-                MoneyScopeObject _ => Color.Gold,
-                _ => Color.White
-            };
 
         public void ResetPickupState()
         {
             _pickedUp = false;
-        }
-
-        private void OnLabelClicked(object sender, EventArgs e) => OnClick();
-
-        public override void Dispose()
-        {
-            base.Dispose();
         }
 
         private void AttachShineEffect()
@@ -615,14 +633,85 @@ namespace Client.Main.Objects
             Children.Add(_shineEffect);
             _ = _shineEffect.Load();
         }
+
+        internal void DrawShineEffect(GameTime gameTime)
+        {
+            if (!Visible || _pickedUp)
+                return;
+
+            if (Camera.Instance?.Frustum != null && !Camera.Instance.Frustum.Intersects(BoundingBoxWorld))
+                return;
+
+            if (!_renderVisualsThisFrame)
+                return;
+
+            _shineEffect?.Draw(gameTime);
+        }
+
+        private void UpdateCullSelection(GameTime gameTime)
+        {
+            if (World is not Controls.WorldControl worldControl)
+                return;
+
+            if (worldControl.DroppedItems.Count < RenderCullStartCount)
+                return;
+
+            _cachedFrameId = (uint)(gameTime.TotalGameTime.TotalMilliseconds / FrameTimeMs);
+            if (_cullFrameId != _cachedFrameId)
+            {
+                _cullFrameId = _cachedFrameId;
+                _tileSelectedRawId.Clear();
+                _strideFrameId = uint.MaxValue;
+                _globalStride = 1;
+            }
+
+            _cachedTileKey = HashCode.Combine(_scope.PositionX, _scope.PositionY);
+            if (_tileSelectedRawId.TryGetValue(_cachedTileKey, out ushort selected))
+            {
+                if (RawId < selected)
+                    _tileSelectedRawId[_cachedTileKey] = RawId;
+            }
+            else
+            {
+                _tileSelectedRawId[_cachedTileKey] = RawId;
+            }
+        }
+
+        private bool ShouldRenderVisualsThisFrame()
+        {
+            if (World is not Controls.WorldControl worldControl)
+                return true;
+
+            // Only start culling when drops are numerous enough to impact FPS.
+            if (worldControl.DroppedItems.Count < RenderCullStartCount)
+                return true;
+
+            // Use cached values from UpdateCullSelection; fallback if Update didn't run.
+            if (_cullFrameId != _cachedFrameId)
+                return true;
+
+            if (!_tileSelectedRawId.TryGetValue(_cachedTileKey, out ushort selected) || selected != RawId)
+                return false;
+
+            if (_strideFrameId != _cachedFrameId)
+            {
+                int tileCount = _tileSelectedRawId.Count;
+                _globalStride = tileCount > MaxRenderedModelsPerFrame
+                    ? (int)MathF.Ceiling(tileCount / (float)MaxRenderedModelsPerFrame)
+                    : 1;
+                _strideFrameId = _cachedFrameId;
+            }
+
+            return _globalStride <= 1 || (RawId % _globalStride) == 0;
+        }
     }
 
     // Minimal model subclass used for dropped items
     internal class DroppedItemModel : ModelObject
     {
-        public override async Task Load()
-        {
-            await base.Load();
-        }
+        protected override bool FreezeDynamicBuffersAfterFirstBuild => true;
+        protected override bool AllowAnimationUpdates => false;
+        protected override bool AllowLightingUpdates => false;
+        protected override bool AllowDynamicLightingShader => false;
     }
 }

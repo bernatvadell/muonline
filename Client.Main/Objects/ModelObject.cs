@@ -122,6 +122,7 @@ namespace Client.Main.Objects
         private float _blendMeshLight = 1f;
         private bool _contentLoaded = false;
         private bool _boundingComputed = false;
+        private bool _dynamicBuffersFrozen = false;
 
         // Buffer invalidation flags
         private const uint BUFFER_FLAG_ANIMATION = 1u << 0;      // Animation/bones changed
@@ -160,6 +161,7 @@ namespace Client.Main.Objects
 
         // Quantized lighting sample (reduces CPU work without visible change)
         private const float _LIGHT_SAMPLE_GRID = 8f; // world units per cell
+        private const double FrameTimeMs = 1000.0 / 60.0; // ~16.67ms at 60 FPS
         private Vector2 _lastLightSampleCell = new Vector2(float.MaxValue);
         private Vector3 _lastSampledLight = Vector3.Zero;
 
@@ -300,6 +302,10 @@ namespace Client.Main.Objects
 
         public int AnimationUpdateStride { get; private set; } = 1;
         protected virtual bool RequiresPerFrameAnimation => false;
+        protected virtual bool AllowAnimationUpdates => true;
+        protected virtual bool AllowLightingUpdates => true;
+        protected virtual bool AllowDynamicLightingShader => true;
+        protected virtual bool FreezeDynamicBuffersAfterFirstBuild => false;
 
         #endregion
 
@@ -395,6 +401,7 @@ namespace Client.Main.Objects
             }
 
             InvalidateBuffers(BUFFER_FLAG_ALL);
+            _dynamicBuffersFrozen = false;
             _contentLoaded = true;
 
             if (Model?.Bones != null && Model.Bones.Length > 0)
@@ -430,7 +437,7 @@ namespace Client.Main.Objects
         {
             if (World == null || !_contentLoaded || !Visible) return;
 
-            if (!LinkParentAnimation)
+            if (!LinkParentAnimation && AllowAnimationUpdates)
             {
                 Animation(gameTime);
             }
@@ -466,47 +473,47 @@ namespace Client.Main.Objects
 
             base.Update(gameTime);
 
-            // Like old code: Check if lighting has changed significantly (for static objects)
-            bool hasDynamicLightingShader = Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
-                                           GraphicsManager.Instance.DynamicLightingEffect != null;
-
-            Vector3 currentLight;
-
-            // CPU lighting path (shader disabled): sample terrain light on a small grid
-            if (!hasDynamicLightingShader && LightEnabled && World?.Terrain != null)
+            if (AllowLightingUpdates && !LinkParentAnimation && _contentLoaded)
             {
-                var pos = WorldPosition.Translation;
-                var cell = new Vector2(
-                    MathF.Floor(pos.X / _LIGHT_SAMPLE_GRID),
-                    MathF.Floor(pos.Y / _LIGHT_SAMPLE_GRID));
+                // Like old code: Check if lighting has changed significantly (for static objects)
+                bool hasDynamicLightingShader = Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
+                                               GraphicsManager.Instance.DynamicLightingEffect != null;
 
-                if (_lastLightSampleCell != cell)
+                Vector3 currentLight;
+
+                // CPU lighting path (shader disabled): sample terrain light on a small grid
+                if (!hasDynamicLightingShader && LightEnabled && World?.Terrain != null)
                 {
-                    // Terrain base light
-                    _lastSampledLight = World.Terrain.EvaluateTerrainLight(pos.X, pos.Y);
-                    // Include dynamic lights on CPU path only
-                    _lastSampledLight += World.Terrain.EvaluateDynamicLight(new Vector2(pos.X, pos.Y));
-                    _lastLightSampleCell = cell;
+                    var pos = WorldPosition.Translation;
+                    var cell = new Vector2(
+                        MathF.Floor(pos.X / _LIGHT_SAMPLE_GRID),
+                        MathF.Floor(pos.Y / _LIGHT_SAMPLE_GRID));
+
+                    if (_lastLightSampleCell != cell)
+                    {
+                        // Terrain base light
+                        _lastSampledLight = World.Terrain.EvaluateTerrainLight(pos.X, pos.Y);
+                        // Include dynamic lights on CPU path only
+                        _lastSampledLight += World.Terrain.EvaluateDynamicLight(new Vector2(pos.X, pos.Y));
+                        _lastLightSampleCell = cell;
+                    }
+
+                    currentLight = _lastSampledLight + Light;
+                }
+                else
+                {
+                    currentLight = LightEnabled && World?.Terrain != null
+                        ? World.Terrain.EvaluateTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y) + Light
+                        : Light;
                 }
 
-                currentLight = _lastSampledLight + Light;
-            }
-            else
-            {
-                currentLight = LightEnabled && World?.Terrain != null
-                    ? World.Terrain.EvaluateTerrainLight(WorldPosition.Translation.X, WorldPosition.Translation.Y) + Light
-                    : Light;
-            }
-
-            if (!LinkParentAnimation && _contentLoaded)
-            {
                 // PERFORMANCE: Only invalidate lighting for CPU lighting path - shader lighting doesn't need buffer rebuilds
                 if (!hasDynamicLightingShader)
                 {
                     // Reduce throttling for PlayerObjects to ensure proper rendering
                     bool isMainPlayer = this is PlayerObject p && p.IsMainWalker;
                     double lightUpdateInterval = isMainPlayer
-                        ? 16.67
+                        ? FrameTimeMs
                         : (RequiresPerFrameAnimation ? 50 : 1000); // throttle static objects heavily
                     float lightThreshold = isMainPlayer ? 0.001f : 0.01f;   // More sensitive for main player
 
@@ -532,7 +539,12 @@ namespace Client.Main.Objects
             // Like old code: always call SetDynamicBuffers when content is loaded
             if (_contentLoaded)
             {
-                SetDynamicBuffers();
+                if (!_dynamicBuffersFrozen)
+                {
+                    SetDynamicBuffers();
+                    if (FreezeDynamicBuffersAfterFirstBuild && _invalidatedBufferFlags == 0)
+                        _dynamicBuffersFrozen = true;
+                }
             }
         }
 

@@ -11,7 +11,6 @@ namespace Client.Main.Objects
 {
     public abstract class SpriteObject : WorldObject
     {
-        private Vector2 _screenPosition;
         private float _scaleMix = 1f;
 
         protected SpriteBatch SpriteBatch { get; private set; }
@@ -59,6 +58,12 @@ namespace Client.Main.Objects
 
             // Projected coordinates are already in the correct space
 
+            // Keep sprite scaling in Draw to avoid per-frame projection work in Update (many sprite effects).
+            float worldScaleX = WorldPosition.Right.Length();
+            float distanceToCamera = Vector3.Distance(Camera.Instance.Position, WorldPosition.Translation);
+            float scaleFactor = Scale / (MathF.Max(distanceToCamera, 0.1f) / Constants.TERRAIN_SIZE);
+            _scaleMix = scaleFactor * worldScaleX * Constants.RENDER_SCALE;
+
             float layerDepth = MathHelper.Clamp(projected.Z, 0f, 1f);
 
             // If SpriteBatch is not begun, open a local SpriteBatchScope
@@ -90,34 +95,6 @@ namespace Client.Main.Objects
                 _scaleMix,
                 SpriteEffects.None,
                 layerDepth);
-        }
-
-        public override void Update(GameTime gameTime)
-        {
-            base.Update(gameTime);
-
-            if (!Visible) return;
-
-            var screenPosition = GraphicsDevice.Viewport.Project(
-                WorldPosition.Translation,
-                Camera.Instance.Projection,
-                Camera.Instance.View,
-                Matrix.Identity
-            );
-
-            // Projected coordinates are already in the correct space
-
-            _screenPosition = new Vector2(screenPosition.X, screenPosition.Y);
-
-            Vector3 worldScale = new Vector3(
-                WorldPosition.Right.Length(),
-                WorldPosition.Up.Length(),
-                WorldPosition.Backward.Length()
-            );
-
-            float distanceToCamera = Vector3.Distance(Camera.Instance.Position, WorldPosition.Translation);
-            float scaleFactor = Scale / (MathF.Max(distanceToCamera, 0.1f) / Constants.TERRAIN_SIZE);
-            _scaleMix = scaleFactor * worldScale.X * Constants.RENDER_SCALE;
         }
 
         public override void Dispose()
