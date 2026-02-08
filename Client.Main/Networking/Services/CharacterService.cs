@@ -991,13 +991,14 @@ namespace Client.Main.Networking.Services
         /// <summary>
         /// Sends a request to pick up a dropped item or money by its network ID.
         /// </summary>
-        public async Task SendPickupItemRequestAsync(ushort itemId, TargetProtocolVersion version)
+        /// <returns>True if the request was sent successfully, false otherwise.</returns>
+        public async Task<bool> SendPickupItemRequestAsync(ushort itemId, TargetProtocolVersion version)
         {
             ushort itemIdMasked = (ushort)(itemId & 0x7FFF);
             if (!_connectionManager.IsConnected)
             {
                 _logger.LogError("Not connected - cannot send pickup item request.");
-                return;
+                return false;
             }
 
             _logger.LogInformation("Sending pickup item request for itemId: {ItemId}...", itemIdMasked);
@@ -1015,10 +1016,12 @@ namespace Client.Main.Networking.Services
                         break;
                 }
                 _logger.LogInformation("Pickup item request sent for itemId: {ItemId}.", itemIdMasked);
+                return true;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending pickup item request for itemId {ItemId}.", itemIdMasked);
+                return false;
             }
         }
 

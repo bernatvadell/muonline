@@ -290,6 +290,17 @@ namespace Client.Main.Core.Client
         }
 
         /// <summary>
+        /// Gets a scope object by its masked ID.
+        /// </summary>
+        /// <param name="maskedId">The masked ID of the object to retrieve.</param>
+        /// <returns>The scope object if found, otherwise <c>null</c>.</returns>
+        public ScopeObject GetScopeObjectByMaskedId(ushort maskedId)
+        {
+            _objectsInScope.TryGetValue(maskedId, out var scopeObject);
+            return scopeObject;
+        }
+
+        /// <summary>
         /// Clears only dropped items and money from scope during map transitions.
         /// This handles cases where server doesn't send OutOfScope packets for items during warp.
         /// </summary>
@@ -419,9 +430,11 @@ namespace Client.Main.Core.Client
         /// <summary>
         /// Finds the raw ID of the nearest pickupable item (Item or Money) in scope.
         /// </summary>
+        /// <param name="outOfRange">Set to true if an item was found but is out of pickup range.</param>
         /// <returns>The raw ID of the nearest pickupable item, or <c>null</c> if no items or money are in pickup range.</returns>
-        public ushort? FindNearestPickupItemRawId()
+        public ushort? FindNearestPickupItemRawId(out bool outOfRange)
         {
+            outOfRange = false;
             double minDistanceSq = double.MaxValue;
             ScopeObject nearestObject = null;
 
@@ -452,6 +465,7 @@ namespace Client.Main.Core.Client
             else if (nearestObject != null)
             {
                 _logger.LogInformation("Nearest object {Object} is too far away (Distance Squared: {DistanceSq})", nearestObject, minDistanceSq);
+                outOfRange = true;
                 return null;
             }
             else
@@ -459,6 +473,15 @@ namespace Client.Main.Core.Client
                 _logger.LogInformation("No items or money found nearby.");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Finds the raw ID of the nearest pickupable item (Item or Money) in scope.
+        /// </summary>
+        /// <returns>The raw ID of the nearest pickupable item, or <c>null</c> if no items or money are in pickup range.</returns>
+        public ushort? FindNearestPickupItemRawId()
+        {
+            return FindNearestPickupItemRawId(out _);
         }
 
         /// <summary>

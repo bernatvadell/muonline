@@ -171,6 +171,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     if (value == NotGetItem)
                     {
                         _logger.LogInformation("Item pick-up failed (0x22 value=0xFF).");
+                        ShowPickupChatMessage("Item pick-up failed.");
                         _characterState.ClearPendingPickedItem();
                         ResetPendingPickupObject();
                         return Task.CompletedTask;
@@ -182,6 +183,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         {
                             var moneyUpdate = new InventoryMoneyUpdate(packet);
                             _characterState.UpdateInventoryZen(moneyUpdate.Money);
+                            ShowPickupChatMessage($"Picked up Zen. Total: {moneyUpdate.Money:N0}");
                         }
                         else
                         {
@@ -207,6 +209,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     if (packet.Length <= itemDataOffset)
                     {
                         _logger.LogWarning("Item pick-up success (slot {Slot}) has no item data.", targetSlot);
+                        ShowPickupChatMessage("Item pick-up error (missing item data).");
                         _characterState.ClearPendingPickedItem();
                         ResetPendingPickupObject();
                         return Task.CompletedTask;
@@ -224,6 +227,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     _characterState.ClearPendingPickedItem();
                     string itemName = ItemDatabase.GetItemName(itemData) ?? "Item";
                     _logger.LogInformation("Item '{ItemName}' picked up successfully into slot {Slot}.", itemName, targetSlot);
+                    ShowPickupChatMessage($"Picked up '{itemName}'.");
                     SoundController.Instance.PlayBuffer("Sound/pGetItem.wav");
                     ResetPendingPickupObject();
                     return Task.CompletedTask;
@@ -291,11 +295,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 if (!string.IsNullOrEmpty(messageToUser))
                 {
                     _logger.LogWarning("Item Pickup Issue: {Message}", messageToUser);
-                    MuGame.ScheduleOnMainThread(() =>
-                    {
-                        var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
-                        gameScene?.ChatLog?.AddMessage("System", messageToUser, uiMessageType);
-                    });
+                    ShowPickupChatMessage(messageToUser, uiMessageType);
                 }
             }
             catch (Exception ex)
@@ -305,6 +305,15 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 ResetPendingPickupObject();
             }
             return Task.CompletedTask;
+        }
+
+        private void ShowPickupChatMessage(string message, MessageType messageType = MessageType.System)
+        {
+            MuGame.ScheduleOnMainThread(() =>
+            {
+                var gameScene = MuGame.Instance?.ActiveScene as Client.Main.Scenes.GameScene;
+                gameScene?.ChatLog?.AddMessage("System", message, messageType);
+            });
         }
 
         private void ResetPendingPickupObject()

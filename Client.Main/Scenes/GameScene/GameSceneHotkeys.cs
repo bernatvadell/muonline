@@ -8,6 +8,7 @@ using Client.Main.Controls.UI.Game.Inventory;
 using Client.Main.Controls.UI.Game.Character;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Client.Main.Core.Models;
 
 namespace Client.Main.Scenes
 {
@@ -173,6 +174,9 @@ namespace Client.Main.Scenes
 
             hotkeys.OnKeyPressed(Keys.PageUp, ScrollChatLogPageUp, when: WhenChatLogFrameVisible);
             hotkeys.OnKeyPressed(Keys.PageDown, ScrollChatLogPageDown, when: WhenChatLogFrameVisible);
+
+            // Space bar to pick up nearest item in range
+            hotkeys.OnKeyPressed(Keys.Space, PickupNearestItem, when: WhenNotUiInput);
         }
 
         private void TogglePauseMenu(HotkeyContext context)
@@ -311,6 +315,100 @@ namespace Client.Main.Scenes
         private void ScrollChatLogPageDown(HotkeyContext context)
         {
             _chatLog?.ScrollLines(-_chatLog.NumberOfShowingLines);
+        }
+
+        private void PickupNearestItem(HotkeyContext context)
+        {
+            var network = MuGame.Network;
+            var scopeManager = network?.GetScopeManager();
+            var characterState = network?.GetCharacterState();
+
+            if (scopeManager == null || characterState == null)
+            {
+                _logger.LogWarning("Cannot pickup item: ScopeManager or CharacterState is null");
+                _chatLog?.AddMessage("System", "Cannot pickup item: system not ready.", MessageType.Error);
+                return;
+            }
+
+            var nearestItemRawId = scopeManager.FindNearestPickupItemRawId(out bool outOfRange);
+            if (nearestItemRawId.HasValue)
+            {
+                // Get the scope object to access item data
+                ushort maskedId = (ushort)(nearestItemRawId.Value & 0x7FFF);
+                var scopeObject = scopeManager.GetScopeObjectByMaskedId(maskedId);
+
+                // Try to get item name for better feedback
+                string itemName = "item";
+                if (scopeManager.TryGetScopeObjectName(nearestItemRawId.Value, out var name) && !string.IsNullOrWhiteSpace(name))
+                {
+                    itemName = name;
+                }
+
+                _logger.LogInformation("Space pressed - picking up nearest item with RawId: {RawId}", nearestItemRawId.Value);
+
+                if (scopeObject == null)
+                {
+                    _logger.LogWarning("Scope object for maskedId {MaskedId:X4} disappeared before pickup", maskedId);
+                    return;
+                }
+
+                // Stash pending pickup data before sending request (like DroppedItemObject.OnClick does)
+                characterState.SetPendingPickupRawId(nearestItemRawId.Value);
+
+                if (scopeObject is ItemScopeObject itemScope)
+                {
+                    characterState.StashPickedItem(itemScope.ItemData.ToArray());
+                }
+                else if (scopeObject is MoneyScopeObject)
+                {
+                    _logger.LogDebug("Pickup initiated for Zen");
+                }
+                else
+                {
+                    _logger.LogWarning("Unknown scope object type for pickup: {Type}", scopeObject.ObjectType);
+                    return;
+                }
+
+                var characterService = network.GetCharacterService();
+                if (characterService == null)
+                {
+                    _logger.LogWarning("CharacterService is null, cannot send pickup request");
+                    return;
+                }
+
+                // Send pickup request and handle result
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        bool success = await characterService.SendPickupItemRequestAsync(nearestItemRawId.Value, network.TargetVersion);
+                        if (!success)
+                        {
+                            MuGame.ScheduleOnMainThread(() =>
+                            {
+                                _chatLog?.AddMessage("System", $"Failed to pick up {itemName}: not connected to server.", MessageType.Error);
+                            });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error during pickup request for RawId {RawId}", nearestItemRawId.Value);
+                    }
+                });
+            }
+            else
+            {
+                if (outOfRange)
+                {
+                    _logger.LogDebug("Space pressed - nearest item is too far away");
+                    _chatLog?.AddMessage("System", "Item is too far away.", MessageType.System);
+                }
+                else
+                {
+                    _logger.LogDebug("Space pressed - no items in pickup range");
+                    _chatLog?.AddMessage("System", "No items in pickup range.", MessageType.System);
+                }
+            }
         }
 
         private readonly record struct HotkeyContext(
