@@ -3542,10 +3542,10 @@ namespace Client.Main.Objects.Player
             var pixel = GraphicsManager.Instance.Pixel;
             using (new SpriteBatchScope(
                        sb,
-                       SpriteSortMode.BackToFront,
+                       SpriteSortMode.Deferred,
                        BlendState.NonPremultiplied,
                        SamplerState.PointClamp,
-                       DepthStencilState.DepthRead))
+                       DepthStencilState.None))
             {
                 sb.Draw(pixel, bgRect, Color.Black * 0.6f);
                 sb.Draw(pixel, fillRect, Color.Red);

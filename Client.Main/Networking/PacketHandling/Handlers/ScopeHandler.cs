@@ -876,7 +876,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                 float? healthFraction = null;
                 float? shieldFraction = null;
-                const float statusScale = 1f / 250f;
+                const float statusScale = 1f / 255f;
 
                 if (healthStatus is { } hs && hs != byte.MaxValue)
                 {

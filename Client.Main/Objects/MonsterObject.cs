@@ -287,10 +287,10 @@ namespace Client.Main.Objects
             var sb = GraphicsManager.Instance.Sprite;
             using (new SpriteBatchScope(
                        sb,
-                       SpriteSortMode.BackToFront,
+                       SpriteSortMode.Deferred,
                        BlendState.NonPremultiplied,
                        SamplerState.LinearClamp,
-                       DepthStencilState.DepthRead))
+                       DepthStencilState.None))
             {
                 OverheadNameplateRenderer.DrawNameplate(sb, font, screen, name, hp, Constants.RENDER_SCALE);
             }
