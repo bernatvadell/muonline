@@ -17,7 +17,10 @@ using System.Runtime.CompilerServices;
 
 namespace Client.Main.Controls
 {
-    // Shared helper for reference comparison in comparers
+    // Shared helper for reference comparison in comparers.
+    // Uses RuntimeHelpers.GetHashCode for grouping objects by identity (same texture/model/blend state).
+    // The ordering is NOT deterministic across GC compactions, but that is acceptable here because
+    // the goal is batching identical resources together, not producing a stable sort order.
     internal static class ComparerHelper
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

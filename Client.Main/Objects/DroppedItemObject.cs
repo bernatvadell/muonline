@@ -36,14 +36,16 @@ namespace Client.Main.Objects
         private const int MaxCoinModels = 30;
         private const int RenderCullStartCount = 80;
         private const int MaxRenderedModelsPerFrame = 220;
-        private const double FrameTimeMs = 1000.0 / 60.0; // ~16.67ms at 60 FPS, used for frame ID generation
         private const float LabelVisibilityDistSq = 2000f * 2000f; // Squared distance for label visibility check
 
         // Per-tile stable selection to avoid flicker when many drops stack on the same tile.
+        // NOTE: These statics assume single-threaded Update/Draw (MonoGame main thread).
+        // They are automatically cleared each frame via _cullFrameId check.
         private static readonly Dictionary<int, ushort> _tileSelectedRawId = new(512);
         private static uint _cullFrameId = uint.MaxValue;
         private static uint _strideFrameId = uint.MaxValue;
         private static int _globalStride = 1;
+        private static uint _globalFrameCounter; // Monotonic frame counter, incremented once per frame
 
         // ─────────────────── deps / state
         private ScopeObject _scope;
@@ -656,16 +658,21 @@ namespace Client.Main.Objects
             if (worldControl.DroppedItems.Count < RenderCullStartCount)
                 return;
 
-            _cachedFrameId = (uint)(gameTime.TotalGameTime.TotalMilliseconds / FrameTimeMs);
+            // Use a monotonic frame counter instead of time-division to avoid
+            // instability at variable frame rates (VSync off, >60 FPS, etc.).
+            _cachedFrameId = _globalFrameCounter;
             if (_cullFrameId != _cachedFrameId)
             {
                 _cullFrameId = _cachedFrameId;
+                _globalFrameCounter++;
                 _tileSelectedRawId.Clear();
                 _strideFrameId = uint.MaxValue;
                 _globalStride = 1;
             }
 
-            _cachedTileKey = HashCode.Combine(_scope.PositionX, _scope.PositionY);
+            // Deterministic tile key: pack X/Y into a single int without hash collisions
+            // (MU map coordinates fit in 0-255 range, so 16-bit packing is safe).
+            _cachedTileKey = (_scope.PositionX << 16) | (_scope.PositionY & 0xFFFF);
             if (_tileSelectedRawId.TryGetValue(_cachedTileKey, out ushort selected))
             {
                 if (RawId < selected)
@@ -702,7 +709,9 @@ namespace Client.Main.Objects
                 _strideFrameId = _cachedFrameId;
             }
 
-            return _globalStride <= 1 || (RawId % _globalStride) == 0;
+            // Rotate the stride bucket each frame so different items get a chance to render,
+            // preventing the same subset from always being visible.
+            return _globalStride <= 1 || (RawId % _globalStride) == (_cachedFrameId % (uint)_globalStride);
         }
     }
 
