@@ -1,8 +1,13 @@
 ﻿using Client.Data.BMD;
+using Client.Main.Controllers; // Added for GraphicsManager
+using Client.Main.Controls; // Added for Camera (if in controls) or Scene? Camera is typically in Scenes or Controls.
+using Client.Main.Graphics; // Added for Camera
 using Client.Main.Models;
 using Client.Main.Objects.Player;
+using Client.Main.Scenes; // Camera is likely here or in Controllers
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics; // Added for SpriteSortMode, etc.
 using System.Collections.Generic;
 using System.Linq;
 
@@ -216,28 +221,171 @@ namespace Client.Main.Objects
             // Override to play hit sound.
         }
 
+        private float _healthFraction = 1f;
+        
+        // Estimated health tracking because server doesn't always send HP%
+        private int _currentHealth;
+        private int _approximateMaxHealth = -1; // -1 indicates not yet initialized
+
         /// <summary>
         /// Minimal health/shield update shim to accept server-provided fractions.
         /// Triggers damage reactions and death fade when health reaches zero.
         /// </summary>
         public void UpdateHealthFractions(float? healthFraction, float? shieldFraction, uint? healthDamage = null, uint? shieldDamage = null)
         {
+            // Initialize approximate health on first hit if needed
+            // If we don't know the max health, we guess it based on the first damage received.
+            // A common assumption for "feeling good" is that a mob takes ~5-10 hits to kill.
+            // Let's pick 6 hits as a baseline for visual feedback.
+            if (_approximateMaxHealth < 0)
+            {
+                 if (healthDamage.HasValue && healthDamage.Value > 0)
+                 {
+                     _approximateMaxHealth = (int)healthDamage.Value * 6;
+                     _currentHealth = _approximateMaxHealth;
+                 }
+                 else
+                 {
+                     _approximateMaxHealth = 50000; // Fallback if first hit has no damage info
+                     _currentHealth = _approximateMaxHealth;
+                 }
+            }
+
             if (healthFraction.HasValue)
             {
-                float hf = MathHelper.Clamp(healthFraction.Value, 0f, 1f);
-                if (hf <= 0f)
-                {
-                    StartDeathFade();
-                }
-                else
-                {
-                    OnReceiveDamage();
-                }
+                _healthFraction = MathHelper.Clamp(healthFraction.Value, 0f, 1f);
+                // Sync our estimate to the server's truth if available
+                _currentHealth = (int)(_approximateMaxHealth * _healthFraction);
+            }
+            else if (healthDamage.HasValue && healthDamage.Value > 0)
+            {
+                // Fallback: Apply damage to our local estimate
+                _currentHealth -= (int)healthDamage.Value;
+                if (_currentHealth < 0) _currentHealth = 0;
+                
+                // Update the visual fraction based on our estimate
+                _healthFraction = (float)_currentHealth / _approximateMaxHealth;
+            }
+
+            float hf = _healthFraction;
+            if (hf <= 0f)
+            {
+                StartDeathFade();
+            }
+            else
+            {
+                OnReceiveDamage();
             }
 
             if (shieldFraction.HasValue)
             {
                 OnReceiveDamage();
+            }
+            // Optional: Handle shield damage similarly if needed, but monsters usually rely on HP
+        }
+
+        public override void DrawHoverName() { }
+
+        public override void DrawAfter(GameTime gameTime)
+        {
+            base.DrawAfter(gameTime);
+
+            if (!Visible || IsDead || OutOfView) return;
+
+            // Only draw overlay if close enough
+            float distSq = Vector3.DistanceSquared(Camera.Instance.Position, WorldPosition.Translation);
+            if (distSq > 3000 * 3000) return; // Hide if too far
+
+            DrawMonsterOverlay();
+        }
+
+        private void DrawMonsterOverlay()
+        {
+            var font = GraphicsManager.Instance.Font;
+            if (font == null) return;
+
+            string name = DisplayName;
+            if (string.IsNullOrEmpty(name)) return;
+
+            // Calculate position above head
+            // Use BoundingBoxWorld max Z + a little offset
+            float headHeight = BoundingBoxWorld.Max.Z - BoundingBoxWorld.Min.Z;
+            Vector3 anchor = new Vector3(
+                (BoundingBoxWorld.Min.X + BoundingBoxWorld.Max.X) * 0.5f,
+                (BoundingBoxWorld.Min.Y + BoundingBoxWorld.Max.Y) * 0.5f,
+                BoundingBoxWorld.Max.Z + 20f
+            );
+
+            Vector3 screenPos = GraphicsDevice.Viewport.Project(
+                anchor,
+                Camera.Instance.Projection,
+                Camera.Instance.View,
+                Matrix.Identity);
+
+            // Check if behind camera
+            if (screenPos.Z < 0f || screenPos.Z > 1f) return;
+
+            // Setup scaling
+            const float baseScale = 0.4f; // Adjust to match standard MU look
+            float scale = baseScale * Constants.RENDER_SCALE;
+            
+            // Measure text
+            Vector2 nameSize = font.MeasureString(name) * scale;
+            
+            // Bar dimensions
+            float barWidth = 60f * Constants.RENDER_SCALE;
+            float barHeight = 6f * Constants.RENDER_SCALE;
+            float barPadding = 2f * Constants.RENDER_SCALE;
+
+            // Centering
+            float centerX = screenPos.X;
+            float topY = screenPos.Y;
+
+            // Positions
+            Vector2 namePos = new Vector2(centerX - nameSize.X * 0.5f, topY - nameSize.Y - barHeight - barPadding);
+            Rectangle barBgRect = new Rectangle(
+                (int)(centerX - barWidth * 0.5f),
+                (int)(topY - barHeight),
+                (int)barWidth,
+                (int)barHeight
+            );
+
+            // HP Bar Fill
+            int fillWidth = (int)(barWidth * _healthFraction);
+            Rectangle barFillRect = new Rectangle(
+                barBgRect.X,
+                barBgRect.Y,
+                fillWidth,
+                (int)barHeight
+            );
+
+            // Draw
+            var sb = GraphicsManager.Instance.Sprite;
+            // Use existing batch scope or create new one safely? 
+            // WorldControl calls DrawAfter inside a loop but setup is done per-list in DrawAfterPass...
+            // Actually WorldControl.DrawAfterPass iterates list and calls obj.DrawAfter.
+            // It calls SetDepthState beforehand.
+            
+            // We need to start a SpriteBatch. 
+            // Using logic similar to WorldObject.DrawHoverName
+            // Fix: explicit cast for int arguments in Rectangle and Draw
+             using (new Client.Main.Helpers.SpriteBatchScope(sb, SpriteSortMode.Deferred, Microsoft.Xna.Framework.Graphics.BlendState.AlphaBlend, SamplerState.LinearClamp, DepthStencilState.None, RasterizerState.CullNone))
+            {
+                 // Name Background (optional, maybe just shadow/outline?)
+                 // Let's draw shadow for text
+                 
+                 // Text Shadow
+                 sb.DrawString(font, name, namePos + Vector2.One, Color.Black, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                 // Text Main
+                 sb.DrawString(font, name, namePos, Color.LightYellow, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+
+                 // HP Bar Background (Black/Dark)
+                 sb.Draw(GraphicsManager.Instance.Pixel, barBgRect, new Color(0, 0, 0, 180));
+
+                 // HP Bar Fill (Red)
+                 sb.Draw(GraphicsManager.Instance.Pixel, barFillRect, Color.Red);
+                 
+                 // HP Bar Border (Optional, maybe specific style?)
             }
         }
 
