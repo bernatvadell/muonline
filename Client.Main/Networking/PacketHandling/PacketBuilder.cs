@@ -174,7 +174,7 @@ namespace Client.Main.Networking.PacketHandling
             packet.SourceX = startX;
             packet.SourceY = startY;
             packet.StepCount = (byte)path.Length;
-            packet.TargetRotation = path[0];
+            packet.TargetRotation = path[path.Length - 1];
 
             var directions = packet.Directions;
             int idx = 0;

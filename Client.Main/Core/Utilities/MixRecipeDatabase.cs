@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using Client.Data;
 using Client.Main;
 using Client.Main.Controls.UI.Game.Inventory;
 using Microsoft.Extensions.Logging;
@@ -110,7 +111,6 @@ namespace Client.Main.Core.Utilities
     {
         private const int MaxMixTypes = 14;
         private const int RecipeSizeBytes = 656;
-        private static readonly byte[] s_buxCode = { 0xfc, 0xcf, 0xab };
 
         private static readonly ILogger s_logger = MuGame.AppLoggerFactory?.CreateLogger("MixRecipeDatabase");
 
@@ -186,25 +186,12 @@ namespace Client.Main.Core.Utilities
                 recipesByType[i] = Array.Empty<MixRecipe>();
             }
 
-            var assembly = Assembly.GetExecutingAssembly();
-            var resourceName = assembly.GetManifestResourceNames()
-                .SingleOrDefault(n => n.EndsWith("mix.bmd", StringComparison.OrdinalIgnoreCase));
-
-            if (resourceName == null)
-            {
-                s_logger?.LogWarning("Embedded resource 'mix.bmd' not found. Add it to Client.Main.Shared.props as EmbeddedResource.");
-                return new MixDatabaseState { RecipesByType = recipesByType };
-            }
-
-            using var stream = assembly.GetManifestResourceStream(resourceName);
-            if (stream == null)
-            {
-                s_logger?.LogWarning("Failed to open embedded resource stream '{ResourceName}'.", resourceName);
-                return new MixDatabaseState { RecipesByType = recipesByType };
-            }
 
             try
             {
+                var mixPath = Path.Combine(Constants.DataPath, "Local", "mix.bmd");
+                using var stream = File.OpenRead(mixPath);
+
                 using var br = new BinaryReader(stream);
 
                 byte[] headerEnc = br.ReadBytes(sizeof(int) * MaxMixTypes);
@@ -214,7 +201,7 @@ namespace Client.Main.Core.Utilities
                     return new MixDatabaseState { RecipesByType = recipesByType };
                 }
 
-                byte[] header = BuxConvert(headerEnc);
+                byte[] header = BuxCryptor.Convert(headerEnc);
                 int[] counts = new int[MaxMixTypes];
                 for (int i = 0; i < counts.Length; i++)
                 {
@@ -246,7 +233,7 @@ namespace Client.Main.Core.Utilities
                             break;
                         }
 
-                        byte[] rec = BuxConvert(recEnc);
+                        byte[] rec = BuxCryptor.Convert(recEnc);
                         list.Add(ParseRecipe(rec));
                     }
 
@@ -339,17 +326,6 @@ namespace Client.Main.Core.Utilities
                 Sources = sources,
                 NumSources = numSources
             };
-        }
-
-        private static byte[] BuxConvert(byte[] buffer)
-        {
-            // Same behavior as original: XOR with repeating key, starting at index 0 for each converted block.
-            var dst = new byte[buffer.Length];
-            for (int i = 0; i < buffer.Length; i++)
-            {
-                dst[i] = (byte)(buffer[i] ^ s_buxCode[i % s_buxCode.Length]);
-            }
-            return dst;
         }
 
         // ──────────────────────── Evaluation ─────────────────────────

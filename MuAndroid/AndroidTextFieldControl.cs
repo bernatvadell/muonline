@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace MuAndroid
 {
@@ -13,17 +14,31 @@ namespace MuAndroid
         {
             base.OnFocus();
 
-            // Subscribe to Android text input event (Critical for soft keyboard and scrcpy)
-            AndroidKeyboard.TextInput += OnTextInput;
-            AndroidKeyboard.Show();
+            Task.Run(async () =>
+            {
+                var result = await KeyboardInput.Show(
+                    title: Label,
+                    description: Placeholder,
+                    defaultText: Value,
+                    usePasswordMode: MaskValue
+                );
+
+                if (result != null)
+                    Value = result;
+            }).ConfigureAwait(false);
+
+
+            //// Subscribe to Android text input event (Critical for soft keyboard and scrcpy)
+            //AndroidKeyboard.TextInput += OnTextInput;
+            //AndroidKeyboard.Show();
         }
 
         public override void OnBlur()
         {
             base.OnBlur();
 
-            AndroidKeyboard.TextInput -= OnTextInput;
-            AndroidKeyboard.Hide();
+            //AndroidKeyboard.TextInput -= OnTextInput;
+            //AndroidKeyboard.Hide();
         }
 
         private void OnTextInput(object sender, TextInputEventArgs e)

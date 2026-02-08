@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text;
 using Microsoft.Xna.Framework;
 
 namespace Client.Main
@@ -178,6 +179,10 @@ namespace Client.Main
         public static string SETTINGS_PATH = "appsettings.json";
 
         public static float FOV_SCALE = 1f;
+
+        // Supported fonts: Arial & NotoKR 
+        public static string FONT_NAME = "Arial";
+        public static Encoding DATA_TEXT_ENCODING = Encoding.UTF8;
 
         static Constants()
         {

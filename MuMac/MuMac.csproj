@@ -13,9 +13,10 @@
     <PublishReadyToRun>false</PublishReadyToRun>
     <TieredCompilation>true</TieredCompilation>
 
-    <!-- macOS-specific properties -->
     <RuntimeIdentifier>osx-x64</RuntimeIdentifier>
     <UseAppHost>true</UseAppHost>
+
+    <UseSourceGenerators>true</UseSourceGenerators>
   </PropertyGroup>
 
   <PropertyGroup>

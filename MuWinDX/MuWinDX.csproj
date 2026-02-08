@@ -11,6 +11,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Icon.ico</ApplicationIcon>
     <AssemblyName>MuMono</AssemblyName>
+    <UseSourceGenerators>true</UseSourceGenerators>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">

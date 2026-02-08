@@ -36,48 +36,13 @@ namespace Client.Main.Core.Utilities
         {
             var data = new Dictionary<(byte, short), ItemDefinition>();
 
-            var assembly = Assembly.GetExecutingAssembly();
-
-            // Find *one* resource whose name ends with "item.bmd"
-            var resourceName = assembly.GetManifestResourceNames()
-                                       .SingleOrDefault(n =>
-                                           n.EndsWith("item.bmd", StringComparison.OrdinalIgnoreCase));
-
-            if (resourceName == null)
-            {
-                Console.WriteLine(
-                    "Embedded resource 'item.bmd' not found. " +
-                    "Verify Build Action = Embedded Resource and correct RootNamespace.");
-                return data;
-            }
-
             try
             {
-                using var resourceStream = assembly.GetManifestResourceStream(resourceName);
-                if (resourceStream == null)
-                {
-                    Console.WriteLine($"Failed to open resource stream '{resourceName}'.");
-                    return data;
-                }
-
                 var reader = new ItemBMDReader();
 
-                // Some ItemBMDReader implementations accept only a file path.
-                // Copy the resource to a temporary file and load it from disk.
-                IEnumerable<ItemBMD> items;
-                var tempPath = Path.GetTempFileName();
-                try
-                {
-                    using (var tempFs = File.OpenWrite(tempPath))
-                        await resourceStream.CopyToAsync(tempFs);
+                var itemsPath = Path.Combine(Constants.DataPath, "Local", "item.bmd");
 
-                    // Load asynchronously to avoid blocking the thread
-                    items = await reader.Load(tempPath).ConfigureAwait(false);
-                }
-                finally
-                {
-                    try { File.Delete(tempPath); } catch { /* ignore IO errors */ }
-                }
+                var items = await reader.Load(itemsPath).ConfigureAwait(false);
 
                 foreach (var item in items)
                 {
@@ -96,7 +61,9 @@ namespace Client.Main.Core.Utilities
                                           .Replace("\\", "/");
                     }
 
-                    var itemName = item.szItemName?.Split('\t')[0].Trim() ?? string.Empty;
+                    var itemName = Constants.DATA_TEXT_ENCODING
+            .GetString(item.szItemName)
+            .TrimEnd('\0');
 
                     int width = item.Width;
                     int height = item.Height;
@@ -277,6 +244,17 @@ namespace Client.Main.Core.Utilities
 
         public static ItemDefinition GetItemDefinition(ReadOnlySpan<byte> itemData)
         {
+            if (itemData.IsEmpty) return null;
+
+            if (ItemDataParser.TryParseExtendedItemData(itemData, out var ext) && ext.Length <= itemData.Length)
+            {
+                var def = GetItemDefinition(ext.Group, ext.Number);
+                if (def != null)
+                {
+                    return def;
+                }
+            }
+
             if (itemData.Length < 6) return null;
             short id = itemData[0];
             byte group = (byte)(itemData[5] >> 4);
@@ -285,9 +263,15 @@ namespace Client.Main.Core.Utilities
 
         public static byte GetItemGroup(ReadOnlySpan<byte> itemData)
         {
+            if (itemData.IsEmpty) return 0;
+
+            if (ItemDataParser.TryParseExtendedItemData(itemData, out var ext) && ext.Length <= itemData.Length)
+            {
+                return ext.Group;
+            }
+
             if (itemData.Length < 6) return 0;
-            byte group = (byte)(itemData[5] >> 4);
-            return group;
+            return (byte)(itemData[5] >> 4);
         }
 
         public static string GetItemName(byte group, short id) =>
@@ -304,6 +288,9 @@ namespace Client.Main.Core.Utilities
             public int OptionLevel;
             public bool IsExcellent;
             public bool IsAncient;
+            public byte ExcellentFlags;
+            public byte Durability;
+            public byte SocketCount;
 
             public bool HasBlueOptions => HasSkill || HasLuck || OptionLevel > 0;
         }
@@ -312,6 +299,20 @@ namespace Client.Main.Core.Utilities
         {
             var d = new ItemDetails();
             if (itemData.IsEmpty || itemData.Length < 3) return d;
+
+            if (ItemDataParser.TryParseExtendedItemData(itemData, out var ext) && ext.Length <= itemData.Length)
+            {
+                d.Level = ext.Level;
+                d.HasSkill = ext.HasSkill;
+                d.HasLuck = ext.HasLuck;
+                d.OptionLevel = ext.OptionLevel;
+                d.IsExcellent = (ext.ExcellentFlags & 0x3F) != 0;
+                d.IsAncient = ext.HasAncient && ext.AncientDiscriminator > 0;
+                d.ExcellentFlags = ext.ExcellentFlags;
+                d.Durability = ext.Durability;
+                d.SocketCount = ext.SocketCount;
+                return d;
+            }
 
             byte optByte = itemData[1];
             byte excByte = itemData.Length > 3 ? itemData[3] : (byte)0;
@@ -327,8 +328,35 @@ namespace Client.Main.Core.Utilities
 
             d.IsExcellent = (excByte & 0x3F) != 0;
             d.IsAncient = (ancientByte & 0x0F) > 0;
+            d.ExcellentFlags = excByte;
+            d.Durability = itemData.Length > 2 ? itemData[2] : (byte)0;
 
             return d;
+        }
+
+        public static bool TryGetItemGroupAndNumber(ReadOnlySpan<byte> itemData, out byte group, out short number)
+        {
+            return ItemDataParser.TryGetGroupAndNumber(itemData, out group, out number);
+        }
+
+        public static byte GetItemDurability(ReadOnlySpan<byte> itemData)
+        {
+            return ItemDataParser.TryGetDurability(itemData, out var durability) ? durability : (byte)0;
+        }
+
+        public static bool TrySetItemDurability(byte[] itemData, byte durability)
+        {
+            if (itemData == null)
+            {
+                return false;
+            }
+
+            return ItemDataParser.TrySetDurability(itemData, durability);
+        }
+
+        public static bool TryGetExcellentFlags(ReadOnlySpan<byte> itemData, out byte flags)
+        {
+            return ItemDataParser.TryGetExcellentFlags(itemData, out flags);
         }
 
         public static List<string> ParseExcellentOptions(byte excByte)

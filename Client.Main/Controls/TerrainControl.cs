@@ -1,4 +1,5 @@
 using Client.Data.ATT;
+using Client.Data.MAP;
 using Client.Main.Controls.Terrain;
 using Client.Main.Graphics;
 using Microsoft.Xna.Framework;
@@ -89,27 +90,6 @@ namespace Client.Main.Controls
         public void ReloadGrassIfNeeded()
         {
             _grassRenderer?.EnsureContentLoaded(WorldIndex);
-        }
-
-        /// <summary>
-        /// Exposes frame-specific rendering metrics for debugging or performance monitoring.
-        /// </summary>
-        public sealed class TerrainFrameMetrics
-        {
-            public int DrawCalls { get; internal set; }
-            public int DrawnTriangles { get; internal set; }
-            public int DrawnBlocks { get; internal set; }
-            public int DrawnCells { get; internal set; }
-            public int GrassFlushes { get; internal set; }
-
-            public void Reset()
-            {
-                DrawCalls = 0;
-                DrawnTriangles = 0;
-                DrawnBlocks = 0;
-                DrawnCells = 0;
-                GrassFlushes = 0;
-            }
         }
         public TerrainFrameMetrics FrameMetrics { get; } = new TerrainFrameMetrics();
 
@@ -203,7 +183,9 @@ namespace Client.Main.Controls
             base.DrawAfter(gameTime);
         }
 
+
         // --- Public Query Methods (Facade) ---
+        public int GetHeroTile(float xf, float yf) => _data.Mapping.Layer1[TerrainPhysics.GetTerrainIndex(xf, yf)];
         public TWFlags RequestTerrainFlag(int x, int y) => _physics?.RequestTerrainFlag(x, y) ?? 0f;
         public float RequestTerrainHeight(float xf, float yf) => _physics?.RequestTerrainHeight(xf, yf) ?? 0f;
         public Vector3 EvaluateTerrainLight(float xf, float yf) => _physics?.RequestTerrainLight(xf, yf, AmbientLight) ?? Vector3.Zero;

@@ -7,6 +7,7 @@ using System;
 using System.Threading.Tasks;
 using System.Linq;
 using System.Collections.Generic;
+using Client.Main.Controllers;
 
 namespace Client.Main.Objects.Worlds.Devias
 {
@@ -35,7 +36,7 @@ namespace Client.Main.Objects.Worlds.Devias
         private Vector3 _startPosition;    // Starting position for sliding animation
         private Vector3 _targetPosition;   // Target position for animation
         public Vector3 SlidingDirection { get; set; } // Sliding direction
-        private const float SLIDING_DISTANCE = 150f;    // Sliding distance – adjust as needed
+        private const float SLIDING_DISTANCE = 200f;    // Sliding distance – adjust as needed
         private bool _isFullyLoaded = false;            // Flag to prevent pairing before load completes
 
         // --- Dictionary of pairs (for rotating doors, e.g., 88/65) ---
@@ -170,6 +171,11 @@ namespace Client.Main.Objects.Worlds.Devias
 
             if (_pairedDoor != null)
                 _pairedDoor.StartRotationInternal(open);
+
+            if (Type == 86)
+                SoundController.Instance.PlayBuffer("Sound/aCastleDoor.wav");
+            else
+                SoundController.Instance.PlayBuffer("Sound/aDoor.wav");
         }
 
         private void StartRotationInternal(bool open)

@@ -349,8 +349,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     return Task.CompletedTask;
                 }
 
-                // Adjust map ID (server uses zero-based)
-                mapId = (ushort)(mapNumber + 1); // Server map IDs are 0-based, client/world uses 1-based.
+                mapId = mapNumber;
 
                 // Update state
                 _characterState.UpdatePosition(x, y);
@@ -1018,6 +1017,35 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     }
                     break;
             }
+        }
+
+        [PacketHandler(0xF3, 0x32)] // BaseStatsExtended
+        public Task HandleBaseStatsExtendedAsync(Memory<byte> packet)
+        {
+            try
+            {
+                if (_targetVersion >= TargetProtocolVersion.Season6 && packet.Length >= BaseStatsExtended.Length)
+                {
+                    var stats = new BaseStatsExtended(packet);
+                    _characterState.UpdateStats(
+                        (ushort)stats.Strength,
+                        (ushort)stats.Agility,
+                        (ushort)stats.Vitality,
+                        (ushort)stats.Energy,
+                        (ushort)stats.Command);
+                    _logger.LogInformation("📊 BaseStatsExtended received.");
+                }
+                else
+                {
+                    _logger.LogWarning("BaseStatsExtended packet too short or unsupported: {Length}", packet.Length);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "💥 Error parsing BaseStatsExtended packet.");
+            }
+
+            return Task.CompletedTask;
         }
 
         [PacketHandler(0xF3, 0x50)] // MasterStatsUpdate

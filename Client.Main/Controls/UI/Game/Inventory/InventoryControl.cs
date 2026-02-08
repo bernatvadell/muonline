@@ -1216,10 +1216,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
                     ?? new ItemDefinition(0, ItemDatabase.GetItemName(itemData) ?? "Unknown Item", 1, 1, defaultItemIconTexturePath);
 
                 var invItem = new InventoryItem(itemDef, Point.Zero, itemData);
-                if (itemData.Length > 2)
-                {
-                    invItem.Durability = itemData[2];
-                }
+                invItem.Durability = ItemDatabase.GetItemDurability(itemData);
 
                 _equippedItems[slotIndex] = invItem;
             }
@@ -1255,10 +1252,7 @@ namespace Client.Main.Controls.UI.Game.Inventory
 
                 InventoryItem newItem = new(itemDef, new Point(gridX, gridY), itemData);
 
-                if (itemData.Length > 2)
-                {
-                    newItem.Durability = itemData[2];
-                }
+                newItem.Durability = ItemDatabase.GetItemDurability(itemData);
 
                 if (!AddItem(newItem))
                 {

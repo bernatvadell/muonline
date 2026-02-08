@@ -705,23 +705,6 @@ namespace Client.Main.Controls
             return frustum != null && frustum.Contains(obj.BoundingBoxWorld) != ContainmentType.Disjoint;
         }
 
-        // --- NEW METHOD FOR LIGHT CULLING ---
-        /// <summary>
-        /// Efficiently checks if a dynamic light's area of effect intersects with the camera's view frustum.
-        /// </summary>
-        /// <param name="light">The dynamic light to check.</param>
-        /// <returns>True if the light's sphere is at least partially in view, otherwise false.</returns>
-        public bool IsLightInView(DynamicLight light)
-        {
-            var frustum = Camera.Instance?.Frustum;
-            if (frustum == null) return true;
-
-            // Create a bounding sphere representing the light's full radius of effect.
-            var lightSphere = new BoundingSphere(light.Position, light.Radius);
-
-            // Use the highly optimized Intersects check. This is much faster than manual distance calculations.
-            return frustum.Intersects(lightSphere);
-        }
 
         // --- Map Tile Initialization ---
 

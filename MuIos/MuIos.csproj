@@ -9,6 +9,7 @@
     <SkipXcodeVersionCheck>true</SkipXcodeVersionCheck>
     <EnableCodeSigning>false</EnableCodeSigning>
     <ClientMainTargetFramework>net10.0-ios</ClientMainTargetFramework>
+    <UseSourceGenerators>true</UseSourceGenerators>
   </PropertyGroup>
 
   <ItemGroup>

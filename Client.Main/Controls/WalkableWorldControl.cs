@@ -50,6 +50,8 @@ namespace Client.Main.Controls
         /// </summary>
         public float ExtraHeight { get; set; }
 
+        public int HeroTile { get; private set; }
+
         // --- Constructors ---
 
         /// <summary>
@@ -82,6 +84,8 @@ namespace Client.Main.Controls
         {
             if (Status != GameControlStatus.Ready || !Visible)
                 return;
+
+            HeroTile = World.Terrain.GetHeroTile(Walker.Position.X, Walker.Position.Y);
 
             // some UI overlay has the mouse, skip click-to-move this frame.
             if (Scene != null && Scene.MouseHoverControl != null && Scene.MouseHoverControl != Scene.World)

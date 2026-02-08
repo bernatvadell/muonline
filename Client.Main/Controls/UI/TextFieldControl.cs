@@ -47,8 +47,9 @@ namespace Client.Main.Controls.UI
         public TextFieldSkin Skin { get; set; } = TextFieldSkin.Flat;
         public Color TextColor { get; set; } = Color.White;
         public float FontSize { get; set; } = 12f;
-        public TextFieldControl NextInput { get; set; }
         public bool IsFocused { get; private set; }
+        public string Label { get; set; }
+        public string Placeholder { get; set; }
 
         public string Value
         {

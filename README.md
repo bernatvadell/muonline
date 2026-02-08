@@ -50,6 +50,7 @@ https://youtu.be/_ekXCQI2byE
 | **.NET SDK** | 10.0+ | [Download](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) |
 | **Git** | Latest | [Download](https://git-scm.com/downloads) |
 | **MuOnline Data** | Season 20 (1.20.61) | [Download](https://full-wkr.mu.webzen.co.kr/muweb/full/MU_Red_1_20_61_Full.zip) |
+| **Data S6 Patch** | Season 6 | [Download](https://drive.google.com/file/d/1vP1AfTDl5A22tmIJH5NzyofeFXw_Sut0/view?usp=sharing) |
 
 ### Platform-Specific Requirements
 

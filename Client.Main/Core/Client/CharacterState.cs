@@ -1316,22 +1316,18 @@ namespace Client.Main.Core.Client
             // 1. Get max weapon attack speed (from right or left hand)
             int maxWeaponSpeed = 0;
 
-            if (_inventoryItems.TryGetValue(SLOT_RIGHT_HAND, out byte[] rightHandData) && rightHandData.Length >= 6)
+            if (_inventoryItems.TryGetValue(SLOT_RIGHT_HAND, out byte[] rightHandData))
             {
-                byte group = (byte)(rightHandData[5] >> 4);
-                short id = rightHandData[0];
-                var weaponDef = Core.Utilities.ItemDatabase.GetItemDefinition(group, id);
+                var weaponDef = Core.Utilities.ItemDatabase.GetItemDefinition(rightHandData);
                 if (weaponDef != null)
                 {
                     maxWeaponSpeed = Math.Max(maxWeaponSpeed, weaponDef.AttackSpeed);
                 }
             }
 
-            if (_inventoryItems.TryGetValue(SLOT_LEFT_HAND, out byte[] leftHandData) && leftHandData.Length >= 6)
+            if (_inventoryItems.TryGetValue(SLOT_LEFT_HAND, out byte[] leftHandData))
             {
-                byte group = (byte)(leftHandData[5] >> 4);
-                short id = leftHandData[0];
-                var weaponDef = Core.Utilities.ItemDatabase.GetItemDefinition(group, id);
+                var weaponDef = Core.Utilities.ItemDatabase.GetItemDefinition(leftHandData);
                 if (weaponDef != null)
                 {
                     maxWeaponSpeed = Math.Max(maxWeaponSpeed, weaponDef.AttackSpeed);
@@ -1350,29 +1346,28 @@ namespace Client.Main.Core.Client
                 if (slot > 11 || itemData.Length < 4)
                     continue;
 
-                byte excByte = itemData[3];
-                if ((excByte & EXC_SPEED_BIT) != 0)
+                if (Core.Utilities.ItemDatabase.TryGetExcellentFlags(itemData, out byte excByte) && (excByte & EXC_SPEED_BIT) != 0)
                 {
                     totalBonus += EXC_SPEED_BONUS;
                 }
             }
 
             // 3. Check for Wizard's Ring (+10 attack speed)
-            if (_inventoryItems.TryGetValue(SLOT_RING_LEFT, out byte[] leftRingData) && leftRingData.Length >= 6)
+            if (_inventoryItems.TryGetValue(SLOT_RING_LEFT, out byte[] leftRingData))
             {
-                byte group = (byte)(leftRingData[5] >> 4);
-                short id = leftRingData[0];
-                if (group == WIZARD_RING_GROUP && id == WIZARD_RING_ID)
+                if (Core.Utilities.ItemDatabase.TryGetItemGroupAndNumber(leftRingData, out var group, out var id)
+                    && group == WIZARD_RING_GROUP
+                    && id == WIZARD_RING_ID)
                 {
                     totalBonus += 10;
                 }
             }
 
-            if (_inventoryItems.TryGetValue(SLOT_RING_RIGHT, out byte[] rightRingData) && rightRingData.Length >= 6)
+            if (_inventoryItems.TryGetValue(SLOT_RING_RIGHT, out byte[] rightRingData))
             {
-                byte group = (byte)(rightRingData[5] >> 4);
-                short id = rightRingData[0];
-                if (group == WIZARD_RING_GROUP && id == WIZARD_RING_ID)
+                if (Core.Utilities.ItemDatabase.TryGetItemGroupAndNumber(rightRingData, out var group, out var id)
+                    && group == WIZARD_RING_GROUP
+                    && id == WIZARD_RING_ID)
                 {
                     totalBonus += 10;
                 }
@@ -1550,10 +1545,8 @@ namespace Client.Main.Core.Client
         {
             if (_inventoryItems.TryGetValue(slot, out byte[] itemData))
             {
-                const int durabilityIndex = 2;
-                if (itemData.Length > durabilityIndex)
+                if (ItemDatabase.TrySetItemDurability(itemData, durability))
                 {
-                    itemData[durabilityIndex] = durability;
                     _logger.LogDebug("Item durability updated for slot {Slot} to {Durability}", slot, durability);
                     RaiseInventoryChanged(); // Trigger UI refresh after durability update
                 }
@@ -1859,6 +1852,46 @@ namespace Client.Main.Core.Client
             if (dataLength < 3) return " (Data Too Short)";
 
             var details = new StringBuilder();
+
+            if (ItemDataParser.TryParseExtendedItemData(itemData, out var ext) && ext.Length <= dataLength)
+            {
+                if (ext.Level > 0) details.Append($" +{ext.Level}");
+                if (ext.HasSkill) details.Append(" +Skill");
+                if (ext.HasLuck) details.Append(" +Luck");
+                if (ext.OptionLevel > 0) details.Append($" +{ext.OptionLevel * 4} Opt");
+
+                var excellentOptions = ParseExcellentOptions(ext.ExcellentFlags);
+                if (excellentOptions.Any()) details.Append($" +Exc({string.Join(",", excellentOptions)})");
+
+                if (ext.HasAncient && ext.AncientDiscriminator > 0)
+                {
+                    details.Append($" +Anc(Set:{ext.AncientDiscriminator}");
+                    if (ext.AncientBonusOption > 0) details.Append($",Lvl:{ext.AncientBonusOption}");
+                    details.Append(")");
+                }
+
+                if (ext.HasGuardian) details.Append(" +PvP");
+
+                if (ext.HasHarmony)
+                {
+                    byte harmonyType = (byte)((ext.HarmonyOption >> 4) & 0x0F);
+                    byte harmonyLevel = (byte)(ext.HarmonyOption & 0x0F);
+                    if (harmonyType > 0)
+                    {
+                        details.Append($" +Har(T:{harmonyType},L:{harmonyLevel})");
+                    }
+                }
+
+                if (ext.HasSockets && ext.SocketCount > 0)
+                {
+                    details.Append($" +Socket({ext.SocketCount})");
+                }
+
+                details.Append($" (Dur: {ext.Durability})");
+                string resultExt = details.ToString().Trim();
+                return string.IsNullOrEmpty(resultExt) ? string.Empty : $" {resultExt}";
+            }
+
             byte optionLevelByte = itemData[1]; // Contains level, skill, luck, option bits 0-1
             byte durability = itemData[2];
             byte excByte = dataLength > 3 ? itemData[3] : (byte)0; // Contains excellent options + option bit 2 + item group high bit
@@ -1883,8 +1916,8 @@ namespace Client.Main.Core.Client
             if (optionLevel > 0) details.Append($" +{optionLevel * 4} Opt");
 
             // Excellent Options
-            var excellentOptions = ParseExcellentOptions(excByte);
-            if (excellentOptions.Any()) details.Append($" +Exc({string.Join(",", excellentOptions)})");
+            var legacyExcellentOptions = ParseExcellentOptions(excByte);
+            if (legacyExcellentOptions.Any()) details.Append($" +Exc({string.Join(",", legacyExcellentOptions)})");
 
             // Ancient Options
             if ((ancientByte & 0x0F) > 0)
@@ -1900,12 +1933,12 @@ namespace Client.Main.Core.Client
             if ((groupByte & GuardianOptionFlag) != 0) details.Append(" +PvP");
 
             // Harmony Option
-            byte harmonyType = (byte)(harmonyByte & 0xF0);
-            byte harmonyLevel = harmonyLevelByte;
-            if (harmonyType > 0)
+            byte legacyHarmonyType = (byte)(harmonyByte & 0xF0);
+            byte legacyHarmonyLevel = harmonyLevelByte;
+            if (legacyHarmonyType > 0)
             {
                 // Placeholder: Mapping harmonyType to name requires a lookup table
-                details.Append($" +Har(T:{(harmonyType >> 4)},L:{harmonyLevel})");
+                details.Append($" +Har(T:{(legacyHarmonyType >> 4)},L:{legacyHarmonyLevel})");
             }
 
             // Socket Bonus Option

@@ -499,16 +499,15 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             foreach (var kv in inventory)
             {
                 var itemData = kv.Value;
-                if (itemData == null || itemData.Length < 6)
+                if (itemData == null || itemData.Length < 3)
                     continue;
 
-                short itemId = itemData[0];
-                byte itemGroup = (byte)(itemData[5] >> 4);
-
-                if (itemGroup == group && itemId == id)
+                if (ItemDatabase.TryGetItemGroupAndNumber(itemData, out var itemGroup, out var itemId)
+                    && itemGroup == group
+                    && itemId == id)
                 {
                     // For stackable items, durability represents count
-                    byte durability = itemData.Length > 2 ? itemData[2] : (byte)1;
+                    byte durability = ItemDatabase.GetItemDurability(itemData);
                     count += durability > 0 ? durability : 1;
                 }
             }

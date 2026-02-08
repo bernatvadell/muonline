@@ -506,7 +506,7 @@ namespace Client.Main.Objects
 
             _pickedUp = true;
 
-            Task.Run(() => _charSvc.SendPickupItemRequestAsync(RawId, MuGame.Network.TargetVersion));
+            _ = Task.Run(async () => await _charSvc.SendPickupItemRequestAsync(RawId, MuGame.Network.TargetVersion));
             _log.LogDebug("Pickup request sent for {RawId:X4} ({DisplayName})", RawId, DisplayName);
         }
 

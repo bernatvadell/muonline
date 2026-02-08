@@ -6,70 +6,16 @@ using System.Text;
 
 namespace Client.Data.BMD
 {
-    public static class SkillBMDReader
+    public class SkillBMDReader : BaseReader<Dictionary<int, SkillBMD>>
     {
         private const int MaxSkills = 1024;
         private const int RecordSize = 88;
         private const int NameLength = 32;
         private const ushort ChecksumKey = 0x5A18;
 
-        private static readonly byte[] BuxCode = { 0xFC, 0xCF, 0xAB };
+        private readonly byte[] BuxCode = { 0xFC, 0xCF, 0xAB };
 
-        public static Dictionary<int, SkillBMD> LoadSkills(string filePath)
-        {
-            if (filePath == null)
-            {
-                throw new ArgumentNullException(nameof(filePath));
-            }
-
-            if (!File.Exists(filePath))
-            {
-                throw new FileNotFoundException($"Skill file not found: {filePath}", filePath);
-            }
-
-            var buffer = File.ReadAllBytes(filePath);
-            if (buffer.Length < RecordSize)
-            {
-                throw new InvalidDataException($"Skill file '{filePath}' is too small ({buffer.Length} bytes).");
-            }
-
-            var skills = new Dictionary<int, SkillBMD>();
-
-            var dataLength = Math.Min(buffer.Length, RecordSize * MaxSkills);
-            var dataSpan = buffer.AsSpan(0, dataLength);
-
-            if (buffer.Length >= RecordSize * MaxSkills + sizeof(uint))
-            {
-                var storedChecksum = BinaryPrimitives.ReadUInt32LittleEndian(
-                    buffer.AsSpan(RecordSize * MaxSkills, sizeof(uint)));
-                var computedChecksum = GenerateChecksum(dataSpan);
-
-                if (storedChecksum != 0 && storedChecksum != computedChecksum)
-                {
-                    throw new InvalidDataException(
-                        $"Skill file checksum mismatch. stored=0x{storedChecksum:X8}, computed=0x{computedChecksum:X8}");
-                }
-            }
-
-            var recordCount = Math.Min(MaxSkills, dataLength / RecordSize);
-            Span<byte> decrypted = stackalloc byte[RecordSize];
-
-            for (var index = 0; index < recordCount; index++)
-            {
-                var recordSpan = dataSpan.Slice(index * RecordSize, RecordSize);
-                DecryptRecord(recordSpan, decrypted);
-
-                var skill = ParseSkill(decrypted);
-                if (!string.IsNullOrWhiteSpace(skill.Name))
-                {
-                    skills[index] = skill;
-                }
-            }
-
-            return skills;
-        }
-
-        private static void DecryptRecord(ReadOnlySpan<byte> encrypted, Span<byte> destination)
+        private void DecryptRecord(ReadOnlySpan<byte> encrypted, Span<byte> destination)
         {
             for (var i = 0; i < encrypted.Length; i++)
             {
@@ -77,7 +23,7 @@ namespace Client.Data.BMD
             }
         }
 
-        private static SkillBMD ParseSkill(ReadOnlySpan<byte> record)
+        private SkillBMD ParseSkill(ReadOnlySpan<byte> record)
         {
             var skill = new SkillBMD();
 
@@ -155,7 +101,7 @@ namespace Client.Data.BMD
             return skill;
         }
 
-        private static uint GenerateChecksum(ReadOnlySpan<byte> buffer)
+        private uint GenerateChecksum(ReadOnlySpan<byte> buffer)
         {
             if (buffer.Length < sizeof(uint))
             {
@@ -186,6 +132,47 @@ namespace Client.Data.BMD
             }
 
             return result;
+        }
+
+        protected override Dictionary<int, SkillBMD> Read(byte[] buffer)
+        {
+            if (buffer.Length < RecordSize)
+                throw new InvalidDataException($"Skill buffer is too small ({buffer.Length} bytes).");
+
+            var skills = new Dictionary<int, SkillBMD>();
+
+            var dataLength = Math.Min(buffer.Length, RecordSize * MaxSkills);
+            var dataSpan = buffer.AsSpan(0, dataLength);
+
+            if (buffer.Length >= RecordSize * MaxSkills + sizeof(uint))
+            {
+                var storedChecksum = BinaryPrimitives.ReadUInt32LittleEndian(
+                    buffer.AsSpan(RecordSize * MaxSkills, sizeof(uint)));
+                var computedChecksum = GenerateChecksum(dataSpan);
+
+                if (storedChecksum != 0 && storedChecksum != computedChecksum)
+                {
+                    throw new InvalidDataException(
+                        $"Skill file checksum mismatch. stored=0x{storedChecksum:X8}, computed=0x{computedChecksum:X8}");
+                }
+            }
+
+            var recordCount = Math.Min(MaxSkills, dataLength / RecordSize);
+            Span<byte> decrypted = stackalloc byte[RecordSize];
+
+            for (var index = 0; index < recordCount; index++)
+            {
+                var recordSpan = dataSpan.Slice(index * RecordSize, RecordSize);
+                DecryptRecord(recordSpan, decrypted);
+
+                var skill = ParseSkill(decrypted);
+                if (!string.IsNullOrWhiteSpace(skill.Name))
+                {
+                    skills[index] = skill;
+                }
+            }
+
+            return skills;
         }
     }
 }

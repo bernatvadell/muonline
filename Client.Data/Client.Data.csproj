@@ -3,10 +3,15 @@
     <ClientDataTargetFramework>net10.0</ClientDataTargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <PublishAot>true</PublishAot>
     <TargetFramework>$(ClientDataTargetFramework)</TargetFramework>
     <AssemblyName>Client.Data</AssemblyName>
     <RootNamespace>Client.Data</RootNamespace>
+    <UseSourceGenerators>true</UseSourceGenerators>
+  </PropertyGroup>
+
+  <!-- Enable AOT only for platforms that support it (not iOS simulator) -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != 'iossimulator-x64' AND '$(RuntimeIdentifier)' != 'iossimulator-arm64' AND '$(TargetFramework)' != 'net10.0-ios'">
+    <PublishAot>true</PublishAot>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,7 +21,7 @@
     <PackageReference Include="Delizious.Ini" Version="1.20.0" />
     <PackageReference Include="LEA.NET" Version="1.0.1" />
     <PackageReference Include="SharpZipLib" Version="1.4.2" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     <PackageReference Include="NVorbis" Version="0.10.5" />
   </ItemGroup>
 </Project>
