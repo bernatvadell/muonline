@@ -70,7 +70,7 @@ namespace Client.Main.Networking.PacketHandling
             // Instantiate handlers
             _characterDataHandler = new CharacterDataHandler(loggerFactory, characterState, networkManager, targetVersion);
             _inventoryHandler = new InventoryHandler(loggerFactory, characterState, networkManager, targetVersion);
-            _scopeHandler = new ScopeHandler(loggerFactory, scopeManager, characterState, networkManager, partyManager, targetVersion);
+            _scopeHandler = new ScopeHandler(loggerFactory, scopeManager, characterState, networkManager, partyManager, targetVersion, settings);
             _chatMessageHandler = new ChatMessageHandler(loggerFactory);
             _connectServerHandler = new ConnectServerHandler(loggerFactory, networkManager);
             _miscGamePacketHandler = new MiscGamePacketHandler(loggerFactory, networkManager, characterService, characterState, scopeManager, targetVersion);
@@ -304,7 +304,12 @@ namespace Client.Main.Networking.PacketHandling
                     case 0xC1:
                     case 0xC3:
                         code = span[2];
-                        subCode = (span.Length >= 4 && SubCodeHolder.ContainsSubCode(code))
+                        bool hasSubCode = SubCodeHolder.ContainsSubCode(code);
+                        if (TargetVersion >= TargetProtocolVersion.Season6 && code == 0x22)
+                        {
+                            hasSubCode = false; // Season 6 extended client uses value byte instead of sub-code.
+                        }
+                        subCode = (span.Length >= 4 && hasSubCode)
                                   ? span[3]
                                   : NoSubCode;
                         return true;
@@ -313,7 +318,12 @@ namespace Client.Main.Networking.PacketHandling
                     case 0xC4:
                         if (span.Length < 4) return false;
                         code = span[3];
-                        subCode = (span.Length >= 5 && SubCodeHolder.ContainsSubCode(code))
+                        bool hasSubCodeWide = SubCodeHolder.ContainsSubCode(code);
+                        if (TargetVersion >= TargetProtocolVersion.Season6 && code == 0x22)
+                        {
+                            hasSubCodeWide = false;
+                        }
+                        subCode = (span.Length >= 5 && hasSubCodeWide)
                                   ? span[4]
                                   : NoSubCode;
                         return true;

@@ -870,9 +870,10 @@ namespace Client.Main.Objects.Player
             // This requires more sophisticated logic to determine the exact weapon model
             // based on item group, index, and potentially other flags.
             // For now, we'll use generic models if an item is equipped.
-            if (Appearance.LeftHandItemIndex != 255 && Appearance.LeftHandItemIndex != 0xFF)
+            short leftHandNumber = Appearance.LeftHandItemNumber;
+            if (leftHandNumber >= 0 && leftHandNumber != 0xFF)
             {
-                var leftHandDef = ItemDatabase.GetItemDefinition(Appearance.LeftHandItemGroup, Appearance.LeftHandItemIndex);
+                var leftHandDef = ItemDatabase.GetItemDefinition(Appearance.LeftHandItemGroup, leftHandNumber);
                 if (leftHandDef != null)
                 {
                     Weapon1.Model = await BMDLoader.Instance.Prepare(leftHandDef.TexturePath);
@@ -897,9 +898,10 @@ namespace Client.Main.Objects.Player
                 Weapon1.TexturePath = null;
             }
 
-            if (Appearance.RightHandItemIndex != 255 && Appearance.RightHandItemIndex != 0xFF)
+            short rightHandNumber = Appearance.RightHandItemNumber;
+            if (rightHandNumber >= 0 && rightHandNumber != 0xFF)
             {
-                var rightHandDef = ItemDatabase.GetItemDefinition(Appearance.RightHandItemGroup, Appearance.RightHandItemIndex);
+                var rightHandDef = ItemDatabase.GetItemDefinition(Appearance.RightHandItemGroup, rightHandNumber);
                 if (rightHandDef != null)
                 {
                     Weapon2.Model = await BMDLoader.Instance.Prepare(rightHandDef.TexturePath);
@@ -2977,6 +2979,8 @@ namespace Client.Main.Objects.Player
                 return;
 
             _currentPath?.Clear();
+            _currentPath = null;
+            _movementIntent = false;
 
             // Rotate to face the target
             int dx = (int)(target.Location.X - Location.X);
@@ -3018,6 +3022,8 @@ namespace Client.Main.Objects.Player
                 return;
 
             _currentPath?.Clear();
+            _currentPath = null;
+            _movementIntent = false;
 
             int dx = (int)(target.Location.X - Location.X);
             int dy = (int)(target.Location.Y - Location.Y);
@@ -3078,7 +3084,7 @@ namespace Client.Main.Objects.Player
 
                 MuGame.ScheduleOnMainThread(() =>
                 {
-                    ApplyPathOnMainThread(path, sendToServer: true, world);
+                    ApplyPathOnMainThread(path, sendToServer: true, world, start, 0);
                 });
             });
         }
@@ -3536,10 +3542,10 @@ namespace Client.Main.Objects.Player
             var pixel = GraphicsManager.Instance.Pixel;
             using (new SpriteBatchScope(
                        sb,
-                       SpriteSortMode.BackToFront,
+                       SpriteSortMode.Deferred,
                        BlendState.NonPremultiplied,
                        SamplerState.PointClamp,
-                       DepthStencilState.DepthRead))
+                       DepthStencilState.None))
             {
                 sb.Draw(pixel, bgRect, Color.Black * 0.6f);
                 sb.Draw(pixel, fillRect, Color.Red);
@@ -3740,16 +3746,16 @@ namespace Client.Main.Objects.Player
             path = NormalizePlayerPath(TryGetItemPath(11, Appearance.BootsItemIndex));
             if (path != null) yield return path;
 
-            if (Appearance.LeftHandItemIndex != 0xFF && Appearance.LeftHandItemIndex != 255)
+            if (Appearance.LeftHandItemNumber >= 0 && Appearance.LeftHandItemNumber != 0xFF)
             {
-                var leftHandDef = ItemDatabase.GetItemDefinition(Appearance.LeftHandItemGroup, Appearance.LeftHandItemIndex);
+                var leftHandDef = ItemDatabase.GetItemDefinition(Appearance.LeftHandItemGroup, Appearance.LeftHandItemNumber);
                 if (!string.IsNullOrWhiteSpace(leftHandDef?.TexturePath))
                     yield return leftHandDef.TexturePath;
             }
 
-            if (Appearance.RightHandItemIndex != 0xFF && Appearance.RightHandItemIndex != 255)
+            if (Appearance.RightHandItemNumber >= 0 && Appearance.RightHandItemNumber != 0xFF)
             {
-                var rightHandDef = ItemDatabase.GetItemDefinition(Appearance.RightHandItemGroup, Appearance.RightHandItemIndex);
+                var rightHandDef = ItemDatabase.GetItemDefinition(Appearance.RightHandItemGroup, Appearance.RightHandItemNumber);
                 if (!string.IsNullOrWhiteSpace(rightHandDef?.TexturePath))
                     yield return rightHandDef.TexturePath;
             }
@@ -3776,6 +3782,12 @@ namespace Client.Main.Objects.Player
             if (!wingAppearance.HasWings)
             {
                 return null;
+            }
+
+            // Extended appearance format carries the exact wing item index.
+            if (wingAppearance.ItemIndex >= 0)
+            {
+                return wingAppearance.ItemIndex;
             }
 
             // Dark Lord / Lord Emperor use cape models; Cape of Lord is encoded specially in S6 appearance.

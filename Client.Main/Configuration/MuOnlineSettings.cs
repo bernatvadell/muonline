@@ -125,8 +125,8 @@ namespace Client.Main.Configuration
 
         // Client/Protocol Settings
         public string ProtocolVersion { get; set; } = nameof(TargetProtocolVersion.Season6); // Use nameof for safety
-        public string ClientVersion { get; set; } = "1.04d"; // Example default
-        public string ClientSerial { get; set; } = "0123456789ABCDEF"; // Example default
+        public string ClientVersion { get; set; } = "2.04d"; // Matches SourceMain5.2 default
+        public string ClientSerial { get; set; } = "k1Pk2jcET48mxL3b"; // Matches SourceMain5.2 default
         public Dictionary<byte, byte> DirectionMap { get; set; } = new(); // Direction mapping for walk packets
         public PacketLoggingSettings PacketLogging { get; set; } = new();
         public GraphicsSettings Graphics { get; set; } = new();

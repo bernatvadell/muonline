@@ -30,6 +30,8 @@ namespace Client.Main.Networking
         private static readonly SimpleModulusKeys EncryptKeys = PipelinedSimpleModulusEncryptor.DefaultClientKey;
         private static readonly SimpleModulusKeys DecryptKeys = PipelinedSimpleModulusDecryptor.DefaultClientKey;
         private static readonly byte[] Xor3Keys = DefaultKeys.Xor3Keys;
+        private const int ClientVersionLength = 5;
+        private const int ClientSerialLength = 16;
 
         private readonly ILoggerFactory _loggerFactory;
         private readonly ILogger<NetworkManager> _logger;
@@ -90,8 +92,8 @@ namespace Client.Main.Networking
             _scopeManager = scopeManager;
             _partyManager = new PartyManager(_loggerFactory);
 
-            var clientVersionBytes = Encoding.ASCII.GetBytes(settings.ClientVersion);
-            var clientSerialBytes = Encoding.ASCII.GetBytes(settings.ClientSerial);
+            var clientVersionBytes = BuildClientVersionBytes(settings.ClientVersion, _logger);
+            var clientSerialBytes = BuildClientSerialBytes(settings.ClientSerial, _logger);
             var targetVersion = System.Enum.Parse<TargetProtocolVersion>(settings.ProtocolVersion, ignoreCase: true);
 
             _connectionManager = new ConnectionManager(loggerFactory, EncryptKeys, DecryptKeys);
@@ -726,6 +728,273 @@ namespace Client.Main.Networking
             UpdateState(ClientConnectionState.Disconnected);
 
             return new ValueTask(_packetRouter.OnDisconnected());
+        }
+
+        private static byte[] BuildClientVersionBytes(string clientVersion, ILogger logger)
+        {
+            if (string.IsNullOrWhiteSpace(clientVersion))
+            {
+                logger.LogWarning("ClientVersion is empty; defaulting to 00000 for protocol handshake.");
+                return new byte[ClientVersionLength];
+            }
+
+            string trimmed = clientVersion.Trim();
+
+            if (IsFiveDigitVersion(trimmed))
+            {
+                return Encoding.ASCII.GetBytes(trimmed);
+            }
+
+            if (TryNormalizeClientVersion(trimmed, out string normalized))
+            {
+                logger.LogInformation("Normalized ClientVersion '{Input}' -> '{Normalized}'.", trimmed, normalized);
+                return Encoding.ASCII.GetBytes(normalized);
+            }
+
+            logger.LogWarning("ClientVersion '{Input}' not recognized; using padded ASCII bytes.", trimmed);
+            return ToFixedLengthAsciiBytes(trimmed, ClientVersionLength);
+        }
+
+        private static byte[] BuildClientSerialBytes(string clientSerial, ILogger logger)
+        {
+            if (string.IsNullOrWhiteSpace(clientSerial))
+            {
+                logger.LogWarning("ClientSerial is empty; defaulting to zeros for protocol handshake.");
+                return new byte[ClientSerialLength];
+            }
+
+            string trimmed = clientSerial.Trim();
+            var bytes = Encoding.ASCII.GetBytes(trimmed);
+            if (bytes.Length == ClientSerialLength)
+            {
+                return bytes;
+            }
+
+            if (bytes.Length > ClientSerialLength)
+            {
+                logger.LogWarning("ClientSerial '{Input}' exceeds {Length} bytes; truncating.", trimmed, ClientSerialLength);
+                var truncated = new byte[ClientSerialLength];
+                Array.Copy(bytes, truncated, ClientSerialLength);
+                return truncated;
+            }
+
+            logger.LogWarning("ClientSerial '{Input}' shorter than {Length} bytes; padding with zeros.", trimmed, ClientSerialLength);
+            var padded = new byte[ClientSerialLength];
+            Array.Copy(bytes, padded, bytes.Length);
+            return padded;
+        }
+
+        private static bool IsFiveDigitVersion(string value)
+        {
+            if (value.Length != ClientVersionLength)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < value.Length; i++)
+            {
+                char ch = value[i];
+                if (ch < '0' || ch > '9')
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool TryNormalizeClientVersion(string input, out string normalized)
+        {
+            normalized = null;
+            if (string.IsNullOrWhiteSpace(input))
+            {
+                return false;
+            }
+
+            string trimmed = input.Trim();
+            if (IsFiveDigitVersion(trimmed))
+            {
+                normalized = trimmed;
+                return true;
+            }
+
+            string[] parts = trimmed.Split('.', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length >= 2)
+            {
+                if (!TryParseSingleDigit(parts[0], out int major))
+                {
+                    return false;
+                }
+
+                int minor;
+                int patch;
+                if (parts.Length == 2)
+                {
+                    if (!TryParseMinorAndPatch(parts[1], out minor, out patch))
+                    {
+                        return false;
+                    }
+                }
+                else
+                {
+                    if (!TryParseTwoDigitNumber(parts[1], out minor))
+                    {
+                        return false;
+                    }
+
+                    if (!TryParsePatchToken(parts[2], out patch))
+                    {
+                        return false;
+                    }
+                }
+
+                normalized = $"{major}{minor:00}{patch:00}";
+                return normalized.Length == ClientVersionLength;
+            }
+
+            return false;
+        }
+
+        private static bool TryParseSingleDigit(string token, out int value)
+        {
+            value = 0;
+            foreach (char ch in token)
+            {
+                if (char.IsDigit(ch))
+                {
+                    value = ch - '0';
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TryParseTwoDigitNumber(string token, out int value)
+        {
+            value = 0;
+            int digits = 0;
+            foreach (char ch in token)
+            {
+                if (!char.IsDigit(ch))
+                {
+                    break;
+                }
+
+                value = (value * 10) + (ch - '0');
+                digits++;
+                if (digits == 2)
+                {
+                    break;
+                }
+            }
+
+            return digits > 0;
+        }
+
+        private static bool TryParseMinorAndPatch(string token, out int minor, out int patch)
+        {
+            minor = 0;
+            patch = 0;
+            int digitCount = 0;
+            int patchDigits = 0;
+            int patchDigitCount = 0;
+            char letter = '\0';
+
+            foreach (char ch in token)
+            {
+                if (char.IsDigit(ch))
+                {
+                    if (digitCount < 2)
+                    {
+                        minor = (minor * 10) + (ch - '0');
+                    }
+                    else if (patchDigitCount < 2)
+                    {
+                        patchDigits = (patchDigits * 10) + (ch - '0');
+                        patchDigitCount++;
+                    }
+
+                    digitCount++;
+                }
+                else if (letter == '\0' && char.IsLetter(ch))
+                {
+                    letter = ch;
+                }
+            }
+
+            if (digitCount == 0)
+            {
+                return false;
+            }
+
+            if (letter != '\0')
+            {
+                patch = LetterToNumber(letter);
+                return patch > 0;
+            }
+
+            if (patchDigitCount > 0)
+            {
+                patch = patchDigits;
+                return true;
+            }
+
+            patch = 0;
+            return true;
+        }
+
+        private static bool TryParsePatchToken(string token, out int patch)
+        {
+            patch = 0;
+            int digits = 0;
+            foreach (char ch in token)
+            {
+                if (char.IsDigit(ch))
+                {
+                    if (digits < 2)
+                    {
+                        patch = (patch * 10) + (ch - '0');
+                        digits++;
+                    }
+                }
+                else if (char.IsLetter(ch))
+                {
+                    patch = LetterToNumber(ch);
+                    return patch > 0;
+                }
+            }
+
+            return digits > 0;
+        }
+
+        private static int LetterToNumber(char letter)
+        {
+            if (!char.IsLetter(letter))
+            {
+                return 0;
+            }
+
+            char lower = char.ToLowerInvariant(letter);
+            if (lower < 'a' || lower > 'z')
+            {
+                return 0;
+            }
+
+            return lower - 'a' + 1;
+        }
+
+        private static byte[] ToFixedLengthAsciiBytes(string value, int length)
+        {
+            var bytes = Encoding.ASCII.GetBytes(value ?? string.Empty);
+            if (bytes.Length == length)
+            {
+                return bytes;
+            }
+
+            var result = new byte[length];
+            Array.Copy(bytes, result, Math.Min(bytes.Length, length));
+            return result;
         }
 
         // IAsyncDisposable Implementation

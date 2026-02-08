@@ -23,16 +23,16 @@ namespace Client.Main.Objects.Monsters
             Model = await BMDLoader.Instance.Prepare($"Monster/Monster14.bmd");
             await base.Load();
 
-            // Specific PlaySpeed adjustment from C++ OpenMonsterModel
-            if (Model?.Actions != null)
-            {
-                const int MONSTER_ACTION_WALK = (int)MonsterActionType.Walk;
-                if (MONSTER_ACTION_WALK < Model.Actions.Length && Model.Actions[MONSTER_ACTION_WALK] != null)
-                {
-                    Model.Actions[MONSTER_ACTION_WALK].PlaySpeed = 0.28f;
-                }
-            }
-            // C++: Models[MODEL_ELITE_YETI].BoneHead = 20; (Additional info)
+            // Animation speeds from C++ OpenMonsterModel base defaults + Elite Yeti walk override
+            // No special multiplier applies (type 13 is not 3/5/25/37/42)
+            SetActionSpeed(MonsterActionType.Stop1, 0.25f);
+            SetActionSpeed(MonsterActionType.Stop2, 0.20f);
+            SetActionSpeed(MonsterActionType.Walk, 0.28f);   // Override from default 0.34f
+            SetActionSpeed(MonsterActionType.Attack1, 0.33f);
+            SetActionSpeed(MonsterActionType.Attack2, 0.33f);
+            SetActionSpeed(MonsterActionType.Shock, 0.5f);
+            SetActionSpeed(MonsterActionType.Die, 0.55f);
+            // C++: Models[MODEL_ELITE_YETI].BoneHead = 20;
         }
 
         // Sound mapping based on C++ SetMonsterSound(MODEL_ELITE_YETI, 68, 69, 70, 70, 71);

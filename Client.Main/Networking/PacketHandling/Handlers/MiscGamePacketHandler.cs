@@ -615,16 +615,47 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                             _logger.LogWarning("CharacterList (S6) packet too short for header.");
                             return Task.CompletedTask;
                         }
-                        var refS6 = new CharacterListRef(packet.Span);
-                        count = refS6.CharacterCount;
-                        dataSize = CharacterList.CharacterData.Length;
+                        count = packet.Span[6];
                         offset = 8;
-                        if (packet.Length < CharacterListRef.GetRequiredSize(count))
+                        int remaining = Math.Max(0, packet.Length - offset);
+                        if (count > 0)
                         {
-                            _logger.LogWarning("CharacterList (S6) too short for {Count} characters.", count);
-                            count = 0;
+                            if (remaining == count * 44)
+                            {
+                                dataSize = 44; // CharacterListExtended from ServerPackets (appearance-only)
+                            }
+                            else if (remaining == count * 42)
+                            {
+                                dataSize = 42; // SourceMain5.2 PRECEIVE_CHARACTER_LIST_EXTENDED (explicit class + 25 bytes)
+                            }
+                            else if (remaining == count * 34)
+                            {
+                                dataSize = 34; // ServerPackets CharacterList (18-byte appearance)
+                            }
+                            else if (remaining % count == 0)
+                            {
+                                int inferredSize = remaining / count;
+                                dataSize = inferredSize == 44 || inferredSize == 42 || inferredSize == 34
+                                    ? inferredSize
+                                    : 34;
+                            }
+                            else
+                            {
+                                dataSize = 34;
+                            }
                         }
-                        _logger.LogInformation("📜 Character list (S6): {Count} entries.", count);
+                        else
+                        {
+                            dataSize = 34;
+                        }
+
+                        if (packet.Length < offset + (count * dataSize))
+                        {
+                            int maxCount = dataSize > 0 ? (packet.Length - offset) / dataSize : 0;
+                            _logger.LogWarning("CharacterList (S6) too short for {Count} characters; truncating to {Max}.", count, maxCount);
+                            count = (byte)Math.Max(0, maxCount);
+                        }
+                        _logger.LogInformation("📜 Character list (S6): {Count} entries (entry size {Size}).", count, dataSize);
                         break;
 
                     case TargetProtocolVersion.Version097:
@@ -690,10 +721,107 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         switch (_targetVersion)
                         {
                             case TargetProtocolVersion.Season6:
-                                var d6 = new CharacterList.CharacterData(packet.Slice(pos, dataSize));
-                                name = d6.Name;
-                                level = d6.Level;
-                                appearance = d6.Appearance;
+                                {
+                                    // Season 6 CharacterList Extended packet structure (from SourceMain5.2):
+                                    // Offset 0: Index (1 byte)
+                                    // Offset 1-10: Name (10 bytes)
+                                    // Offset 11-12: Level (2 bytes, little-endian)
+                                    // Offset 13: CtlCode (1 byte)
+                                    // Offset 14: Class (1 byte) - SERVER_CLASS_TYPE [42-byte layout only]
+                                    // Offset 15: Flags (1 byte) [42-byte layout only]
+                                    // Offset 16-40: Equipment (25 bytes) [42-byte layout only]
+                                    // Offset 41: GuildStatus (1 byte) [42-byte layout only]
+                                    // Total: 42 bytes per character
+                                    //
+                                    // Alternative 44-byte layout (ServerPackets CharacterListExtended):
+                                    // Offset 14: status/item-block flags
+                                    // Offset 15-41: Appearance (27 bytes)
+                                    //
+                                    // Standard 34-byte layout (ServerPackets CharacterList):
+                                    // Offset 14: status/item-block flags
+                                    // Offset 15-32: Appearance (18 bytes)
+                                    if (dataSize == 44)
+                                    {
+                                        var entry = packet.Span.Slice(pos, dataSize);
+                                        name = System.Text.Encoding.UTF8.GetString(entry.Slice(1, 10)).TrimEnd('\0');
+                                        level = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(entry.Slice(12, 2));
+
+                                        // 44-byte entries are ambiguous between:
+                                        // A) SourceMain5.2 padded PRECEIVE_CHARACTER_LIST_EXTENDED:
+                                        //    [15]=Class, [16]=Flags, [17..41]=Equipment(25)
+                                        // B) ServerPackets CharacterListExtended:
+                                        //    [14]=Status/ItemBlock, [15..41]=Appearance(27)
+                                        //
+                                        // Choose layout by scoring class decoding + SourceMain flags plausibility.
+                                        byte rawClassField = entry[15];
+                                        byte rawFlagsField = entry[16];
+                                        bool likelySourceMainLayout = IsLikelySourceMainEquipmentFlags(rawFlagsField);
+
+                                        CharacterClassNumber sourceMainClass =
+                                            DecodeClassFromSourceMainField(rawClassField, out int sourceMainClassScore, out string sourceMainReason);
+                                        int sourceMainScore = sourceMainClassScore + (likelySourceMainLayout ? 2 : -1);
+                                        ReadOnlySpan<byte> sourceMainAppearance = entry.Slice(17, 25);
+
+                                        ReadOnlySpan<byte> serverAppearanceFull = entry.Slice(15, 27);
+                                        CharacterClassNumber serverPacketsClass =
+                                            DecodeClassFromAppearance(serverAppearanceFull, out int serverPacketsClassScore, out string serverPacketsReason);
+                                        int serverPacketsScore = serverPacketsClassScore + (likelySourceMainLayout ? 0 : 1);
+
+                                        bool useSourceMainLayout =
+                                            sourceMainScore > serverPacketsScore
+                                            || (sourceMainScore == serverPacketsScore
+                                                && (sourceMainClassScore > serverPacketsClassScore
+                                                    || (sourceMainClass != CharacterClassNumber.DarkWizard
+                                                        && serverPacketsClass == CharacterClassNumber.DarkWizard)));
+
+                                        if (useSourceMainLayout)
+                                        {
+                                            cls = sourceMainClass;
+                                            appearance = sourceMainAppearance;
+
+                                            _logger.LogInformation(
+                                                "S6 Character(44-SourceMain5.2): Name='{Name}', Level={Level}, ClassRaw=0x{ClassRaw:X2}, Flags=0x{Flags:X2}, Class={Class}, Score={Score}, Reason={Reason}, AppearanceLen={AppLen}",
+                                                name, level, rawClassField, rawFlagsField, cls, sourceMainScore, sourceMainReason, appearance.Length);
+                                        }
+                                        else
+                                        {
+                                            cls = serverPacketsClass;
+                                            // SelectCharacter rendering expects classic appearance layout.
+                                            appearance = serverAppearanceFull.Length >= 18 ? serverAppearanceFull[..18] : serverAppearanceFull;
+
+                                            _logger.LogInformation(
+                                                "S6 Character(44-ServerPackets): Name='{Name}', Level={Level}, Class={Class}, Score={Score}, Reason={Reason}, AppearanceLen={AppLen}, FullAppearanceLen={FullLen}",
+                                                name, level, cls, serverPacketsScore, serverPacketsReason, appearance.Length, serverAppearanceFull.Length);
+                                        }
+                                    }
+                                    else if (dataSize == 42)
+                                    {
+                                        var entry = packet.Span.Slice(pos, dataSize);
+                                        name = System.Text.Encoding.UTF8.GetString(entry.Slice(1, 10)).TrimEnd('\0');
+                                        level = System.Buffers.Binary.BinaryPrimitives.ReadUInt16LittleEndian(entry.Slice(11, 2));
+
+                                        // SourceMain5.2 42-byte format carries explicit class at offset 14.
+                                        byte serverClass = entry[14];
+                                        cls = DecodeClassFromSourceMainField(serverClass, out _, out _);
+                                        appearance = entry.Slice(16, Math.Min(25, entry.Length - 16));
+
+                                        _logger.LogInformation(
+                                            "S6 Character(42): Name='{Name}', Level={Level}, ServerClass={ServerClass} -> {Class}, AppearanceLen={AppLen}",
+                                            name, level, serverClass, cls, appearance.Length);
+                                    }
+                                    else
+                                    {
+                                        var d6 = new CharacterList.CharacterData(packet.Slice(pos, dataSize));
+                                        name = d6.Name;
+                                        level = d6.Level;
+                                        appearance = d6.Appearance;
+                                        cls = DecodeClassFromAppearance(appearance, out _, out _);
+
+                                        _logger.LogInformation(
+                                            "S6 Character(34): Name='{Name}', Level={Level}, ParsedClass={Class}, AppearanceLen={AppLen}",
+                                            name, level, cls, appearance.Length);
+                                    }
+                                }
                                 break;
                             case TargetProtocolVersion.Version097:
                                 var d97 = new CharacterList095.CharacterData(packet.Slice(pos, dataSize));
@@ -709,17 +837,19 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                                 break;
                         }
 
-                        // Map class from appearance bits
-                        if (appearance.Length > 0)
+                        // Map class from appearance bits (legacy formats)
+                        // For 18-byte appearance format: Class is in byte 0, bits 4-7 (upper 4 bits)
+                        if (_targetVersion != TargetProtocolVersion.Season6 && appearance.Length > 0)
                         {
                             byte apByte = appearance[0];
-                            int rawClassVal = (apByte >> 3) & 0b1_1111;
+                            // According to Appearance.md: Byte 0, bits 4-7 = Character class
+                            int rawClassVal = (apByte >> 4) & 0x0F;
                             _logger.LogDebug(
                                 "Appearance byte for {Name}: 0x{Byte:X2}, raw class {RawValue}",
                                 name, apByte, rawClassVal);
-                            cls = MapClassValueToEnum(rawClassVal);
+                            cls = CharacterClassDatabase.MapRawClassToEnum(rawClassVal);
                         }
-                        else
+                        else if (_targetVersion != TargetProtocolVersion.Season6)
                         {
                             _logger.LogWarning("Empty appearance data for {Name}. Defaulting to DarkWizard.", name);
                         }
@@ -969,6 +1099,145 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 16 or 17 or 20 or 22 or 23 or 24 or 25 => (CharacterClassNumber)value,
                 _ => CharacterClassNumber.DarkWizard
             };
+        }
+
+        private CharacterClassNumber DecodeClassFromSourceMainField(byte rawClassValue, out int score, out string reason)
+        {
+            if (IsKnownServerClassValue(rawClassValue))
+            {
+                score = 6;
+                reason = "direct-server-class";
+                return MapClassValueToEnum(rawClassValue);
+            }
+
+            int shiftedBy3 = (rawClassValue >> 3) & 0b1_1111;
+            if (IsKnownServerClassValue(shiftedBy3))
+            {
+                score = 5;
+                reason = "shifted-by-3";
+                return MapClassValueToEnum(shiftedBy3);
+            }
+
+            int renderedClass = (rawClassValue >> 4) & 0x0F;
+            if (TryMapRenderedClassToEnum(renderedClass, out var rendered))
+            {
+                score = 4;
+                reason = "rendered-4bit";
+                return rendered;
+            }
+
+            int baseClass = rawClassValue & 0x07;
+            if (TryMapBaseClassToEnum(baseClass, out var baseMapped))
+            {
+                score = 3;
+                reason = "base-3bit";
+                return baseMapped;
+            }
+
+            score = 0;
+            reason = "fallback-dark-wizard";
+            return CharacterClassNumber.DarkWizard;
+        }
+
+        private CharacterClassNumber DecodeClassFromAppearance(ReadOnlySpan<byte> appearance, out int score, out string reason)
+        {
+            if (appearance.IsEmpty)
+            {
+                score = 0;
+                reason = "empty-appearance";
+                return CharacterClassNumber.DarkWizard;
+            }
+
+            byte raw = appearance[0];
+            int raw5 = (raw >> 3) & 0b1_1111;
+            if (IsKnownServerClassValue(raw5))
+            {
+                score = 4;
+                reason = "appearance-shifted-by-3";
+                return MapClassValueToEnum(raw5);
+            }
+
+            if (IsKnownServerClassValue(raw))
+            {
+                score = 3;
+                reason = "appearance-direct-server-class";
+                return MapClassValueToEnum(raw);
+            }
+
+            int renderedClass = (raw >> 4) & 0x0F;
+            if (TryMapRenderedClassToEnum(renderedClass, out var rendered))
+            {
+                score = 2;
+                reason = "appearance-rendered-4bit";
+                return rendered;
+            }
+
+            int baseClass = raw & 0x07;
+            if (TryMapBaseClassToEnum(baseClass, out var baseMapped))
+            {
+                score = 1;
+                reason = "appearance-base-3bit";
+                return baseMapped;
+            }
+
+            score = 0;
+            reason = "fallback-dark-wizard";
+            return CharacterClassNumber.DarkWizard;
+        }
+
+        private static bool TryMapRenderedClassToEnum(int renderedClass, out CharacterClassNumber cls)
+        {
+            cls = renderedClass switch
+            {
+                0 => CharacterClassNumber.DarkWizard,
+                1 => CharacterClassNumber.DarkKnight,
+                2 => CharacterClassNumber.FairyElf,
+                3 => CharacterClassNumber.MagicGladiator,
+                4 => CharacterClassNumber.DarkLord,
+                5 => CharacterClassNumber.Summoner,
+                6 => CharacterClassNumber.RageFighter,
+                8 => CharacterClassNumber.SoulMaster,
+                9 => CharacterClassNumber.BladeKnight,
+                10 => CharacterClassNumber.MuseElf,
+                11 => CharacterClassNumber.DuelMaster,
+                12 => CharacterClassNumber.LordEmperor,
+                13 => CharacterClassNumber.BloodySummoner,
+                14 => CharacterClassNumber.FistMaster,
+                15 => CharacterClassNumber.GrandMaster,
+                _ => CharacterClassNumber.DarkWizard
+            };
+
+            return renderedClass is 0 or 1 or 2 or 3 or 4 or 5 or 6 or 8 or 9 or 10 or 11 or 12 or 13 or 14 or 15;
+        }
+
+        private static bool TryMapBaseClassToEnum(int baseClass, out CharacterClassNumber cls)
+        {
+            cls = baseClass switch
+            {
+                0 => CharacterClassNumber.DarkWizard,
+                1 => CharacterClassNumber.DarkKnight,
+                2 => CharacterClassNumber.FairyElf,
+                3 => CharacterClassNumber.MagicGladiator,
+                4 => CharacterClassNumber.DarkLord,
+                5 => CharacterClassNumber.Summoner,
+                6 => CharacterClassNumber.RageFighter,
+                _ => CharacterClassNumber.DarkWizard
+            };
+
+            return baseClass is >= 0 and <= 6;
+        }
+
+        private static bool IsLikelySourceMainEquipmentFlags(byte flags)
+        {
+            // In SourceMain5.2 ReadEquipmentExtended(), only bits 0x10 and 0x20
+            // are used from this field for extended state/extra parts.
+            return (flags & 0xCF) == 0;
+        }
+
+        private static bool IsKnownServerClassValue(int value)
+        {
+            return value is 0 or 2 or 3 or 4 or 6 or 7 or 8 or 10 or 11 or 12 or 13
+                or 16 or 17 or 20 or 22 or 23 or 24 or 25;
         }
     }
 }

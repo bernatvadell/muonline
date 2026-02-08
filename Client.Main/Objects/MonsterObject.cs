@@ -1,8 +1,11 @@
 ﻿using Client.Data.BMD;
+using Client.Main.Controllers;
+using Client.Main.Helpers;
 using Client.Main.Models;
 using Client.Main.Objects.Player;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -17,6 +20,11 @@ namespace Client.Main.Objects
         private float _fadeDuration = 3.5f; // longer fade for smoother disappearance
         private float _startZ;
         private const float SinkBelowGround = 30f; // how deep to sink below terrain surface
+        private const float NameplateHeightOffset = 20f;
+
+        private float _healthFraction = 1f;
+        private bool _hasHealthFraction;
+        private string _cachedDisplayName;
 
         /// <summary>
         /// Determines whether a blood stain should be spawned when the monster dies.
@@ -40,10 +48,14 @@ namespace Client.Main.Objects
         {
             get
             {
+                if (!string.IsNullOrEmpty(_cachedDisplayName))
+                    return _cachedDisplayName;
+
                 var attr = (NpcInfoAttribute)GetType()
                     .GetCustomAttributes(typeof(NpcInfoAttribute), inherit: false)
                     .FirstOrDefault();
-                return attr?.DisplayName ?? base.DisplayName;
+                _cachedDisplayName = attr?.DisplayName ?? base.DisplayName;
+                return _cachedDisplayName;
             }
         }
 
@@ -179,6 +191,17 @@ namespace Client.Main.Objects
             }
         }
 
+        public override void DrawAfter(GameTime gameTime)
+        {
+            base.DrawAfter(gameTime);
+            DrawNameplate();
+        }
+
+        public override void DrawHoverName()
+        {
+            // Monster nameplates are drawn persistently; skip hover-only name rendering.
+        }
+
         // --- Protected Virtual Methods for Overriding ---
 
         /// <summary>
@@ -225,6 +248,8 @@ namespace Client.Main.Objects
             if (healthFraction.HasValue)
             {
                 float hf = MathHelper.Clamp(healthFraction.Value, 0f, 1f);
+                _healthFraction = hf;
+                _hasHealthFraction = true;
                 if (hf <= 0f)
                 {
                     StartDeathFade();
@@ -238,6 +263,36 @@ namespace Client.Main.Objects
             if (shieldFraction.HasValue)
             {
                 OnReceiveDamage();
+            }
+        }
+
+        private void DrawNameplate()
+        {
+            if (IsDead || !Visible)
+                return;
+
+            var font = GraphicsManager.Instance.Font;
+            if (font == null)
+                return;
+
+            string name = DisplayName;
+            if (string.IsNullOrWhiteSpace(name))
+                return;
+
+            if (!OverheadNameplateRenderer.TryProject(BoundingBoxWorld, NameplateHeightOffset, out var screen))
+                return;
+
+            float? hp = _hasHealthFraction ? _healthFraction : null;
+
+            var sb = GraphicsManager.Instance.Sprite;
+            using (new SpriteBatchScope(
+                       sb,
+                       SpriteSortMode.Deferred,
+                       BlendState.NonPremultiplied,
+                       SamplerState.LinearClamp,
+                       DepthStencilState.None))
+            {
+                OverheadNameplateRenderer.DrawNameplate(sb, font, screen, name, hp, Constants.RENDER_SCALE);
             }
         }
 
