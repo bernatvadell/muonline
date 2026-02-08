@@ -23,6 +23,7 @@ namespace Client.Main.Objects
         private Direction _direction;
         private Vector2 _location;
         protected Queue<Vector2> _currentPath;   // FIFO – cheaper removal than List.RemoveAt(0)
+        private uint _moveRequestVersion;
 
         // Camera control
         private float _currentCameraDistance = Constants.DEFAULT_CAMERA_DISTANCE;
@@ -281,6 +282,19 @@ namespace Client.Main.Objects
 
             Vector2 startPos = new Vector2((int)Location.X, (int)Location.Y);
             WorldControl currentWorld = World;
+            uint requestVersion = 0;
+            if (sendToServer && IsMainWalker)
+            {
+                requestVersion = ++_moveRequestVersion;
+            }
+
+            if (!usePathfinding)
+            {
+                var path = Pathfinding.BuildDirectPath(startPos, targetLocation);
+                ApplyPathOnMainThread(path, sendToServer, currentWorld, startPos, requestVersion);
+                return;
+            }
+
             _ = Task.Run(() =>
             {
                 List<Vector2> path = usePathfinding
@@ -296,15 +310,21 @@ namespace Client.Main.Objects
 
                 MuGame.ScheduleOnMainThread(() =>
                 {
-                    ApplyPathOnMainThread(path, sendToServer, currentWorld);
+                    ApplyPathOnMainThread(path, sendToServer, currentWorld, startPos, requestVersion);
                 });
             });
         }
 
-        protected void ApplyPathOnMainThread(List<Vector2> path, bool sendToServer, WorldControl expectedWorld)
+        protected void ApplyPathOnMainThread(List<Vector2> path, bool sendToServer, WorldControl expectedWorld, Vector2? pathStart = null, uint requestVersion = 0)
         {
             if (MuGame.Instance.ActiveScene?.World != expectedWorld || Status == GameControlStatus.Disposed)
                 return;
+
+            if (sendToServer && IsMainWalker && requestVersion != 0 && requestVersion != _moveRequestVersion)
+            {
+                // Ignore stale async path results from older click requests.
+                return;
+            }
 
             if (path == null || path.Count == 0)
             {
@@ -319,7 +339,8 @@ namespace Client.Main.Objects
 
             if (sendToServer && IsMainWalker)
             {
-                Task.Run(() => SendWalkPathToServerAsync(path));
+                var start = pathStart ?? new Vector2((int)Location.X, (int)Location.Y);
+                Task.Run(() => SendWalkPathToServerAsync(path, start));
             }
         }
 
@@ -328,14 +349,14 @@ namespace Client.Main.Objects
             UpdateFacingFromVector(targetLocation - Location, immediate);
         }
 
-        private async Task SendWalkPathToServerAsync(List<Vector2> path)
+        private async Task SendWalkPathToServerAsync(List<Vector2> path, Vector2 startPos)
         {
             if (path == null || path.Count == 0) return;
             var net = MuGame.Network;
             if (net == null) return;
 
-            byte startX = (byte)Location.X;
-            byte startY = (byte)Location.Y;
+            byte startX = (byte)startPos.X;
+            byte startY = (byte)startPos.Y;
 
             //    Function returning CLIENT CODE (0-7) according to MU Online documentation
             //    W=0, SW=1, S=2, SE=3, E=4, NE=5, N=6, NW=7
@@ -361,7 +382,7 @@ namespace Client.Main.Objects
             // stackalloc: no GC pressure for  ≤15-step MU packet
             Span<byte> clientDirs = stackalloc byte[15];
             int dirLen = 0;
-            Vector2 currentPos = Location;
+            Vector2 currentPos = startPos;
             foreach (var step in path)
             {
                 byte dirCode = GetClientDirectionCode(currentPos, step);

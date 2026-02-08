@@ -125,7 +125,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         {
             try
             {
-                if (packet.Length < 7)
+                var span = packet.Span;
+                if (span.Length < 7)
                 {
                     _logger.LogWarning("StoreItemList packet too short: {Length}", packet.Length);
                     return Task.CompletedTask;
@@ -133,6 +134,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                 var list = new StoreItemList(packet);
                 byte count = list.ItemCount;
+                int offset = 6;
 
                 // Determine item data size by protocol version (matches inventory parsing)
                 int dataSize = _targetVersion switch
@@ -161,22 +163,85 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     _characterState.ClearShopItems();
                 }
 
-                for (int i = 0; i < count; i++)
+                int parsedItems = 0;
+
+                if (_targetVersion >= TargetProtocolVersion.Season6)
                 {
-                    var si = list[i, StoredItem.GetRequiredSize(dataSize)];
-                    byte slot = si.ItemSlot;
-                    var data = si.ItemData.Slice(0, dataSize).ToArray();
+                    int pos = offset;
+                    int remaining = Math.Max(0, span.Length - offset);
+                    bool fixedLength = count > 0 && remaining == count * (1 + 12);
 
-                    // Defensive checks
-                    if (data.Length != dataSize)
+                    for (int i = 0; i < count; i++)
                     {
-                        _logger.LogWarning("Shop item index {Index} has unexpected data length {Len} (expected {Exp}).", i, data.Length, dataSize);
-                    }
+                        if (pos + 1 > span.Length)
+                        {
+                            _logger.LogWarning("StoreItemList too short while reading slot at item {Index}.", i);
+                            break;
+                        }
 
-                    if (toChaosMachine) _characterState.AddOrUpdateChaosMachineItem(slot, data);
-                    else if (toVault) _characterState.AddOrUpdateVaultItem(slot, data);
-                    else _characterState.AddOrUpdateShopItem(slot, data);
+                        byte slot = span[pos];
+                        pos += 1;
+
+                        ReadOnlySpan<byte> itemSpan = span.Slice(pos);
+                        int length = 12;
+
+                        if (!fixedLength)
+                        {
+                            if (!ItemDataParser.TryGetExtendedItemLength(itemSpan, out length) || pos + length > span.Length)
+                            {
+                                // Backward compatibility with classic fixed-length store items.
+                                if (pos + 12 <= span.Length)
+                                {
+                                    length = 12;
+                                    _logger.LogDebug(
+                                        "StoreItemList item {Index}: extended length parse failed, falling back to 12-byte item data.",
+                                        i);
+                                }
+                                else
+                                {
+                                    _logger.LogWarning("StoreItemList item {Index} has invalid data length.", i);
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (pos + length > span.Length)
+                        {
+                            _logger.LogWarning("StoreItemList too short while reading item {Index} data.", i);
+                            break;
+                        }
+
+                        var data = span.Slice(pos, length).ToArray();
+                        pos += length;
+
+                        if (toChaosMachine) _characterState.AddOrUpdateChaosMachineItem(slot, data);
+                        else if (toVault) _characterState.AddOrUpdateVaultItem(slot, data);
+                        else _characterState.AddOrUpdateShopItem(slot, data);
+
+                        parsedItems++;
+                    }
                 }
+                else
+                {
+                    for (int i = 0; i < count; i++)
+                    {
+                        var si = list[i, StoredItem.GetRequiredSize(dataSize)];
+                        byte slot = si.ItemSlot;
+                        var data = si.ItemData.Slice(0, dataSize).ToArray();
+
+                        if (toChaosMachine) _characterState.AddOrUpdateChaosMachineItem(slot, data);
+                        else if (toVault) _characterState.AddOrUpdateVaultItem(slot, data);
+                        else _characterState.AddOrUpdateShopItem(slot, data);
+
+                        parsedItems++;
+                    }
+                }
+
+                _logger.LogInformation(
+                    "StoreItemList parsed: requested={Requested}, parsed={Parsed}, target={Target}",
+                    count,
+                    parsedItems,
+                    toChaosMachine ? "ChaosMachine" : toVault ? "Vault" : "Shop");
 
                 if (toChaosMachine) _characterState.RaiseChaosMachineItemsChanged();
                 else if (toVault) _characterState.RaiseVaultItemsChanged();

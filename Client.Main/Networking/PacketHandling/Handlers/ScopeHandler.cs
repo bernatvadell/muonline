@@ -14,6 +14,7 @@ using Client.Main.Objects;
 using Client.Main.Objects.Player;
 using Client.Main.Objects.Effects;
 using Client.Main.Core.Client;
+using Client.Main.Configuration;
 using Client.Main.Scenes;
 using Client.Main.Controllers;
 using System.Threading;
@@ -40,6 +41,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         private readonly PartyManager _partyManager;
         private readonly TargetProtocolVersion _targetVersion;
         private readonly ILoggerFactory _loggerFactory;
+        private readonly bool _useExtendedWalkFormat;
+        private readonly Dictionary<byte, byte> _serverToClientDirMap;
 
         private static readonly List<NpcScopeObject> _pendingNpcsMonsters = new List<NpcScopeObject>();
         private static readonly List<PlayerScopeObject> _pendingPlayers = new List<PlayerScopeObject>();
@@ -56,7 +59,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             CharacterState characterState,
             NetworkManager networkManager,
             PartyManager partyManager,
-            TargetProtocolVersion targetVersion)
+            TargetProtocolVersion targetVersion,
+            MuOnlineSettings settings)
         {
             _logger = loggerFactory.CreateLogger<ScopeHandler>();
             _scopeManager = scopeManager;
@@ -66,6 +70,57 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             _targetVersion = targetVersion;
             _loggerFactory = loggerFactory;
             _activeInstance = this;
+
+            // Determine if server sends ObjectWalkedExtended based on client version.
+            // OpenMU uses [MinimumClient(106, 3)] for Extended format (version >= 1.06.3).
+            _useExtendedWalkFormat = targetVersion >= TargetProtocolVersion.Season6
+                                    && ParseClientVersionMajorMinor(settings.ClientVersion) >= 107;
+
+            // Build server→client direction map (inverse of the client→server DirectionMap).
+            _serverToClientDirMap = new Dictionary<byte, byte>();
+            var clientToServer = networkManager.GetDirectionMap();
+            if (clientToServer != null)
+            {
+                foreach (var kvp in clientToServer)
+                {
+                    _serverToClientDirMap[kvp.Value] = kvp.Key;
+                }
+            }
+
+            _logger.LogInformation("ScopeHandler: UseExtendedWalkFormat={Extended}, ServerToClientDirMap entries={Count}",
+                _useExtendedWalkFormat, _serverToClientDirMap.Count);
+        }
+
+        /// <summary>
+        /// Parses "X.YYz" client version string to major*100+minor (e.g. "2.04d" → 204, "1.04d" → 104).
+        /// </summary>
+        private static int ParseClientVersionMajorMinor(string clientVersion)
+        {
+            if (string.IsNullOrEmpty(clientVersion) || clientVersion.Length < 4)
+                return 0;
+
+            // Format: "X.YYz" where X=season, YY=episode, z=patch letter
+            if (int.TryParse(clientVersion.AsSpan(0, 1), out int season)
+                && int.TryParse(clientVersion.AsSpan(2, 2), out int episode))
+            {
+                return season * 100 + episode;
+            }
+
+            return 0;
+        }
+
+        /// <summary>
+        /// Maps a server direction byte (0-7) to the client Direction enum using the inverse direction map.
+        /// </summary>
+        private Client.Main.Models.Direction MapServerDirection(byte serverDirection)
+        {
+            if (serverDirection > 7)
+                return Client.Main.Models.Direction.South;
+
+            if (_serverToClientDirMap.TryGetValue(serverDirection, out byte clientDir))
+                return (Client.Main.Models.Direction)clientDir;
+
+            return (Client.Main.Models.Direction)serverDirection;
         }
 
         private static void RecordHitPacket(ReadOnlySpan<byte> packetSpan)
@@ -445,7 +500,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                 {
                     if (!_pendingNpcsMonsters.Any(p => p.Id == maskedId))
                     {
-                        _pendingNpcsMonsters.Add(new NpcScopeObject(maskedId, rawId, x, y, type, name) { Direction = direction });
+                        _pendingNpcsMonsters.Add(new NpcScopeObject(maskedId, rawId, x, y, type, name) { Direction = (byte)MapServerDirection(direction) });
                     }
                 }
                 return;
@@ -466,7 +521,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             // Configure the object's properties
             obj.NetworkId = maskedId;
             obj.Location = new Vector2(x, y);
-            obj.Direction = (Client.Main.Models.Direction)direction;
+            obj.Direction = MapServerDirection(direction);
             obj.World = worldRef;
 
             // Load assets in background
@@ -1021,29 +1076,42 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     _logger.LogWarning("ItemsDropped packet too short: {Length}", packet.Length);
                     return;
                 }
-                var droppedItems = new ItemsDropped(packet);
-                _logger.LogInformation("Received ItemsDropped (S6+): {Count} items.", droppedItems.ItemCount);
+                byte itemCount = packet.Span[4];
+                _logger.LogInformation("Received ItemsDropped (S6+): {Count} items.", itemCount);
 
-                int dataLength = 12; // typical for S6
-                int structSize = ItemsDropped.DroppedItem.GetRequiredSize(dataLength);
                 int offset = PrefixSize;
-
-                for (int i = 0; i < droppedItems.ItemCount; i++, offset += structSize)
+                for (int i = 0; i < itemCount; i++)
                 {
-                    if (offset + structSize > packet.Length)
+                    if (offset + 4 > packet.Length)
                     {
                         _logger.LogWarning("Packet too short for item {Index}.", i);
                         break;
                     }
 
-                    var itemMem = packet.Slice(offset, structSize);
-                    var item = new ItemsDropped.DroppedItem(itemMem);
-                    ushort rawId = item.Id;
+                    ushort rawId = System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(packet.Span.Slice(offset, 2));
                     ushort maskedId = (ushort)(rawId & 0x7FFF);
-                    byte x = item.PositionX;
-                    byte y = item.PositionY;
-                    var data = item.ItemData;
-                    bool isMoney = data.Length >= 6 && data[0] == 15 && (data[5] >> 4) == 14; // Money is ItemGroup 14, ItemId 15
+                    byte x = packet.Span[offset + 2];
+                    byte y = packet.Span[offset + 3];
+                    int itemDataOffset = offset + 4;
+
+                    if (itemDataOffset >= packet.Length)
+                    {
+                        _logger.LogWarning("Packet missing item data for item {Index}.", i);
+                        break;
+                    }
+
+                    ReadOnlySpan<byte> itemSpan = packet.Span.Slice(itemDataOffset);
+                    if (!ItemDataParser.TryGetExtendedItemLength(itemSpan, out int itemLen) || itemDataOffset + itemLen > packet.Length)
+                    {
+                        itemLen = Math.Min(itemSpan.Length, 12);
+                    }
+
+                    var data = itemSpan.Slice(0, itemLen);
+                    offset = itemDataOffset + itemLen;
+
+                    bool isMoney = ItemDataParser.TryGetGroupAndNumber(data, out var group, out var number)
+                                   && group == 14
+                                   && number == 15;
                     ScopeObject dropObj;
 
                     if (isMoney)
@@ -1068,8 +1136,9 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     }
                     else
                     {
-                        dropObj = new ItemScopeObject(maskedId, rawId, x, y, data.ToArray());
-                        _scopeManager.AddOrUpdateItemInScope(maskedId, rawId, x, y, data.ToArray());
+                        byte[] dataCopy = data.ToArray();
+                        dropObj = new ItemScopeObject(maskedId, rawId, x, y, dataCopy);
+                        _scopeManager.AddOrUpdateItemInScope(maskedId, rawId, x, y, dataCopy);
                         _logger.LogDebug("Dropped Item: ID={Id:X4}, DataLen={Len}", maskedId, data.Length);
 
                         // Process dropped item asynchronously
@@ -1077,7 +1146,6 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         {
                             try
                             {
-                                byte[] dataCopy = item.ItemData.ToArray();
                                 string itemName = ItemDatabase.GetItemName(dataCopy) ?? string.Empty;
                                 string soundPath = itemName.StartsWith("Jewel", StringComparison.OrdinalIgnoreCase)
                                     ? "Sound/eGem.wav"
@@ -1393,12 +1461,36 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         {
             if (packet.Length < 7) return Task.CompletedTask;
 
-            var walk = new ObjectWalked(packet);
-            ushort raw = walk.ObjectId;
-            ushort maskedId = (ushort)(raw & 0x7FFF);
-            byte x = walk.TargetX, y = walk.TargetY;
+            ushort raw;
+            ushort maskedId;
+            byte x, y;
+
+            if (_useExtendedWalkFormat && packet.Length >= ObjectWalkedExtended.GetRequiredSize(0))
+            {
+                // Server sends ObjectWalkedExtended for client versions >= 1.06.3 (e.g. 2.04d).
+                // Bytes [5-6] = SourceX/Y, [7-8] = TargetX/Y.
+                var walkExtended = new ObjectWalkedExtended(packet);
+                raw = walkExtended.ObjectId;
+                maskedId = (ushort)(raw & 0x7FFF);
+                x = walkExtended.TargetX;
+                y = walkExtended.TargetY;
+            }
+            else
+            {
+                // Server sends ObjectWalked for older client versions (e.g. 1.04d).
+                // Bytes [5-6] = TargetX/Y directly.
+                var walk = new ObjectWalked(packet);
+                raw = walk.ObjectId;
+                maskedId = (ushort)(raw & 0x7FFF);
+                x = walk.TargetX;
+                y = walk.TargetY;
+            }
 
             _scopeManager.TryUpdateScopeObjectPosition(maskedId, x, y);
+            if (maskedId == _characterState.Id)
+            {
+                _characterState.UpdatePosition(x, y);
+            }
 
             MuGame.ScheduleOnMainThread(() =>
             {
@@ -1415,7 +1507,14 @@ namespace Client.Main.Networking.PacketHandling.Handlers
 
                     if (self != null && self.NetworkId == maskedId)
                     {
-                        self.MoveTo(new Vector2(x, y), sendToServer: false);
+                        // Mirror SourceMain behavior: while local movement is in progress,
+                        // ignore delayed walk echoes from server to avoid "one-click-behind" movement.
+                        if (self.MovementIntent || self.IsMoving)
+                        {
+                            return;
+                        }
+
+                        self.MoveTo(new Vector2(x, y), sendToServer: false, usePathfinding: false);
                         return;
                     }
                 }
@@ -1426,7 +1525,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     return;
                 }
 
-                walker.MoveTo(new Vector2(x, y), sendToServer: false);
+                walker.MoveTo(new Vector2(x, y), sendToServer: false, usePathfinding: false);
 
                 if (walker is PlayerObject player)
                 {
@@ -1662,7 +1761,7 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     return;
                 }
 
-                Client.Main.Models.Direction clientDirection = (Client.Main.Models.Direction)serverDirection;
+                Client.Main.Models.Direction clientDirection = MapServerDirection(serverDirection);
 
                 if (maskedId == _characterState.Id && walker is PlayerObject localPlayer)
                 {
