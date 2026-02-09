@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Client.Main.Objects.Effects
 {
-    public class BubbleParticleSystem : EffectObject
+    public class BubbleParticleSystem : WorldObject
     {
         // Each bubble info. Using a struct avoids heap allocations
         private struct Bubble
