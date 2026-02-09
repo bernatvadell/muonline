@@ -120,6 +120,7 @@ namespace Client.Main.Objects.Effects
             _meteorLight = new DynamicLight
             {
                 Owner = this,
+                Position = targetPosition,
                 Color = new Vector3(1f, 0.65f, 0.35f),
                 Radius = 320f,
                 Intensity = 1.6f
@@ -128,6 +129,7 @@ namespace Client.Main.Objects.Effects
             _impactLight = new DynamicLight
             {
                 Owner = this,
+                Position = targetPosition,
                 Color = new Vector3(1f, 0.5f, 0.25f),
                 Radius = 520f,
                 Intensity = 0f
@@ -136,6 +138,7 @@ namespace Client.Main.Objects.Effects
             _ambientLight = new DynamicLight
             {
                 Owner = this,
+                Position = targetPosition,
                 Color = new Vector3(1f, 0.7f, 0.4f),
                 Radius = 180f,
                 Intensity = 0f
@@ -539,9 +542,6 @@ namespace Client.Main.Objects.Effects
 
         private void UpdateDynamicLights()
         {
-            if (World?.Terrain == null)
-                return;
-
             float travelAlpha = _impactTriggered ? MathHelper.Clamp(1f - _impactAge / 0.15f, 0f, 1f) : 1f;
             float pulse = 0.85f + 0.15f * MathF.Sin(_time * 20f);
             float fastPulse = 0.9f + 0.1f * MathF.Sin(_time * 40f);

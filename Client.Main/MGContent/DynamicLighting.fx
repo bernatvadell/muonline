@@ -55,7 +55,7 @@ sampler2D ShadowSampler = sampler_state
 };
 
 // Dynamic lights
-#define MAX_LIGHTS 16
+#define MAX_LIGHTS 32
 float3 LightPositions[MAX_LIGHTS];
 float3 LightColors[MAX_LIGHTS];
 float LightRadii[MAX_LIGHTS];

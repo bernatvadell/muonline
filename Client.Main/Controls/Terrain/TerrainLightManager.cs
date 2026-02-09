@@ -244,9 +244,11 @@ namespace Client.Main.Controls.Terrain
                         float distSq = diff.LengthSquared();
                         if (distSq > light.RadiusSq) continue;
 
-                        // Performance optimization: avoid expensive sqrt by using quadratic falloff
+                        // Smooth falloff: use smoothstep-like curve for natural light attenuation.
+                        // This gives a softer edge and more visible gradient than raw quadratic.
                         float normalizedDistSq = distSq * light.InvRadiusSq;
-                        float factor = 1f - normalizedDistSq; // Quadratic falloff, no sqrt needed
+                        float t = 1f - normalizedDistSq;
+                        float factor = t * t; // Quartic falloff (smoother, more concentrated center)
                         var contribution = light.ColorScaled * factor;
 
                         // Handle negative lights (shadows) separately - use Min to prevent stacking
@@ -328,10 +330,17 @@ namespace Client.Main.Controls.Terrain
             float radiusSq = radius * radius;
             float invRadiusSq = radiusSq > 0.0001f ? 1f / radiusSq : 0f;
 
+            // Scale factor for CPU path: lower than 255 to approximate the GPU shader's
+            // hemisphere check and diffuse attenuation that the CPU path lacks.
+            // GPU shader multiplies by vertical (~0.3-0.5) and diffuse (~0.5-1.0),
+            // so we use ~150 instead of 255 to get a similar visual intensity while
+            // still being visible on the terrain.
+            const float CpuLightScale = 150f;
+
             return new PrecomputedLight
             {
                 Position = new Vector2(light.Position.X, light.Position.Y),
-                ColorScaled = light.Color * (255f * light.Intensity),
+                ColorScaled = light.Color * (CpuLightScale * light.Intensity),
                 Radius = radius,
                 RadiusSq = radiusSq,
                 InvRadiusSq = invRadiusSq

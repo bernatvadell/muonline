@@ -110,6 +110,7 @@ namespace Client.Main.Objects.Effects
             _darkLight = new DynamicLight
             {
                 Owner = this,
+                Position = center,
                 Color = new Vector3(-0.35f, -0.25f, -0.2f),
                 Radius = 320f,
                 Intensity = 0.7f
@@ -248,9 +249,6 @@ namespace Client.Main.Objects.Effects
 
         private void UpdateDynamicLight()
         {
-            if (World?.Terrain == null)
-                return;
-
             float pulse = 0.8f + 0.2f * MathF.Sin(_time * 10f);
             _darkLight.Position = _center;
             _darkLight.Intensity = 0.7f * pulse;

@@ -642,7 +642,14 @@ namespace Client.Main.Controls
                             ? GraphicsManager.GetQualityLinearSamplerState()
                             : GraphicsManager.GetQualitySamplerState();
                     }
-                    var batchDepth = obj is WaterMistParticleSystem ? DepthStencilState.DepthRead : depthState;
+                    // Elf buff orb is rendered in solid-in-front pass for proper owner ordering,
+                    // but as additive sprite it must not write depth (quad-shaped occlusion artifacts).
+                    var batchDepth =
+                        obj is WaterMistParticleSystem ||
+                        obj is ElfBuffOrbTrail ||
+                        obj is ElfBuffOrbitingLight
+                            ? DepthStencilState.DepthRead
+                            : depthState;
 
                     if (scope == null ||
                         !ReferenceEquals(blend, currentBlend) ||

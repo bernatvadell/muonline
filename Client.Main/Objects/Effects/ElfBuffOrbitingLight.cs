@@ -34,6 +34,7 @@ namespace Client.Main.Objects.Effects
         private readonly float _lightBaseRadius;
         private readonly float _lightRadiusJitter;
         private readonly DynamicLight _dynamicLight;
+        private bool _lightAdded;
 
         private float _orbitAngle;
         private float _time;
@@ -46,12 +47,12 @@ namespace Client.Main.Objects.Effects
         // Visual parameters
         private const float PulseSpeed = 4.5f;
         private const float PulseMin = 0.7f;
-	        private const float PulseMax = 1.15f;
-	        private const float BaseOrbScale = 1.2f;
-	        private const float SparkleInterval = 0.12f;
-	        private const int MaxSparklesPerFrame = 12;
-	        private static int _sparkleFrame = -1;
-	        private static int _sparklesThisFrame = 0;
+        private const float PulseMax = 1.15f;
+        private const float BaseOrbScale = 1.2f;
+        private const float SparkleInterval = 0.12f;
+        private const int MaxSparklesPerFrame = 12;
+        private static int _sparkleFrame = -1;
+        private static int _sparklesThisFrame = 0;
 
         public override string TexturePath => "Effect/Shiny02.jpg";
 
@@ -63,8 +64,9 @@ namespace Client.Main.Objects.Effects
             int totalOrbs = Math.Max(1, totalOrbits);
 
             // Visual setup
-            IsTransparent = true;
-            AffectedByTransparency = true;
+            // Render in the same world pass as walkers so front/back relation with the owner is depth-correct.
+            IsTransparent = false;
+            AffectedByTransparency = false;
             BlendState = BlendState.Additive;
             DepthState = DepthStencilState.DepthRead;
             BoundingBoxLocal = new BoundingBox(new Vector3(-20f, -20f, -20f), new Vector3(20f, 20f, 20f));
@@ -88,8 +90,8 @@ namespace Client.Main.Objects.Effects
             _snakePitchSpeed = MathHelper.Lerp(1.2f, 1.8f, (float)MuGame.Random.NextDouble());
             _radiusWobble = MathHelper.Lerp(8f, 14f, (float)MuGame.Random.NextDouble());
             _snakePhaseOffset = MathHelper.TwoPi * (float)MuGame.Random.NextDouble();
-            _lightBaseRadius = MathHelper.Lerp(240f, 320f, (float)MuGame.Random.NextDouble());
-            _lightRadiusJitter = MathHelper.Lerp(24f, 48f, (float)MuGame.Random.NextDouble());
+            _lightBaseRadius = MathHelper.Lerp(120f, 180f, (float)MuGame.Random.NextDouble());
+            _lightRadiusJitter = MathHelper.Lerp(8f, 18f, (float)MuGame.Random.NextDouble());
 
             // Color variation - green to cyan range
             _trailHue = MathHelper.Lerp(0.85f, 1.15f, (float)MuGame.Random.NextDouble());
@@ -146,6 +148,7 @@ namespace Client.Main.Objects.Effects
             {
                 _dynamicLight.Position = GetCurrentOrbPosition();
                 World.Terrain.AddDynamicLight(_dynamicLight);
+                _lightAdded = true;
             }
         }
 
@@ -205,32 +208,32 @@ namespace Client.Main.Objects.Effects
             base.Update(gameTime);
         }
 
-	        private void SpawnSparkle()
-	        {
-	            if (World == null || Status != GameControlStatus.Ready || Hidden)
-	                return;
+        private void SpawnSparkle()
+        {
+            if (World == null || Status != GameControlStatus.Ready || Hidden)
+                return;
 
-	            // 50% chance to spawn a sparkle each interval
-	            if (MuGame.Random.NextDouble() > 0.5)
-	                return;
+            // 50% chance to spawn a sparkle each interval
+            if (MuGame.Random.NextDouble() > 0.5)
+                return;
 
-	            int frame = MuGame.FrameIndex;
-	            if (frame != _sparkleFrame)
-	            {
-	                _sparkleFrame = frame;
-	                _sparklesThisFrame = 0;
-	            }
-	            if (_sparklesThisFrame >= MaxSparklesPerFrame)
-	                return;
-	            _sparklesThisFrame++;
+            int frame = MuGame.FrameIndex;
+            if (frame != _sparkleFrame)
+            {
+                _sparkleFrame = frame;
+                _sparklesThisFrame = 0;
+            }
+            if (_sparklesThisFrame >= MaxSparklesPerFrame)
+                return;
+            _sparklesThisFrame++;
 
-	            var sparkle = ElfBuffSparkle.Rent(GetCurrentOrbPosition(), _trailHue);
-	            World.Objects.Add(sparkle);
-	            if (sparkle.Status == GameControlStatus.NonInitialized)
-	                _ = sparkle.Load();
-	        }
+            var sparkle = ElfBuffSparkle.Rent(GetCurrentOrbPosition(), _trailHue);
+            World.Objects.Add(sparkle);
+            if (sparkle.Status == GameControlStatus.NonInitialized)
+                _ = sparkle.Load();
+        }
 
-        public override float Depth => Position.Y + Position.Z + 400f;
+        public override float Depth => Position.Y + Position.Z;
 
         private bool TrySyncOwner()
         {
@@ -267,8 +270,11 @@ namespace Client.Main.Objects.Effects
 
         private void UpdateDynamicLight(float pulse, float lightPulse)
         {
-            if (World?.Terrain == null || _dynamicLight == null)
-                return;
+            if (!_lightAdded && World?.Terrain != null)
+            {
+                World.Terrain.AddDynamicLight(_dynamicLight);
+                _lightAdded = true;
+            }
 
             float flicker = 0.6f + 0.4f * (0.5f + 0.5f * MathF.Sin(_time * 6.5f + _phaseOffset));
             _currentLightIntensity = MathHelper.Lerp(0.65f, 1.3f, pulse) * flicker * 0.5f;
@@ -276,7 +282,7 @@ namespace Client.Main.Objects.Effects
             _dynamicLight.Position = Position;
 
             float radiusOffset = MathF.Sin(_time * 3.2f + _phaseOffset) * _lightRadiusJitter;
-            _dynamicLight.Radius = Math.Max(160f, _lightBaseRadius + radiusOffset);
+            _dynamicLight.Radius = Math.Max(95f, _lightBaseRadius + radiusOffset);
 
             float huePulse = 0.85f + lightPulse * 0.2f;
             _dynamicLight.Color = new Vector3(
@@ -287,9 +293,10 @@ namespace Client.Main.Objects.Effects
 
         public override void Dispose()
         {
-            if (World?.Terrain != null && _dynamicLight != null)
+            if (_lightAdded && World?.Terrain != null && _dynamicLight != null)
             {
                 World.Terrain.RemoveDynamicLight(_dynamicLight);
+                _lightAdded = false;
             }
 
             base.Dispose();

@@ -75,9 +75,10 @@ namespace Client.Main.Objects.Effects
             _coreLight = new DynamicLight
             {
                 Owner = this,
+                Position = center,
                 Color = new Vector3(1.0f, 0.35f, 0.1f),
-                Radius = 320f,
-                Intensity = 2.1f
+                Radius = 600f,
+                Intensity = 2.5f
             };
         }
 
@@ -306,15 +307,18 @@ namespace Client.Main.Objects.Effects
 
         private void UpdateDynamicLight()
         {
-            if (World?.Terrain == null)
-                return;
+            if (!_lightsAdded && World?.Terrain != null)
+            {
+                World.Terrain.AddDynamicLight(_coreLight);
+                _lightsAdded = true;
+            }
 
             float lifeAlpha = MathHelper.Clamp(_lifeFrames / CoreLifeFrames, 0f, 1f);
             float pulse = 0.8f + 0.2f * MathF.Sin(_time * 12f);
 
             _coreLight.Position = _center;
-            _coreLight.Intensity = 2.1f * lifeAlpha * pulse;
-            _coreLight.Radius = MathHelper.Lerp(360f, 240f, 1f - lifeAlpha);
+            _coreLight.Intensity = 2.5f * lifeAlpha * pulse;
+            _coreLight.Radius = MathHelper.Lerp(600f, 400f, 1f - lifeAlpha);
         }
 
         private void DrawBursts()

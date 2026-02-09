@@ -107,6 +107,7 @@ namespace Client.Main.Objects.Effects
             _ballLight = new DynamicLight
             {
                 Owner = this,
+                Position = startPosition,
                 Color = new Vector3(1f, 0.35f, 0.15f),
                 Radius = 200f,
                 Intensity = 1.2f
@@ -115,6 +116,7 @@ namespace Client.Main.Objects.Effects
             _impactLight = new DynamicLight
             {
                 Owner = this,
+                Position = targetPosition,
                 Color = new Vector3(1f, 0.4f, 0.2f),
                 Radius = 320f,
                 Intensity = 0f
@@ -343,9 +345,6 @@ namespace Client.Main.Objects.Effects
 
         private void UpdateDynamicLights()
         {
-            if (World?.Terrain == null)
-                return;
-
             float travelAlpha = _impactTriggered ? MathHelper.Clamp(1f - _impactAge / 0.1f, 0f, 1f) : 1f;
             float pulse = 0.75f + 0.25f * MathF.Sin(_time * 16f);
 

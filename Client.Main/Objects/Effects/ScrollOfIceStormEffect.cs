@@ -60,6 +60,7 @@ namespace Client.Main.Objects.Effects
             _impactLight = new DynamicLight
             {
                 Owner = this,
+                Position = center,
                 Color = new Vector3(0.4f, 0.6f, 1.0f),
                 Radius = 275f,
                 Intensity = 1.1f
@@ -203,9 +204,6 @@ namespace Client.Main.Objects.Effects
 
         private void UpdateDynamicLight(float dt)
         {
-            if (World?.Terrain == null)
-                return;
-
             _time += dt;
 
             float pulse = 0.8f + 0.2f * MathF.Sin(_time * 8f);

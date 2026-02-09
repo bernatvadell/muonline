@@ -82,11 +82,12 @@ namespace Client.Main.Controls.Terrain
         private float _terrainBuffersAmbientLight = float.NaN;
         private byte[] _terrainBuffersAlphaMapRef;
 
-        private readonly Vector3[] _cachedLightPositions = new Vector3[16];
-        private readonly Vector3[] _cachedLightColors = new Vector3[16];
-        private readonly float[] _cachedLightRadii = new float[16];
-        private readonly float[] _cachedLightIntensities = new float[16];
-        private readonly float[] _cachedLightScores = new float[16];
+        private const int DynamicLightArrayCapacity = 32; // Must match DynamicLighting.fx MAX_LIGHTS.
+        private readonly Vector3[] _cachedLightPositions = new Vector3[DynamicLightArrayCapacity];
+        private readonly Vector3[] _cachedLightColors = new Vector3[DynamicLightArrayCapacity];
+        private readonly float[] _cachedLightRadii = new float[DynamicLightArrayCapacity];
+        private readonly float[] _cachedLightIntensities = new float[DynamicLightArrayCapacity];
+        private readonly float[] _cachedLightScores = new float[DynamicLightArrayCapacity];
         private const float MinLightInfluence = 0.001f;
 
         private Vector2 _waterFlowDir = Vector2.UnitX;
@@ -603,20 +604,48 @@ namespace Client.Main.Controls.Terrain
             }
 
             var activeLights = _lightManager.ActiveLights;
-            int maxLights = Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16;
+            int maxLights = DynamicLightArrayCapacity;
+            maxLights = Math.Min(maxLights, _cachedLightPositions.Length);
             int count = 0;
 
-            // Simplified: just upload all active lights directly without selection
             if (activeLights != null && activeLights.Count > 0)
             {
-                count = Math.Min(activeLights.Count, maxLights);
-                for (int i = 0; i < count; i++)
+                if (Camera.Instance != null)
                 {
-                    var light = activeLights[i];
-                    _cachedLightPositions[i] = light.Position;
-                    _cachedLightColors[i] = light.Color;
-                    _cachedLightRadii[i] = light.Radius;
-                    _cachedLightIntensities[i] = light.Intensity;
+                    // Use camera target (focus area) instead of camera position (which can be far offset),
+                    // so nearby combat/player lights (e.g. orb buffs) are included for terrain shading.
+                    Vector2 focusPos = new Vector2(Camera.Instance.Target.X, Camera.Instance.Target.Y);
+                    count = SelectRelevantLights(activeLights, focusPos, maxLights);
+                }
+                else if (TryGetVisibleTerrainBounds(out Vector2 regionMin, out Vector2 regionMax))
+                {
+                    count = SelectRelevantLights(activeLights, regionMin, regionMax, maxLights);
+                }
+                else
+                {
+                    count = Math.Min(activeLights.Count, maxLights);
+                    for (int i = 0; i < count; i++)
+                    {
+                        var light = activeLights[i];
+                        _cachedLightPositions[i] = light.Position;
+                        _cachedLightColors[i] = light.Color;
+                        _cachedLightRadii[i] = light.Radius;
+                        _cachedLightIntensities[i] = light.Intensity;
+                    }
+                }
+
+                if (count == 0)
+                {
+                    // Fallback: keep terrain lit when all selected lights fall just outside influence threshold.
+                    count = Math.Min(activeLights.Count, maxLights);
+                    for (int i = 0; i < count; i++)
+                    {
+                        var light = activeLights[i];
+                        _cachedLightPositions[i] = light.Position;
+                        _cachedLightColors[i] = light.Color;
+                        _cachedLightRadii[i] = light.Radius;
+                        _cachedLightIntensities[i] = light.Intensity;
+                    }
                 }
             }
 

@@ -61,6 +61,7 @@ namespace Client.Main.Objects.Effects
             _beamLight = new DynamicLight
             {
                 Owner = this,
+                Position = caster.WorldPosition.Translation + new Vector3(0f, 0f, 100f),
                 Color = new Vector3(0.5f, 0.7f, 1f),
                 Radius = 320f,
                 Intensity = 1.1f
@@ -184,9 +185,6 @@ namespace Client.Main.Objects.Effects
 
         private void UpdateDynamicLight()
         {
-            if (World?.Terrain == null)
-                return;
-
             float pulse = 0.9f + 0.1f * MathF.Sin(_time * 12f);
             _beamLight.Position = _startPosition + _directionStep * (BeamSegments * 0.5f);
             _beamLight.Intensity = 1.1f * pulse;

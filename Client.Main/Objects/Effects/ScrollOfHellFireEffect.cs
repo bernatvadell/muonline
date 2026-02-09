@@ -57,6 +57,7 @@ namespace Client.Main.Objects.Effects
             _impactLight = new DynamicLight
             {
                 Owner = this,
+                Position = center,
                 Color = new Vector3(1.0f, 0.55f, 0.25f),
                 Radius = 300f,
                 Intensity = 1.5f
@@ -188,9 +189,6 @@ namespace Client.Main.Objects.Effects
 
         private void UpdateDynamicLight(float dt)
         {
-            if (World?.Terrain == null)
-                return;
-
             _time += dt;
 
             bool active = (_circle != null && _circle.Status == GameControlStatus.Ready)
