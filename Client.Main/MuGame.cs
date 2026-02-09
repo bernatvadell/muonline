@@ -420,6 +420,7 @@ namespace Client.Main
                 UpdateInputInfo(gameTime);
                 CheckShaderToggles();
                 SunCycleManager.Update();
+                Camera.Instance.UpdateShake((float)gameTime.ElapsedGameTime.TotalSeconds);
 
                 try // inner try for ActiveScene.Update
                 {
