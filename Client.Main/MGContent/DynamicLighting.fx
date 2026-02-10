@@ -100,17 +100,26 @@ struct PixelInput
     float3 DynamicLight : TEXCOORD3; // Pre-computed dynamic lighting for terrain (vertex-based)
 };
 
-// Fast terrain lighting - optimized for vertex shader (max 8 lights, simplified math)
-#define TERRAIN_MAX_LIGHTS 8
+// Terrain lighting: process ALL uploaded lights so no selection boundary
+// exists (which caused visible flickering when lights swapped in/out of
+// the top-N set between snapshots).  Must match DynamicLightArrayCapacity
+// on the CPU side (32).  DX vs_5_0 has no instruction limit; GL vs_3_0
+// has 512 slots, but the branchless active-mask approach keeps ALU low.
+#define TERRAIN_MAX_LIGHTS MAX_LIGHTS
 float3 CalculateTerrainLighting(float3 worldPos, float3 normal)
 {
     float3 dynamicLight = float3(0, 0, 0);
 
-    // Limit to 8 lights for terrain (sufficient for large polygons)
-    int lightCount = min(min(ActiveLightCount, MaxLightsToProcess), TERRAIN_MAX_LIGHTS);
+    // Static loop bound so MojoShader (OpenGL vs_3_0) can unroll without
+    // "relative address needs replicate swizzle" errors from dynamic indexing.
+    // Inactive slots are zeroed out branchlessly via the 'active' mask.
+    float fLightCount = float(min(ActiveLightCount, MaxLightsToProcess));
 
-    for (int i = 0; i < lightCount; i++)
+    for (int i = 0; i < TERRAIN_MAX_LIGHTS; i++)
     {
+        // Branchless mask: 1.0 if i < lightCount, 0.0 otherwise
+        float active = step(float(i) + 0.5, fLightCount);
+
         float3 lightPos = LightPositions[i];
         float3 lightColor = LightColors[i];
         float lightRadius = LightRadii[i];
@@ -139,7 +148,7 @@ float3 CalculateTerrainLighting(float3 worldPos, float3 normal)
         // Simple diffuse
         float diffuse = saturate(dot(normal, lightDir));
 
-        dynamicLight += lightColor * (lightIntensity * diffuse * attenuation);
+        dynamicLight += lightColor * (lightIntensity * diffuse * attenuation * active);
     }
 
     return dynamicLight;

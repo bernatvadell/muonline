@@ -88,6 +88,8 @@ namespace Client.Main.Controls.Terrain
         private readonly float[] _cachedLightRadii = new float[DynamicLightArrayCapacity];
         private readonly float[] _cachedLightIntensities = new float[DynamicLightArrayCapacity];
         private readonly float[] _cachedLightScores = new float[DynamicLightArrayCapacity];
+        private int _lastLightsVersion = -1;
+        private int _lastLightCount = 0;
         private const float MinLightInfluence = 0.001f;
 
         private Vector2 _waterFlowDir = Vector2.UnitX;
@@ -603,55 +605,50 @@ namespace Client.Main.Controls.Terrain
                 return;
             }
 
-            var activeLights = _lightManager.ActiveLights;
-            int maxLights = DynamicLightArrayCapacity;
-            maxLights = Math.Min(maxLights, _cachedLightPositions.Length);
-            int count = 0;
+            int maxLights = Math.Min(DynamicLightArrayCapacity, _cachedLightPositions.Length);
+            int version = _lightManager.ActiveLightsVersion;
 
-            if (activeLights != null && activeLights.Count > 0)
+            // Only rebuild when the light snapshot changes (throttled at
+            // DYNAMIC_LIGHT_UPDATE_FPS).  Between updates, reuse the cached arrays.
+            if (version != _lastLightsVersion)
             {
-                if (Camera.Instance != null)
-                {
-                    // Use camera target (focus area) instead of camera position (which can be far offset),
-                    // so nearby combat/player lights (e.g. orb buffs) are included for terrain shading.
-                    Vector2 focusPos = new Vector2(Camera.Instance.Target.X, Camera.Instance.Target.Y);
-                    count = SelectRelevantLights(activeLights, focusPos, maxLights);
-                }
-                else if (TryGetVisibleTerrainBounds(out Vector2 regionMin, out Vector2 regionMax))
-                {
-                    count = SelectRelevantLights(activeLights, regionMin, regionMax, maxLights);
-                }
-                else
-                {
-                    count = Math.Min(activeLights.Count, maxLights);
-                    for (int i = 0; i < count; i++)
-                    {
-                        var light = activeLights[i];
-                        _cachedLightPositions[i] = light.Position;
-                        _cachedLightColors[i] = light.Color;
-                        _cachedLightRadii[i] = light.Radius;
-                        _cachedLightIntensities[i] = light.Intensity;
-                    }
-                }
+                _lastLightsVersion = version;
+                _lastLightCount = 0;
 
-                if (count == 0)
+                var activeLights = _lightManager.ActiveLights;
+                if (activeLights != null && activeLights.Count > 0)
                 {
-                    // Fallback: keep terrain lit when all selected lights fall just outside influence threshold.
-                    count = Math.Min(activeLights.Count, maxLights);
-                    for (int i = 0; i < count; i++)
+                    if (activeLights.Count <= maxLights)
                     {
-                        var light = activeLights[i];
-                        _cachedLightPositions[i] = light.Position;
-                        _cachedLightColors[i] = light.Color;
-                        _cachedLightRadii[i] = light.Radius;
-                        _cachedLightIntensities[i] = light.Intensity;
+                        // All lights fit — copy in natural order.  No scoring or
+                        // sorting needed because the shader processes ALL uploaded
+                        // lights (TERRAIN_MAX_LIGHTS == MAX_LIGHTS).  Stable order
+                        // eliminates flickering from lights swapping rank each snapshot.
+                        int count = activeLights.Count;
+                        for (int i = 0; i < count; i++)
+                        {
+                            var light = activeLights[i];
+                            _cachedLightPositions[i] = light.Position;
+                            _cachedLightColors[i] = light.Color;
+                            _cachedLightRadii[i] = light.Radius;
+                            _cachedLightIntensities[i] = light.Intensity;
+                        }
+                        _lastLightCount = count;
+                    }
+                    else
+                    {
+                        // Rare: more active lights than array capacity — pick best by proximity.
+                        Vector2 focusPos = Camera.Instance != null
+                            ? new Vector2(Camera.Instance.Target.X, Camera.Instance.Target.Y)
+                            : Vector2.Zero;
+                        _lastLightCount = SelectLightsByProximity(activeLights, focusPos, maxLights);
                     }
                 }
             }
 
-            effect.Parameters["ActiveLightCount"]?.SetValue(count);
+            effect.Parameters["ActiveLightCount"]?.SetValue(_lastLightCount);
             effect.Parameters["MaxLightsToProcess"]?.SetValue(maxLights);
-            if (count > 0)
+            if (_lastLightCount > 0)
             {
                 effect.Parameters["LightPositions"]?.SetValue(_cachedLightPositions);
                 effect.Parameters["LightColors"]?.SetValue(_cachedLightColors);
@@ -660,45 +657,15 @@ namespace Client.Main.Controls.Terrain
             }
         }
 
-        private bool TryGetVisibleTerrainBounds(out Vector2 min, out Vector2 max)
-        {
-            min = new Vector2(float.MaxValue, float.MaxValue);
-            max = new Vector2(float.MinValue, float.MinValue);
-
-            if (_visibility?.VisibleBlocks == null || _visibility.VisibleBlocks.Count == 0)
-                return false;
-
-            bool any = false;
-            foreach (var block in _visibility.VisibleBlocks)
-            {
-                if (block == null)
-                    continue;
-
-                var bmin = block.Bounds.Min;
-                var bmax = block.Bounds.Max;
-
-                if (bmin.X < min.X) min.X = bmin.X;
-                if (bmin.Y < min.Y) min.Y = bmin.Y;
-                if (bmax.X > max.X) max.X = bmax.X;
-                if (bmax.Y > max.Y) max.Y = bmax.Y;
-
-                any = true;
-            }
-
-            return any;
-        }
-
-        private static float DistanceSquaredPointToRect(Vector2 p, Vector2 min, Vector2 max)
-        {
-            float cx = p.X < min.X ? min.X : (p.X > max.X ? max.X : p.X);
-            float cy = p.Y < min.Y ? min.Y : (p.Y > max.Y ? max.Y : p.Y);
-
-            float dx = p.X - cx;
-            float dy = p.Y - cy;
-            return dx * dx + dy * dy;
-        }
-
-        private int SelectRelevantLights(IReadOnlyList<DynamicLightSnapshot> activeLights, Vector2 regionMin, Vector2 regionMax, int maxLights)
+        /// <summary>
+        /// Selects up to <paramref name="maxLights"/> from the active light pool,
+        /// ranked by proximity-weighted intensity, and sorts the result descending
+        /// so the first slots contain the most impactful lights.
+        /// </summary>
+        private int SelectLightsByProximity(
+            IReadOnlyList<DynamicLightSnapshot> activeLights,
+            Vector2 focusPos,
+            int maxLights)
         {
             maxLights = Math.Min(maxLights, _cachedLightPositions.Length);
             if (activeLights == null || activeLights.Count == 0 || maxLights <= 0)
@@ -716,33 +683,31 @@ namespace Client.Main.Controls.Terrain
                 if (radiusSq <= 0.001f) continue;
 
                 var lightPos2 = new Vector2(light.Position.X, light.Position.Y);
-                float distSq = DistanceSquaredPointToRect(lightPos2, regionMin, regionMax);
-                if (distSq >= radiusSq)
-                    continue;
+                float distSq = Vector2.DistanceSquared(lightPos2, focusPos);
 
-                float influence = (1f - distSq / radiusSq) * light.Intensity;
-                if (influence <= MinLightInfluence)
-                    continue;
+                // Score: intensity weighted by proximity.  radiusSq in the denominator
+                // ensures large-radius lights score higher (they illuminate more terrain).
+                float score = light.Intensity * radiusSq / (radiusSq + distSq + 1f);
 
                 if (selected < maxLights)
                 {
-                    _cachedLightScores[selected] = influence;
+                    _cachedLightScores[selected] = score;
                     _cachedLightPositions[selected] = light.Position;
                     _cachedLightColors[selected] = light.Color;
                     _cachedLightRadii[selected] = radius;
                     _cachedLightIntensities[selected] = light.Intensity;
 
-                    if (influence < weakestScore)
+                    if (score < weakestScore)
                     {
-                        weakestScore = influence;
+                        weakestScore = score;
                         weakestIndex = selected;
                     }
 
                     selected++;
                 }
-                else if (influence > weakestScore)
+                else if (score > weakestScore)
                 {
-                    _cachedLightScores[weakestIndex] = influence;
+                    _cachedLightScores[weakestIndex] = score;
                     _cachedLightPositions[weakestIndex] = light.Position;
                     _cachedLightColors[weakestIndex] = light.Color;
                     _cachedLightRadii[weakestIndex] = radius;
@@ -752,83 +717,54 @@ namespace Client.Main.Controls.Terrain
                     weakestIndex = 0;
                     for (int j = 1; j < selected; j++)
                     {
-                        float score = _cachedLightScores[j];
-                        if (score < weakestScore)
+                        float s = _cachedLightScores[j];
+                        if (s < weakestScore)
                         {
-                            weakestScore = score;
+                            weakestScore = s;
                             weakestIndex = j;
                         }
                     }
                 }
             }
+
+            // Sort descending so the shader's TERRAIN_MAX_LIGHTS limit gets the best lights.
+            if (selected > 1)
+                SortSelectedLightsByScore(selected);
 
             return selected;
         }
 
-        private int SelectRelevantLights(IReadOnlyList<DynamicLightSnapshot> activeLights, Vector2 referencePos, int maxLights)
+        /// <summary>
+        /// Insertion sort (descending) on the cached light arrays by score.
+        /// Count is at most 32, so this is fast.
+        /// </summary>
+        private void SortSelectedLightsByScore(int count)
         {
-            maxLights = Math.Min(maxLights, _cachedLightPositions.Length);
-            if (activeLights == null || activeLights.Count == 0 || maxLights <= 0)
-                return 0;
-
-            int selected = 0;
-            float weakestScore = float.MaxValue;
-            int weakestIndex = 0;
-
-            for (int i = 0; i < activeLights.Count; i++)
+            for (int i = 1; i < count; i++)
             {
-                var light = activeLights[i];
-                float radius = light.Radius;
-                float radiusSq = radius * radius;
+                float key = _cachedLightScores[i];
+                var pos = _cachedLightPositions[i];
+                var col = _cachedLightColors[i];
+                float rad = _cachedLightRadii[i];
+                float inten = _cachedLightIntensities[i];
 
-                var diff = new Vector2(light.Position.X, light.Position.Y) - referencePos;
-                float distSq = diff.LengthSquared();
-                if (distSq >= radiusSq)
-                    continue;
-
-                float influence = (1f - distSq / radiusSq) * light.Intensity;
-                if (influence <= MinLightInfluence)
-                    continue;
-
-                if (selected < maxLights)
+                int j = i - 1;
+                while (j >= 0 && _cachedLightScores[j] < key)
                 {
-                    _cachedLightScores[selected] = influence;
-                    _cachedLightPositions[selected] = light.Position;
-                    _cachedLightColors[selected] = light.Color;
-                    _cachedLightRadii[selected] = radius;
-                    _cachedLightIntensities[selected] = light.Intensity;
-
-                    if (influence < weakestScore)
-                    {
-                        weakestScore = influence;
-                        weakestIndex = selected;
-                    }
-
-                    selected++;
+                    _cachedLightScores[j + 1] = _cachedLightScores[j];
+                    _cachedLightPositions[j + 1] = _cachedLightPositions[j];
+                    _cachedLightColors[j + 1] = _cachedLightColors[j];
+                    _cachedLightRadii[j + 1] = _cachedLightRadii[j];
+                    _cachedLightIntensities[j + 1] = _cachedLightIntensities[j];
+                    j--;
                 }
-                else if (influence > weakestScore)
-                {
-                    _cachedLightScores[weakestIndex] = influence;
-                    _cachedLightPositions[weakestIndex] = light.Position;
-                    _cachedLightColors[weakestIndex] = light.Color;
-                    _cachedLightRadii[weakestIndex] = radius;
-                    _cachedLightIntensities[weakestIndex] = light.Intensity;
 
-                    weakestScore = _cachedLightScores[0];
-                    weakestIndex = 0;
-                    for (int j = 1; j < selected; j++)
-                    {
-                        float score = _cachedLightScores[j];
-                        if (score < weakestScore)
-                        {
-                            weakestScore = score;
-                            weakestIndex = j;
-                        }
-                    }
-                }
+                _cachedLightScores[j + 1] = key;
+                _cachedLightPositions[j + 1] = pos;
+                _cachedLightColors[j + 1] = col;
+                _cachedLightRadii[j + 1] = rad;
+                _cachedLightIntensities[j + 1] = inten;
             }
-
-            return selected;
         }
 
         private void RenderTerrainBlock(int xi, int yi, bool after, int lodStep, TerrainBlock block = null)
