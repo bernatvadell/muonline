@@ -113,6 +113,7 @@ namespace Client.Main.Objects
         /// Indicates that the object is far from the camera and should be rendered in lower quality.
         /// </summary>
         public bool LowQuality { get; private set; }
+        internal int UpdateOffset => _updateOffset;
         public bool Visible => Status == GameControlStatus.Ready && !Hidden;
         public WorldControl World { get => _world; set { if (_world != value) { var prev = _world; _world = value; OnWorldChanged(value, prev); } } }
         public short Type { get; set; }
@@ -649,6 +650,11 @@ namespace Client.Main.Objects
 
             _hoverChecksThisFrame++;
             return true;
+        }
+
+        internal void SetLowQuality(bool value)
+        {
+            LowQuality = value;
         }
 
         protected virtual void UpdateWorldBoundingBox()

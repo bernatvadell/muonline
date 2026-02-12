@@ -8,6 +8,7 @@ using Client.Main.Helpers;
 using Client.Main.Models;
 using Client.Main.Objects;
 using Client.Main.Objects.Effects;
+using Client.Main.Objects.Particles;
 using Client.Main.Objects.Player;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
@@ -143,6 +144,9 @@ namespace Client.Main.Controls
         private readonly HashSet<WorldObject> _visibleObjectSet = [];
         private readonly HashSet<WorldObject> _positionDirtyObjects = [];
         private bool _dirtyVisibleObjects = true;
+        private const float NearUpdateDistanceSq = 2200f * 2200f;
+        private const float MidUpdateDistanceSq = 4200f * 4200f;
+        private const float FarUpdateDistanceSq = 6200f * 6200f;
 
         public Dictionary<ushort, WalkerObject> WalkerObjectsById { get; } = [];
 
@@ -317,9 +321,7 @@ namespace Client.Main.Controls
                 RefreshDirtyVisibleObjects();
             }
 
-            var objects = _visibleObjects;
-            for (int i = objects.Count - 1; i >= 0; i--)
-                objects[i].Update(time);
+            UpdateVisibleObjects(time);
         }
 
         public override void Draw(GameTime time)
@@ -823,6 +825,65 @@ namespace Client.Main.Controls
             }
 
             _positionDirtyObjects.Clear();
+        }
+
+        private void UpdateVisibleObjects(GameTime time)
+        {
+            var objects = _visibleObjects;
+            if (objects.Count == 0)
+                return;
+
+            var camera = Camera.Instance;
+            var camPos = camera.Position;
+            float camX = camPos.X;
+            float camY = camPos.Y;
+            int frame = MuGame.FrameIndex;
+
+            for (int i = objects.Count - 1; i >= 0; i--)
+            {
+                var obj = objects[i];
+                if (obj == null || !obj.Visible)
+                    continue;
+
+                if (ShouldAlwaysUpdate(obj))
+                {
+                    obj.SetLowQuality(false);
+                    obj.Update(time);
+                    continue;
+                }
+
+                var pos = obj.WorldPosition.Translation;
+                float dx = camX - pos.X;
+                float dy = camY - pos.Y;
+                float distSq = dx * dx + dy * dy;
+
+                int stride = ResolveUpdateStride(distSq);
+                obj.SetLowQuality(stride > 1);
+
+                if (stride > 1 && ((frame + obj.UpdateOffset) % stride) != 0)
+                    continue;
+
+                obj.Update(time);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool ShouldAlwaysUpdate(WorldObject obj)
+        {
+            return obj.Interactive
+                || obj is WalkerObject
+                || obj is EffectObject
+                || obj is ParticleSystem
+                || obj is DroppedItemObject;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int ResolveUpdateStride(float distSq)
+        {
+            if (distSq <= NearUpdateDistanceSq) return 1;
+            if (distSq <= MidUpdateDistanceSq) return 2;
+            if (distSq <= FarUpdateDistanceSq) return 4;
+            return 6;
         }
 
 
