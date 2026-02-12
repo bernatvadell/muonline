@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using System.Collections.Concurrent;
 using System.Diagnostics;
 
 namespace Client.Main.Controllers
@@ -96,8 +95,16 @@ namespace Client.Main.Controllers
 
             _frameStopwatch.Restart();
             var processedThisFrame = 0;
+            int queuedAtStart = _taskQueue.Count;
+            int maxTasksThisFrame = _maxTasksPerFrame;
 
-            while (_taskQueue.Count > 0 && processedThisFrame < _maxTasksPerFrame)
+            // Increase throughput when queue is backing up, still capped by time budget.
+            if (queuedAtStart > 40)
+            {
+                maxTasksThisFrame = Math.Min(12, _maxTasksPerFrame + (queuedAtStart / 25));
+            }
+
+            while (processedThisFrame < maxTasksThisFrame)
             {
                 if (_frameStopwatch.Elapsed >= _maxProcessingTimePerFrame)
                 {
@@ -106,7 +113,8 @@ namespace Client.Main.Controllers
                     break;
                 }
 
-                if (!_taskQueue.TryDequeue(out var taskItem)) continue;
+                if (!_taskQueue.TryDequeue(out var taskItem))
+                    break;
 
                 try
                 {
@@ -130,9 +138,10 @@ namespace Client.Main.Controllers
                 }
             }
 
-            if (_taskQueue.Count > 50) // Warn about buildup
+            int remaining = _taskQueue.Count;
+            if (remaining > 50) // Warn about buildup
             {
-                _logger.LogWarning("Task queue is backing up. Current count: {Count}", _taskQueue.Count);
+                _logger.LogWarning("Task queue is backing up. Current count: {Count}", remaining);
             }
         }
 
@@ -173,21 +182,32 @@ namespace Client.Main.Controllers
         private class ConcurrentPriorityQueue<T> where T : TaskItem
         {
             private readonly object _lock = new();
-            private readonly Dictionary<Priority, ConcurrentQueue<T>> _queues = new()
-            {
-                { Priority.Critical, new ConcurrentQueue<T>() },
-                { Priority.High,     new ConcurrentQueue<T>() },
-                { Priority.Normal,   new ConcurrentQueue<T>() },
-                { Priority.Low,      new ConcurrentQueue<T>() },
-            };
-
-            private volatile int _count;
+            private readonly Queue<T> _criticalQueue = new();
+            private readonly Queue<T> _highQueue = new();
+            private readonly Queue<T> _normalQueue = new();
+            private readonly Queue<T> _lowQueue = new();
+            private int _count;
 
             public void Enqueue(T item)
             {
                 lock (_lock)
                 {
-                    _queues[item.TaskPriority].Enqueue(item);
+                    switch (item.TaskPriority)
+                    {
+                        case Priority.Critical:
+                            _criticalQueue.Enqueue(item);
+                            break;
+                        case Priority.High:
+                            _highQueue.Enqueue(item);
+                            break;
+                        case Priority.Normal:
+                            _normalQueue.Enqueue(item);
+                            break;
+                        default:
+                            _lowQueue.Enqueue(item);
+                            break;
+                    }
+
                     _count++;
                 }
             }
@@ -204,11 +224,30 @@ namespace Client.Main.Controllers
                     }
 
                     // Check queues by priority order
-                    if (_queues[Priority.Critical].TryDequeue(out item) ||
-                        _queues[Priority.High].TryDequeue(out item) ||
-                        _queues[Priority.Normal].TryDequeue(out item) ||
-                        _queues[Priority.Low].TryDequeue(out item))
+                    if (_criticalQueue.Count > 0)
                     {
+                        item = _criticalQueue.Dequeue();
+                        _count--;
+                        return true;
+                    }
+
+                    if (_highQueue.Count > 0)
+                    {
+                        item = _highQueue.Dequeue();
+                        _count--;
+                        return true;
+                    }
+
+                    if (_normalQueue.Count > 0)
+                    {
+                        item = _normalQueue.Dequeue();
+                        _count--;
+                        return true;
+                    }
+
+                    if (_lowQueue.Count > 0)
+                    {
+                        item = _lowQueue.Dequeue();
                         _count--;
                         return true;
                     }
@@ -222,24 +261,15 @@ namespace Client.Main.Controllers
             {
                 lock (_lock)
                 {
-                    foreach (var q in _queues.Values)
-                    {
-                        while (q.TryDequeue(out _)) { }
-                    }
+                    _criticalQueue.Clear();
+                    _highQueue.Clear();
+                    _normalQueue.Clear();
+                    _lowQueue.Clear();
                     _count = 0;
                 }
             }
 
-            public int Count
-            {
-                get
-                {
-                    lock (_lock)
-                    {
-                        return _count;
-                    }
-                }
-            }
+            public int Count => Volatile.Read(ref _count);
         }
     }
 }

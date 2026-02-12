@@ -15,6 +15,7 @@ using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Input.Touch;
 using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -26,6 +27,8 @@ namespace Client.Main
     public class MuGame : Game
     {
         private const string LocalSettingsFileName = "appsettings.local.json";
+        private const int MaxMainThreadActionsPerFrame = 96;
+        private static readonly TimeSpan MaxMainThreadActionTimePerFrame = TimeSpan.FromMilliseconds(3);
         // Static Fields
         private static Controllers.TaskScheduler _taskScheduler;
         private static readonly ConcurrentQueue<IMainThreadAction> _mainThreadActions = new ConcurrentQueue<IMainThreadAction>();
@@ -404,11 +407,7 @@ namespace Client.Main
         {
             UPSCounter.Instance.CalcUPS(gameTime);
 
-            // --- Process Main Thread Actions via TaskScheduler ---
-            while (_mainThreadActions.TryDequeue(out var action))
-            {
-                _taskScheduler.QueueTask(action.Invoke, Controllers.TaskScheduler.Priority.Normal);
-            }
+            ProcessMainThreadActions();
 
             // Process prioritized tasks using the task scheduler
             _taskScheduler.ProcessFrame();
@@ -448,6 +447,33 @@ namespace Client.Main
             {
                 _logger?.LogCritical(e, "Unhandled exception in MuGame.Update loop (outside scene/base update)!");
                 // Exit();
+            }
+        }
+
+        private void ProcessMainThreadActions()
+        {
+            if (_mainThreadActions.IsEmpty)
+                return;
+
+            int processed = 0;
+            long frameStart = Stopwatch.GetTimestamp();
+
+            while (processed < MaxMainThreadActionsPerFrame &&
+                   _mainThreadActions.TryDequeue(out var action))
+            {
+                try
+                {
+                    action.Invoke();
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Error executing main-thread scheduled action.");
+                }
+
+                processed++;
+
+                if (Stopwatch.GetElapsedTime(frameStart) >= MaxMainThreadActionTimePerFrame)
+                    break;
             }
         }
 
