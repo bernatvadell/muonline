@@ -42,6 +42,15 @@ namespace Client.Main.Controls.Terrain
         private readonly int[] _tileIndexCounts = new int[256];
         private readonly ushort[][] _tileAlphaIndexBatches = new ushort[256][];
         private readonly int[] _tileAlphaIndexCounts = new int[256];
+        private readonly bool[] _tileIndexActive = new bool[256];
+        private readonly bool[] _tileAlphaIndexActive = new bool[256];
+        private readonly List<int> _activeTileIndexTextures = new(32);
+        private readonly List<int> _activeTileAlphaIndexTextures = new(32);
+
+        private readonly bool[] _tileBatchActive = new bool[256];
+        private readonly bool[] _tileAlphaBatchActive = new bool[256];
+        private readonly List<int> _activeTileBatchTextures = new(32);
+        private readonly List<int> _activeTileAlphaBatchTextures = new(32);
 
         // Buffers for a single terrain tile quad
         private readonly TerrainVertexPositionColorNormalTexture[] _terrainVertices = new TerrainVertexPositionColorNormalTexture[6];
@@ -373,6 +382,42 @@ namespace Client.Main.Controls.Terrain
             // Reset state tracking for new frame
             _lastBoundTexture = null;
             _lastBlendState = null;
+            ResetBatchTracking();
+        }
+
+        private void ResetBatchTracking()
+        {
+            for (int i = 0; i < _activeTileIndexTextures.Count; i++)
+            {
+                int t = _activeTileIndexTextures[i];
+                _tileIndexCounts[t] = 0;
+                _tileIndexActive[t] = false;
+            }
+            _activeTileIndexTextures.Clear();
+
+            for (int i = 0; i < _activeTileAlphaIndexTextures.Count; i++)
+            {
+                int t = _activeTileAlphaIndexTextures[i];
+                _tileAlphaIndexCounts[t] = 0;
+                _tileAlphaIndexActive[t] = false;
+            }
+            _activeTileAlphaIndexTextures.Clear();
+
+            for (int i = 0; i < _activeTileBatchTextures.Count; i++)
+            {
+                int t = _activeTileBatchTextures[i];
+                _tileBatchCounts[t] = 0;
+                _tileBatchActive[t] = false;
+            }
+            _activeTileBatchTextures.Clear();
+
+            for (int i = 0; i < _activeTileAlphaBatchTextures.Count; i++)
+            {
+                int t = _activeTileAlphaBatchTextures[i];
+                _tileAlphaCounts[t] = 0;
+                _tileAlphaBatchActive[t] = false;
+            }
+            _activeTileAlphaBatchTextures.Clear();
         }
 
         private bool BuildVisibleLodGrid()
@@ -1395,6 +1440,8 @@ namespace Client.Main.Controls.Terrain
                 dstOff = 0;
             }
 
+            TrackIndexTexture(texIndex, alphaLayer);
+
             batch[dstOff + 0] = i1;
             batch[dstOff + 1] = i2;
             batch[dstOff + 2] = i3;
@@ -1485,18 +1532,24 @@ namespace Client.Main.Controls.Terrain
         private void FlushAllTileIndexBatches()
         {
             // First pass: render all opaque batches
-            for (int t = 0; t < 256; t++)
+            for (int i = 0; i < _activeTileIndexTextures.Count; i++)
             {
+                int t = _activeTileIndexTextures[i];
                 if (_tileIndexCounts[t] > 0)
                     FlushSingleTextureIndexed(t, alphaLayer: false);
+                _tileIndexActive[t] = false;
             }
+            _activeTileIndexTextures.Clear();
 
             // Second pass: render all alpha batches
-            for (int t = 0; t < 256; t++)
+            for (int i = 0; i < _activeTileAlphaIndexTextures.Count; i++)
             {
+                int t = _activeTileAlphaIndexTextures[i];
                 if (_tileAlphaIndexCounts[t] > 0)
                     FlushSingleTextureIndexed(t, alphaLayer: true);
+                _tileAlphaIndexActive[t] = false;
             }
+            _activeTileAlphaIndexTextures.Clear();
 
             if (_lastBlendState != BlendState.Opaque)
             {
@@ -1516,6 +1569,8 @@ namespace Client.Main.Controls.Terrain
                 FlushSingleTexture(texIndex, alphaLayer);
                 dstOff = 0;
             }
+
+            TrackVertexTexture(texIndex, alphaLayer);
 
             // Manual unroll for better performance than Array.Copy
             batch[dstOff + 0] = verts[0];
@@ -1639,24 +1694,68 @@ namespace Client.Main.Controls.Terrain
             // then ALL alpha layers. This preserves the correct depth/blend order.
 
             // First pass: render all opaque batches
-            for (int t = 0; t < 256; t++)
+            for (int i = 0; i < _activeTileBatchTextures.Count; i++)
             {
+                int t = _activeTileBatchTextures[i];
                 if (_tileBatchCounts[t] > 0)
                     FlushSingleTexture(t, alphaLayer: false);
+                _tileBatchActive[t] = false;
             }
+            _activeTileBatchTextures.Clear();
 
             // Second pass: render all alpha batches
-            for (int t = 0; t < 256; t++)
+            for (int i = 0; i < _activeTileAlphaBatchTextures.Count; i++)
             {
+                int t = _activeTileAlphaBatchTextures[i];
                 if (_tileAlphaCounts[t] > 0)
                     FlushSingleTexture(t, alphaLayer: true);
+                _tileAlphaBatchActive[t] = false;
             }
+            _activeTileAlphaBatchTextures.Clear();
 
             if (_lastBlendState != BlendState.Opaque)
             {
                 _graphicsDevice.BlendState = BlendState.Opaque;
                 _lastBlendState = BlendState.Opaque;
             }
+        }
+
+        private void TrackIndexTexture(int texIndex, bool alphaLayer)
+        {
+            if (alphaLayer)
+            {
+                if (_tileAlphaIndexActive[texIndex])
+                    return;
+
+                _tileAlphaIndexActive[texIndex] = true;
+                _activeTileAlphaIndexTextures.Add(texIndex);
+                return;
+            }
+
+            if (_tileIndexActive[texIndex])
+                return;
+
+            _tileIndexActive[texIndex] = true;
+            _activeTileIndexTextures.Add(texIndex);
+        }
+
+        private void TrackVertexTexture(int texIndex, bool alphaLayer)
+        {
+            if (alphaLayer)
+            {
+                if (_tileAlphaBatchActive[texIndex])
+                    return;
+
+                _tileAlphaBatchActive[texIndex] = true;
+                _activeTileAlphaBatchTextures.Add(texIndex);
+                return;
+            }
+
+            if (_tileBatchActive[texIndex])
+                return;
+
+            _tileBatchActive[texIndex] = true;
+            _activeTileBatchTextures.Add(texIndex);
         }
 
         private static int GetTerrainIndex(int x, int y)
