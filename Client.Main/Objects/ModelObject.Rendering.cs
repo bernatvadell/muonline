@@ -507,10 +507,32 @@ namespace Client.Main.Objects
         {
             if (Model?.Meshes == null || mesh < 0 || mesh >= Model.Meshes.Length)
                 return;
-            if (_boneVertexBuffers?[mesh] == null ||
-                _boneIndexBuffers?[mesh] == null ||
-                _boneTextures?[mesh] == null ||
-                IsHiddenMesh(mesh))
+            if (_boneTextures?[mesh] == null || IsHiddenMesh(mesh))
+                return;
+
+            bool hasCpuBuffers = _boneVertexBuffers?[mesh] != null && _boneIndexBuffers?[mesh] != null;
+            bool hasGpuDynamicBuffers = _gpuSkinMeshEnabled != null &&
+                                        (uint)mesh < (uint)_gpuSkinMeshEnabled.Length &&
+                                        _gpuSkinMeshEnabled[mesh] &&
+                                        _gpuSkinVertexBuffers != null &&
+                                        (uint)mesh < (uint)_gpuSkinVertexBuffers.Length &&
+                                        _gpuSkinVertexBuffers[mesh] != null &&
+                                        _gpuSkinIndexBuffers != null &&
+                                        (uint)mesh < (uint)_gpuSkinIndexBuffers.Length &&
+                                        _gpuSkinIndexBuffers[mesh] != null;
+
+            var shaderSelection = DetermineShaderForMesh(mesh);
+
+            if (shaderSelection.UseDynamicLighting)
+            {
+                if (!hasCpuBuffers && !hasGpuDynamicBuffers)
+                    return;
+
+                DrawMeshWithDynamicLighting(mesh);
+                return;
+            }
+
+            if (!hasCpuBuffers)
                 return;
 
             try
@@ -529,9 +551,6 @@ namespace Client.Main.Objects
                         // PERFORMANCE: Use cached RasterizerState to avoid per-mesh allocation
                         gd.RasterizerState = GraphicsManager.GetCachedRasterizerState(depthBias, prevRasterizer.CullMode, prevRasterizer);
                     }
-
-                    // Determine which shader to use (if any)
-                    var shaderSelection = DetermineShaderForMesh(mesh);
 
                     if (shaderSelection.UseItemMaterial)
                     {
@@ -851,10 +870,7 @@ namespace Client.Main.Objects
         {
             if (Model?.Meshes == null || mesh < 0 || mesh >= Model.Meshes.Length)
                 return;
-            if (_boneVertexBuffers?[mesh] == null ||
-                _boneIndexBuffers?[mesh] == null ||
-                _boneTextures?[mesh] == null ||
-                IsHiddenMesh(mesh))
+            if (_boneTextures?[mesh] == null || IsHiddenMesh(mesh))
                 return;
 
             try
@@ -874,9 +890,21 @@ namespace Client.Main.Objects
                 try
                 {
                     bool isBlendMesh = IsBlendMesh(mesh);
-                    var vertexBuffer = _boneVertexBuffers[mesh];
-                    var indexBuffer = _boneIndexBuffers[mesh];
                     var texture = _boneTextures[mesh];
+                    bool useGpuSkinning = _gpuSkinMeshEnabled != null &&
+                                          (uint)mesh < (uint)_gpuSkinMeshEnabled.Length &&
+                                          _gpuSkinMeshEnabled[mesh] &&
+                                          _gpuSkinVertexBuffers != null &&
+                                          (uint)mesh < (uint)_gpuSkinVertexBuffers.Length &&
+                                          _gpuSkinVertexBuffers[mesh] != null &&
+                                          _gpuSkinIndexBuffers != null &&
+                                          (uint)mesh < (uint)_gpuSkinIndexBuffers.Length &&
+                                          _gpuSkinIndexBuffers[mesh] != null;
+
+                    VertexBuffer vertexBuffer = useGpuSkinning ? _gpuSkinVertexBuffers[mesh] : _boneVertexBuffers?[mesh];
+                    IndexBuffer indexBuffer = useGpuSkinning ? _gpuSkinIndexBuffers[mesh] : _boneIndexBuffers?[mesh];
+                    if (vertexBuffer == null || indexBuffer == null)
+                        return;
 
                     var prevCull = gd.RasterizerState;
                     var prevBlend = gd.BlendState;
@@ -895,11 +923,38 @@ namespace Client.Main.Objects
 
                     gd.BlendState = blendState;
 
-                    if (_dynamicLightingPreparedInvocationId != _drawModelInvocationId)
+                    int requiredBoneCount = useGpuSkinning &&
+                                            _gpuSkinBoneCounts != null &&
+                                            (uint)mesh < (uint)_gpuSkinBoneCounts.Length
+                        ? _gpuSkinBoneCounts[mesh]
+                        : 0;
+
+                    bool needsGpuBoneRefresh = useGpuSkinning &&
+                                               requiredBoneCount > _dynamicLightingPreparedGpuBoneCount;
+
+                    if (_dynamicLightingPreparedInvocationId != _drawModelInvocationId ||
+                        _dynamicLightingPreparedWithGpuSkinning != useGpuSkinning ||
+                        needsGpuBoneRefresh)
                     {
-                        PrepareDynamicLightingEffect(effect);
+                        PrepareDynamicLightingEffect(effect, useGpuSkinning, requiredBoneCount);
                         _dynamicLightingPreparedInvocationId = _drawModelInvocationId;
+                        _dynamicLightingPreparedWithGpuSkinning = useGpuSkinning;
+                        _dynamicLightingPreparedGpuBoneCount = useGpuSkinning ? requiredBoneCount : 0;
                     }
+
+                    if (useGpuSkinning && !string.Equals(effect.CurrentTechnique?.Name, "DynamicLighting_Skinned", StringComparison.Ordinal))
+                    {
+                        _dynamicLightingPreparedWithGpuSkinning = false;
+                        _dynamicLightingPreparedGpuBoneCount = 0;
+                        vertexBuffer = _boneVertexBuffers?[mesh];
+                        indexBuffer = _boneIndexBuffers?[mesh];
+                        if (vertexBuffer == null || indexBuffer == null)
+                            return;
+                        useGpuSkinning = false;
+                    }
+
+                    if (useGpuSkinning)
+                        RegisterGpuSkinnedMeshDraw();
 
                     // Set texture
                     effect.Parameters["DiffuseTexture"]?.SetValue(texture);

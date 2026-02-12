@@ -10,9 +10,60 @@ namespace Client.Main.Objects
 {
     public abstract partial class ModelObject
     {
-        private void PrepareDynamicLightingEffect(Effect effect)
+        private static EffectTechnique TryGetTechnique(Effect effect, string name)
         {
-            effect.CurrentTechnique = effect.Techniques["DynamicLighting"];
+            if (effect == null || string.IsNullOrEmpty(name))
+                return null;
+
+            var techniques = effect.Techniques;
+            int count = techniques.Count;
+            for (int i = 0; i < count; i++)
+            {
+                var technique = techniques[i];
+                if (string.Equals(technique.Name, name, StringComparison.Ordinal))
+                    return technique;
+            }
+
+            return null;
+        }
+
+        private bool TryUploadGpuSkinBoneMatrices(Effect effect, int requiredBoneCount)
+        {
+            if (effect == null || requiredBoneCount <= 0 || requiredBoneCount > MaxGpuSkinBones)
+                return false;
+
+            Matrix[] bones = GetCachedBoneTransforms();
+            bones = GetRenderBoneTransforms(bones) ?? bones;
+            if (bones == null || bones.Length == 0)
+                return false;
+
+            int copyCount = Math.Min(requiredBoneCount, Math.Min(bones.Length, MaxGpuSkinBones));
+            if (copyCount <= 0)
+                return false;
+
+            if (_gpuSkinBoneUploadBuffer == null || _gpuSkinBoneUploadBuffer.Length != copyCount)
+            {
+                _gpuSkinBoneUploadBuffer = new Matrix[copyCount];
+            }
+
+            Array.Copy(bones, 0, _gpuSkinBoneUploadBuffer, 0, copyCount);
+            effect.Parameters["BoneMatrices"]?.SetValue(_gpuSkinBoneUploadBuffer);
+            return true;
+        }
+
+        private void PrepareDynamicLightingEffect(Effect effect, bool useGpuSkinning = false, int requiredBoneCount = 0)
+        {
+            if (effect == null)
+                return;
+
+            var dynamicLightingTechnique = TryGetTechnique(effect, "DynamicLighting");
+            if (dynamicLightingTechnique == null)
+                return;
+
+            var skinnedTechnique = useGpuSkinning ? TryGetTechnique(effect, "DynamicLighting_Skinned") : null;
+            bool usingSkinnedTechnique = skinnedTechnique != null &&
+                                         TryUploadGpuSkinBoneMatrices(effect, requiredBoneCount);
+            effect.CurrentTechnique = usingSkinnedTechnique ? skinnedTechnique : dynamicLightingTechnique;
             GraphicsManager.Instance.ShadowMapRenderer?.ApplyShadowParameters(effect);
 
             var camera = Camera.Instance;
@@ -40,7 +91,7 @@ namespace Client.Main.Objects
 
             effect.Parameters["Alpha"]?.SetValue(TotalAlpha);
             // Use objects technique instead of setting uniforms (better performance, no shader branches)
-            effect.CurrentTechnique = effect.Techniques["DynamicLighting"];
+            effect.CurrentTechnique = usingSkinnedTechnique ? skinnedTechnique : dynamicLightingTechnique;
             effect.Parameters["TerrainDynamicIntensityScale"]?.SetValue(1.5f);
             effect.Parameters["AmbientLight"]?.SetValue(_ambientLightVector * SunCycleManager.AmbientMultiplier);
             effect.Parameters["DebugLightingAreas"]?.SetValue(Constants.DEBUG_LIGHTING_AREAS ? 1.0f : 0.0f);

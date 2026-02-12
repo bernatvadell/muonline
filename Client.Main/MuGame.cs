@@ -6,6 +6,7 @@ using Client.Main.Core.Client;
 using Client.Main.Data;
 using Client.Main.Graphics;
 using Client.Main.Networking;
+using Client.Main.Objects;
 using Client.Main.Scenes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -523,6 +524,7 @@ namespace Client.Main
                 // Initialize frame-based optimizations
                 DynamicBufferPool.BeginFrame(FrameIndex);
                 BMDLoader.Instance.BeginFrame();
+                ModelObject.BeginFrameGpuSkinningMetrics();
 
                 FPSCounter.Instance.CalcFPS(gameTime);
                 DrawSceneToMainRenderTarget(gameTime);

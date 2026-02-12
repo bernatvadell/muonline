@@ -64,9 +64,23 @@ namespace Client.Main.Objects
         private static readonly RasterizerState _cullNone = RasterizerState.CullNone;
 
         private static int _animationStrideSeed = 0;
+        private static int _gpuSkinnedMeshesDrawnThisFrame = 0;
 
         // Track per-pass preparation to avoid re-uploading shared effect parameters per mesh
         private static int _drawModelInvocationCounter = 0;
+        public static int LastFrameGpuSkinnedMeshesDrawn { get; private set; }
+        public static bool IsGpuSkinningBackendSupported => SupportsGpuDynamicSkinning;
+
+        public static void BeginFrameGpuSkinningMetrics()
+        {
+            LastFrameGpuSkinnedMeshesDrawn = _gpuSkinnedMeshesDrawnThisFrame;
+            _gpuSkinnedMeshesDrawnThisFrame = 0;
+        }
+
+        private static void RegisterGpuSkinnedMeshDraw()
+        {
+            _gpuSkinnedMeshesDrawnThisFrame++;
+        }
 
         public static ILoggerFactory AppLoggerFactory { get; private set; }
 
@@ -81,6 +95,10 @@ namespace Client.Main.Objects
 
         private DynamicVertexBuffer[] _boneVertexBuffers;
         private DynamicIndexBuffer[] _boneIndexBuffers;
+        private VertexBuffer[] _gpuSkinVertexBuffers;
+        private IndexBuffer[] _gpuSkinIndexBuffers;
+        private int[] _gpuSkinBoneCounts;
+        private bool[] _gpuSkinMeshEnabled;
         private Texture2D[] _boneTextures;
         private TextureScript[] _scriptTextures;
         private TextureData[] _dataTextures;
@@ -151,6 +169,13 @@ namespace Client.Main.Objects
         private bool _boneMatrixCacheValid = false;
 
         private MeshBufferCache[] _meshBufferCache;
+        private const int MaxGpuSkinBones = 256;
+#if WINDOWS_DX
+        private const bool SupportsGpuDynamicSkinning = true;
+#else
+        private const bool SupportsGpuDynamicSkinning = false;
+#endif
+        private Matrix[] _gpuSkinBoneUploadBuffer = Array.Empty<Matrix>();
 
         #endregion
 
@@ -173,6 +198,8 @@ namespace Client.Main.Objects
 
         private int _drawModelInvocationId = 0;
         private int _dynamicLightingPreparedInvocationId = -1;
+        private bool _dynamicLightingPreparedWithGpuSkinning = false;
+        private int _dynamicLightingPreparedGpuBoneCount = 0;
 
         #endregion
 
@@ -346,6 +373,10 @@ namespace Client.Main.Objects
             int meshCount = Model.Meshes.Length;
             _boneVertexBuffers = new DynamicVertexBuffer[meshCount];
             _boneIndexBuffers = new DynamicIndexBuffer[meshCount];
+            _gpuSkinVertexBuffers = new VertexBuffer[meshCount];
+            _gpuSkinIndexBuffers = new IndexBuffer[meshCount];
+            _gpuSkinBoneCounts = new int[meshCount];
+            _gpuSkinMeshEnabled = new bool[meshCount];
             _boneTextures = new Texture2D[meshCount];
             _scriptTextures = new TextureScript[meshCount];
             _dataTextures = new TextureData[meshCount];
@@ -560,6 +591,10 @@ namespace Client.Main.Objects
             // Release graphics resources and mark content as unloaded
             _boneVertexBuffers = null;
             _boneIndexBuffers = null;
+            _gpuSkinVertexBuffers = null;
+            _gpuSkinIndexBuffers = null;
+            _gpuSkinBoneCounts = null;
+            _gpuSkinMeshEnabled = null;
             _boneTextures = null;
             _scriptTextures = null;
             _dataTextures = null;

@@ -64,6 +64,7 @@ namespace Client.Main
         public static bool MSAA_ENABLED;
         public static bool ENABLE_DYNAMIC_LIGHTS;
         public static bool ENABLE_DYNAMIC_LIGHTING_SHADER;
+        public static bool ENABLE_GPU_SKINNING;
         public static bool ENABLE_TERRAIN_GPU_LIGHTING;
         public static bool OPTIMIZE_FOR_INTEGRATED_GPU;
         public static bool DEBUG_LIGHTING_AREAS;
@@ -211,6 +212,7 @@ namespace Client.Main
             MSAA_ENABLED = false;
             ENABLE_DYNAMIC_LIGHTS = true;
             ENABLE_DYNAMIC_LIGHTING_SHADER = true;
+            ENABLE_GPU_SKINNING = false;
             ENABLE_TERRAIN_GPU_LIGHTING = true;
             OPTIMIZE_FOR_INTEGRATED_GPU = false;
             DEBUG_LIGHTING_AREAS = false;

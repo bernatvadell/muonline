@@ -159,7 +159,7 @@ namespace Client.Main.Objects
             Vector2 shadowTexel = new Vector2(1f / shadowSize, 1f / shadowSize);
 
             // Draw own meshes if available
-            if (Model?.Meshes != null && _boneVertexBuffers != null && _boneIndexBuffers != null && _boneTextures != null)
+            if (Model?.Meshes != null && _boneTextures != null)
             {
                 try
                 {
@@ -169,7 +169,11 @@ namespace Client.Main.Objects
                     var prevRaster = gd.RasterizerState;
                     var prevTechnique = shadowEffect?.CurrentTechnique;
 
-                    shadowEffect.CurrentTechnique = shadowEffect?.Techniques["ShadowCaster"];
+                    var shadowCasterTechnique = TryGetTechnique(shadowEffect, "ShadowCaster");
+                    var shadowCasterSkinnedTechnique = TryGetTechnique(shadowEffect, "ShadowCaster_Skinned");
+                    if (shadowCasterTechnique == null)
+                        return;
+
                     shadowEffect?.Parameters["World"]?.SetValue(WorldPosition);
                     shadowEffect?.Parameters["LightViewProjection"]?.SetValue(lightViewProjection);
                     shadowEffect?.Parameters["ShadowMapTexelSize"]?.SetValue(shadowTexel);
@@ -183,16 +187,60 @@ namespace Client.Main.Objects
                     gd.DepthStencilState = DepthStencilState.Default;
 
                     int meshCount = Model.Meshes.Length;
+                    EffectTechnique activeTechnique = null;
+                    int uploadedSkinnedBoneCount = 0;
+
                     for (int i = 0; i < meshCount; i++)
                     {
                         if (IsHiddenMesh(i))
                             continue;
 
-                        var vb = _boneVertexBuffers[i];
-                        var ib = _boneIndexBuffers[i];
+                        bool useGpuSkinning = shadowCasterSkinnedTechnique != null &&
+                                              _gpuSkinMeshEnabled != null &&
+                                              (uint)i < (uint)_gpuSkinMeshEnabled.Length &&
+                                              _gpuSkinMeshEnabled[i] &&
+                                              _gpuSkinVertexBuffers != null &&
+                                              (uint)i < (uint)_gpuSkinVertexBuffers.Length &&
+                                              _gpuSkinVertexBuffers[i] != null &&
+                                              _gpuSkinIndexBuffers != null &&
+                                              (uint)i < (uint)_gpuSkinIndexBuffers.Length &&
+                                              _gpuSkinIndexBuffers[i] != null;
+
+                        VertexBuffer vb = useGpuSkinning ? _gpuSkinVertexBuffers[i] : _boneVertexBuffers?[i];
+                        IndexBuffer ib = useGpuSkinning ? _gpuSkinIndexBuffers[i] : _boneIndexBuffers?[i];
                         var tex = _boneTextures[i];
                         if (vb == null || ib == null || tex == null)
                             continue;
+
+                        if (useGpuSkinning)
+                        {
+                            int requiredBoneCount = _gpuSkinBoneCounts != null && (uint)i < (uint)_gpuSkinBoneCounts.Length
+                                ? _gpuSkinBoneCounts[i]
+                                : 0;
+
+                            if (requiredBoneCount > uploadedSkinnedBoneCount)
+                            {
+                                if (!TryUploadGpuSkinBoneMatrices(shadowEffect, requiredBoneCount))
+                                {
+                                    useGpuSkinning = false;
+                                    vb = _boneVertexBuffers?[i];
+                                    ib = _boneIndexBuffers?[i];
+                                    if (vb == null || ib == null)
+                                        continue;
+                                }
+                                else
+                                {
+                                    uploadedSkinnedBoneCount = requiredBoneCount;
+                                }
+                            }
+                        }
+
+                        var targetTechnique = useGpuSkinning ? shadowCasterSkinnedTechnique : shadowCasterTechnique;
+                        if (targetTechnique != activeTechnique)
+                        {
+                            shadowEffect.CurrentTechnique = targetTechnique;
+                            activeTechnique = targetTechnique;
+                        }
 
                         bool isTwoSided = IsMeshTwoSided(i, IsBlendMesh(i));
                         gd.RasterizerState = isTwoSided ? _cullNone : _cullClockwise;

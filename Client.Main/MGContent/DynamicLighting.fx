@@ -13,6 +13,9 @@ float4x4 World;
 float4x4 View;
 float4x4 Projection;
 float4x4 WorldViewProjection;
+#if !OPENGL
+float4x4 BoneMatrices[256];
+#endif
 
 // Camera position for specular highlights
 float3 EyePosition;
@@ -89,6 +92,17 @@ struct VertexInput
     float2 TexCoord : TEXCOORD0;
     float4 Color    : COLOR0;
 };
+
+#if !OPENGL
+struct VertexInputSkinned
+{
+    float3 Position  : POSITION0;
+    float3 Normal    : NORMAL0;
+    float2 TexCoord  : TEXCOORD0;
+    float4 Color     : COLOR0;
+    float  BoneIndex : TEXCOORD1;
+};
+#endif
 
 struct PixelInput
 {
@@ -248,6 +262,23 @@ PixelInput VS_Objects(VertexInput input)
     return output;
 }
 
+#if !OPENGL
+PixelInput VS_ObjectsSkinned(VertexInputSkinned input)
+{
+    PixelInput output;
+    int boneIndex = min(max((int)input.BoneIndex, 0), 255);
+    float4 localPos = mul(float4(input.Position, 1.0), BoneMatrices[boneIndex]);
+    float4 worldPos = mul(localPos, World);
+    output.WorldPos = worldPos.xyz;
+    output.Position = mul(worldPos, mul(View, Projection));
+    output.Normal = normalize(mul(input.Normal, (float3x3)World));
+    output.TexCoord = input.TexCoord;
+    output.Color = input.Color;
+    output.DynamicLight = float3(0, 0, 0);
+    return output;
+}
+#endif
+
 float SampleShadow(float3 worldPos, float3 normal)
 {
     float4 lightPos = mul(float4(worldPos, 1.0), LightViewProjection);
@@ -377,6 +408,17 @@ technique DynamicLighting
     }
 }
 
+#if !OPENGL
+technique DynamicLighting_Skinned
+{
+    pass Pass1
+    {
+        VertexShader = compile VS_SHADERMODEL VS_ObjectsSkinned();
+        PixelShader = compile PS_SHADERMODEL PS_Objects();
+    }
+}
+#endif
+
 // Technique for TERRAIN (vertex color lighting + vertex dynamic lights)
 technique DynamicLighting_Terrain
 {
@@ -406,6 +448,21 @@ ShadowVertexOutput ShadowVS(VertexInput input)
     return output;
 }
 
+#if !OPENGL
+ShadowVertexOutput ShadowVS_Skinned(VertexInputSkinned input)
+{
+    ShadowVertexOutput output;
+    int boneIndex = min(max((int)input.BoneIndex, 0), 255);
+    float4 localPos = mul(float4(input.Position, 1.0), BoneMatrices[boneIndex]);
+    float4 worldPos = mul(localPos, World);
+    output.Position = mul(worldPos, LightViewProjection);
+    float2 procUv = worldPos.xy * TerrainUvScale;
+    output.TexCoord = lerp(input.TexCoord, procUv, UseProceduralTerrainUV);
+    output.Depth = output.Position.zw;
+    return output;
+}
+#endif
+
 float4 ShadowPS(ShadowVertexOutput input) : SV_TARGET
 {
     float alphaMask = tex2D(SamplerState0, input.TexCoord).a;
@@ -429,3 +486,14 @@ technique ShadowCaster
         PixelShader  = compile PS_SHADERMODEL ShadowPS();
     }
 }
+
+#if !OPENGL
+technique ShadowCaster_Skinned
+{
+    pass Pass1
+    {
+        VertexShader = compile VS_SHADERMODEL ShadowVS_Skinned();
+        PixelShader  = compile PS_SHADERMODEL ShadowPS();
+    }
+}
+#endif
