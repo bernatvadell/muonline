@@ -3,11 +3,30 @@ using Client.Main.Graphics;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System;
+using System.Collections.Generic;
 
 namespace Client.Main.Helpers
 {
     public static class OverheadNameplateRenderer
     {
+        private readonly struct QueuedNameplate
+        {
+            public QueuedNameplate(SpriteFont font, Vector3 screen, string name, float? healthFraction, float renderScale)
+            {
+                Font = font;
+                Screen = screen;
+                Name = name;
+                HealthFraction = healthFraction;
+                RenderScale = renderScale;
+            }
+
+            public SpriteFont Font { get; }
+            public Vector3 Screen { get; }
+            public string Name { get; }
+            public float? HealthFraction { get; }
+            public float RenderScale { get; }
+        }
+
         private const float BaseNameScale = 0.42f;
         private const float BaseBarWidth = 70f;
         private const float BaseBarHeight = 6f;
@@ -17,6 +36,7 @@ namespace Client.Main.Helpers
         private const float BaseNamePaddingY = 2f;
         private const float BaseNameBarGap = 2f;
         private const int BarSegments = 8;
+        private static readonly List<QueuedNameplate> s_queue = new(256);
 
         private static class Theme
         {
@@ -68,6 +88,59 @@ namespace Client.Main.Helpers
                 Matrix.Identity);
 
             return screen.Z >= 0f && screen.Z <= 1f;
+        }
+
+        public static void BeginFrame()
+        {
+            s_queue.Clear();
+        }
+
+        public static void EnqueueNameplate(SpriteFont font, Vector3 screen, string name, float? healthFraction, float renderScale)
+        {
+            if (font == null || string.IsNullOrWhiteSpace(name))
+                return;
+
+            s_queue.Add(new QueuedNameplate(font, screen, name, healthFraction, renderScale));
+        }
+
+        public static void FlushQueuedNameplates(SpriteBatch spriteBatch)
+        {
+            if (spriteBatch == null || s_queue.Count == 0)
+                return;
+
+            SpriteBatchScope scope = default;
+            bool hasScope = false;
+            if (!SpriteBatchScope.BatchIsBegun)
+            {
+                scope = new SpriteBatchScope(
+                    spriteBatch,
+                    SpriteSortMode.Deferred,
+                    BlendState.NonPremultiplied,
+                    SamplerState.LinearClamp,
+                    DepthStencilState.None);
+                hasScope = true;
+            }
+
+            try
+            {
+                for (int i = 0; i < s_queue.Count; i++)
+                {
+                    var entry = s_queue[i];
+                    DrawNameplate(
+                        spriteBatch,
+                        entry.Font,
+                        entry.Screen,
+                        entry.Name,
+                        entry.HealthFraction,
+                        entry.RenderScale);
+                }
+            }
+            finally
+            {
+                if (hasScope)
+                    scope.Dispose();
+                s_queue.Clear();
+            }
         }
 
         public static void DrawNameplate(SpriteBatch spriteBatch, SpriteFont font, Vector3 screen, string name, float? healthFraction, float renderScale)

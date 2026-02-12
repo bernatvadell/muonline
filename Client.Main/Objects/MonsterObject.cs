@@ -283,17 +283,7 @@ namespace Client.Main.Objects
                 return;
 
             float? hp = _hasHealthFraction ? _healthFraction : null;
-
-            var sb = GraphicsManager.Instance.Sprite;
-            using (new SpriteBatchScope(
-                       sb,
-                       SpriteSortMode.Deferred,
-                       BlendState.NonPremultiplied,
-                       SamplerState.LinearClamp,
-                       DepthStencilState.None))
-            {
-                OverheadNameplateRenderer.DrawNameplate(sb, font, screen, name, hp, Constants.RENDER_SCALE);
-            }
+            OverheadNameplateRenderer.EnqueueNameplate(font, screen, name, hp, Constants.RENDER_SCALE);
         }
 
         /// <summary>

@@ -75,7 +75,19 @@ namespace Client.Main.Objects
                     if (activeLights != null && activeLights.Count > 0)
                     {
                         EnsureDynamicLightSelectionBuffer();
-                        _dynamicLightSelectionCount = SelectRelevantLightIndices(activeLights, worldTranslation, maxLights, _dynamicLightSelectionIndices);
+
+                        if (activeLights.Count <= maxLights)
+                        {
+                            int count = activeLights.Count;
+                            for (int i = 0; i < count; i++)
+                                _dynamicLightSelectionIndices[i] = i;
+
+                            _dynamicLightSelectionCount = count;
+                        }
+                        else
+                        {
+                            _dynamicLightSelectionCount = SelectRelevantLightIndices(activeLights, worldTranslation, maxLights, _dynamicLightSelectionIndices);
+                        }
                     }
 
                     _dynamicLightSelectionVersion = version;

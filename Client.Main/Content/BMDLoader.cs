@@ -318,46 +318,48 @@ namespace Client.Main.Content
             }
             int totalIndices = totalVertices;
             bool prefer16Bit = totalIndices <= ushort.MaxValue;
+            bool useCache = !DisableGlobalMeshCache && !skipCache;
 
             // Create cache key based on asset and mesh
             // (reusing cacheKey defined above)
-
-            // Calculate bone matrix hash for cache validation
-            // Build or get the set of bones used by this mesh (distinct node indices)
-            if (!_meshUsedBones.TryGetValue(cacheKey, out short[] usedBones))
+            int boneMatrixHash = 0;
+            if (useCache)
             {
-                var verts = mesh.Vertices;
-                // Use HashSet to gather distinct nodes, then convert to array
-                var set = new HashSet<short>();
-                for (int i = 0; i < verts.Length; i++)
+                // Build or get the set of bones used by this mesh (distinct node indices)
+                if (!_meshUsedBones.TryGetValue(cacheKey, out short[] usedBones))
                 {
-                    short node = verts[i].Node;
-                    if (node >= 0) set.Add(node);
+                    var verts = mesh.Vertices;
+                    var set = new HashSet<short>();
+                    for (int i = 0; i < verts.Length; i++)
+                    {
+                        short node = verts[i].Node;
+                        if (node >= 0)
+                            set.Add(node);
+                    }
+
+                    usedBones = set.Count > 0 ? set.ToArray() : Array.Empty<short>();
+                    _meshUsedBones[cacheKey] = usedBones;
                 }
-                usedBones = set.Count > 0 ? set.ToArray() : Array.Empty<short>();
-                _meshUsedBones[cacheKey] = usedBones;
+
+                // Calculate a hash over only the bones influencing this mesh
+                boneMatrixHash = CalculateBoneMatrixHashSubset(boneMatrix, usedBones);
+
+                bool canUseCache = _bufferCacheState.TryGetValue(cacheKey, out var cacheEntry) &&
+                                   cacheEntry.IsValid &&
+                                   cacheEntry.LastColor == color &&
+                                   cacheEntry.LastBoneMatrixHash == boneMatrixHash &&
+                                   vertexBuffer != null &&
+                                   indexBuffer != null;
+
+                if (canUseCache)
+                {
+                    FrameCacheHits++;
+                    return;
+                }
+
+                FrameCacheMisses++;
             }
 
-            // Calculate a hash over only the bones influencing this mesh
-            int boneMatrixHash = CalculateBoneMatrixHashSubset(boneMatrix, usedBones);
-
-            bool canUseCache = !DisableGlobalMeshCache &&
-                               !skipCache &&
-                               _bufferCacheState.TryGetValue(cacheKey, out var cacheEntry) &&
-                               cacheEntry.IsValid &&
-                               cacheEntry.LastColor == color &&
-                               cacheEntry.LastBoneMatrixHash == boneMatrixHash &&
-                               vertexBuffer != null &&
-                               indexBuffer != null;
-
-            // Check if we can use cached data (only if caching is enabled)
-            if (canUseCache)
-            {
-                // Cache hit - reuse existing buffers
-                FrameCacheHits++;
-                return;
-            }
-            FrameCacheMisses++;
             FrameMeshesProcessed++;
 
             // Ensure buffers are properly sized

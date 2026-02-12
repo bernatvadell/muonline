@@ -172,12 +172,13 @@ namespace Client.Main.Objects
                             continue;
 
                         // Generate buffers only when necessary
+                        bool animationDirty = (_invalidatedBufferFlags & BUFFER_FLAG_ANIMATION) != 0;
                         BMDLoader.Instance.GetModelBuffers(
                             Model, meshIndex, bodyColor, bones,
                             ref _boneVertexBuffers[meshIndex],
                             ref _boneIndexBuffers[meshIndex],
                             // Force bypassing internal cache when texture coordinates changed
-                            ((_invalidatedBufferFlags & BUFFER_FLAG_TEXTURE) != 0) || hasVertexDeformer,
+                            animationDirty || ((_invalidatedBufferFlags & BUFFER_FLAG_TEXTURE) != 0) || hasVertexDeformer,
                             vertexDeformer);
 
                         // Update cache

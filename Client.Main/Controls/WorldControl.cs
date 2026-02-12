@@ -140,6 +140,8 @@ namespace Client.Main.Controls
         private readonly List<DroppedItemObject> _droppedItems = [];
         private readonly Queue<WorldObject> _objectsToInitialize = [];
         private readonly List<WorldObject> _visibleObjects = [];
+        private readonly HashSet<WorldObject> _visibleObjectSet = [];
+        private readonly HashSet<WorldObject> _positionDirtyObjects = [];
         private bool _dirtyVisibleObjects = true;
 
         public Dictionary<ushort, WalkerObject> WalkerObjectsById { get; } = [];
@@ -200,6 +202,32 @@ namespace Client.Main.Controls
         private void Camera_Moved(object sender, EventArgs e)
         {
             _dirtyVisibleObjects = true;
+        }
+
+        private void Object_PositionChanged(object sender, EventArgs e)
+        {
+            if (sender is WorldObject obj)
+                _positionDirtyObjects.Add(obj);
+            else
+                _dirtyVisibleObjects = true;
+        }
+
+        private void Object_StatusChanged(object sender, EventArgs e)
+        {
+            if (sender is not WorldObject obj)
+                return;
+
+            if (obj.Status == GameControlStatus.Ready)
+            {
+                _positionDirtyObjects.Add(obj);
+                return;
+            }
+
+            if (obj.Status == GameControlStatus.Disposed || obj.Status == GameControlStatus.Error)
+            {
+                RemoveVisibleObject(obj);
+                _positionDirtyObjects.Remove(obj);
+            }
         }
 
         // --- Lifecycle Methods ---
@@ -272,26 +300,21 @@ namespace Client.Main.Controls
                 for (int i = 0; i < initCount; i++)
                 {
                     var obj = _objectsToInitialize.Dequeue();
+                    if (obj == null || !ReferenceEquals(obj.World, this) || obj.Status != GameControlStatus.NonInitialized)
+                        continue;
+
                     obj.Load().ConfigureAwait(false);
                 }
             }
 
             if (_dirtyVisibleObjects)
             {
-                _visibleObjects.Clear();
-
-                for (var i = 0; i < Objects.Count; i++)
-                {
-                    var obj = Objects[i];
-
-                    if (!obj.Visible)
-                        continue;
-
-                    if (obj is EffectObject || Camera.Instance.Frustum.Intersects(obj.BoundingBoxWorld))
-                        _visibleObjects.Add(obj);
-                }
-
+                RebuildVisibleObjects();
                 _dirtyVisibleObjects = false;
+            }
+            else if (_positionDirtyObjects.Count > 0)
+            {
+                RefreshDirtyVisibleObjects();
             }
 
             var objects = _visibleObjects;
@@ -302,6 +325,8 @@ namespace Client.Main.Controls
         public override void Draw(GameTime time)
         {
             if (Status != GameControlStatus.Ready) return;
+
+            OverheadNameplateRenderer.BeginFrame();
 
             // Build shadow map before any backbuffer drawing so terrain tiles aren't lost
             if (EnableShadows && Constants.ENABLE_SHADOW_MAPPING && GraphicsManager.Instance.ShadowMapRenderer != null)
@@ -343,6 +368,8 @@ namespace Client.Main.Controls
         {
             e.Control.World = this;
             e.Control.HiddenChanged += Object_HiddenChanged;
+            e.Control.PositionChanged += Object_PositionChanged;
+            e.Control.StatusChanged += Object_StatusChanged;
 
             TrackObjectType(e.Control);
             if (e.Control is WalkerObject walker &&
@@ -361,14 +388,21 @@ namespace Client.Main.Controls
                 WalkerObjectsById[walker.NetworkId] = walker; // Always update/add
             }
 
-            _visibleObjects.Add(e.Control);
+            _positionDirtyObjects.Add(e.Control);
+            if (e.Control.Status == GameControlStatus.NonInitialized)
+                _objectsToInitialize.Enqueue(e.Control);
         }
 
         private void Object_HiddenChanged(object sender, EventArgs e)
         {
             var obj = sender as WorldObject;
-            if (obj.Hidden) _visibleObjects.Remove(obj);
-            else _visibleObjects.Add(obj);
+            if (obj == null)
+                return;
+
+            if (obj.Hidden)
+                RemoveVisibleObject(obj);
+            else
+                _positionDirtyObjects.Add(obj);
         }
 
         private void OnObjectRemoved(object sender, ChildrenEventArgs<WorldObject> e)
@@ -394,8 +428,11 @@ namespace Client.Main.Controls
             }
 
             e.Control.HiddenChanged -= Object_HiddenChanged;
+            e.Control.PositionChanged -= Object_PositionChanged;
+            e.Control.StatusChanged -= Object_StatusChanged;
 
-            _visibleObjects.Remove(e.Control);
+            RemoveVisibleObject(e.Control);
+            _positionDirtyObjects.Remove(e.Control);
         }
 
         private void TrackObjectType(WorldObject obj)
@@ -600,6 +637,8 @@ namespace Client.Main.Controls
             DrawAfterPass(_solidBehind, DepthStateDefault, time);
             DrawAfterPass(_transparentObjects, DepthStateDepthRead, time);
             DrawAfterPass(_solidInFront, DepthStateDefault, time);
+
+            OverheadNameplateRenderer.FlushQueuedNameplates(GraphicsManager.Instance.Sprite);
         }
 
         private void DrawListWithSpriteBatchGrouping(List<WorldObject> list, DepthStencilState depthState, GameTime time)
@@ -712,6 +751,80 @@ namespace Client.Main.Controls
             return frustum != null && frustum.Contains(obj.BoundingBoxWorld) != ContainmentType.Disjoint;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void AddVisibleObject(WorldObject obj)
+        {
+            if (obj == null)
+                return;
+
+            if (_visibleObjectSet.Add(obj))
+                _visibleObjects.Add(obj);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void RemoveVisibleObject(WorldObject obj)
+        {
+            if (obj == null)
+                return;
+
+            if (_visibleObjectSet.Remove(obj))
+                _visibleObjects.Remove(obj);
+        }
+
+        private void RebuildVisibleObjects()
+        {
+            _visibleObjects.Clear();
+            _visibleObjectSet.Clear();
+            _positionDirtyObjects.Clear();
+
+            var camera = Camera.Instance;
+            var camPos = camera.Position;
+            var cam2 = new Vector2(camPos.X, camPos.Y);
+            float maxViewDistance = camera.ViewFar + Constants.MAX_CAMERA_DISTANCE + 250f;
+            float maxDistSq = maxViewDistance * maxViewDistance;
+            var frustum = camera.Frustum;
+
+            for (int i = 0; i < Objects.Count; i++)
+            {
+                var obj = Objects[i];
+                if (!obj.Visible)
+                    continue;
+
+                if (obj is EffectObject || IsObjectInView(obj, cam2, maxDistSq, frustum))
+                    AddVisibleObject(obj);
+            }
+        }
+
+        private void RefreshDirtyVisibleObjects()
+        {
+            if (_positionDirtyObjects.Count == 0)
+                return;
+
+            var camera = Camera.Instance;
+            var camPos = camera.Position;
+            var cam2 = new Vector2(camPos.X, camPos.Y);
+            float maxViewDistance = camera.ViewFar + Constants.MAX_CAMERA_DISTANCE + 250f;
+            float maxDistSq = maxViewDistance * maxViewDistance;
+            var frustum = camera.Frustum;
+
+            foreach (var obj in _positionDirtyObjects)
+            {
+                if (obj == null || !obj.Visible)
+                {
+                    RemoveVisibleObject(obj);
+                    continue;
+                }
+
+                bool inView = obj is EffectObject || IsObjectInView(obj, cam2, maxDistSq, frustum);
+                if (inView)
+                    AddVisibleObject(obj);
+                else
+                    RemoveVisibleObject(obj);
+            }
+
+            _positionDirtyObjects.Clear();
+        }
+
 
         // --- Map Tile Initialization ---
 
@@ -746,6 +859,8 @@ namespace Client.Main.Controls
             _players.Clear();
             _monsters.Clear();
             _droppedItems.Clear();
+            _visibleObjectSet.Clear();
+            _positionDirtyObjects.Clear();
 
             sw.Stop();
             var elapsedObjects = sw.ElapsedMilliseconds;
@@ -763,6 +878,19 @@ namespace Client.Main.Controls
             if (worldObject.Status == GameControlStatus.NonInitialized)
             {
                 _objectsToInitialize.Enqueue(worldObject);
+                return;
+            }
+
+            if (worldObject.Status == GameControlStatus.Ready)
+            {
+                _positionDirtyObjects.Add(worldObject);
+                return;
+            }
+
+            if (worldObject.Status == GameControlStatus.Disposed || worldObject.Status == GameControlStatus.Error)
+            {
+                RemoveVisibleObject(worldObject);
+                _positionDirtyObjects.Remove(worldObject);
             }
         }
     }

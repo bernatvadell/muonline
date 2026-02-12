@@ -216,57 +216,67 @@ namespace Client.Main.Objects
         {
             if (Status == GameControlStatus.NonInitialized)
             {
-                Load().ConfigureAwait(false);
+                // World objects are initialized by WorldControl's budgeted queue.
+                // Keep the legacy fallback for detached/child objects.
+                if (World == null || Parent != null)
+                    Load().ConfigureAwait(false);
+
+                return;
             }
             if (Status != GameControlStatus.Ready) return;
 
             // Increment once per *frame time*, not per object update
             _globalFrameCounter = (int)(gameTime.TotalGameTime.TotalSeconds * 60.0);
 
-            float deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-            TotalUpdatesPerformed++;
-
-            // Reset debug counters every 5 seconds
-            if (Environment.TickCount - _lastResetTime > 5000)
+            if (Constants.SHOW_DEBUG_PANEL)
             {
-                _lastResetTime = Environment.TickCount;
-                // log these values or display them in debug UI
-                //Console.WriteLine($"WorldObject Optimization: {TotalSkippedUpdates} skipped, {TotalUpdatesPerformed} performed");
-                TotalSkippedUpdates = 0;
-                TotalUpdatesPerformed = 0;
+                TotalUpdatesPerformed++;
+
+                if (Environment.TickCount - _lastResetTime > 5000)
+                {
+                    _lastResetTime = Environment.TickCount;
+                    TotalSkippedUpdates = 0;
+                    TotalUpdatesPerformed = 0;
+                }
             }
 
-            if (Interactive || Constants.DRAW_BOUNDING_BOXES)
+            var scene = World?.Scene;
+            if ((Interactive || Constants.DRAW_BOUNDING_BOXES) && scene != null)
             {
-                bool uiBlockingHover = World.Scene.MouseHoverControl is not null && World.Scene.MouseHoverControl != World.Scene.World;
-                if (World?.Scene != null)
-                {
-                    var scene = World.Scene;
-                    if (scene.MouseHoverControl != null && scene.MouseHoverControl != scene.World)
-                    {
-                        uiBlockingHover = true;
-                    }
-                }
-
-                bool objectBlockingHover = World.Scene.MouseHoverObject is not null;
+                bool uiBlockingHover = scene.MouseHoverControl is not null && scene.MouseHoverControl != scene.World;
+                bool objectBlockingHover = scene.MouseHoverObject is not null;
 
                 if (!uiBlockingHover && !objectBlockingHover)
                 {
                     bool parentIsMouseHover = Parent?.IsMouseHover ?? false;
 
                     bool wouldBeMouseHover = parentIsMouseHover;
-                    if (!parentIsMouseHover && (Interactive || Constants.DRAW_BOUNDING_BOXES))
+                    if (!parentIsMouseHover)
                     {
-                        float? intersectionDistance = MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld);
-                        ContainmentType contains = BoundingBoxWorld.Contains(MuGame.Instance.MouseRay.Position);
-                        wouldBeMouseHover = intersectionDistance.HasValue || contains == ContainmentType.Contains;
+                        bool isImportantHoverCheck = this is WalkerObject;
+                        if (TryBeginHoverCheck(isImportantHoverCheck))
+                        {
+                            float? intersectionDistance = MuGame.Instance.MouseRay.Intersects(BoundingBoxWorld);
+                            ContainmentType contains = BoundingBoxWorld.Contains(MuGame.Instance.MouseRay.Position);
+                            wouldBeMouseHover = intersectionDistance.HasValue || contains == ContainmentType.Contains;
+                        }
+                        else
+                        {
+                            if (Constants.SHOW_DEBUG_PANEL)
+                                TotalSkippedUpdates++;
+
+                            wouldBeMouseHover = false;
+                        }
                     }
 
                     IsMouseHover = wouldBeMouseHover;
 
-                    if (!parentIsMouseHover && IsMouseHover && World.Scene.MouseHoverObject is null)
-                        World.Scene.MouseHoverObject = this;
+                    if (!parentIsMouseHover && IsMouseHover && scene.MouseHoverObject is null)
+                        scene.MouseHoverObject = this;
+                }
+                else
+                {
+                    IsMouseHover = false;
                 }
             }
             else
