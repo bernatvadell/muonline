@@ -58,6 +58,14 @@ namespace Client.Main.Objects
         private const float RotationSpeed = 10f;
         private int _previousActionForSound = -1;
         private bool _serverControlledAnimation = false;
+        private const byte DebuffPoison = 55;
+        private const byte DebuffFreeze = 56;
+        private static readonly Color DebuffTintNone = Color.White;
+        private static readonly Color DebuffTintIce = new Color(150, 175, 220, 255);
+        private static readonly Color DebuffTintPoison = new Color(145, 205, 145, 255);
+        private Color _activeDebuffTint = DebuffTintNone;
+        private Color _temporaryDebuffTint = DebuffTintNone;
+        private double _temporaryDebuffTintUntilMs;
 
         // Properties
         public bool IsMainWalker => World is WalkableWorldControl walkableWorld && walkableWorld.Walker == this;
@@ -182,6 +190,7 @@ namespace Client.Main.Objects
 
         public override void Update(GameTime gameTime)
         {
+            UpdateDebuffTint();
             base.Update(gameTime);
             _animationController?.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
 
@@ -519,6 +528,80 @@ namespace Client.Main.Objects
             Camera.Instance.FOV = 35 * Constants.FOV_SCALE;
             Camera.Instance.Position = cameraPosition;
             Camera.Instance.Target = position;
+        }
+
+        private void UpdateDebuffTint()
+        {
+            Color tint = ResolveDebuffTint();
+            if (tint.PackedValue == _activeDebuffTint.PackedValue)
+                return;
+
+            _activeDebuffTint = tint;
+            ApplyTintRecursive(this, tint);
+            InvalidateBuffers(BufferFlagLighting);
+        }
+
+        private Color ResolveDebuffTint()
+        {
+            if (_temporaryDebuffTint.PackedValue != DebuffTintNone.PackedValue)
+            {
+                double nowMs = MuGame.Instance?.GameTime?.TotalGameTime.TotalMilliseconds ?? Environment.TickCount64;
+                if (nowMs <= _temporaryDebuffTintUntilMs)
+                    return _temporaryDebuffTint;
+
+                _temporaryDebuffTint = DebuffTintNone;
+                _temporaryDebuffTintUntilMs = 0d;
+            }
+
+            var charState = MuGame.Network?.GetCharacterState();
+            if (charState == null)
+                return DebuffTintNone;
+
+            ushort objectId = IsMainWalker ? charState.Id : NetworkId;
+            if (objectId == 0)
+                return DebuffTintNone;
+
+            bool hasFreeze = charState.HasActiveBuff(DebuffFreeze, objectId);
+            bool hasPoison = charState.HasActiveBuff(DebuffPoison, objectId);
+
+            if (hasFreeze)
+                return DebuffTintIce;
+
+            if (hasPoison)
+                return DebuffTintPoison;
+
+            return DebuffTintNone;
+        }
+
+        public void ApplyTemporaryDebuffTint(byte effectId, float durationSeconds)
+        {
+            Color tint = effectId switch
+            {
+                DebuffFreeze => DebuffTintIce,
+                DebuffPoison => DebuffTintPoison,
+                _ => DebuffTintNone
+            };
+
+            if (tint.PackedValue == DebuffTintNone.PackedValue)
+                return;
+
+            double nowMs = MuGame.Instance?.GameTime?.TotalGameTime.TotalMilliseconds ?? Environment.TickCount64;
+            double untilMs = nowMs + Math.Max(0.1f, durationSeconds) * 1000d;
+
+            _temporaryDebuffTint = tint;
+            if (untilMs > _temporaryDebuffTintUntilMs)
+                _temporaryDebuffTintUntilMs = untilMs;
+        }
+
+        private static void ApplyTintRecursive(ModelObject model, Color tint)
+        {
+            model.Color = tint;
+
+            for (int i = 0; i < model.Children.Count; i++)
+            {
+                if (model.Children[i] is ModelObject childModel)
+                    ApplyTintRecursive(childModel, tint);
+            }
         }
 
         private void MoveTowards(Vector2 target, GameTime gameTime)
