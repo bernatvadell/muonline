@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Client.Data.BMD;
+using Client.Main.Controls.UI;
 using Client.Main.Core.Client;
 using Client.Main.Core.Utilities;
 using Client.Main.Models;
@@ -15,7 +16,7 @@ namespace Client.Main.Controls.UI.Game.Skills
     /// Popup panel displaying all available skills in a grid layout.
     /// Allows player to select a skill for the quick slot.
     /// </summary>
-    public class SkillSelectionPanel : UIControl
+    public class SkillSelectionPanel : UIControl, IUiTexturePreloadable
     {
         private const int COLUMNS = 5;
         private const int PADDING = 8;
@@ -347,5 +348,7 @@ namespace Client.Main.Controls.UI.Game.Skills
             //     Close();
             // }
         }
+
+        public IEnumerable<string> GetPreloadTexturePaths() => SkillIconAtlas.TexturePaths;
     }
 }

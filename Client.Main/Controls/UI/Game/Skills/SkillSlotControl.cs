@@ -1,9 +1,13 @@
 #nullable enable
 using System;
+using System.Threading.Tasks;
+using Client.Main.Content;
+using Client.Main.Controllers;
 using Client.Main.Core.Client;
 using Client.Main.Core.Utilities;
 using Client.Main.Models;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace Client.Main.Controls.UI.Game.Skills
 {
@@ -16,6 +20,8 @@ namespace Client.Main.Controls.UI.Game.Skills
         private readonly LabelControl _skillIdLabel;
         private readonly LabelControl _skillLevelLabel;
         private readonly LabelControl _tooltipLabel;
+        private Texture2D? _iconTexture;
+        private Rectangle _iconSource;
         private bool _isSelected;
         private bool _wasHovered;
 
@@ -96,21 +102,24 @@ namespace Client.Main.Controls.UI.Game.Skills
             UpdateDisplay();
         }
 
+        public override async Task Load()
+        {
+            foreach (var texturePath in SkillIconAtlas.TexturePaths)
+            {
+                await TextureLoader.Instance.Prepare(texturePath);
+            }
+
+            await base.Load();
+            RefreshSkillIconTexture();
+        }
+
         private void UpdateDisplay()
         {
             if (_skill != null)
             {
-                string skillName = SkillDatabase.GetSkillName(_skill.SkillId);
-
-                // Truncate long names to fit in slot
-                if (skillName.Length > 10)
-                    skillName = skillName.Substring(0, 9) + "...";
-
-                _skillIdLabel.Text = skillName;
-                _skillIdLabel.Visible = true;
-                _skillIdLabel.TextColor = Color.White;
-                _skillLevelLabel.Text = $"Lv{_skill.SkillLevel}";
-                _skillLevelLabel.Visible = true;
+                _skillIdLabel.Visible = false;
+                _skillLevelLabel.Text = _skill.SkillLevel > 0 ? $"Lv{_skill.SkillLevel}" : string.Empty;
+                _skillLevelLabel.Visible = _skill.SkillLevel > 0;
             }
             else
             {
@@ -132,6 +141,37 @@ namespace Client.Main.Controls.UI.Game.Skills
                 BackgroundColor = Color.Black * 0.7f;
                 BorderColor = Color.Gray;
                 BorderThickness = 1;
+            }
+
+            RefreshSkillIconTexture();
+        }
+
+        public override void Draw(GameTime gameTime)
+        {
+            if (Status != GameControlStatus.Ready || !Visible)
+            {
+                return;
+            }
+
+            DrawBackground();
+            DrawBorder();
+
+            if (_skill != null)
+            {
+                if (_iconTexture == null || _iconTexture.IsDisposed)
+                {
+                    RefreshSkillIconTexture();
+                }
+
+                if (_iconTexture != null && !_iconTexture.IsDisposed)
+                {
+                    GraphicsManager.Instance.Sprite.Draw(_iconTexture, DisplayRectangle, _iconSource, Color.White * Alpha);
+                }
+            }
+
+            for (int i = 0; i < Controls.Count; i++)
+            {
+                Controls[i].Draw(gameTime);
             }
         }
 
@@ -235,6 +275,25 @@ namespace Client.Main.Controls.UI.Game.Skills
             _tooltipLabel.Text = tooltip;
 
             _tooltipLabel.Visible = true;
+        }
+
+        private void RefreshSkillIconTexture()
+        {
+            _iconTexture = null;
+
+            if (_skill == null)
+            {
+                return;
+            }
+
+            var definition = SkillDatabase.GetSkillDefinition(_skill.SkillId);
+            if (!SkillIconAtlas.TryResolve(_skill.SkillId, definition, out var frame))
+            {
+                return;
+            }
+
+            _iconTexture = TextureLoader.Instance.GetTexture2D(frame.TexturePath);
+            _iconSource = frame.SourceRectangle;
         }
     }
 }
