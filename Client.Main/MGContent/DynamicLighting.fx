@@ -120,6 +120,7 @@ struct PixelInput
 // on the CPU side (32).  DX vs_5_0 has no instruction limit; GL vs_3_0
 // has 512 slots, but the branchless active-mask approach keeps ALU low.
 #define TERRAIN_MAX_LIGHTS MAX_LIGHTS
+#define TERRAIN_LOW_MAX_LIGHTS 8
 float3 CalculateTerrainLighting(float3 worldPos, float3 normal)
 {
     float3 dynamicLight = float3(0, 0, 0);
@@ -162,6 +163,41 @@ float3 CalculateTerrainLighting(float3 worldPos, float3 normal)
         // Simple diffuse
         float diffuse = saturate(dot(normal, lightDir));
 
+        dynamicLight += lightColor * (lightIntensity * diffuse * attenuation * active);
+    }
+
+    return dynamicLight;
+}
+
+// Reduced-cost terrain variant for weaker GPUs (fewer lights, same model).
+float3 CalculateTerrainLightingLow(float3 worldPos, float3 normal)
+{
+    float3 dynamicLight = float3(0, 0, 0);
+    float fLightCount = float(min(min(ActiveLightCount, MaxLightsToProcess), TERRAIN_LOW_MAX_LIGHTS));
+
+    for (int i = 0; i < TERRAIN_LOW_MAX_LIGHTS; i++)
+    {
+        float active = step(float(i) + 0.5, fLightCount);
+
+        float3 lightPos = LightPositions[i];
+        float3 lightColor = LightColors[i];
+        float lightRadius = LightRadii[i];
+        float lightIntensity = LightIntensities[i];
+
+        float3 lightDir = lightPos - worldPos;
+        float distanceSquared = dot(lightDir, lightDir);
+        float radiusSquared = lightRadius * lightRadius;
+
+        float inRange = step(distanceSquared, radiusSquared);
+        float normalizedDist = distanceSquared / radiusSquared;
+        float attenuation = saturate(1.0 - normalizedDist) * inRange;
+        float vertical = saturate((lightPos.z - worldPos.z) * (1.0 / lightRadius));
+        attenuation *= vertical;
+
+        float invDistance = rsqrt(distanceSquared + 0.001);
+        lightDir *= invDistance;
+
+        float diffuse = saturate(dot(normal, lightDir));
         dynamicLight += lightColor * (lightIntensity * diffuse * attenuation * active);
     }
 
@@ -243,8 +279,35 @@ PixelInput VS_Terrain(VertexInput input)
     output.TexCoord = lerp(input.TexCoord, procUv, UseProceduralTerrainUV);
 
     output.Color = input.Color;
-    // Calculate dynamic lighting per-vertex for terrain (8 lights max, faster)
+    // Calculate dynamic lighting per-vertex for terrain.
     output.DynamicLight = CalculateTerrainLighting(output.WorldPos, output.Normal);
+    return output;
+}
+
+// Vertex Shader for TERRAIN (low) - fewer dynamic lights for integrated GPUs
+PixelInput VS_TerrainLow(VertexInput input)
+{
+    PixelInput output;
+    float4 worldPos = mul(float4(input.Position, 1.0), World);
+    output.WorldPos = worldPos.xyz;
+    output.Position = mul(worldPos, mul(View, Projection));
+    output.Normal = normalize(mul(input.Normal, (float3x3)World));
+
+    float2 procUv = worldPos.xy * TerrainUvScale;
+    if (IsWaterTexture > 0.5)
+    {
+        float2 uv = procUv + WaterFlowDirection * WaterTotal;
+        float f = max(0.01, DistortionFrequency);
+        float wrapPeriod = 6.2831853 / f;
+        float phase = WaterTotal - floor(WaterTotal / wrapPeriod) * wrapPeriod;
+        uv.x += sin((procUv.x + phase) * f) * DistortionAmplitude;
+        uv.y += cos((procUv.y + phase) * f) * DistortionAmplitude;
+        procUv = uv;
+    }
+    output.TexCoord = lerp(input.TexCoord, procUv, UseProceduralTerrainUV);
+
+    output.Color = input.Color;
+    output.DynamicLight = CalculateTerrainLightingLow(output.WorldPos, output.Normal);
     return output;
 }
 
@@ -281,6 +344,10 @@ PixelInput VS_ObjectsSkinned(VertexInputSkinned input)
 
 float SampleShadow(float3 worldPos, float3 normal)
 {
+    // Uniform branch: skip shadow-map fetches entirely when shadows are disabled.
+    if (ShadowsEnabled < 0.5)
+        return 1.0;
+
     float4 lightPos = mul(float4(worldPos, 1.0), LightViewProjection);
     float3 proj = lightPos.xyz / lightPos.w;
 
@@ -294,9 +361,9 @@ float SampleShadow(float3 worldPos, float3 normal)
     float depth = proj.z; // DirectX depth is already [0, 1]
 #endif
 
-    // Check if outside shadow map bounds (branchless)
-    float2 uvClamped = saturate(uv);
-    float inBounds = step(abs(uv.x - uvClamped.x) + abs(uv.y - uvClamped.y), 0.0001);
+    // Skip fetches if outside the shadow-map bounds.
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0)
+        return 1.0;
 
     float ndotl = saturate(dot(normal, -SunDirection));
     float bias = ShadowBias + ShadowNormalBias * (1.0 - ndotl);
@@ -309,8 +376,7 @@ float SampleShadow(float3 worldPos, float3 normal)
     shadow += step(depth - bias, tex2Dlod(ShadowSampler, float4(uv + float2( 0.5,  0.5) * ShadowMapTexelSize, 0, 0)).r);
     shadow *= 0.25;
 
-    // Blend to no shadow (1.0) when outside bounds or shadows disabled
-    return lerp(1.0, shadow, inBounds * ShadowsEnabled);
+    return shadow;
 }
 
 // ============================================================================
@@ -425,6 +491,16 @@ technique DynamicLighting_Terrain
     pass Pass1
     {
         VertexShader = compile VS_SHADERMODEL VS_Terrain();
+        PixelShader = compile PS_SHADERMODEL PS_Terrain();
+    }
+}
+
+// Reduced terrain dynamic-light cost for integrated GPUs.
+technique DynamicLighting_Terrain_Low
+{
+    pass Pass1
+    {
+        VertexShader = compile VS_SHADERMODEL VS_TerrainLow();
         PixelShader = compile PS_SHADERMODEL PS_Terrain();
     }
 }

@@ -18,7 +18,7 @@ namespace Client.Main.Controllers
         public GraphicsDevice GraphicsDevice => _graphicsDevice;
 
         public bool IsFXAAEnabled { get; set; } = false;
-        public bool IsAlphaRGBEnabled { get; set; } = true;
+        public bool IsAlphaRGBEnabled { get; set; } = false;
 
         public SpriteBatch Sprite { get; private set; }
         public SpriteFont Font { get; private set; }

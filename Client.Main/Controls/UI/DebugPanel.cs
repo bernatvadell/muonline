@@ -73,7 +73,7 @@ namespace Client.Main.Controls.UI
                 _mousePosLabel.Text = $"Mouse Screen (X:{screenMouse.X}, Y:{screenMouse.Y}) UI (X:{uiMouse.X}, Y:{uiMouse.Y})";
 
                 var fxaa = GraphicsManager.Instance.IsFXAAEnabled ? "ON" : "OFF";
-                var alphargb = GraphicsManager.Instance.IsFXAAEnabled ? "ON" : "OFF"; ;
+                var alphargb = GraphicsManager.Instance.IsAlphaRGBEnabled ? "ON" : "OFF";
                 _effectsStatusLabel.Text = $"FXAA: {fxaa} - AlphaRGB: {alphargb}";
 
                 var cursorObj = World?.Scene?.MouseHoverObject != null ? World.Scene.MouseHoverObject.GetType().Name : "N/A";

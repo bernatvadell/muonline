@@ -527,8 +527,15 @@ namespace Client.Main
                 ModelObject.BeginFrameGpuSkinningMetrics();
 
                 FPSCounter.Instance.CalcFPS(gameTime);
-                DrawSceneToMainRenderTarget(gameTime);
-                ApplyPostProcessingEffects();
+                if (ShouldUseIntermediateRenderTarget())
+                {
+                    DrawSceneToMainRenderTarget(gameTime);
+                    ApplyPostProcessingEffects();
+                }
+                else
+                {
+                    DrawSceneDirectToBackBuffer(gameTime);
+                }
                 base.Draw(gameTime);
             }
             catch (Exception e)
@@ -835,6 +842,35 @@ namespace Client.Main
             ActiveScene?.DrawAfter(gameTime);
 
             GraphicsDevice.SetRenderTarget(null);
+        }
+
+        private void DrawSceneDirectToBackBuffer(GameTime gameTime)
+        {
+            GraphicsDevice.SetRenderTarget(null);
+            GraphicsDevice.Clear(Color.Black);
+
+            // Keep the same scene state setup as the intermediate render path.
+            GraphicsDevice.RasterizerState = RasterizerState.CullCounterClockwise;
+            GraphicsDevice.DepthStencilState = DepthStencilState.Default;
+            GraphicsDevice.BlendState = BlendState.AlphaBlend;
+
+            ActiveScene?.Draw(gameTime);
+            ActiveScene?.DrawAfter(gameTime);
+        }
+
+        private static bool ShouldUseIntermediateRenderTarget()
+        {
+            // Required when resolution scaling is active or gamma-correction pass is needed.
+            if (MathF.Abs(Constants.RENDER_SCALE - 1.0f) > 0.0001f || Constants.MSAA_ENABLED)
+                return true;
+
+            var graphics = GraphicsManager.Instance;
+            if (graphics == null)
+                return false;
+
+            bool alphaRgb = graphics.IsAlphaRGBEnabled && graphics.AlphaRGBEffect != null;
+            bool fxaa = graphics.IsFXAAEnabled && graphics.FXAAEffect != null;
+            return alphaRgb || fxaa;
         }
 
         private void ApplyPostProcessingEffects()

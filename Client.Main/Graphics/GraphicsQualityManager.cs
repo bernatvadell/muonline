@@ -133,18 +133,18 @@ namespace Client.Main.Graphics
                     break;
 
                 case GraphicsQualityPreset.Medium:
-                    Constants.RENDER_SCALE = 1.0f;
+                    Constants.RENDER_SCALE = 0.9f;
                     Constants.MSAA_ENABLED = false;
                     Constants.ENABLE_DYNAMIC_LIGHTS = true;
                     Constants.ENABLE_DYNAMIC_LIGHTING_SHADER = true;
                     Constants.ENABLE_TERRAIN_GPU_LIGHTING = false;
-                    Constants.OPTIMIZE_FOR_INTEGRATED_GPU = false;
-                    Constants.HIGH_QUALITY_TEXTURES = true;
+                    Constants.OPTIMIZE_FOR_INTEGRATED_GPU = true;
+                    Constants.HIGH_QUALITY_TEXTURES = false;
                     Constants.DRAW_GRASS = false;
                     Constants.ENABLE_ITEM_MATERIAL_SHADER = true;
                     Constants.ENABLE_MONSTER_MATERIAL_SHADER = true;
                     Constants.ENABLE_WEAPON_TRAIL = true;
-                    Constants.DYNAMIC_LIGHT_UPDATE_FPS = 30;
+                    Constants.DYNAMIC_LIGHT_UPDATE_FPS = 24;
                     break;
 
                 case GraphicsQualityPreset.High:

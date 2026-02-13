@@ -607,8 +607,16 @@ namespace Client.Main.Controls.Terrain
             effect.Parameters["Projection"]?.SetValue(Camera.Instance.Projection);
             effect.Parameters["WorldViewProjection"]?.SetValue(world * Camera.Instance.View * Camera.Instance.Projection);
             effect.Parameters["EyePosition"]?.SetValue(Camera.Instance.Position);
-            // Use terrain technique instead of setting uniforms (better performance, no shader branches)
-            effect.CurrentTechnique = effect.Techniques["DynamicLighting_Terrain"];
+            // Use terrain-specific technique, with a reduced variant for integrated GPUs.
+            string preferredTechnique = Constants.OPTIMIZE_FOR_INTEGRATED_GPU
+                ? "DynamicLighting_Terrain_Low"
+                : "DynamicLighting_Terrain";
+            var terrainTechnique = TryGetTechnique(effect, preferredTechnique) ??
+                                   TryGetTechnique(effect, "DynamicLighting_Terrain");
+            if (terrainTechnique == null)
+                return false;
+
+            effect.CurrentTechnique = terrainTechnique;
             effect.Parameters["UseProceduralTerrainUV"]?.SetValue(_useTerrainIndexBatching ? 1.0f : 0.0f);
             effect.Parameters["IsWaterTexture"]?.SetValue(0.0f);
             effect.Parameters["TerrainUvScale"]?.SetValue(Vector2.Zero);
@@ -650,7 +658,8 @@ namespace Client.Main.Controls.Terrain
                 return;
             }
 
-            int maxLights = Math.Min(DynamicLightArrayCapacity, _cachedLightPositions.Length);
+            int maxLights = Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 8 : DynamicLightArrayCapacity;
+            maxLights = Math.Min(maxLights, _cachedLightPositions.Length);
             int version = _lightManager.ActiveLightsVersion;
 
             // Only rebuild when the light snapshot changes (throttled at
@@ -1328,6 +1337,22 @@ namespace Client.Main.Controls.Terrain
             return effect.Parameters["UseProceduralTerrainUV"] != null &&
                    effect.Parameters["TerrainUvScale"] != null &&
                    effect.Parameters["IsWaterTexture"] != null;
+        }
+
+        private static EffectTechnique TryGetTechnique(Effect effect, string name)
+        {
+            if (effect == null || string.IsNullOrEmpty(name))
+                return null;
+
+            var techniques = effect.Techniques;
+            for (int i = 0; i < techniques.Count; i++)
+            {
+                var technique = techniques[i];
+                if (string.Equals(technique.Name, name, StringComparison.Ordinal))
+                    return technique;
+            }
+
+            return null;
         }
 
         private void EnsureTerrainVertexBuffers()
