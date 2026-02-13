@@ -409,6 +409,8 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             // End teleport state if active (show hero, allow movement)
             bool wasTeleporting = _characterState.IsTeleporting;
             _characterState.EndTeleport();
+            _characterState.ClearPendingPickedItem();
+            _characterState.ClearPendingPickupRawId();
 
             // Update state & notify
             _characterState.UpdatePosition(x, y);

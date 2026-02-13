@@ -762,6 +762,12 @@ namespace Client.Main.Controls
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool ShouldForceVisible(WorldObject obj)
+        {
+            return obj is EffectObject || (obj is WalkerObject walker && walker.IsMainWalker);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private void AddVisibleObject(WorldObject obj)
         {
             if (obj == null)
@@ -808,7 +814,7 @@ namespace Client.Main.Controls
                     {
                         var obj = snapshot[i];
                         if (obj != null && obj.Visible &&
-                            (obj is EffectObject || IsObjectInView(obj, cam2, maxDistSq, frustum)))
+                            (ShouldForceVisible(obj) || IsObjectInView(obj, cam2, maxDistSq, frustum)))
                         {
                             localVisible.Add(obj);
                         }
@@ -834,7 +840,7 @@ namespace Client.Main.Controls
                     if (obj == null || !obj.Visible)
                         continue;
 
-                    if (obj is EffectObject || IsObjectInView(obj, cam2, maxDistSq, frustum))
+                    if (ShouldForceVisible(obj) || IsObjectInView(obj, cam2, maxDistSq, frustum))
                         _visibleObjects.Add(obj);
                 }
             }
@@ -884,7 +890,7 @@ namespace Client.Main.Controls
                             return local;
                         }
 
-                        bool inView = obj is EffectObject || IsObjectInView(obj, cam2, maxDistSq, frustum);
+                        bool inView = ShouldForceVisible(obj) || IsObjectInView(obj, cam2, maxDistSq, frustum);
                         if (inView)
                             local.add.Add(obj);
                         else
@@ -920,7 +926,7 @@ namespace Client.Main.Controls
                         continue;
                     }
 
-                    bool inView = obj is EffectObject || IsObjectInView(obj, cam2, maxDistSq, frustum);
+                    bool inView = ShouldForceVisible(obj) || IsObjectInView(obj, cam2, maxDistSq, frustum);
                     if (inView)
                         AddVisibleObject(obj);
                     else

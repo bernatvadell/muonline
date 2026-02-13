@@ -33,6 +33,8 @@ namespace Client.Main.Scenes
         public bool IsKeyboardEscapeConsumedThisFrame { get; private set; }
 
         private ILogger _logger = MuGame.AppLoggerFactory?.CreateLogger<BaseScene>();
+        private bool _leftMouseCapturedByUi;
+        private bool _rightMouseCapturedByUi;
 
         public BaseScene()
         {
@@ -135,11 +137,6 @@ namespace Client.Main.Scenes
             IsKeyboardEnterConsumedThisFrame = false;
             IsKeyboardEscapeConsumedThisFrame = false;
 
-            // Determine MouseHoverControl and MouseControl for the scene
-            // Iterate UI controls (children of BaseScene) in reverse order (topmost first)
-            GameControl topmostHoverForTooltip = null;
-            GameControl topmostInteractiveForScroll = null;
-
             // Simulate mouse click by touch input
             var touchState = MuGame.Instance.Touch;
             if (touchState.Count > 0)
@@ -163,25 +160,15 @@ namespace Client.Main.Scenes
                 );
             }
 
-            for (int i = Controls.Count - 1; i >= 0; i--)
-            {
-                var uiCtrl = Controls[i];
-                if (uiCtrl.Visible && uiCtrl.IsMouseOver) // IsMouseOver is updated in control's own Update
-                {
-                    if (topmostHoverForTooltip == null)
-                    {
-                        topmostHoverForTooltip = uiCtrl;
-                    }
-                    if (topmostInteractiveForScroll == null && uiCtrl.Interactive)
-                    {
-                        topmostInteractiveForScroll = uiCtrl;
-                        // for scroll, we take the first topmost interactive one.
-                        // clicks are handled by controls themselves now.
-                    }
-                }
-            }
-            MouseHoverControl = topmostHoverForTooltip; // this is for general hover (tooltips, visual effects)
-            MouseControl = topmostInteractiveForScroll; // this is specifically for scroll dispatch
+            var uiMouse = MuGame.Instance.UiMouseState;
+            var prevUiMouse = MuGame.Instance.PrevUiMouseState;
+            Point uiMousePosition = uiMouse.Position;
+
+            var topmostUiControl = FindTopmostUiControlAtPoint(uiMousePosition, interactiveOnly: false);
+            var topmostInteractiveForScroll = FindTopmostUiControlAtPoint(uiMousePosition, interactiveOnly: true);
+
+            MouseHoverControl = topmostUiControl; // general hover (tooltips, visual effects)
+            MouseControl = topmostInteractiveForScroll; // target for scroll dispatch
 
 
             // no UI control captured the mouse for scroll interaction, check the World itself
@@ -193,6 +180,33 @@ namespace Client.Main.Scenes
                     MouseHoverControl = World;
                 }
             }
+
+            bool isPointerOverUi = topmostUiControl != null;
+            bool leftPressed = uiMouse.LeftButton == ButtonState.Pressed;
+            bool rightPressed = uiMouse.RightButton == ButtonState.Pressed;
+            bool leftJustPressed = leftPressed && prevUiMouse.LeftButton == ButtonState.Released;
+            bool rightJustPressed = rightPressed && prevUiMouse.RightButton == ButtonState.Released;
+            bool leftJustReleased = !leftPressed && prevUiMouse.LeftButton == ButtonState.Pressed;
+            bool rightJustReleased = !rightPressed && prevUiMouse.RightButton == ButtonState.Pressed;
+
+            if (leftJustPressed && isPointerOverUi)
+                _leftMouseCapturedByUi = true;
+
+            if (rightJustPressed && isPointerOverUi)
+                _rightMouseCapturedByUi = true;
+
+            if ((isPointerOverUi && (leftPressed || rightPressed || leftJustReleased || rightJustReleased))
+                || _leftMouseCapturedByUi
+                || _rightMouseCapturedByUi)
+            {
+                IsMouseInputConsumedThisFrame = true;
+            }
+
+            if (leftJustReleased)
+                _leftMouseCapturedByUi = false;
+
+            if (rightJustReleased)
+                _rightMouseCapturedByUi = false;
 
             // Consume scroll for UI before the world processes input
             int preScrollChange = MuGame.Instance.UiMouseState.ScrollWheelValue - MuGame.Instance.PrevUiMouseState.ScrollWheelValue;
@@ -299,6 +313,90 @@ namespace Client.Main.Scenes
         public void ConsumeKeyboardEscape()
         {
             IsKeyboardEscapeConsumedThisFrame = true;
+        }
+
+        private GameControl FindTopmostUiControlAtPoint(Point mousePosition, bool interactiveOnly)
+        {
+            for (int i = Controls.Count - 1; i >= 0; i--)
+            {
+                var hit = FindTopmostUiControlAtPointRecursive(Controls[i], mousePosition, interactiveOnly);
+                if (hit != null)
+                {
+                    return hit;
+                }
+            }
+
+            return null;
+        }
+
+        private GameControl FindTopmostUiControlAtPointRecursive(GameControl control, Point mousePosition, bool interactiveOnly)
+        {
+            if (control == null || !control.Visible || ReferenceEquals(control, World) || ReferenceEquals(control, Cursor))
+            {
+                return null;
+            }
+
+            for (int i = control.Controls.Count - 1; i >= 0; i--)
+            {
+                var childHit = FindTopmostUiControlAtPointRecursive(control.Controls[i], mousePosition, interactiveOnly);
+                if (childHit != null)
+                {
+                    return childHit;
+                }
+            }
+
+            if (control is not UIControl)
+            {
+                return null;
+            }
+
+            if (!IsPointInsideControl(control, mousePosition))
+            {
+                return null;
+            }
+
+            if (ShouldUiControlCapturePointer(control, interactiveOnly))
+            {
+                return control;
+            }
+
+            return null;
+        }
+
+        private static bool IsPointInsideControl(GameControl control, Point point)
+        {
+            var rect = control.DisplayRectangle;
+            if (rect.Width <= 0 || rect.Height <= 0)
+            {
+                return false;
+            }
+
+            return point.X >= rect.X
+                && point.X < rect.Right
+                && point.Y >= rect.Y
+                && point.Y < rect.Bottom;
+        }
+
+        private static bool ShouldUiControlCapturePointer(GameControl control, bool interactiveOnly)
+        {
+            if (interactiveOnly)
+            {
+                return control.Interactive;
+            }
+
+            if (control.Interactive)
+            {
+                return true;
+            }
+
+            if (control.BackgroundColor.A > 0 || control.BorderThickness > 0)
+            {
+                return true;
+            }
+
+            // Leaf visual controls (labels/sprites/textures) should block click-through.
+            // Non-interactive containers with only children (e.g. layout roots) should not.
+            return control.Controls.Count == 0;
         }
 
         public override void Draw(GameTime gameTime)

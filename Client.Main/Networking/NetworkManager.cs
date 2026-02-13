@@ -434,6 +434,19 @@ namespace Client.Main.Networking
                     else
                     {
                         _logger.LogInformation("ProcessCharacterRespawn: Same map ({MapId}). Updating hero position.", mapId);
+                        if (currentWorld != null && !ReferenceEquals(currentWorld.Walker, hero))
+                        {
+                            _logger.LogWarning("ProcessCharacterRespawn: Walker reference mismatch on same-map teleport. Rebinding local walker.");
+                            currentWorld.Walker = hero;
+                        }
+
+                        if (currentWorld != null && !currentWorld.Objects.Contains(hero))
+                        {
+                            _logger.LogWarning("ProcessCharacterRespawn: Hero missing from world objects after same-map teleport. Re-attaching hero.");
+                            currentWorld.Objects.Add(hero);
+                        }
+
+                        hero.Hidden = false;
                         _logger.LogInformation("ProcessCharacterRespawn: Sending ClientReadyAfterMapChange for same map teleport/respawn.");
                         await _characterService.SendClientReadyAfterMapChangeAsync();
                     }

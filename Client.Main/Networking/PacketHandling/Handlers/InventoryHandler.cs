@@ -182,8 +182,16 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                         if (packet.Length >= InventoryMoneyUpdate.Length)
                         {
                             var moneyUpdate = new InventoryMoneyUpdate(packet);
+                            bool hadPendingPickup = _characterState.PendingPickupRawId.HasValue;
                             _characterState.UpdateInventoryZen(moneyUpdate.Money);
-                            ShowPickupChatMessage($"Picked up Zen. Total: {moneyUpdate.Money:N0}");
+                            if (hadPendingPickup)
+                            {
+                                ShowPickupChatMessage($"Picked up Zen. Total: {moneyUpdate.Money:N0}");
+                            }
+                            else
+                            {
+                                _logger.LogDebug("Inventory money update (0x22/0xFE) without pending pickup. Suppressing pickup chat message.");
+                            }
                         }
                         else
                         {

@@ -1387,12 +1387,19 @@ namespace Client.Main.Networking.PacketHandling.Handlers
         {
             var outPkt = new MapObjectOutOfScope(packet);
             int count = outPkt.ObjectCount;
+            ushort selfId = (ushort)(_characterState.Id & 0x7FFF);
             var objectsToRemove = new List<ushort>(count);
 
             for (int i = 0; i < count; i++)
             {
                 ushort raw = outPkt[i].Id;
                 ushort masked = (ushort)(raw & 0x7FFF);
+                if (masked == selfId && selfId != 0 && selfId != 0x7FFF)
+                {
+                    _logger.LogDebug("Ignoring OutOfScope for local player ID {Id:X4}.", masked);
+                    continue;
+                }
+
                 objectsToRemove.Add(masked);
                 _scopeManager.RemoveObjectFromScope(masked);
             }
@@ -1401,13 +1408,26 @@ namespace Client.Main.Networking.PacketHandling.Handlers
             MuGame.ScheduleOnMainThread(() =>
             {
                 if (MuGame.Instance.ActiveScene?.World is not WalkableWorldControl world) return;
+                var localWalker = world.Walker;
 
                 foreach (var masked in objectsToRemove)
                 {
+                    if (localWalker != null && localWalker.NetworkId == masked)
+                    {
+                        _logger.LogWarning("Skipping OutOfScope removal for local walker ID {Id:X4}.", masked);
+                        continue;
+                    }
+
                     // ---- 1) Player --------------------------------------------------
                     var player = world.FindPlayerById(masked);
                     if (player != null)
                     {
+                        if (localWalker != null && ReferenceEquals(player, localWalker))
+                        {
+                            _logger.LogWarning("Skipping OutOfScope disposal for local player object ID {Id:X4}.", masked);
+                            continue;
+                        }
+
                         world.Objects.Remove(player);
                         player.Dispose();
                         continue;
@@ -1417,6 +1437,12 @@ namespace Client.Main.Networking.PacketHandling.Handlers
                     var walker = world.FindWalkerById(masked);
                     if (walker != null)
                     {
+                        if (localWalker != null && ReferenceEquals(walker, localWalker))
+                        {
+                            _logger.LogWarning("Skipping OutOfScope disposal for local walker object ID {Id:X4}.", masked);
+                            continue;
+                        }
+
                         world.Objects.Remove(walker);
                         walker.Dispose();
                         continue;
