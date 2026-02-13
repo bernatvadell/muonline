@@ -949,6 +949,11 @@ namespace Client.Main.Controls
 
             for (int i = objects.Count - 1; i >= 0; i--)
             {
+                // _visibleObjects can shrink while objects update/remove themselves.
+                // Guard each access to avoid transient out-of-range exceptions.
+                if ((uint)i >= (uint)objects.Count)
+                    continue;
+
                 var obj = objects[i];
                 if (obj == null || !obj.Visible)
                     continue;

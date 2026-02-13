@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Threading.Tasks;
+using Client.Data.BMD;
 using Client.Main.Content;
 using Client.Main.Controllers;
 using Client.Main.Controls;
@@ -20,6 +21,7 @@ namespace Client.Main.Objects.Effects
     public sealed class ScrollOfEvilSpiritEffect : EffectObject
     {
         private const string JointSpiritTexturePath = "Effect/JointSpirit01.jpg";
+        private const string DefaultLaserModelPath = "Skill/Laser01.bmd";
         private const string SoundEvil = "Sound/sEvil.wav";
 
         // Original parameters from ZzzEffectJoint.cpp SubType 0
@@ -27,18 +29,24 @@ namespace Client.Main.Objects.Effects
         private const float TargetZOffset = 80f;
         private const float Velocity = 40f;
         private const float LifeTimeFrames = 49f;
-        private const int MaxTails = 6;
+        private const int BaseMaxTails = 11;
+        private const int MaxTailCapacity = 24;
         private const int SpiritCount = 4;
-        private const float HummingTurnRate = 10f;
+        private const float HummingTurnRate = 12f;
 
-        // Larger, more transparent spirits
-        private const float MainSpiritScale = 180f;
-        private const float VisualSpiritScale = 60f;
-        private const float AlphaMultiplier = 0.4f;
+        // Keep cloud-like trail volume close to prior implementation.
+        private const float MainSpiritScale = 84f;
+        private const float VisualSpiritScale = 20f;
+        private const float AlphaMultiplier = 0.32f;
+        private const float RibbonVisibility = 0.62f;
+        private const bool RenderVisualRibbonLayer = true;
+        private const float TailOpacityRiseSpeed = 0.45f;
+        private const float TailOpacityDecaySpeed = 0.12f;
+        private const float TailShrinkRate = 0.35f;
 
-        // Dark light settings - shadows don't stack thanks to TerrainLightManager Min logic
-        private const float DarkLightRadius = 160f;
-        private const float DarkLightIntensity = 0.6f;
+        // Terrain darkening for spirit wake.
+        private const float DarkLightRadius = 330f;
+        private const float DarkLightIntensity = 1.45f;
 
         // Subtractive blend state (RENDER_TYPE_ALPHA_BLEND_MINUS)
         private static readonly BlendState SubtractiveBlend = new BlendState
@@ -59,8 +67,19 @@ namespace Client.Main.Objects.Effects
         private readonly SpiritBolt[] _spirits = new SpiritBolt[SpiritCount * 2];
         private int _spiritCount;
 
-        // Dark lights for shadow effect (one per main spirit)
+        // Dark lights for shadow effect (one per main spirit).
         private readonly DynamicLight[] _darkLights = new DynamicLight[SpiritCount];
+
+        // Characteristic "ghost figures" rendered by MODEL_LASER in original client.
+        // 3-layer stack creates heavy blur impression: core + two translucent trailing layers.
+        private readonly EvilSpiritGhostModel?[] _spiritHeadCore = new EvilSpiritGhostModel?[SpiritCount];
+        private readonly EvilSpiritGhostModel?[] _spiritHeadBlurA = new EvilSpiritGhostModel?[SpiritCount];
+        private readonly EvilSpiritGhostModel?[] _spiritHeadBlurB = new EvilSpiritGhostModel?[SpiritCount];
+        private string _laserModelPath = DefaultLaserModelPath;
+        private BMD? _laserModel;
+        private bool _laserPathResolved;
+        private bool _spiritHeadsSpawned;
+
         private bool _lightsAdded;
 
         private bool _soundPlayed;
@@ -79,6 +98,8 @@ namespace Client.Main.Objects.Effects
             public int NumTails;
             public float LifeTime;
             public float Scale;
+            public float TailOpacity;
+            public float TailShrinkAccumulator;
         }
 
         private struct TailVertex
@@ -104,11 +125,10 @@ namespace Client.Main.Objects.Effects
                 new Vector3(-600f, -600f, -150f),
                 new Vector3(600f, 600f, 350f));
 
-            // Pre-allocate vertex/index buffers
-            // Each spirit has MaxTails segments, each segment has 2 quads (4 verts each) = 8 verts per segment
-            // Total: SpiritCount*2 spirits * MaxTails segments * 8 verts = lots
+            // Pre-allocate vertex/index buffers.
+            // Tail count is dynamic (scaled by FPS), so allocate for max capacity.
             int maxSpirits = SpiritCount * 2;
-            int maxQuads = maxSpirits * MaxTails * 2;  // 2 quads per segment (cross shape)
+            int maxQuads = maxSpirits * MaxTailCapacity * 2;  // 2 quads per segment (cross shape)
             _vertices = new VertexPositionColorTexture[maxQuads * 4];
             _indices = new short[maxQuads * 6];
 
@@ -147,10 +167,12 @@ namespace Client.Main.Objects.Effects
                     Position = startPos,
                     Angle = new Vector3(0f, 0f, angleOffset),
                     Direction = Vector3.Zero,
-                    Tails = new TailVertex[MaxTails + 1],
+                    Tails = new TailVertex[MaxTailCapacity + 1],
                     NumTails = 0,
                     LifeTime = LifeTimeFrames,
-                    Scale = MainSpiritScale
+                    Scale = MainSpiritScale,
+                    TailOpacity = 0f,
+                    TailShrinkAccumulator = 0f
                 };
 
                 // Visual bolt (smaller scale)
@@ -159,10 +181,12 @@ namespace Client.Main.Objects.Effects
                     Position = startPos,
                     Angle = new Vector3(0f, 0f, angleOffset),
                     Direction = Vector3.Zero,
-                    Tails = new TailVertex[MaxTails + 1],
+                    Tails = new TailVertex[MaxTailCapacity + 1],
                     NumTails = 0,
                     LifeTime = LifeTimeFrames,
-                    Scale = VisualSpiritScale
+                    Scale = VisualSpiritScale,
+                    TailOpacity = 0f,
+                    TailShrinkAccumulator = 0f
                 };
 
                 // Create dark light for this main spirit
@@ -170,7 +194,7 @@ namespace Client.Main.Objects.Effects
                 {
                     Owner = this,
                     Position = startPos,
-                    Color = new Vector3(-1f, -1f, -1f),  // Negative color = shadow/darkness
+                    Color = new Vector3(-0.82f, -0.82f, -0.82f), // Negative color = shadow/darkness
                     Radius = DarkLightRadius,
                     Intensity = DarkLightIntensity
                 };
@@ -180,6 +204,25 @@ namespace Client.Main.Objects.Effects
         public override async Task LoadContent()
         {
             await base.LoadContent();
+
+            await ResolveLaserPath();
+            _laserModel = await BMDLoader.Instance.Prepare(_laserModelPath);
+            if (_laserModel == null)
+            {
+                string[] fallbackModels =
+                [
+                    "Skill/Laser01.bmd",
+                    "Skill/Laser1.bmd",
+                    "Skill/Laser.bmd"
+                ];
+
+                for (int i = 0; i < fallbackModels.Length && _laserModel == null; i++)
+                {
+                    _laserModel = await BMDLoader.Instance.Prepare(fallbackModels[i]);
+                    if (_laserModel != null)
+                        _laserModelPath = fallbackModels[i];
+                }
+            }
 
             _ = await TextureLoader.Instance.Prepare(JointSpiritTexturePath);
             _spiritTexture = TextureLoader.Instance.GetTexture2D(JointSpiritTexturePath) ?? GraphicsManager.Instance.Pixel;
@@ -201,6 +244,33 @@ namespace Client.Main.Objects.Effects
                 }
                 _lightsAdded = true;
             }
+
+            EnsureSpiritHeads();
+        }
+
+        private async Task ResolveLaserPath()
+        {
+            if (_laserPathResolved)
+                return;
+
+            string[] candidates =
+            [
+                DefaultLaserModelPath,
+                "Skill/Laser1.bmd",
+                "Skill/Laser.bmd"
+            ];
+
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                if (await BMDLoader.Instance.AssestExist(candidates[i]))
+                {
+                    _laserModelPath = candidates[i];
+                    _laserPathResolved = true;
+                    return;
+                }
+            }
+
+            _laserPathResolved = true;
         }
 
         private void RemoveDarkLights()
@@ -240,7 +310,10 @@ namespace Client.Main.Objects.Effects
                 _lightsAdded = true;
             }
 
+            EnsureSpiritHeads();
+
             float frameFactor = FPSCounter.Instance.FPS_ANIMATION_FACTOR;
+            int targetTailCount = ResolveTargetTailCount(frameFactor);
 
             if (!_soundPlayed)
             {
@@ -261,80 +334,140 @@ namespace Client.Main.Objects.Effects
             for (int i = 0; i < _spiritCount; i++)
             {
                 ref var spirit = ref _spirits[i];
+                bool spiritActive = false;
 
-                if (spirit.LifeTime <= 0)
-                    continue;
-
-                anyAlive = true;
-
-                // Shift tail positions
-                if (spirit.NumTails < MaxTails)
-                    spirit.NumTails++;
-
-                for (int t = spirit.NumTails - 1; t > 0; t--)
+                if (spirit.LifeTime > 0f)
                 {
-                    spirit.Tails[t] = spirit.Tails[t - 1];
+                    spiritActive = true;
+                    spirit.TailShrinkAccumulator = 0f;
+                    spirit.TailOpacity = MathHelper.Clamp(
+                        spirit.TailOpacity + TailOpacityRiseSpeed * frameFactor,
+                        0f,
+                        1f);
+
+                    // Shift tail positions
+                    if (spirit.NumTails < targetTailCount)
+                        spirit.NumTails++;
+
+                    for (int t = spirit.NumTails - 1; t > 0; t--)
+                    {
+                        spirit.Tails[t] = spirit.Tails[t - 1];
+                    }
+
+                    // Create new tail at current position
+                    CreateTail(ref spirit);
+
+                    // MoveHumming - adjust angle towards target
+                    MoveHumming(ref spirit.Position, ref spirit.Angle, targetPos, HummingTurnRate * frameFactor);
+
+                    // Random perturbation
+                    spirit.Direction.X += (MuGame.Random.Next(32) - 16) * 0.2f;
+                    spirit.Direction.Z += (MuGame.Random.Next(32) - 16) * 0.8f;
+
+                    spirit.Angle.X += spirit.Direction.X * frameFactor;
+                    spirit.Angle.Z += spirit.Direction.Z * frameFactor;
+
+                    spirit.Direction.X *= 0.6f;
+                    spirit.Direction.Z *= 0.8f;
+
+                    // Move forward
+                    float yawRad = MathHelper.ToRadians(spirit.Angle.Z);
+                    float pitchRad = MathHelper.ToRadians(spirit.Angle.X);
+
+                    Vector3 forward = new Vector3(
+                        MathF.Sin(yawRad) * MathF.Cos(pitchRad),
+                        -MathF.Cos(yawRad) * MathF.Cos(pitchRad),
+                        MathF.Sin(pitchRad)
+                    );
+
+                    spirit.Position += forward * Velocity * frameFactor;
+
+                    // Height constraints
+                    if (World?.Terrain != null)
+                    {
+                        float terrainHeight = World.Terrain.RequestTerrainHeight(spirit.Position.X, spirit.Position.Y);
+                        if (spirit.Position.Z < terrainHeight + 100f)
+                        {
+                            spirit.Direction.X = 0f;
+                            spirit.Angle.X = -5f;
+                        }
+                        if (spirit.Position.Z > terrainHeight + 400f)
+                        {
+                            spirit.Direction.X = 0f;
+                            spirit.Angle.X = 5f;
+                        }
+                    }
+
+                    spirit.LifeTime -= frameFactor;
                 }
-
-                // Create new tail at current position
-                CreateTail(ref spirit);
-
-                // MoveHumming - adjust angle towards target
-                MoveHumming(ref spirit.Position, ref spirit.Angle, targetPos, HummingTurnRate * frameFactor);
-
-                // Random perturbation
-                spirit.Direction.X += (MuGame.Random.Next(32) - 16) * 0.2f;
-                spirit.Direction.Z += (MuGame.Random.Next(32) - 16) * 0.8f;
-
-                spirit.Angle.X += spirit.Direction.X * frameFactor;
-                spirit.Angle.Z += spirit.Direction.Z * frameFactor;
-
-                spirit.Direction.X *= 0.6f;
-                spirit.Direction.Z *= 0.8f;
-
-                // Move forward
-                float yawRad = MathHelper.ToRadians(spirit.Angle.Z);
-                float pitchRad = MathHelper.ToRadians(spirit.Angle.X);
-
-                Vector3 forward = new Vector3(
-                    MathF.Sin(yawRad) * MathF.Cos(pitchRad),
-                    -MathF.Cos(yawRad) * MathF.Cos(pitchRad),
-                    MathF.Sin(pitchRad)
-                );
-
-                spirit.Position += forward * Velocity * frameFactor;
-
-                // Height constraints
-                if (World?.Terrain != null)
+                else
                 {
-                    float terrainHeight = World.Terrain.RequestTerrainHeight(spirit.Position.X, spirit.Position.Y);
-                    if (spirit.Position.Z < terrainHeight + 100f)
-                    {
-                        spirit.Direction.X = 0f;
-                        spirit.Angle.X = -5f;
-                    }
-                    if (spirit.Position.Z > terrainHeight + 400f)
-                    {
-                        spirit.Direction.X = 0f;
-                        spirit.Angle.X = 5f;
-                    }
-                }
+                    // Smooth post-life fade: keep flying while the tail and opacity decay.
+                    spirit.TailOpacity = MathHelper.Clamp(
+                        spirit.TailOpacity - TailOpacityDecaySpeed * frameFactor,
+                        0f,
+                        1f);
 
-                spirit.LifeTime -= frameFactor;
+                    // Continue drifting forward during fade-out, so ghosts do not "freeze" in place.
+                    float fadeDrift = 0.25f + 0.65f * spirit.TailOpacity;
+                    float yawRad = MathHelper.ToRadians(spirit.Angle.Z);
+                    float pitchRad = MathHelper.ToRadians(spirit.Angle.X);
+                    Vector3 fadeForward = new Vector3(
+                        MathF.Sin(yawRad) * MathF.Cos(pitchRad),
+                        -MathF.Cos(yawRad) * MathF.Cos(pitchRad),
+                        MathF.Sin(pitchRad)
+                    );
+                    spirit.Position += fadeForward * Velocity * fadeDrift * frameFactor;
+
+                    // Keep the newest tail point attached to moving spirit while old segments fade out.
+                    if (spirit.NumTails > 0)
+                    {
+                        for (int t = spirit.NumTails - 1; t > 0; t--)
+                        {
+                            spirit.Tails[t] = spirit.Tails[t - 1];
+                        }
+                        CreateTail(ref spirit);
+                    }
+
+                    if (spirit.NumTails > 0)
+                    {
+                        spirit.TailShrinkAccumulator += frameFactor * TailShrinkRate;
+                        while (spirit.TailShrinkAccumulator >= 1f && spirit.NumTails > 0)
+                        {
+                            spirit.NumTails--;
+                            spirit.TailShrinkAccumulator -= 1f;
+                        }
+                    }
+
+                    spiritActive = spirit.NumTails > 0 && spirit.TailOpacity > 0.01f;
+                }
 
                 // Update corresponding dark light (main spirits at even indices: 0,2,4,6 -> light 0,1,2,3)
                 if (i % 2 == 0)
                 {
                     int lightIdx = i / 2;
+
+                    if (_spiritHeadsSpawned)
+                    {
+                        bool forceFade = spirit.LifeTime <= 0f || !spiritActive;
+                        UpdateSpiritHead(lightIdx, spirit, targetTailCount, forceFade);
+                    }
+
                     if (_darkLights[lightIdx] != null)
                     {
                         _darkLights[lightIdx].Position = spirit.Position;
 
-                        // Fade intensity with lifetime
                         float lifeFactor = MathHelper.Clamp(spirit.LifeTime / LifeTimeFrames, 0f, 1f);
-                        _darkLights[lightIdx].Intensity = DarkLightIntensity * lifeFactor;
+                        float tailFactor = MathHelper.Clamp(spirit.NumTails / (float)Math.Max(1, targetTailCount), 0f, 1f);
+                        float opacityFactor = tailFactor * spirit.TailOpacity;
+                        float darkness = -0.62f - 0.55f * Math.Max(lifeFactor, opacityFactor);
+                        _darkLights[lightIdx].Color = new Vector3(darkness, darkness, darkness);
+                        _darkLights[lightIdx].Intensity = DarkLightIntensity * Math.Max(lifeFactor, opacityFactor * 0.95f);
                     }
                 }
+
+                if (spiritActive)
+                    anyAlive = true;
             }
 
             UpdateBounds();
@@ -343,6 +476,147 @@ namespace Client.Main.Objects.Effects
             {
                 RemoveSelf();
             }
+        }
+
+        private static int ResolveTargetTailCount(float frameFactor)
+        {
+            float safeFactor = MathF.Max(frameFactor, 0.1f);
+            int scaled = (int)MathF.Ceiling(BaseMaxTails / safeFactor);
+            return Math.Clamp(scaled, BaseMaxTails, MaxTailCapacity);
+        }
+
+        private void EnsureSpiritHeads()
+        {
+            if (World == null || !_laserPathResolved || _laserModel == null || _spiritCount <= 0)
+                return;
+
+            int expectedHeads = Math.Min(SpiritCount, _spiritCount / 2);
+            if (expectedHeads <= 0)
+                return;
+
+            for (int i = 0; i < expectedHeads; i++)
+            {
+                int spiritIdx = i * 2;
+                Vector3 spawnPosition = _spirits[spiritIdx].Position;
+
+                EnsureHeadLayer(
+                    ref _spiritHeadCore[i],
+                    _laserModel,
+                    spawnPosition,
+                    1.1f,
+                    0.24f,
+                    0.46f,
+                    1.0f);
+
+                EnsureHeadLayer(
+                    ref _spiritHeadBlurA[i],
+                    _laserModel,
+                    spawnPosition,
+                    1.55f,
+                    0.1f,
+                    0.26f,
+                    0.8f);
+
+                EnsureHeadLayer(
+                    ref _spiritHeadBlurB[i],
+                    _laserModel,
+                    spawnPosition,
+                    2.05f,
+                    0.04f,
+                    0.16f,
+                    0.62f);
+            }
+
+            _spiritHeadsSpawned = true;
+        }
+
+        private void UpdateSpiritHead(int headIndex, in SpiritBolt spirit, int targetTailCount, bool forceFadeOut = false)
+        {
+            if ((uint)headIndex >= SpiritCount)
+                return;
+
+            float lifeFactor = MathHelper.Clamp(spirit.LifeTime / LifeTimeFrames, 0f, 1f);
+            float tailFactor = MathHelper.Clamp(spirit.NumTails / (float)Math.Max(1, targetTailCount), 0f, 1f);
+            float fadeFactor = tailFactor * spirit.TailOpacity;
+            float brightness = forceFadeOut
+                ? fadeFactor * 0.45f
+                : Math.Max(lifeFactor, fadeFactor * 0.95f);
+
+            UpdateSpiritHeadLayer(_spiritHeadCore[headIndex], spirit, 0, brightness);
+            UpdateSpiritHeadLayer(_spiritHeadBlurA[headIndex], spirit, 2, brightness * 0.86f);
+            UpdateSpiritHeadLayer(_spiritHeadBlurB[headIndex], spirit, 4, brightness * 0.72f);
+        }
+
+        private void RemoveSpiritHeads()
+        {
+            for (int i = 0; i < SpiritCount; i++)
+            {
+                RemoveHeadLayer(ref _spiritHeadCore[i]);
+                RemoveHeadLayer(ref _spiritHeadBlurA[i]);
+                RemoveHeadLayer(ref _spiritHeadBlurB[i]);
+            }
+
+            _spiritHeadsSpawned = false;
+        }
+
+        private void EnsureHeadLayer(
+            ref EvilSpiritGhostModel? layer,
+            BMD model,
+            Vector3 position,
+            float scale,
+            float alphaMin,
+            float alphaMax,
+            float brightnessFactor)
+        {
+            if (layer != null && layer.Status != GameControlStatus.Disposed)
+                return;
+
+            var head = new EvilSpiritGhostModel(model, scale, alphaMin, alphaMax, brightnessFactor)
+            {
+                Position = position
+            };
+
+            layer = head;
+            World!.Objects.Add(head);
+            _ = head.Load();
+        }
+
+        private static void RemoveHeadLayer(ref EvilSpiritGhostModel? layer)
+        {
+            if (layer == null)
+                return;
+
+            if (layer.World != null)
+                layer.World.RemoveObject(layer);
+
+            layer.Dispose();
+            layer = null;
+        }
+
+        private static void UpdateSpiritHeadLayer(
+            EvilSpiritGhostModel? head,
+            in SpiritBolt spirit,
+            int trailOffset,
+            float brightness)
+        {
+            if (head == null || head.Status == GameControlStatus.Disposed)
+                return;
+
+            head.Position = ResolveTrailPosition(in spirit, trailOffset);
+            head.Angle = new Vector3(
+                MathHelper.ToRadians(spirit.Angle.X + 30f),
+                0f,
+                MathHelper.ToRadians(spirit.Angle.Z));
+            head.SetBrightness(brightness);
+        }
+
+        private static Vector3 ResolveTrailPosition(in SpiritBolt spirit, int trailOffset)
+        {
+            if (trailOffset <= 0 || spirit.NumTails <= trailOffset)
+                return spirit.Position;
+
+            ref readonly TailVertex tail = ref spirit.Tails[trailOffset];
+            return (tail.V0 + tail.V1 + tail.V2 + tail.V3) * 0.25f;
         }
 
         /// <summary>
@@ -470,13 +744,19 @@ namespace Client.Main.Objects.Effects
         {
             for (int i = 0; i < _spiritCount; i++)
             {
-                ref var spirit = ref _spirits[i];
-
-                if (spirit.LifeTime <= 0 || spirit.NumTails < 2)
+                // Optional reduction of visual clutter: skip the secondary thin ribbon layer.
+                if (!RenderVisualRibbonLayer && (i & 1) != 0)
                     continue;
 
-                // Luminosity based on lifetime
-                float luminosity = MathHelper.Clamp(spirit.LifeTime * 0.1f, 0f, 1f);
+                ref var spirit = ref _spirits[i];
+
+                if (spirit.NumTails < 2)
+                    continue;
+
+                float lifeLuminosity = MathHelper.Clamp(spirit.LifeTime * 0.1f, 0f, 1f);
+                float tailLuminosity = MathHelper.Clamp(spirit.NumTails / (float)MaxTailCapacity, 0f, 1f) * 0.6f;
+                float luminosity = Math.Max(lifeLuminosity, tailLuminosity) * MathHelper.Clamp(spirit.TailOpacity, 0f, 1f);
+                float tailDenominator = Math.Max(1f, spirit.NumTails - 1f);
 
                 for (int j = 0; j < spirit.NumTails - 1; j++)
                 {
@@ -484,12 +764,12 @@ namespace Client.Main.Objects.Effects
                     ref var next = ref spirit.Tails[j + 1];
 
                     // Light falloff along tail
-                    float light1 = (spirit.NumTails - j) / (float)(MaxTails - 1);
-                    float light2 = (spirit.NumTails - (j + 1)) / (float)(MaxTails - 1);
+                    float light1 = (spirit.NumTails - j) / tailDenominator;
+                    float light2 = (spirit.NumTails - (j + 1)) / tailDenominator;
 
                     // Apply transparency multiplier for more ethereal look
-                    float alpha1 = luminosity * light1 * AlphaMultiplier;
-                    float alpha2 = luminosity * light2 * AlphaMultiplier;
+                    float alpha1 = luminosity * light1 * AlphaMultiplier * RibbonVisibility;
+                    float alpha2 = luminosity * light2 * AlphaMultiplier * RibbonVisibility;
 
                     // White color for subtractive blend -> appears dark
                     Color c1 = new Color(alpha1, alpha1, alpha1, alpha1);
@@ -527,6 +807,7 @@ namespace Client.Main.Objects.Effects
         private void RemoveSelf()
         {
             RemoveDarkLights();
+            RemoveSpiritHeads();
 
             if (Parent != null)
                 Parent.Children.Remove(this);
@@ -539,9 +820,61 @@ namespace Client.Main.Objects.Effects
         public override void Dispose()
         {
             RemoveDarkLights();
+            RemoveSpiritHeads();
             _effect?.Dispose();
             _effect = null;
             base.Dispose();
+        }
+
+        private sealed class EvilSpiritGhostModel : ModelObject
+        {
+            private readonly BMD _model;
+            private readonly float _alphaMin;
+            private readonly float _alphaMax;
+            private readonly float _brightnessFactor;
+            protected override bool AllowDynamicLightingShader => false;
+            protected override bool AllowLightingUpdates => false;
+
+            public EvilSpiritGhostModel(
+                BMD model,
+                float scale,
+                float alphaMin,
+                float alphaMax,
+                float brightnessFactor)
+            {
+                _model = model ?? throw new ArgumentNullException(nameof(model));
+                _alphaMin = MathHelper.Clamp(alphaMin, 0f, 1f);
+                _alphaMax = MathHelper.Clamp(Math.Max(alphaMax, _alphaMin), 0f, 1f);
+                _brightnessFactor = brightnessFactor;
+
+                ContinuousAnimation = true;
+                AnimationSpeed = 4f;
+                Scale = scale;
+
+                LightEnabled = false;
+                IsTransparent = true;
+                DepthState = DepthStencilState.DepthRead;
+                BlendState = BlendState.NonPremultiplied;
+                BlendMeshState = BlendState.NonPremultiplied;
+                BlendMesh = 0;
+                BlendMeshLight = 0.9f;
+                Alpha = (_alphaMin + _alphaMax) * 0.5f;
+                UseSunLight = false;
+                RenderShadow = false;
+            }
+
+            public override async Task Load()
+            {
+                Model = _model;
+                await base.Load();
+            }
+
+            public void SetBrightness(float brightness)
+            {
+                float adjusted = MathHelper.Clamp(brightness * _brightnessFactor, 0f, 1.25f);
+                BlendMeshLight = MathHelper.Clamp(0.45f + adjusted * 0.7f, 0.45f, 1.2f);
+                Alpha = MathHelper.Clamp(_alphaMin + adjusted * (_alphaMax - _alphaMin), _alphaMin, _alphaMax);
+            }
         }
     }
 }
