@@ -108,7 +108,11 @@ namespace Client.Main.Controllers
             _owner.CurrentAction = idx;
             _owner.InvalidateBuffers();
 
-            if (IsReturnable(kind))
+            if (ShouldLoopWithoutAutoReturn(idx, kind))
+            {
+                _currentOneShot = null;
+            }
+            else if (IsReturnable(kind))
             {
                 _currentOneShot = idx;
                 StartBackupTimer(idx);
@@ -285,6 +289,16 @@ namespace Client.Main.Controllers
 
         private static bool IsReturnable(AnimationType t)
             => t is AnimationType.Attack or AnimationType.Skill or AnimationType.Emote or AnimationType.Appear;
+
+        private bool ShouldLoopWithoutAutoReturn(ushort actionIndex, AnimationType type)
+        {
+            if (type != AnimationType.Skill || _owner is not PlayerObject)
+                return false;
+
+            // Reference client keeps Nova charge (HELL_BEGIN) in a loop
+            // until explicit release, instead of auto-returning to idle.
+            return (PlayerAction)actionIndex == PlayerAction.PlayerSkillHellBegin;
+        }
 
         private bool AllowWhenDead(AnimationType t)
         {

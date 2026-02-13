@@ -1315,7 +1315,8 @@ namespace Client.Main.Objects.Player
             SetActionSpeed(PlayerAction.PlayerSkillHell, 0.50f + magicSpeed2);
             SetActionSpeed(PlayerAction.PlayerRideSkill, 0.30f + magicSpeed2);
 
-            SetActionSpeed(PlayerAction.PlayerSkillHellBegin, 0.50f + magicSpeed2);
+            // Reference client applies an extra 0.5x multiplier to HELL_BEGIN playback.
+            SetActionSpeed(PlayerAction.PlayerSkillHellBegin, 0.25f + (magicSpeed2 * 0.5f));
             SetActionSpeed(PlayerAction.PlayerAttackStrike, 0.25f + attackSpeed1);
             SetActionSpeed(PlayerAction.PlayerAttackRideStrike, 0.20f + attackSpeed1);
             SetActionSpeed(PlayerAction.PlayerAttackRideHorseSword, 0.25f + attackSpeed1);

@@ -5,6 +5,7 @@ using Client.Main.Controls;
 using Client.Main.Controls.UI.Game.Skills;
 using Client.Main.Core.Utilities;
 using Client.Main.Objects;
+using Client.Main.Objects.Effects;
 using Client.Main.Objects.Player;
 using Microsoft.Extensions.Logging;
 using Microsoft.Xna.Framework;
@@ -19,6 +20,8 @@ namespace Client.Main.Scenes
         private const ushort HellFireSkillId = 10;
         private const ushort InfernoSkillId = 14;
         private const ushort EvilSpiritSkillId = 9;
+        private const ushort NovaSkillId = 40;
+        private const ushort NovaStartSkillId = 58;
 
         private readonly GameScene _scene;
         private readonly SkillQuickSlot _skillQuickSlot;
@@ -34,6 +37,7 @@ namespace Client.Main.Scenes
         private bool _pendingSkillTargetIsPlayer;
         private readonly Dictionary<ushort, double> _nextSkillAllowedMs = new();
         private byte _nextAreaSkillAnimationCounter;
+        private bool _novaCharging;
 
         public GameSceneSkillController(
             GameScene scene,
@@ -50,35 +54,73 @@ namespace Client.Main.Scenes
         public void Update()
         {
             UpdatePendingSkill();
+            UpdateNovaState();
         }
 
         public void ClearPending()
         {
             ClearPendingSkill();
+            if (_scene.World is WalkableWorldControl world && _scene.Hero != null)
+                ForceReleaseNovaCharge(world, _scene.Hero);
+            else
+                _novaCharging = false;
+        }
+
+        public void NotifyLocalSkillAnimation(ushort skillId)
+        {
+            if (skillId == NovaStartSkillId)
+            {
+                _novaCharging = true;
+                return;
+            }
+
+            if (skillId == NovaSkillId)
+            {
+                _novaCharging = false;
+            }
         }
 
         public void HandleRightClickSkillUsage()
         {
+            var mouse = MuGame.Instance.Mouse;
+            var prevMouse = MuGame.Instance.PrevMouseState;
+            bool rightPressed = mouse.RightButton == ButtonState.Pressed;
+            bool rightJustPressed = rightPressed && prevMouse.RightButton == ButtonState.Released;
+            bool rightJustReleased = !rightPressed && prevMouse.RightButton == ButtonState.Pressed;
+            bool leftJustPressed = mouse.LeftButton == ButtonState.Pressed && prevMouse.LeftButton == ButtonState.Released;
+
+            var skill = _skillQuickSlot.SelectedSkill;
+            var hero = _scene.Hero;
+            var walkableForSkills = _scene.World as WalkableWorldControl;
+
+            if (_novaCharging && (rightJustReleased || leftJustPressed))
+            {
+                TryReleaseNovaCharge(hero, walkableForSkills);
+                return;
+            }
+
             if (_scene.IsMouseInputConsumedThisFrame)
                 return;
 
             if (IsMouseOverUi())
                 return;
 
-            var mouse = MuGame.Instance.Mouse;
-
             // Allow continuous skill usage while holding right mouse button
             // The cooldown system (TryConsumeSkillDelay) will rate-limit the casting
-            if (mouse.RightButton != ButtonState.Pressed)
+            if (!rightPressed)
                 return;
 
-            var skill = _skillQuickSlot.SelectedSkill;
             if (skill == null)
                 return;
 
-            var hero = _scene.Hero;
-            if (hero == null || hero.IsDead || _scene.World is not WalkableWorldControl walkableForSkills)
+            if (hero == null || hero.IsDead || walkableForSkills == null)
                 return;
+
+            if (skill.SkillId == NovaSkillId)
+            {
+                TryStartNovaCharge(skill, hero, walkableForSkills, rightJustPressed);
+                return;
+            }
 
             // Check if player is in SafeZone
             var terrainFlags = walkableForSkills.Terrain.RequestTerrainFlag((int)hero.Location.X, (int)hero.Location.Y);
@@ -160,6 +202,161 @@ namespace Client.Main.Scenes
             }
 
             _scene.SetMouseInputConsumed();
+        }
+
+        private void UpdateNovaState()
+        {
+            if (!_novaCharging)
+                return;
+
+            var hero = _scene.Hero;
+            if (hero == null || hero.IsDead)
+            {
+                if (_scene.World is WalkableWorldControl deadWorld && hero != null)
+                    ScrollOfNovaChargeEffect.StopForCaster(deadWorld, hero.NetworkId);
+
+                _novaCharging = false;
+                return;
+            }
+
+            var selectedSkill = _skillQuickSlot.SelectedSkill;
+            if (selectedSkill?.SkillId == NovaSkillId)
+                return;
+
+            // If player switched skill while charging, stop local charging state and visuals.
+            if (_scene.World is WalkableWorldControl world)
+                ForceReleaseNovaCharge(world, hero);
+            else
+                _novaCharging = false;
+        }
+
+        private void TryStartNovaCharge(Core.Client.SkillEntryState skill, PlayerObject hero, WalkableWorldControl world, bool rightJustPressed)
+        {
+            if (_novaCharging || !rightJustPressed)
+                return;
+
+            var terrainFlags = world.Terrain.RequestTerrainFlag((int)hero.Location.X, (int)hero.Location.Y);
+            if (terrainFlags.HasFlag(TWFlags.SafeZone))
+            {
+                _logger?.LogDebug("Cannot use Nova in SafeZone");
+                _scene.SetMouseInputConsumed();
+                return;
+            }
+
+            if (hero.IsAttackOrSkillAnimationPlaying())
+                return;
+
+            if (!TryConsumeSkillDelay(NovaSkillId))
+                return;
+
+            if (!HasResourcesForNovaStart())
+                return;
+
+            _novaCharging = true;
+            ClearPendingSkill();
+
+            var startAction = hero.GetSkillAction(NovaStartSkillId, isInSafeZone: false);
+            hero.PlayAction((ushort)startAction);
+            hero.TriggerVehicleSkillAnimation();
+
+            ushort targetId = hero.NetworkId != 0 ? hero.NetworkId : (ushort)_scene.Hero.NetworkId;
+            _ = MuGame.Network.GetCharacterService().SendSkillRequestAsync(NovaStartSkillId, targetId);
+
+            // Start local charging visuals immediately; server packets will refine stage.
+            ScrollOfNovaChargeEffect.GetOrCreate(world, hero);
+
+            _logger?.LogInformation("Started Nova charge (skill {SkillId} -> start {StartSkillId})", skill.SkillId, NovaStartSkillId);
+            _scene.SetMouseInputConsumed();
+        }
+
+        private void TryReleaseNovaCharge(PlayerObject hero, WalkableWorldControl world)
+        {
+            if (!_novaCharging)
+                return;
+
+            _novaCharging = false;
+
+            if (hero == null || hero.IsDead || world == null)
+                return;
+
+            var releaseAction = hero.GetSkillAction(NovaSkillId, isInSafeZone: false);
+            hero.PlayAction((ushort)releaseAction);
+            hero.TriggerVehicleSkillAnimation();
+
+            ushort targetId = ResolveNovaReleaseTargetId(hero);
+            _ = MuGame.Network.GetCharacterService().SendSkillRequestAsync(NovaSkillId, targetId);
+
+            ScrollOfNovaChargeEffect.StopForCaster(world, hero.NetworkId);
+
+            _logger?.LogInformation("Released Nova charge with target {TargetId}", targetId);
+            _scene.SetMouseInputConsumed();
+        }
+
+        private void ForceReleaseNovaCharge(WalkableWorldControl world, PlayerObject hero)
+        {
+            if (!_novaCharging || hero == null || hero.IsDead || world == null)
+            {
+                _novaCharging = false;
+                return;
+            }
+
+            _novaCharging = false;
+
+            ushort targetId = hero.NetworkId != 0 ? hero.NetworkId : ResolveNovaReleaseTargetId(hero);
+            _ = MuGame.Network.GetCharacterService().SendSkillRequestAsync(NovaSkillId, targetId);
+            ScrollOfNovaChargeEffect.StopForCaster(world, hero.NetworkId);
+        }
+
+        private ushort ResolveNovaReleaseTargetId(PlayerObject hero)
+        {
+            var hoveredTarget = GetHoveredSkillTarget();
+            if (hoveredTarget is MonsterObject monster && !monster.IsDead)
+            {
+                hero.FaceTowards(monster.Location, immediate: true);
+                return monster.NetworkId;
+            }
+
+            if (hoveredTarget is PlayerObject player && !player.IsDead && _isDuelAttackTarget(player))
+            {
+                hero.FaceTowards(player.Location, immediate: true);
+                return player.NetworkId;
+            }
+
+            return hero.NetworkId != 0 ? hero.NetworkId : _characterStateSafeIdFallback();
+
+            ushort _characterStateSafeIdFallback()
+            {
+                var state = MuGame.Network?.GetCharacterState();
+                return state?.Id ?? (ushort)0;
+            }
+        }
+
+        private bool HasResourcesForNovaStart()
+        {
+            var characterState = MuGame.Network?.GetCharacterState();
+            if (characterState == null)
+                return true;
+
+            ushort manaCost = SkillDatabase.GetSkillManaCost(NovaSkillId);
+            ushort agCost = SkillDatabase.GetSkillAGCost(NovaStartSkillId);
+            if (agCost == 0)
+                agCost = SkillDatabase.GetSkillAGCost(NovaSkillId);
+
+            if (characterState.CurrentMana < manaCost)
+            {
+                _logger?.LogDebug("Not enough mana for Nova charge start. Required: {Required}, Current: {Current}",
+                    manaCost, characterState.CurrentMana);
+                return false;
+            }
+
+            if (characterState.CurrentAbility < agCost)
+            {
+                _logger?.LogDebug("Not enough AG for Nova charge start. Required: {Required}, Current: {Current}",
+                    agCost, characterState.CurrentAbility);
+                return false;
+            }
+
+            return true;
         }
 
         private WalkerObject GetHoveredSkillTarget()

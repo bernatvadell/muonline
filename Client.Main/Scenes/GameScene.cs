@@ -702,6 +702,11 @@ namespace Client.Main.Scenes
             World = world;
         }
 
+        internal void NotifyLocalSkillAnimation(ushort skillId)
+        {
+            _skillController?.NotifyLocalSkillAnimation(skillId);
+        }
+
         public override void Dispose()
         {
             if (_hero != null)

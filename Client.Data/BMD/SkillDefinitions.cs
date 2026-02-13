@@ -206,7 +206,8 @@ namespace Client.Data.BMD
             Add(10, 154);   // HellFire → PlayerSkillHell
             Add(13, 154);   // Cometfall → PlayerSkillHell
             Add(14, 153);   // Inferno → PlayerSkillInferno
-            Add(40, 152);   // Nova → PlayerSkillFlash
+            Add(40, 73);    // Nova release → PlayerSkillHellStart
+            Add(58, 72);    // Nova start/charge → PlayerSkillHellBegin
             Add(63, 172);   // Summon → PlayerSkillSummon
             Add(214, 168);  // Drain Life → PlayerSkillDrainLife
             Add(215, 160);  // Chain Lightning → PlayerSkillChainLightning
@@ -305,6 +306,7 @@ namespace Client.Data.BMD
             map[15] = "Sound/eTelekinesis.wav";          // Teleport Ally (ID 15)
             map[16] = "Sound/eSoulBarrier.wav";          // Soul Barrier (ID 16)
             map[17] = "Sound/sMagic.wav";                // Energy Ball (ID 17)
+            map[58] = "Sound/eHellFire2_1.wav";          // Nova charge start (ID 58)
 
             // MIXED SKILLS
             map[52] = "Sound/ePiercing.wav";             // Penetration (ID 52)
