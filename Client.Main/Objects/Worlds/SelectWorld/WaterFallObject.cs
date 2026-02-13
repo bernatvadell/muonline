@@ -12,6 +12,7 @@ namespace Client.Main.Objects.Worlds.SelectWrold
         private const float TEXTURE_SCROLL_SPEED = 0.5f;
         private double _accumulatedTime = 0.0;
         private BMDTexCoord[][] _originalTexCoords;
+        protected override bool RequiresPerFrameAnimation => true;
         public override async Task Load()
         {
             var idx = (Type + 1).ToString().PadLeft(2, '0');

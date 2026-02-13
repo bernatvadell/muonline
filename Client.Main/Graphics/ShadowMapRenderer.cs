@@ -7,6 +7,7 @@ using Client.Main.Objects;
 using Client.Main.Objects.Player;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using System.Threading.Tasks;
 
 namespace Client.Main.Graphics
 {
@@ -25,6 +26,12 @@ namespace Client.Main.Graphics
         private Vector3 _lastCameraTarget = new(float.NaN, float.NaN, float.NaN);
         private float _lastShadowDistance = float.NaN;
         private bool _forceRender = true;
+        private readonly object _candidateMergeLock = new();
+        private const int ParallelCasterThreshold = 160;
+        private static readonly ParallelOptions CandidateParallelOptions = new()
+        {
+            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1)
+        };
 
         public Matrix LightView { get; private set; } = Matrix.Identity;
         public Matrix LightProjection { get; private set; } = Matrix.Identity;
@@ -150,24 +157,51 @@ namespace Client.Main.Graphics
 
                 _casterCandidates.Clear();
                 var snapshot = world.Objects.GetSnapshot();
-                for (int i = 0; i < snapshot.Count; i++)
+
+                bool useParallelCulling = Environment.ProcessorCount > 1 &&
+                                          snapshot.Count >= ParallelCasterThreshold;
+
+                if (useParallelCulling)
                 {
-                    if (snapshot[i] is not ModelObject model)
-                        continue;
+                    Parallel.For(
+                        0,
+                        snapshot.Count,
+                        CandidateParallelOptions,
+                        () => new List<(ModelObject model, float distSq)>(16),
+                        (i, _, localCandidates) =>
+                        {
+                            TryCollectCasterCandidate(
+                                snapshot[i],
+                                lightFrustum,
+                                frustumGuardBand,
+                                focus,
+                                maxDistanceSq,
+                                localCandidates);
+                            return localCandidates;
+                        },
+                        localCandidates =>
+                        {
+                            if (localCandidates.Count == 0)
+                                return;
 
-                    if (!model.Visible || model.Status == GameControlStatus.Disposed || !model.RenderShadow)
-                        continue;
-
-                    Vector3 objPos = model.WorldPosition.Translation;
-                    BoundingBox bounds = ExpandBoundingBox(model.BoundingBoxWorld, frustumGuardBand);
-                    if (lightFrustum.Contains(bounds) == ContainmentType.Disjoint)
-                        continue;
-
-                    float distSq = Vector3.DistanceSquared(objPos, focus);
-                    if (distSq > maxDistanceSq)
-                        continue;
-
-                    _casterCandidates.Add((model, distSq));
+                            lock (_candidateMergeLock)
+                            {
+                                _casterCandidates.AddRange(localCandidates);
+                            }
+                        });
+                }
+                else
+                {
+                    for (int i = 0; i < snapshot.Count; i++)
+                    {
+                        TryCollectCasterCandidate(
+                            snapshot[i],
+                            lightFrustum,
+                            frustumGuardBand,
+                            focus,
+                            maxDistanceSq,
+                            _casterCandidates);
+                    }
                 }
 
                 // Sort by distance (closest first) and limit count
@@ -294,6 +328,32 @@ namespace Client.Main.Graphics
 
             Vector3 margin = new Vector3(amount);
             return new BoundingBox(box.Min - margin, box.Max + margin);
+        }
+
+        private static void TryCollectCasterCandidate(
+            WorldObject worldObject,
+            BoundingFrustum lightFrustum,
+            float frustumGuardBand,
+            Vector3 focus,
+            float maxDistanceSq,
+            List<(ModelObject model, float distSq)> destination)
+        {
+            if (worldObject is not ModelObject model)
+                return;
+
+            if (!model.Visible || model.Status == GameControlStatus.Disposed || !model.RenderShadow)
+                return;
+
+            Vector3 objPos = model.WorldPosition.Translation;
+            BoundingBox bounds = ExpandBoundingBox(model.BoundingBoxWorld, frustumGuardBand);
+            if (lightFrustum.Contains(bounds) == ContainmentType.Disjoint)
+                return;
+
+            float distSq = Vector3.DistanceSquared(objPos, focus);
+            if (distSq > maxDistanceSq)
+                return;
+
+            destination.Add((model, distSq));
         }
     }
 }

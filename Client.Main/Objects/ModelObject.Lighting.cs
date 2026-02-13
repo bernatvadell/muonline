@@ -112,7 +112,7 @@ namespace Client.Main.Objects
                 return;
             }
 
-            int maxLights = Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 16;
+            int maxLights = ResolveDynamicObjectLightBudget(worldTranslation);
             int lightCount = 0;
             var terrain = World?.Terrain;
             if (terrain != null)
@@ -127,18 +127,12 @@ namespace Client.Main.Objects
                     {
                         EnsureDynamicLightSelectionBuffer();
 
-                        if (activeLights.Count <= maxLights)
-                        {
-                            int count = activeLights.Count;
-                            for (int i = 0; i < count; i++)
-                                _dynamicLightSelectionIndices[i] = i;
-
-                            _dynamicLightSelectionCount = count;
-                        }
-                        else
-                        {
-                            _dynamicLightSelectionCount = SelectRelevantLightIndices(activeLights, worldTranslation, maxLights, _dynamicLightSelectionIndices);
-                        }
+                        // Always select by influence so nearby/high-impact lights are prioritized.
+                        _dynamicLightSelectionCount = SelectRelevantLightIndices(
+                            activeLights,
+                            worldTranslation,
+                            maxLights,
+                            _dynamicLightSelectionIndices);
                     }
 
                     _dynamicLightSelectionVersion = version;
@@ -160,6 +154,36 @@ namespace Client.Main.Objects
                 effect.Parameters["LightRadii"]?.SetValue(_cachedLightRadii);
                 effect.Parameters["LightIntensities"]?.SetValue(_cachedLightIntensities);
             }
+        }
+
+        private int ResolveDynamicObjectLightBudget(Vector3 worldTranslation)
+        {
+            int maxLights = Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 4 : 12;
+
+            if (LowQuality)
+                maxLights = Math.Min(maxLights, Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 2 : 6);
+
+            var camera = Camera.Instance;
+            if (camera == null)
+                return Math.Max(1, maxLights);
+
+            var camPos = camera.Position;
+            float dx = camPos.X - worldTranslation.X;
+            float dy = camPos.Y - worldTranslation.Y;
+            float distSq = dx * dx + dy * dy;
+
+            const float nearSq = 1500f * 1500f;
+            const float midSq = 3200f * 3200f;
+            const float farSq = 5200f * 5200f;
+
+            if (distSq > farSq)
+                maxLights = Math.Min(maxLights, Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 1 : 3);
+            else if (distSq > midSq)
+                maxLights = Math.Min(maxLights, Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 2 : 4);
+            else if (distSq > nearSq)
+                maxLights = Math.Min(maxLights, Constants.OPTIMIZE_FOR_INTEGRATED_GPU ? 3 : 6);
+
+            return Math.Max(1, maxLights);
         }
 
         private void EnsureDynamicLightSelectionBuffer()

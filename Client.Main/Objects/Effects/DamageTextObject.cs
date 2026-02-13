@@ -15,7 +15,7 @@ namespace Client.Main.Objects.Effects
     /// <summary>
     /// Floating damage / crit text above a target.
     /// </summary>
-    public class DamageTextObject : WorldObject
+    public class DamageTextObject : EffectObject
     {
         // Public readonly data -------------------------------------------------
         public string Text { get; private set; }

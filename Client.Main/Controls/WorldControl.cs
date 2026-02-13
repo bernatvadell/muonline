@@ -15,6 +15,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 
 namespace Client.Main.Controls
 {
@@ -143,10 +144,17 @@ namespace Client.Main.Controls
         private readonly List<WorldObject> _visibleObjects = [];
         private readonly HashSet<WorldObject> _visibleObjectSet = [];
         private readonly HashSet<WorldObject> _positionDirtyObjects = [];
+        private readonly object _visibleMergeLock = new();
         private bool _dirtyVisibleObjects = true;
         private const float NearUpdateDistanceSq = 2200f * 2200f;
         private const float MidUpdateDistanceSq = 4200f * 4200f;
         private const float FarUpdateDistanceSq = 6200f * 6200f;
+        private const int ParallelVisibleRebuildThreshold = 220;
+        private const int ParallelDirtyRefreshThreshold = 80;
+        private static readonly ParallelOptions VisibleParallelOptions = new()
+        {
+            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1)
+        };
 
         public Dictionary<ushort, WalkerObject> WalkerObjectsById { get; } = [];
 
@@ -785,15 +793,57 @@ namespace Client.Main.Controls
             float maxViewDistance = camera.ViewFar + Constants.MAX_CAMERA_DISTANCE + 250f;
             float maxDistSq = maxViewDistance * maxViewDistance;
             var frustum = camera.Frustum;
+            var snapshot = Objects.GetSnapshot();
+            bool useParallel = Environment.ProcessorCount > 1 &&
+                               snapshot.Count >= ParallelVisibleRebuildThreshold;
 
-            for (int i = 0; i < Objects.Count; i++)
+            if (useParallel)
             {
-                var obj = Objects[i];
-                if (!obj.Visible)
-                    continue;
+                Parallel.For(
+                    0,
+                    snapshot.Count,
+                    VisibleParallelOptions,
+                    () => new List<WorldObject>(32),
+                    (i, _, localVisible) =>
+                    {
+                        var obj = snapshot[i];
+                        if (obj != null && obj.Visible &&
+                            (obj is EffectObject || IsObjectInView(obj, cam2, maxDistSq, frustum)))
+                        {
+                            localVisible.Add(obj);
+                        }
 
-                if (obj is EffectObject || IsObjectInView(obj, cam2, maxDistSq, frustum))
-                    AddVisibleObject(obj);
+                        return localVisible;
+                    },
+                    localVisible =>
+                    {
+                        if (localVisible.Count == 0)
+                            return;
+
+                        lock (_visibleMergeLock)
+                        {
+                            _visibleObjects.AddRange(localVisible);
+                        }
+                    });
+            }
+            else
+            {
+                for (int i = 0; i < snapshot.Count; i++)
+                {
+                    var obj = snapshot[i];
+                    if (obj == null || !obj.Visible)
+                        continue;
+
+                    if (obj is EffectObject || IsObjectInView(obj, cam2, maxDistSq, frustum))
+                        _visibleObjects.Add(obj);
+                }
+            }
+
+            for (int i = 0; i < _visibleObjects.Count; i++)
+            {
+                var obj = _visibleObjects[i];
+                if (obj != null)
+                    _visibleObjectSet.Add(obj);
             }
         }
 
@@ -808,23 +858,75 @@ namespace Client.Main.Controls
             float maxViewDistance = camera.ViewFar + Constants.MAX_CAMERA_DISTANCE + 250f;
             float maxDistSq = maxViewDistance * maxViewDistance;
             var frustum = camera.Frustum;
-
-            foreach (var obj in _positionDirtyObjects)
-            {
-                if (obj == null || !obj.Visible)
-                {
-                    RemoveVisibleObject(obj);
-                    continue;
-                }
-
-                bool inView = obj is EffectObject || IsObjectInView(obj, cam2, maxDistSq, frustum);
-                if (inView)
-                    AddVisibleObject(obj);
-                else
-                    RemoveVisibleObject(obj);
-            }
-
+            var dirtySnapshot = new WorldObject[_positionDirtyObjects.Count];
+            _positionDirtyObjects.CopyTo(dirtySnapshot);
             _positionDirtyObjects.Clear();
+
+            bool useParallel = Environment.ProcessorCount > 1 &&
+                               dirtySnapshot.Length >= ParallelDirtyRefreshThreshold;
+
+            if (useParallel)
+            {
+                var pendingAdd = new List<WorldObject>(dirtySnapshot.Length);
+                var pendingRemove = new List<WorldObject>(dirtySnapshot.Length);
+
+                Parallel.For(
+                    0,
+                    dirtySnapshot.Length,
+                    VisibleParallelOptions,
+                    () => (add: new List<WorldObject>(16), remove: new List<WorldObject>(16)),
+                    (i, _, local) =>
+                    {
+                        var obj = dirtySnapshot[i];
+                        if (obj == null || !obj.Visible)
+                        {
+                            local.remove.Add(obj);
+                            return local;
+                        }
+
+                        bool inView = obj is EffectObject || IsObjectInView(obj, cam2, maxDistSq, frustum);
+                        if (inView)
+                            local.add.Add(obj);
+                        else
+                            local.remove.Add(obj);
+
+                        return local;
+                    },
+                    local =>
+                    {
+                        lock (_visibleMergeLock)
+                        {
+                            if (local.add.Count > 0)
+                                pendingAdd.AddRange(local.add);
+                            if (local.remove.Count > 0)
+                                pendingRemove.AddRange(local.remove);
+                        }
+                    });
+
+                for (int i = 0; i < pendingRemove.Count; i++)
+                    RemoveVisibleObject(pendingRemove[i]);
+
+                for (int i = 0; i < pendingAdd.Count; i++)
+                    AddVisibleObject(pendingAdd[i]);
+            }
+            else
+            {
+                for (int i = 0; i < dirtySnapshot.Length; i++)
+                {
+                    var obj = dirtySnapshot[i];
+                    if (obj == null || !obj.Visible)
+                    {
+                        RemoveVisibleObject(obj);
+                        continue;
+                    }
+
+                    bool inView = obj is EffectObject || IsObjectInView(obj, cam2, maxDistSq, frustum);
+                    if (inView)
+                        AddVisibleObject(obj);
+                    else
+                        RemoveVisibleObject(obj);
+                }
+            }
         }
 
         private void UpdateVisibleObjects(GameTime time)
@@ -874,7 +976,8 @@ namespace Client.Main.Controls
                 || obj is WalkerObject
                 || obj is EffectObject
                 || obj is ParticleSystem
-                || obj is DroppedItemObject;
+                || obj is DroppedItemObject
+                || (obj is ModelObject mo && mo.RequiresPerFrameWorldUpdate);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

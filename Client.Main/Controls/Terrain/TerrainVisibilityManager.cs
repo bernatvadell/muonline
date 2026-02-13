@@ -2,6 +2,7 @@ using Client.Main.Graphics;
 using Microsoft.Xna.Framework;
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace Client.Main.Controls.Terrain
 {
@@ -39,10 +40,16 @@ namespace Client.Main.Controls.Terrain
         private readonly Queue<TerrainBlock> _visibleBlocks = new(64);
         // Scratch list reused each frame to avoid per-update allocations
         private readonly List<TerrainBlock> _visibleScratch = new(256);
+        private readonly object _visibleScratchLock = new();
         private readonly BoundingBox[] _tilePaddedBounds = new BoundingBox[Constants.TERRAIN_SIZE * Constants.TERRAIN_SIZE];
         private Vector2 _lastCameraPosition;
         private readonly int[] _lodSteps = { 1, 2, 4 };
         private bool _cullingDataReady;
+        private const int ParallelBlockCullingThreshold = 144;
+        private static readonly ParallelOptions CullingParallelOptions = new()
+        {
+            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1)
+        };
 
         public IReadOnlyCollection<TerrainBlock> VisibleBlocks => _visibleBlocks;
         public int[] LodSteps => _lodSteps;
@@ -153,52 +160,94 @@ namespace Client.Main.Controls.Terrain
             if (visible.Capacity < expected)
                 visible.Capacity = expected;
 
-            for (int gy = startY; gy <= endY; gy++)
+            bool useParallelCulling = Environment.ProcessorCount > 1 &&
+                                      expected >= ParallelBlockCullingThreshold;
+
+            if (useParallelCulling)
             {
-                for (int gx = startX; gx <= endX; gx++)
+                Parallel.For(
+                    startY,
+                    endY + 1,
+                    CullingParallelOptions,
+                    () => new List<TerrainBlock>(16),
+                    (gy, _, localVisible) =>
+                    {
+                        for (int gx = startX; gx <= endX; gx++)
+                        {
+                            if (TryClassifyVisibleBlock(gx, gy, cameraPosition, renderDistSq, frustum, out var block))
+                                localVisible.Add(block);
+                        }
+
+                        return localVisible;
+                    },
+                    localVisible =>
+                    {
+                        if (localVisible.Count == 0)
+                            return;
+
+                        lock (_visibleScratchLock)
+                        {
+                            visible.AddRange(localVisible);
+                        }
+                    });
+            }
+            else
+            {
+                for (int gy = startY; gy <= endY; gy++)
                 {
-                    var block = _blockCache.GetBlock(gx, gy);
-                    block.Center = new Vector2(
-                        (block.Xi + BlockSize * 0.5f) * Constants.TERRAIN_SCALE,
-                        (block.Yi + BlockSize * 0.5f) * Constants.TERRAIN_SCALE);
-
-                    float distSq = Vector2.DistanceSquared(block.Center, cameraPosition);
-                    if (distSq > renderDistSq)
+                    for (int gx = startX; gx <= endX; gx++)
                     {
-                        block.IsVisible = false;
-                        continue;
-                    }
-
-                    block.LODLevel = GetLodLevel(MathF.Sqrt(distSq));
-
-                    var containment = frustum.Contains(block.PaddedBounds);
-                    block.IsVisible = containment != ContainmentType.Disjoint;
-
-                    if (block.IsVisible)
-                    {
-                        // Hierarchical culling: check individual tiles within the block
-                        if (containment == ContainmentType.Contains)
-                        {
-                            // Block is fully inside frustum - all tiles are visible
-                            block.FullyVisible = true;
-                            block.VisibleTileCount = 16;
-                            for (int i = 0; i < 16; i++)
-                                block.TileVisibility[i] = true;
-                        }
-                        else
-                        {
-                            // Block is partially inside frustum - test individual tiles
-                            block.FullyVisible = false;
-                            PerformTileCulling(block, frustum);
-                        }
-
-                        visible.Add(block);
+                        if (TryClassifyVisibleBlock(gx, gy, cameraPosition, renderDistSq, frustum, out var block))
+                            visible.Add(block);
                     }
                 }
             }
 
             foreach (var block in visible)
                 _visibleBlocks.Enqueue(block);
+        }
+
+        private bool TryClassifyVisibleBlock(
+            int gx,
+            int gy,
+            Vector2 cameraPosition,
+            float renderDistSq,
+            BoundingFrustum frustum,
+            out TerrainBlock block)
+        {
+            block = _blockCache.GetBlock(gx, gy);
+            block.Center = new Vector2(
+                (block.Xi + BlockSize * 0.5f) * Constants.TERRAIN_SCALE,
+                (block.Yi + BlockSize * 0.5f) * Constants.TERRAIN_SCALE);
+
+            float distSq = Vector2.DistanceSquared(block.Center, cameraPosition);
+            if (distSq > renderDistSq)
+            {
+                block.IsVisible = false;
+                return false;
+            }
+
+            block.LODLevel = GetLodLevel(MathF.Sqrt(distSq));
+
+            var containment = frustum.Contains(block.PaddedBounds);
+            block.IsVisible = containment != ContainmentType.Disjoint;
+            if (!block.IsVisible)
+                return false;
+
+            if (containment == ContainmentType.Contains)
+            {
+                block.FullyVisible = true;
+                block.VisibleTileCount = 16;
+                for (int i = 0; i < 16; i++)
+                    block.TileVisibility[i] = true;
+            }
+            else
+            {
+                block.FullyVisible = false;
+                PerformTileCulling(block, frustum);
+            }
+
+            return true;
         }
 
         private int GetLodLevel(float distance)

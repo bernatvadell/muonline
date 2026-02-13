@@ -59,6 +59,13 @@ namespace Client.Main.Content
         private readonly Dictionary<MeshCacheKey, VertexBuffer> _gpuSkinVertexBuffers = [];
         private readonly Dictionary<MeshCacheKey, IndexBuffer> _gpuSkinIndexBuffers = [];
         private readonly Dictionary<MeshCacheKey, int> _gpuSkinBoneCounts = [];
+        private const int ParallelCpuSkinningVertexThreshold = 1200;
+        private const int ParallelTriangleAssemblyThreshold = 400;
+        private static readonly bool EnableParallelCpuSkinning = Environment.ProcessorCount > 1;
+        private static readonly ParallelOptions CpuSkinningParallelOptions = new()
+        {
+            MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1)
+        };
 
         // Per-frame instrumentation (queried by DebugPanel)
         public int FrameVBUpdates { get; private set; }
@@ -414,59 +421,129 @@ namespace Client.Main.Content
             VertexPositionColorNormalTexture[] vertices = null;
             Vector3[] posCache = null;
             bool[] visited = null;
+            int[] triangleOffsets = null;
             ITexCoordDeformer texCoordDeformer = vertexDeformer as ITexCoordDeformer;
 
             try
             {
                 vertices = ArrayPool<VertexPositionColorNormalTexture>.Shared.Rent(totalVertices);
                 posCache = ArrayPool<Vector3>.Shared.Rent(mesh.Vertices.Length);
-                visited = ArrayPool<bool>.Shared.Rent(mesh.Vertices.Length);
-                Array.Clear(visited, 0, mesh.Vertices.Length);
+                bool useParallelTransform = EnableParallelCpuSkinning &&
+                                            vertexDeformer == null &&
+                                            mesh.Vertices.Length >= ParallelCpuSkinningVertexThreshold;
+                bool useParallelAssembly = useParallelTransform &&
+                                           mesh.Triangles.Length >= ParallelTriangleAssemblyThreshold;
+
+                if (!useParallelTransform)
+                {
+                    visited = ArrayPool<bool>.Shared.Rent(mesh.Vertices.Length);
+                    Array.Clear(visited, 0, mesh.Vertices.Length);
+                }
 
                 int v = 0;
                 int uniqueTransformed = 0;
-                foreach (var tri in mesh.Triangles)
+
+                if (useParallelTransform)
                 {
-                    for (int j = 0; j < tri.Polygon; j++)
+                    var meshVertices = mesh.Vertices;
+                    int boneCount = boneMatrix.Length;
+
+                    Parallel.For(0, meshVertices.Length, CpuSkinningParallelOptions, vi =>
                     {
-                        int vi = tri.VertexIndex[j];
-
-                        if (!visited[vi])
+                        var vert = meshVertices[vi];
+                        if (vert.Node >= 0 && vert.Node < boneCount)
                         {
-                            visited[vi] = true;
-                            uniqueTransformed++;
-                            var vert = mesh.Vertices[vi];
-                            if (vert.Node >= 0 && vert.Node < boneMatrix.Length)
-                            {
-                                posCache[vi] = FastTransformPosition(in boneMatrix[vert.Node], in vert.Position);
-                            }
-                            else
-                            {
-                                posCache[vi] = vert.Position;
-                            }
-
-                            if (vertexDeformer != null)
-                            {
-                                posCache[vi] = vertexDeformer.DeformVertex(in vert, in posCache[vi]);
-                            }
+                            posCache[vi] = FastTransformPosition(in boneMatrix[vert.Node], in vert.Position);
                         }
+                        else
+                        {
+                            posCache[vi] = vert.Position;
+                        }
+                    });
 
-                        int ni = tri.NormalIndex[j];
-                        var normal = mesh.Normals[ni].Normal; // keep as-is (object space path)
+                    uniqueTransformed = meshVertices.Length;
+                }
 
-                        int ti = tri.TexCoordIndex[j];
-                        var uv = mesh.TexCoords[ti];
+                if (useParallelAssembly)
+                {
+                    // Phase 2: assemble final vertex stream in parallel. Every triangle
+                    // writes to its own contiguous output range, so there are no races.
+                    int triCount = mesh.Triangles.Length;
+                    triangleOffsets = ArrayPool<int>.Shared.Rent(triCount);
+                    int offset = 0;
+                    for (int i = 0; i < triCount; i++)
+                    {
+                        triangleOffsets[i] = offset;
+                        offset += mesh.Triangles[i].Polygon;
+                    }
 
-                        Vector2 texCoord = texCoordDeformer != null
-                            ? texCoordDeformer.DeformTexCoord(uv.U, uv.V)
-                            : new Vector2(uv.U, uv.V);
+                    Parallel.For(0, triCount, CpuSkinningParallelOptions, triIndex =>
+                    {
+                        var tri = mesh.Triangles[triIndex];
+                        int dst = triangleOffsets[triIndex];
 
-                        vertices[v] = new VertexPositionColorNormalTexture(
-                            posCache[vi],
-                            color,
-                            normal,
-                            texCoord);
-                        v++;
+                        for (int j = 0; j < tri.Polygon; j++)
+                        {
+                            int vi = tri.VertexIndex[j];
+                            int ni = tri.NormalIndex[j];
+                            int ti = tri.TexCoordIndex[j];
+
+                            var normal = mesh.Normals[ni].Normal;
+                            var uv = mesh.TexCoords[ti];
+
+                            vertices[dst + j] = new VertexPositionColorNormalTexture(
+                                posCache[vi],
+                                color,
+                                normal,
+                                new Vector2(uv.U, uv.V));
+                        }
+                    });
+                }
+                else
+                {
+                    foreach (var tri in mesh.Triangles)
+                    {
+                        for (int j = 0; j < tri.Polygon; j++)
+                        {
+                            int vi = tri.VertexIndex[j];
+
+                            if (!useParallelTransform && !visited[vi])
+                            {
+                                visited[vi] = true;
+                                uniqueTransformed++;
+                                var vert = mesh.Vertices[vi];
+                                if (vert.Node >= 0 && vert.Node < boneMatrix.Length)
+                                {
+                                    posCache[vi] = FastTransformPosition(in boneMatrix[vert.Node], in vert.Position);
+                                }
+                                else
+                                {
+                                    posCache[vi] = vert.Position;
+                                }
+
+                                if (vertexDeformer != null)
+                                {
+                                    posCache[vi] = vertexDeformer.DeformVertex(in vert, in posCache[vi]);
+                                }
+                            }
+
+                            int ni = tri.NormalIndex[j];
+                            var normal = mesh.Normals[ni].Normal; // keep as-is (object space path)
+
+                            int ti = tri.TexCoordIndex[j];
+                            var uv = mesh.TexCoords[ti];
+
+                            Vector2 texCoord = texCoordDeformer != null
+                                ? texCoordDeformer.DeformTexCoord(uv.U, uv.V)
+                                : new Vector2(uv.U, uv.V);
+
+                            vertices[v] = new VertexPositionColorNormalTexture(
+                                posCache[vi],
+                                color,
+                                normal,
+                                texCoord);
+                            v++;
+                        }
                     }
                 }
 
@@ -531,6 +608,11 @@ namespace Client.Main.Content
                 if (visited != null)
                 {
                     ArrayPool<bool>.Shared.Return(visited, clearArray: true);
+                }
+
+                if (triangleOffsets != null)
+                {
+                    ArrayPool<int>.Shared.Return(triangleOffsets, clearArray: false);
                 }
             }
         }

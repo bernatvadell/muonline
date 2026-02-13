@@ -672,7 +672,18 @@ namespace Client.Main.Controls.Terrain
                 var activeLights = _lightManager.ActiveLights;
                 if (activeLights != null && activeLights.Count > 0)
                 {
-                    if (activeLights.Count <= maxLights)
+                    Vector2 focusPos = Camera.Instance != null
+                        ? new Vector2(Camera.Instance.Target.X, Camera.Instance.Target.Y)
+                        : Vector2.Zero;
+
+                    // Prefer CPU-side ranking for integrated GPUs and dense light scenes
+                    // so the shader receives only the most relevant lights.
+                    bool preferScoredSelection = Constants.OPTIMIZE_FOR_INTEGRATED_GPU || activeLights.Count > 8;
+                    if (preferScoredSelection)
+                    {
+                        _lastLightCount = SelectLightsByProximity(activeLights, focusPos, maxLights);
+                    }
+                    else if (activeLights.Count <= maxLights)
                     {
                         // All lights fit — copy in natural order.  No scoring or
                         // sorting needed because the shader processes ALL uploaded
@@ -692,9 +703,6 @@ namespace Client.Main.Controls.Terrain
                     else
                     {
                         // Rare: more active lights than array capacity — pick best by proximity.
-                        Vector2 focusPos = Camera.Instance != null
-                            ? new Vector2(Camera.Instance.Target.X, Camera.Instance.Target.Y)
-                            : Vector2.Zero;
                         _lastLightCount = SelectLightsByProximity(activeLights, focusPos, maxLights);
                     }
                 }
