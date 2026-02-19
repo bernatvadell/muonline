@@ -8,6 +8,9 @@ namespace Client.Main.Objects.Worlds.Lorencia
 {
     public class GrassObject : ModelObject
     {
+        // Wind deformation updates world transform every frame; keep classic per-object draw path.
+        protected override bool AllowMapObjectInstancing => false;
+
         private float _lastWindUpdate;
         private float _currentAngleX = 0f;
         private float _currentAngleZ = 0f;

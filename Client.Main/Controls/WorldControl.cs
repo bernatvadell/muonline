@@ -657,6 +657,7 @@ namespace Client.Main.Controls
                 return;
 
             SetDepthState(depthState);
+            bool canUseMapInstancing = depthState == DepthStateDefault && Constants.ENABLE_MAP_OBJECT_INSTANCING;
 
             var spriteBatch = GraphicsManager.Instance.Sprite;
             Helpers.SpriteBatchScope? scope = null;
@@ -679,6 +680,9 @@ namespace Client.Main.Controls
 
                 if (usesSpriteBatch)
                 {
+                    if (canUseMapInstancing && ModelObject.HasPendingStaticMapInstancingBatches())
+                        ModelObject.FlushStaticMapInstancingBatches(this);
+
                     var blend = obj.BlendState ?? BlendState.AlphaBlend;
                     SamplerState sampler;
                     if (obj is WaterMistParticleSystem || obj is ElfBuffOrbTrail)
@@ -722,6 +726,21 @@ namespace Client.Main.Controls
                     currentSampler = null;
                     currentBatchDepth = null;
 
+                    if (canUseMapInstancing && ModelObject.TryQueueStaticMapObjectForInstancing(obj))
+                    {
+                        obj.RenderOrder = ++_renderCounter;
+                        continue;
+                    }
+
+                    if (canUseMapInstancing && ModelObject.HasPendingStaticMapInstancingBatches())
+                        ModelObject.FlushStaticMapInstancingBatches(this);
+
+                    if (canUseMapInstancing &&
+                        ModelObject.IsStaticMapInstancingPathAvailable() &&
+                        obj is ModelObject mapModel &&
+                        mapModel.IsMapPlacementObject)
+                        ModelObject.RegisterStaticMapInstancingFallback();
+
                     obj.Draw(time);
                 }
 
@@ -729,6 +748,9 @@ namespace Client.Main.Controls
             }
 
             scope?.Dispose();
+
+            if (canUseMapInstancing && ModelObject.HasPendingStaticMapInstancingBatches())
+                ModelObject.FlushStaticMapInstancingBatches(this);
         }
 
         private void DrawAfterPass(List<WorldObject> list, DepthStencilState state, GameTime time)

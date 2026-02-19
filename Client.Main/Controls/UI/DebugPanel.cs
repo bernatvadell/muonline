@@ -19,6 +19,7 @@ namespace Client.Main.Controls.UI
         private LabelControl _performanceMetricsLabel;
         private LabelControl _bmdMetricsLabel;    // New label for BMD buffer metrics
         private LabelControl _batchSortingLabel;   // NEW: Batch sorting status
+        private LabelControl _instancingStatusLabel;
         private LabelControl _lightingStatusLabel; // NEW: Lighting mode status
         private LabelControl _gpuSkinningStatusLabel;
         private double _updateTimer = 0;
@@ -30,7 +31,7 @@ namespace Client.Main.Controls.UI
             Align = ControlAlign.Top | ControlAlign.Right;
             Margin = new Margin { Top = 10, Right = 10 };
             Padding = new Margin { Top = 15, Left = 15 };
-            ControlSize = new Point(400, 320); // Increased size for lighting + pooling metrics
+            ControlSize = new Point(400, 345); // Increased size for lighting + pooling metrics
             BackgroundColor = Color.Black * 0.6f;
             BorderColor = Color.White * 0.3f;
             BorderThickness = 2;
@@ -51,6 +52,7 @@ namespace Client.Main.Controls.UI
             Controls.Add(_performanceMetricsLabel = new LabelControl { Text = "Perf: {0}", TextColor = Color.OrangeRed, X = posX, Y = posY += labelHeight });
             Controls.Add(_bmdMetricsLabel = new LabelControl { Text = "BMD: {0}", TextColor = Color.LightSkyBlue, X = posX, Y = posY += labelHeight });
             Controls.Add(_batchSortingLabel = new LabelControl { Text = "Batch: {0}", TextColor = Color.Magenta, X = posX, Y = posY += labelHeight });
+            Controls.Add(_instancingStatusLabel = new LabelControl { Text = "Instancing: {0}", TextColor = Color.LightPink, X = posX, Y = posY += labelHeight });
         }
 
         public override void Update(GameTime gameTime)
@@ -88,6 +90,7 @@ namespace Client.Main.Controls.UI
                     _bmdMetricsLabel.Visible = true;
                     _lightingStatusLabel.Visible = true;
                     _gpuSkinningStatusLabel.Visible = true;
+                    _instancingStatusLabel.Visible = true;
 
                     _playerCordsLabel.Text = $"Player Cords - X: {walkableWorld.Walker.Location.X}, Y: {walkableWorld.Walker.Location.Y}";
 
@@ -140,6 +143,25 @@ namespace Client.Main.Controls.UI
                       .Append($"(Model grouping for state reduction)");
                     _batchSortingLabel.Text = _sb.ToString();
                     _batchSortingLabel.Visible = true;
+
+                    _sb.Clear()
+                      .Append("Instancing: ")
+                      .Append(Constants.ENABLE_MAP_OBJECT_INSTANCING ? "ON" : "OFF")
+                      .Append(" | BK:")
+                      .Append(ModelObject.IsStaticMapInstancingBackendSupported ? "OK" : "N/A")
+                      .Append(" | RT:")
+                      .Append(ModelObject.IsStaticMapInstancingRuntimeDisabled ? "OFF" : "OK")
+                      .Append(" | Obj:")
+                      .Append(ModelObject.LastFrameStaticMapInstancedObjects)
+                      .Append(" Inst:")
+                      .Append(ModelObject.LastFrameStaticMapInstancedMeshInstances)
+                      .Append(" B:")
+                      .Append(ModelObject.LastFrameStaticMapInstancedBatches)
+                      .Append(" DC:")
+                      .Append(ModelObject.LastFrameStaticMapInstancedDrawCalls)
+                      .Append(" FB:")
+                      .Append(ModelObject.LastFrameStaticMapInstancingFallbacks);
+                    _instancingStatusLabel.Text = _sb.ToString();
                 }
                 else
                 {
@@ -151,6 +173,7 @@ namespace Client.Main.Controls.UI
                     _batchSortingLabel.Visible = false;
                     _lightingStatusLabel.Visible = false;
                     _gpuSkinningStatusLabel.Visible = false;
+                    _instancingStatusLabel.Visible = false;
                 }
             }
         }

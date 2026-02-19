@@ -34,6 +34,7 @@ namespace Client.Main
             var mapObj = CreateObject(world, type);
 
             mapObj.Type = objType;
+            mapObj.IsMapPlacementObject = true;
             mapObj.Position = obj.Position;
             mapObj.Scale = obj.Scale;
             mapObj.Angle = new Vector3(

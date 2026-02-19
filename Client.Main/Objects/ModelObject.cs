@@ -75,6 +75,7 @@ namespace Client.Main.Objects
         {
             LastFrameGpuSkinnedMeshesDrawn = _gpuSkinnedMeshesDrawnThisFrame;
             _gpuSkinnedMeshesDrawnThisFrame = 0;
+            BeginFrameStaticMapInstancingMetrics();
         }
 
         private static void RegisterGpuSkinnedMeshDraw()
@@ -333,6 +334,7 @@ namespace Client.Main.Objects
         protected virtual bool AllowAnimationUpdates => true;
         protected virtual bool AllowLightingUpdates => true;
         protected virtual bool AllowDynamicLightingShader => true;
+        protected virtual bool AllowMapObjectInstancing => true;
         protected virtual bool FreezeDynamicBuffersAfterFirstBuild => false;
 
         #endregion

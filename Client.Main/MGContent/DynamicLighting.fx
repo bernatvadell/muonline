@@ -102,6 +102,20 @@ struct VertexInputSkinned
     float4 Color     : COLOR0;
     float  BoneIndex : TEXCOORD1;
 };
+
+struct VertexInputSkinnedInstanced
+{
+    float3 Position      : POSITION0;
+    float3 Normal        : NORMAL0;
+    float2 TexCoord      : TEXCOORD0;
+    float4 Color         : COLOR0;
+    float  BoneIndex     : TEXCOORD1;
+    float4 InstWorld0    : TEXCOORD2;
+    float4 InstWorld1    : TEXCOORD3;
+    float4 InstWorld2    : TEXCOORD4;
+    float4 InstWorld3    : TEXCOORD5;
+    float4 InstanceColor : COLOR1;
+};
 #endif
 
 struct PixelInput
@@ -340,6 +354,23 @@ PixelInput VS_ObjectsSkinned(VertexInputSkinned input)
     output.DynamicLight = float3(0, 0, 0);
     return output;
 }
+
+PixelInput VS_ObjectsSkinnedInstanced(VertexInputSkinnedInstanced input)
+{
+    PixelInput output;
+    int boneIndex = min(max((int)input.BoneIndex, 0), 255);
+    float4x4 instanceWorld = float4x4(input.InstWorld0, input.InstWorld1, input.InstWorld2, input.InstWorld3);
+    float4 localPos = mul(float4(input.Position, 1.0), BoneMatrices[boneIndex]);
+    float4 worldPos = mul(localPos, instanceWorld);
+    float3 localNormal = mul(input.Normal, (float3x3)BoneMatrices[boneIndex]);
+    output.WorldPos = worldPos.xyz;
+    output.Position = mul(worldPos, mul(View, Projection));
+    output.Normal = normalize(mul(localNormal, (float3x3)instanceWorld));
+    output.TexCoord = input.TexCoord;
+    output.Color = input.Color * input.InstanceColor;
+    output.DynamicLight = float3(0, 0, 0);
+    return output;
+}
 #endif
 
 float SampleShadow(float3 worldPos, float3 normal)
@@ -480,6 +511,15 @@ technique DynamicLighting_Skinned
     pass Pass1
     {
         VertexShader = compile VS_SHADERMODEL VS_ObjectsSkinned();
+        PixelShader = compile PS_SHADERMODEL PS_Objects();
+    }
+}
+
+technique DynamicLighting_SkinnedInstanced
+{
+    pass Pass1
+    {
+        VertexShader = compile VS_SHADERMODEL VS_ObjectsSkinnedInstanced();
         PixelShader = compile PS_SHADERMODEL PS_Objects();
     }
 }

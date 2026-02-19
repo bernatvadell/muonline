@@ -72,6 +72,7 @@ namespace Client.Main
         public static bool ENABLE_MONSTER_MATERIAL_SHADER;
         public static bool ENABLE_WEAPON_TRAIL;
         public static bool ENABLE_BATCH_OPTIMIZED_SORTING;
+        public static bool ENABLE_MAP_OBJECT_INSTANCING;
         public static bool ENABLE_STATIC_CHUNK_CACHING;
         public static bool ENABLE_ITEM_MATERIAL_ANIMATION;
         public static bool ENABLE_DYNAMIC_BUFFER_POOL;
@@ -220,6 +221,7 @@ namespace Client.Main
             ENABLE_MONSTER_MATERIAL_SHADER = true;
             ENABLE_WEAPON_TRAIL = true;
             ENABLE_BATCH_OPTIMIZED_SORTING = true;
+            ENABLE_MAP_OBJECT_INSTANCING = true;
             ENABLE_STATIC_CHUNK_CACHING = true;
             ENABLE_ITEM_MATERIAL_ANIMATION = false;
             ENABLE_DYNAMIC_BUFFER_POOL = true;
