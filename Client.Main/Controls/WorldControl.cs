@@ -151,10 +151,19 @@ namespace Client.Main.Controls
         private const float FarUpdateDistanceSq = 6200f * 6200f;
         private const int ParallelVisibleRebuildThreshold = 220;
         private const int ParallelDirtyRefreshThreshold = 80;
+        private const int SpatialSectorTileSize = 16;
+        private const int SpatialSectorsPerAxis = Constants.TERRAIN_SIZE / SpatialSectorTileSize;
+        private const int SpatialInvalidSector = -1;
+        private const int SpatialRebuildPaddingSectors = 1;
         private static readonly ParallelOptions VisibleParallelOptions = new()
         {
             MaxDegreeOfParallelism = Math.Max(1, Environment.ProcessorCount - 1)
         };
+        private readonly List<WorldObject>[,] _spatialSectors = new List<WorldObject>[SpatialSectorsPerAxis, SpatialSectorsPerAxis];
+        private readonly List<WorldObject> _spatialOffGridObjects = [];
+        private readonly Dictionary<WorldObject, int> _spatialObjectSectors = [];
+        private readonly List<WorldObject> _spatialCandidates = [];
+        private readonly HashSet<WorldObject> _spatialCandidateSet = [];
 
         public Dictionary<ushort, WalkerObject> WalkerObjectsById { get; } = [];
 
@@ -209,6 +218,14 @@ namespace Client.Main.Controls
             Objects.ControlRemoved += OnObjectRemoved;
 
             Camera.Instance.CameraMoved += Camera_Moved;
+
+            for (int y = 0; y < SpatialSectorsPerAxis; y++)
+            {
+                for (int x = 0; x < SpatialSectorsPerAxis; x++)
+                {
+                    _spatialSectors[x, y] = new List<WorldObject>(16);
+                }
+            }
         }
 
         private void Camera_Moved(object sender, EventArgs e)
@@ -219,7 +236,10 @@ namespace Client.Main.Controls
         private void Object_PositionChanged(object sender, EventArgs e)
         {
             if (sender is WorldObject obj)
+            {
                 _positionDirtyObjects.Add(obj);
+                UpdateSpatialRegistration(obj);
+            }
             else
                 _dirtyVisibleObjects = true;
         }
@@ -232,6 +252,7 @@ namespace Client.Main.Controls
             if (obj.Status == GameControlStatus.Ready)
             {
                 _positionDirtyObjects.Add(obj);
+                UpdateSpatialRegistration(obj);
                 return;
             }
 
@@ -239,6 +260,7 @@ namespace Client.Main.Controls
             {
                 RemoveVisibleObject(obj);
                 _positionDirtyObjects.Remove(obj);
+                UnregisterSpatialObject(obj);
             }
         }
 
@@ -398,6 +420,7 @@ namespace Client.Main.Controls
                 WalkerObjectsById[walker.NetworkId] = walker; // Always update/add
             }
 
+            RegisterSpatialObject(e.Control);
             _positionDirtyObjects.Add(e.Control);
             if (e.Control.Status == GameControlStatus.NonInitialized)
                 _objectsToInitialize.Enqueue(e.Control);
@@ -443,6 +466,7 @@ namespace Client.Main.Controls
 
             RemoveVisibleObject(e.Control);
             _positionDirtyObjects.Remove(e.Control);
+            UnregisterSpatialObject(e.Control);
         }
 
         private void TrackObjectType(WorldObject obj)
@@ -809,6 +833,180 @@ namespace Client.Main.Controls
                 _visibleObjects.Remove(obj);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int PackSpatialSector(int sectorX, int sectorY) => (sectorY * SpatialSectorsPerAxis) + sectorX;
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TryGetSpatialSector(Vector3 worldPos, out int sectorX, out int sectorY)
+        {
+            int tileX = (int)MathF.Floor(worldPos.X / Constants.TERRAIN_SCALE);
+            int tileY = (int)MathF.Floor(worldPos.Y / Constants.TERRAIN_SCALE);
+
+            if ((uint)tileX >= Constants.TERRAIN_SIZE || (uint)tileY >= Constants.TERRAIN_SIZE)
+            {
+                sectorX = 0;
+                sectorY = 0;
+                return false;
+            }
+
+            sectorX = tileX / SpatialSectorTileSize;
+            sectorY = tileY / SpatialSectorTileSize;
+
+            if ((uint)sectorX >= SpatialSectorsPerAxis || (uint)sectorY >= SpatialSectorsPerAxis)
+            {
+                sectorX = 0;
+                sectorY = 0;
+                return false;
+            }
+
+            return true;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static int ResolveSpatialSector(WorldObject obj)
+        {
+            if (obj == null)
+                return SpatialInvalidSector;
+
+            return TryGetSpatialSector(obj.WorldPosition.Translation, out int sectorX, out int sectorY)
+                ? PackSpatialSector(sectorX, sectorY)
+                : SpatialInvalidSector;
+        }
+
+        private void AddToSpatialBucket(WorldObject obj, int sector)
+        {
+            if (sector == SpatialInvalidSector)
+            {
+                _spatialOffGridObjects.Add(obj);
+                return;
+            }
+
+            int sectorX = sector % SpatialSectorsPerAxis;
+            int sectorY = sector / SpatialSectorsPerAxis;
+            _spatialSectors[sectorX, sectorY].Add(obj);
+        }
+
+        private void RemoveFromSpatialBucket(WorldObject obj, int sector)
+        {
+            if (sector == SpatialInvalidSector)
+            {
+                _spatialOffGridObjects.Remove(obj);
+                return;
+            }
+
+            int sectorX = sector % SpatialSectorsPerAxis;
+            int sectorY = sector / SpatialSectorsPerAxis;
+            _spatialSectors[sectorX, sectorY].Remove(obj);
+        }
+
+        private void RegisterSpatialObject(WorldObject obj)
+        {
+            if (obj == null || _spatialObjectSectors.ContainsKey(obj))
+                return;
+
+            int sector = ResolveSpatialSector(obj);
+            _spatialObjectSectors[obj] = sector;
+            AddToSpatialBucket(obj, sector);
+        }
+
+        private void UnregisterSpatialObject(WorldObject obj)
+        {
+            if (obj == null || !_spatialObjectSectors.TryGetValue(obj, out int oldSector))
+                return;
+
+            RemoveFromSpatialBucket(obj, oldSector);
+            _spatialObjectSectors.Remove(obj);
+        }
+
+        private void UpdateSpatialRegistration(WorldObject obj)
+        {
+            if (obj == null)
+                return;
+
+            if (obj.Status == GameControlStatus.Disposed || obj.Status == GameControlStatus.Error)
+            {
+                UnregisterSpatialObject(obj);
+                return;
+            }
+
+            int newSector = ResolveSpatialSector(obj);
+            if (!_spatialObjectSectors.TryGetValue(obj, out int oldSector))
+            {
+                _spatialObjectSectors[obj] = newSector;
+                AddToSpatialBucket(obj, newSector);
+                return;
+            }
+
+            if (oldSector == newSector)
+                return;
+
+            RemoveFromSpatialBucket(obj, oldSector);
+            AddToSpatialBucket(obj, newSector);
+            _spatialObjectSectors[obj] = newSector;
+        }
+
+        private void RebuildSpatialGridFromSnapshot()
+        {
+            foreach (var pair in _spatialSectors)
+                pair.Clear();
+
+            _spatialOffGridObjects.Clear();
+            _spatialObjectSectors.Clear();
+
+            var snapshot = Objects.GetSnapshot();
+            for (int i = 0; i < snapshot.Count; i++)
+            {
+                var obj = snapshot[i];
+                if (obj == null)
+                    continue;
+
+                int sector = ResolveSpatialSector(obj);
+                _spatialObjectSectors[obj] = sector;
+                AddToSpatialBucket(obj, sector);
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private void AddSpatialCandidate(WorldObject obj)
+        {
+            if (obj == null)
+                return;
+
+            if (_spatialCandidateSet.Add(obj))
+                _spatialCandidates.Add(obj);
+        }
+
+        private void BuildSpatialCandidates(Vector2 center, float maxViewDistance)
+        {
+            _spatialCandidates.Clear();
+            _spatialCandidateSet.Clear();
+
+            if (!TryGetSpatialSector(new Vector3(center, 0f), out int centerSectorX, out int centerSectorY))
+            {
+                centerSectorX = Math.Clamp((int)MathF.Floor(center.X / Constants.TERRAIN_SCALE) / SpatialSectorTileSize, 0, SpatialSectorsPerAxis - 1);
+                centerSectorY = Math.Clamp((int)MathF.Floor(center.Y / Constants.TERRAIN_SCALE) / SpatialSectorTileSize, 0, SpatialSectorsPerAxis - 1);
+            }
+
+            int sectorRadius = (int)MathF.Ceiling(maxViewDistance / (Constants.TERRAIN_SCALE * SpatialSectorTileSize)) + SpatialRebuildPaddingSectors;
+            int minSectorX = Math.Max(0, centerSectorX - sectorRadius);
+            int maxSectorX = Math.Min(SpatialSectorsPerAxis - 1, centerSectorX + sectorRadius);
+            int minSectorY = Math.Max(0, centerSectorY - sectorRadius);
+            int maxSectorY = Math.Min(SpatialSectorsPerAxis - 1, centerSectorY + sectorRadius);
+
+            for (int sectorY = minSectorY; sectorY <= maxSectorY; sectorY++)
+            {
+                for (int sectorX = minSectorX; sectorX <= maxSectorX; sectorX++)
+                {
+                    var bucket = _spatialSectors[sectorX, sectorY];
+                    for (int i = 0; i < bucket.Count; i++)
+                        AddSpatialCandidate(bucket[i]);
+                }
+            }
+
+            for (int i = 0; i < _spatialOffGridObjects.Count; i++)
+                AddSpatialCandidate(_spatialOffGridObjects[i]);
+        }
+
         private void RebuildVisibleObjects()
         {
             _visibleObjects.Clear();
@@ -821,7 +1019,14 @@ namespace Client.Main.Controls
             float maxViewDistance = camera.ViewFar + Constants.MAX_CAMERA_DISTANCE + 250f;
             float maxDistSq = maxViewDistance * maxViewDistance;
             var frustum = camera.Frustum;
-            var snapshot = Objects.GetSnapshot();
+            if (_spatialObjectSectors.Count != Objects.Count)
+            {
+                RebuildSpatialGridFromSnapshot();
+            }
+
+            var focus = camera.Target;
+            BuildSpatialCandidates(new Vector2(focus.X, focus.Y), maxViewDistance);
+            var snapshot = _spatialCandidates;
             bool useParallel = Environment.ProcessorCount > 1 &&
                                snapshot.Count >= ParallelVisibleRebuildThreshold;
 
@@ -889,6 +1094,9 @@ namespace Client.Main.Controls
             var dirtySnapshot = new WorldObject[_positionDirtyObjects.Count];
             _positionDirtyObjects.CopyTo(dirtySnapshot);
             _positionDirtyObjects.Clear();
+
+            for (int i = 0; i < dirtySnapshot.Length; i++)
+                UpdateSpatialRegistration(dirtySnapshot[i]);
 
             bool useParallel = Environment.ProcessorCount > 1 &&
                                dirtySnapshot.Length >= ParallelDirtyRefreshThreshold;
@@ -1058,6 +1266,12 @@ namespace Client.Main.Controls
             _droppedItems.Clear();
             _visibleObjectSet.Clear();
             _positionDirtyObjects.Clear();
+            _spatialObjectSectors.Clear();
+            _spatialOffGridObjects.Clear();
+            _spatialCandidates.Clear();
+            _spatialCandidateSet.Clear();
+            foreach (var bucket in _spatialSectors)
+                bucket.Clear();
 
             sw.Stop();
             var elapsedObjects = sw.ElapsedMilliseconds;
@@ -1081,6 +1295,7 @@ namespace Client.Main.Controls
             if (worldObject.Status == GameControlStatus.Ready)
             {
                 _positionDirtyObjects.Add(worldObject);
+                UpdateSpatialRegistration(worldObject);
                 return;
             }
 
@@ -1088,6 +1303,7 @@ namespace Client.Main.Controls
             {
                 RemoveVisibleObject(worldObject);
                 _positionDirtyObjects.Remove(worldObject);
+                UnregisterSpatialObject(worldObject);
             }
         }
     }
