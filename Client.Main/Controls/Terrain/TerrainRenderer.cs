@@ -369,7 +369,9 @@ namespace Client.Main.Controls.Terrain
                 FlushAllTileIndexBatches();
             else
                 FlushAllTileBatches();
-            _grassRenderer.Flush();
+
+            if (!after)
+                _grassRenderer.Draw();
         }
 
         private void ResetMetrics()
@@ -950,10 +952,6 @@ namespace Client.Main.Controls.Terrain
                     }
                 }
 
-                // Grass is a fine-detail effect; skip for super-tiles (lodInt > 1) to avoid huge per-frame CPU cost.
-                if (lodInt == 1 && Constants.DRAW_GRASS)
-                    _grassRenderer.RenderGrassForTile(xi, yi, xi, yi, lodFactor, WorldIndex);
-
                 return;
             }
 
@@ -1007,9 +1005,6 @@ namespace Client.Main.Controls.Terrain
                 }
             }
 
-            // Grass is a fine-detail effect; skip for super-tiles (lodInt > 1) to avoid huge per-frame CPU cost.
-            if (lodInt == 1 && Constants.DRAW_GRASS)
-                _grassRenderer.RenderGrassForTile(xi, yi, xi, yi, lodFactor, WorldIndex);
         }
 
         private void RenderTileSkirts(int xi, int yi, float lodFactor, byte edgeMask, int textureIndex, bool alphaLayer)

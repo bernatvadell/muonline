@@ -80,6 +80,8 @@ namespace Client.Main.Controls
                 }
             }
 
+            _grassRenderer.BuildAllGrass();
+
             Console.WriteLine($"[TerrainControl] ConfigureGrass for World{WorldIndex} - Brightness: {oldBrightness:F2} → {brightness:F2}, TextureIndices: [{string.Join(", ", textureIndices ?? new byte[] { 0 })}]");
         }
 
@@ -90,6 +92,7 @@ namespace Client.Main.Controls
         public void ReloadGrassIfNeeded()
         {
             _grassRenderer?.EnsureContentLoaded(WorldIndex);
+            _grassRenderer?.BuildAllGrass();
         }
         public TerrainFrameMetrics FrameMetrics { get; } = new TerrainFrameMetrics();
 
@@ -136,6 +139,7 @@ namespace Client.Main.Controls
 
             // Reset grass to defaults before loading world-specific content
             _grassRenderer.LoadContent(WorldIndex);
+            _grassRenderer.BuildAllGrass();
 
             Camera.Instance.AspectRatio = GraphicsDevice.Viewport.AspectRatio;
 
@@ -207,6 +211,7 @@ namespace Client.Main.Controls
 
         public override void Dispose()
         {
+            _grassRenderer?.Dispose();
             base.Dispose();
             _data = null; // Allow GC to collect all data
             GC.SuppressFinalize(this);

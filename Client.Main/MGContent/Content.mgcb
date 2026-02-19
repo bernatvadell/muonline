@@ -50,6 +50,12 @@
 /processorParam:DebugMode=Auto
 /build:Shadow.fx
 
+#begin Grass.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:Grass.fx
+
 #begin Background.png
 /importer:TextureImporter
 /processor:TextureProcessor

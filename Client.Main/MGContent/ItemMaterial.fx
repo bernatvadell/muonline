@@ -191,8 +191,9 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     if (color.a < 0.1)
         discard;
     
-    int itemLevel = ItemOptions % 16;
-    bool isExcellent = (ItemOptions / 16) > 0;
+    float itemOptions = max(0.0, (float)ItemOptions);
+    float itemLevel = itemOptions - floor(itemOptions * (1.0 / 16.0)) * 16.0;
+    bool isExcellent = itemOptions >= 16.0;
     
     float3 normal = normalize(input.Normal);
     float lightIntensity = max(0.1, dot(normal, -LightDirection));
@@ -226,7 +227,7 @@ float4 MainPS(VertexShaderOutput input) : COLOR
     {
         effectColor = GlowColor * GlowIntensityScale;
         brightness = 1.8 + (itemLevel -10 ) * 0.2;
-        ghostIntensity = 0.7 + (itemLevel / 30 );
+        ghostIntensity = 0.7 + (itemLevel * (1.0 / 30.0));
     }
     
     float subtlePulse = (1.0 + sin(Time * 0.8)) * 0.03 + 0.97;

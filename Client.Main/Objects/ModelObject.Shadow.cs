@@ -13,6 +13,18 @@ namespace Client.Main.Objects
 {
     public abstract partial class ModelObject
     {
+        private static readonly VertexPositionTexture[] BlobShadowVertices =
+        [
+            new VertexPositionTexture(new Vector3(-1f, 0f, -1f), new Vector2(0f, 1f)),
+            new VertexPositionTexture(new Vector3(1f, 0f, -1f), new Vector2(1f, 1f)),
+            new VertexPositionTexture(new Vector3(1f, 0f, 1f), new Vector2(1f, 0f)),
+            new VertexPositionTexture(new Vector3(-1f, 0f, 1f), new Vector2(0f, 0f))
+        ];
+
+        private static readonly short[] BlobShadowIndices = [0, 1, 2, 0, 2, 3];
+        private static readonly object BlobShadowTextureLock = new();
+        private static Texture2D _blobShadowTexture;
+
         private bool ValidateWorldMatrix(Matrix matrix)
         {
             for (int i = 0; i < 16; i++)
@@ -76,6 +88,73 @@ namespace Client.Main.Objects
             {
                 _logger?.LogDebug("Error creating shadow matrix: {Message}", ex.Message);
                 return false;
+            }
+        }
+
+        public virtual void DrawBlobShadow(Matrix view, Matrix projection, Matrix shadowWorld, float shadowOpacity)
+        {
+            if (shadowOpacity <= 0.001f)
+                return;
+
+            try
+            {
+                // Skip shadow rendering if shadows are disabled for this world
+                if (MuGame.Instance.ActiveScene?.World is WorldControl world && !world.EnableShadows)
+                    return;
+
+                var effect = GraphicsManager.Instance.ShadowEffect;
+                var blobTexture = GetOrCreateBlobShadowTexture();
+                if (effect == null || blobTexture == null)
+                    return;
+
+                var previousBlend = GraphicsDevice.BlendState;
+                var previousDepth = GraphicsDevice.DepthStencilState;
+                var previousRaster = GraphicsDevice.RasterizerState;
+
+                float constBias = 1f / (1 << 24);
+                RasterizerState shadowRasterizer = GraphicsManager.GetCachedRasterizerState(constBias * -20, CullMode.None);
+
+                GraphicsDevice.BlendState = Blendings.ShadowBlend;
+                GraphicsDevice.DepthStencilState = DepthStencilState.DepthRead;
+                GraphicsDevice.RasterizerState = shadowRasterizer;
+
+                try
+                {
+                    float localWidth = BoundingBoxLocal.Max.X - BoundingBoxLocal.Min.X;
+                    float localDepth = BoundingBoxLocal.Max.Y - BoundingBoxLocal.Min.Y;
+                    float scaleX = MathF.Max(45f, localWidth * 0.55f);
+                    float scaleZ = MathF.Max(45f, localDepth * 0.55f);
+
+                    Matrix blobWorld = Matrix.CreateScale(scaleX, 1f, scaleZ) * shadowWorld;
+
+                    effect.Parameters["World"]?.SetValue(blobWorld);
+                    effect.Parameters["ViewProjection"]?.SetValue(view * projection);
+                    effect.Parameters["ShadowTint"]?.SetValue(new Vector4(0f, 0f, 0f, shadowOpacity));
+                    effect.Parameters["ShadowTexture"]?.SetValue(blobTexture);
+
+                    foreach (var pass in effect.CurrentTechnique.Passes)
+                    {
+                        pass.Apply();
+                        GraphicsDevice.DrawUserIndexedPrimitives(
+                            PrimitiveType.TriangleList,
+                            BlobShadowVertices,
+                            0,
+                            BlobShadowVertices.Length,
+                            BlobShadowIndices,
+                            0,
+                            2);
+                    }
+                }
+                finally
+                {
+                    GraphicsDevice.BlendState = previousBlend;
+                    GraphicsDevice.DepthStencilState = previousDepth;
+                    GraphicsDevice.RasterizerState = previousRaster;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogDebug("Error in DrawBlobShadow: {Message}", ex.Message);
             }
         }
 
@@ -147,6 +226,43 @@ namespace Client.Main.Objects
             catch (Exception ex)
             {
                 _logger?.LogDebug("Error in DrawShadowMesh: {Message}", ex.Message);
+            }
+        }
+
+        private Texture2D GetOrCreateBlobShadowTexture()
+        {
+            var texture = _blobShadowTexture;
+            if (texture != null && !texture.IsDisposed)
+                return texture;
+
+            lock (BlobShadowTextureLock)
+            {
+                texture = _blobShadowTexture;
+                if (texture != null && !texture.IsDisposed)
+                    return texture;
+
+                const int size = 64;
+                texture = new Texture2D(GraphicsDevice, size, size, false, SurfaceFormat.Color);
+                var data = new Color[size * size];
+                float center = (size - 1) * 0.5f;
+                float invRadius = 1f / center;
+
+                for (int y = 0; y < size; y++)
+                {
+                    for (int x = 0; x < size; x++)
+                    {
+                        float dx = (x - center) * invRadius;
+                        float dy = (y - center) * invRadius;
+                        float dist = MathF.Sqrt(dx * dx + dy * dy);
+                        float alpha = MathF.Max(0f, 1f - dist);
+                        alpha *= alpha;
+                        data[y * size + x] = new Color((byte)255, (byte)255, (byte)255, (byte)(alpha * 255f));
+                    }
+                }
+
+                texture.SetData(data);
+                _blobShadowTexture = texture;
+                return texture;
             }
         }
 

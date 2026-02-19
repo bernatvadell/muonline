@@ -280,13 +280,13 @@ namespace Client.Main.Objects
                 return false;
             }
 
-            // Blob-shadow path requires CPU-skinned buffers. Match DrawModel conditions
-            // so GPU skinning is only blocked when blob shadows are actually rendered.
+            // If shadow mapping is off and projected mesh shadows are active, keep CPU-skinned buffers.
+            // This guarantees non-shadow-map mode uses mesh-based shadows (no blob shadow fallback).
             bool useShadowMap = Constants.ENABLE_DYNAMIC_LIGHTING_SHADER &&
                                 GraphicsManager.Instance.ShadowMapRenderer?.IsReady == true;
             bool isNight = Constants.ENABLE_DAY_NIGHT_CYCLE && SunCycleManager.IsNight;
-            bool blobShadowPassActive = RenderShadow && !useShadowMap && !LowQuality && !isNight;
-            if (blobShadowPassActive)
+            bool meshShadowPassActive = RenderShadow && !useShadowMap && !LowQuality && !isNight;
+            if (meshShadowPassActive)
             {
                 return false;
             }
