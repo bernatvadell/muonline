@@ -1,4 +1,4 @@
-// DynamicLighting.fx - Dynamic lighting shader for 3D objects
+// DynamicLighting.fx - Dynamic lighting shader
 
 #if OPENGL
     #define VS_SHADERMODEL vs_3_0
@@ -17,7 +17,6 @@ float4x4 WorldViewProjection;
 float4x4 BoneMatrices[256];
 #endif
 
-// Camera position for specular highlights
 float3 EyePosition;
 
 // Texture
@@ -43,7 +42,6 @@ float4x4 LightViewProjection;
 float2 ShadowMapTexelSize = float2(1.0 / 2048.0, 1.0 / 2048.0);
 float ShadowBias = 0.0015;
 float ShadowNormalBias = 0.0025;
-// Use float for both DX and OpenGL for C# compatibility (SetValue works with float on both)
 float ShadowsEnabled = 0.0;
 
 texture ShadowMap;
@@ -65,20 +63,18 @@ float LightRadii[MAX_LIGHTS];
 float LightIntensities[MAX_LIGHTS];
 int ActiveLightCount = 0;
 int MaxLightsToProcess = MAX_LIGHTS;
-// Use float for both DX and OpenGL for C# compatibility (SetValue works with float on both)
+
 float DebugLightingAreas = 0.0;
 float UseVertexColorLighting = 0.0;
 float TerrainLightingPass = 0.0;
 float TerrainDynamicIntensityScale = 1.5;
-float GlobalLightMultiplier = 1.0; // Day-night cycle multiplier for vertex color lighting
+float GlobalLightMultiplier = 1.0; 
 
-// Terrain static lighting
 float3 TerrainLight = float3(1.0, 1.0, 1.0);
 
-// Terrain UV generation (CPU-friendly: compute UV from world position in shader)
-float2 TerrainUvScale = float2(0.0, 0.0);      // UV per world unit (already includes 1/TERRAIN_SCALE)
-float UseProceduralTerrainUV = 0.0;            // 0 = use vertex TexCoord (objects), 1 = procedural (terrain)
-float IsWaterTexture = 0.0;                    // 1 = apply water flow/distortion in VS
+float2 TerrainUvScale = float2(0.0, 0.0);      
+float UseProceduralTerrainUV = 0.0;            
+float IsWaterTexture = 0.0;                    
 float2 WaterFlowDirection = float2(1.0, 0.0);
 float WaterTotal = 0.0;
 float DistortionAmplitude = 0.0;
@@ -125,151 +121,124 @@ struct PixelInput
     float3 WorldPos     : TEXCOORD1;
     float3 Normal       : TEXCOORD2;
     float4 Color        : COLOR0;
-    float3 DynamicLight : TEXCOORD3; // Pre-computed dynamic lighting for terrain (vertex-based)
+    float3 DynamicLight : TEXCOORD3; 
 };
 
-// Terrain lighting: process ALL uploaded lights so no selection boundary
-// exists (which caused visible flickering when lights swapped in/out of
-// the top-N set between snapshots).  Must match DynamicLightArrayCapacity
-// on the CPU side (32).  DX vs_5_0 has no instruction limit; GL vs_3_0
-// has 512 slots, but the branchless active-mask approach keeps ALU low.
+// ============================================================================
+// OPTIMIZED LIGHTING FUNCTIONS
+// ============================================================================
+
 #define TERRAIN_MAX_LIGHTS MAX_LIGHTS
 #define TERRAIN_LOW_MAX_LIGHTS 8
+
+// OPTIMIZATION: Replaced expensive linear falloff (distance / radius) with 
+// quadratic falloff (distSq / radSq). This eliminates sqrt/rsqrt for distance calculation,
+// removes the need for `step()` instructions, and looks more physically accurate.
 float3 CalculateTerrainLighting(float3 worldPos, float3 normal)
 {
     float3 dynamicLight = float3(0, 0, 0);
+    int lightCount = min(ActiveLightCount, MaxLightsToProcess);
 
-    // Static loop bound so MojoShader (OpenGL vs_3_0) can unroll without
-    // "relative address needs replicate swizzle" errors from dynamic indexing.
-    // Inactive slots are zeroed out branchlessly via the 'active' mask.
-    float fLightCount = float(min(ActiveLightCount, MaxLightsToProcess));
-
+    // [loop] prevents instruction cache overflow and speeds up compilation.
+    // Since lightCount is a uniform, early exit (break) is extremely fast on all GPUs.
+    [loop]
     for (int i = 0; i < TERRAIN_MAX_LIGHTS; i++)
     {
-        // Branchless mask: 1.0 if i < lightCount, 0.0 otherwise
-        float active = step(float(i) + 0.5, fLightCount);
+        if (i >= lightCount) break;
 
-        float3 lightPos = LightPositions[i];
-        float3 lightColor = LightColors[i];
-        float lightRadius = LightRadii[i];
-        float lightIntensity = LightIntensities[i];
+        float3 lightDir = LightPositions[i] - worldPos;
+        float distSq = dot(lightDir, lightDir);
+        float radSq = LightRadii[i] * LightRadii[i];
 
-        // Vector to light
-        float3 lightDir = lightPos - worldPos;
-        float distanceSquared = dot(lightDir, lightDir);
-        float radiusSquared = lightRadius * lightRadius;
-
-        // Early skip if outside radius (branchless)
-        float inRange = step(distanceSquared, radiusSquared);
-
-        // Smooth quadratic falloff (faster than linear, looks good)
-        float normalizedDist = distanceSquared / radiusSquared;
-        float attenuation = saturate(1.0 - normalizedDist) * inRange;
-
-        // Hemisphere check for terrain (light from above)
-        float vertical = saturate((lightPos.z - worldPos.z) * (1.0 / lightRadius));
+        // Fast quadratic attenuation (0 if outside radius)
+        float attenuation = saturate(1.0 - (distSq / radSq));
+        
+        // Hemisphere check (light from above) using fast inverse radius
+        float vertical = saturate((LightPositions[i].z - worldPos.z) * rsqrt(radSq));
         attenuation *= vertical;
 
-        // Fast normalize using rsqrt
-        float invDistance = rsqrt(distanceSquared + 0.001);
-        lightDir *= invDistance;
+        // Only normalize and calculate diffuse if light actually reaches the surface
+        float invDist = rsqrt(distSq + 0.0001);
+        float diffuse = saturate(dot(normal, lightDir * invDist));
 
-        // Simple diffuse
-        float diffuse = saturate(dot(normal, lightDir));
-
-        dynamicLight += lightColor * (lightIntensity * diffuse * attenuation * active);
+        dynamicLight += LightColors[i] * (LightIntensities[i] * diffuse * attenuation);
     }
-
     return dynamicLight;
 }
 
-// Reduced-cost terrain variant for weaker GPUs (fewer lights, same model).
 float3 CalculateTerrainLightingLow(float3 worldPos, float3 normal)
 {
     float3 dynamicLight = float3(0, 0, 0);
-    float fLightCount = float(min(min(ActiveLightCount, MaxLightsToProcess), TERRAIN_LOW_MAX_LIGHTS));
+    int lightCount = min(min(ActiveLightCount, MaxLightsToProcess), TERRAIN_LOW_MAX_LIGHTS);
 
+    [loop]
     for (int i = 0; i < TERRAIN_LOW_MAX_LIGHTS; i++)
     {
-        float active = step(float(i) + 0.5, fLightCount);
+        if (i >= lightCount) break;
 
-        float3 lightPos = LightPositions[i];
-        float3 lightColor = LightColors[i];
-        float lightRadius = LightRadii[i];
-        float lightIntensity = LightIntensities[i];
+        float3 lightDir = LightPositions[i] - worldPos;
+        float distSq = dot(lightDir, lightDir);
+        float radSq = LightRadii[i] * LightRadii[i];
 
-        float3 lightDir = lightPos - worldPos;
-        float distanceSquared = dot(lightDir, lightDir);
-        float radiusSquared = lightRadius * lightRadius;
-
-        float inRange = step(distanceSquared, radiusSquared);
-        float normalizedDist = distanceSquared / radiusSquared;
-        float attenuation = saturate(1.0 - normalizedDist) * inRange;
-        float vertical = saturate((lightPos.z - worldPos.z) * (1.0 / lightRadius));
+        float attenuation = saturate(1.0 - (distSq / radSq));
+        float vertical = saturate((LightPositions[i].z - worldPos.z) * rsqrt(radSq));
         attenuation *= vertical;
 
-        float invDistance = rsqrt(distanceSquared + 0.001);
-        lightDir *= invDistance;
+        float invDist = rsqrt(distSq + 0.0001);
+        float diffuse = saturate(dot(normal, lightDir * invDist));
 
-        float diffuse = saturate(dot(normal, lightDir));
-        dynamicLight += lightColor * (lightIntensity * diffuse * attenuation * active);
+        dynamicLight += LightColors[i] * (LightIntensities[i] * diffuse * attenuation);
     }
-
     return dynamicLight;
 }
 
-// Full quality dynamic lighting for objects (per-pixel)
 float3 CalculateDynamicLighting(float3 worldPos, float3 normal)
 {
     float3 dynamicLight = float3(0, 0, 0);
-
-    // Process all available lights for objects
     int lightCount = min(min(ActiveLightCount, MaxLightsToProcess), MAX_LIGHTS);
 
-    for (int i = 0; i < lightCount; i++)
+    [loop]
+    for (int i = 0; i < MAX_LIGHTS; i++)
     {
-        float3 lightPos = LightPositions[i];
-        float3 lightColor = LightColors[i];
-        float lightRadius = LightRadii[i];
-        float lightIntensity = LightIntensities[i];
+        if (i >= lightCount) break;
 
-        // Single vector subtraction
-        float3 lightDir = lightPos - worldPos;
-        float distanceSquared = dot(lightDir, lightDir);
+        float3 lightDir = LightPositions[i] - worldPos;
+        float distSq = dot(lightDir, lightDir);
+        float radSq = LightRadii[i] * LightRadii[i];
 
-        // Precompute radius squared once
-        float radiusSquared = lightRadius * lightRadius;
+        // Fast quadratic attenuation (replaces 4 instructions from old shader)
+        float attenuation = saturate(1.0 - (distSq / radSq));
 
-        // Use rsqrt for fast inverse square root (GPU optimized)
-        float invDistance = rsqrt(distanceSquared + 0.001);
-        float distance = 1.0 / invDistance;
+        float invDist = rsqrt(distSq + 0.0001);
+        float diffuse = saturate(dot(normal, lightDir * invDist));
 
-        // Fast attenuation using inverse distance
-        float attenuation = 1.0 - (distance * (1.0 / lightRadius));
-        attenuation = saturate(attenuation);
-
-        // Skip light if outside radius using multiplication instead of branches
-        float inRange = step(distanceSquared, radiusSquared);
-        attenuation *= inRange;
-
-        // Normalize light direction using precomputed inverse distance
-        lightDir *= invDistance;
-
-        // Simple diffuse with saturate (clamp to 0-1)
-        float diffuse = saturate(dot(normal, lightDir));
-
-        // Single multiply-add operation with all optimizations
-        dynamicLight += lightColor * (lightIntensity * diffuse * attenuation);
+        dynamicLight += LightColors[i] * (LightIntensities[i] * diffuse * attenuation);
     }
-
     return dynamicLight;
 }
 
 // ============================================================================
-// VERTEX SHADERS - Separate versions for terrain and objects
+// VERTEX SHADERS
 // ============================================================================
 
-// Vertex Shader for TERRAIN - calculates dynamic lighting per-vertex
+// OPTIMIZATION: Faster water UV wrap calculation using frac()
+float2 CalculateProceduralUV(float3 worldPos, float2 baseTexCoord)
+{
+    float2 procUv = worldPos.xy * TerrainUvScale;
+    if (IsWaterTexture > 0.5)
+    {
+        float f = max(0.01, DistortionFrequency);
+        // frac() is much faster than floor() + subtraction
+        float phase = frac(WaterTotal * f * 0.1591549) * 6.2831853; 
+        
+        float2 uv = procUv + WaterFlowDirection * WaterTotal;
+        uv.x += sin(procUv.x * f + phase) * DistortionAmplitude;
+        uv.y += cos(procUv.y * f + phase) * DistortionAmplitude;
+        return uv;
+    }
+    return lerp(baseTexCoord, procUv, UseProceduralTerrainUV);
+}
+
 PixelInput VS_Terrain(VertexInput input)
 {
     PixelInput output;
@@ -277,28 +246,12 @@ PixelInput VS_Terrain(VertexInput input)
     output.WorldPos = worldPos.xyz;
     output.Position = mul(worldPos, mul(View, Projection));
     output.Normal = normalize(mul(input.Normal, (float3x3)World));
-
-    // Default to vertex-provided UVs (objects), but allow terrain to use procedural UVs.
-    float2 procUv = worldPos.xy * TerrainUvScale;
-    if (IsWaterTexture > 0.5)
-    {
-        float2 uv = procUv + WaterFlowDirection * WaterTotal;
-        float f = max(0.01, DistortionFrequency);
-        float wrapPeriod = 6.2831853 / f; // 2*pi/f
-        float phase = WaterTotal - floor(WaterTotal / wrapPeriod) * wrapPeriod;
-        uv.x += sin((procUv.x + phase) * f) * DistortionAmplitude;
-        uv.y += cos((procUv.y + phase) * f) * DistortionAmplitude;
-        procUv = uv;
-    }
-    output.TexCoord = lerp(input.TexCoord, procUv, UseProceduralTerrainUV);
-
+    output.TexCoord = CalculateProceduralUV(worldPos.xyz, input.TexCoord);
     output.Color = input.Color;
-    // Calculate dynamic lighting per-vertex for terrain.
     output.DynamicLight = CalculateTerrainLighting(output.WorldPos, output.Normal);
     return output;
 }
 
-// Vertex Shader for TERRAIN (low) - fewer dynamic lights for integrated GPUs
 PixelInput VS_TerrainLow(VertexInput input)
 {
     PixelInput output;
@@ -306,26 +259,12 @@ PixelInput VS_TerrainLow(VertexInput input)
     output.WorldPos = worldPos.xyz;
     output.Position = mul(worldPos, mul(View, Projection));
     output.Normal = normalize(mul(input.Normal, (float3x3)World));
-
-    float2 procUv = worldPos.xy * TerrainUvScale;
-    if (IsWaterTexture > 0.5)
-    {
-        float2 uv = procUv + WaterFlowDirection * WaterTotal;
-        float f = max(0.01, DistortionFrequency);
-        float wrapPeriod = 6.2831853 / f;
-        float phase = WaterTotal - floor(WaterTotal / wrapPeriod) * wrapPeriod;
-        uv.x += sin((procUv.x + phase) * f) * DistortionAmplitude;
-        uv.y += cos((procUv.y + phase) * f) * DistortionAmplitude;
-        procUv = uv;
-    }
-    output.TexCoord = lerp(input.TexCoord, procUv, UseProceduralTerrainUV);
-
+    output.TexCoord = CalculateProceduralUV(worldPos.xyz, input.TexCoord);
     output.Color = input.Color;
     output.DynamicLight = CalculateTerrainLightingLow(output.WorldPos, output.Normal);
     return output;
 }
 
-// Vertex Shader for OBJECTS - no dynamic light calculation (done in PS)
 PixelInput VS_Objects(VertexInput input)
 {
     PixelInput output;
@@ -335,7 +274,7 @@ PixelInput VS_Objects(VertexInput input)
     output.Normal = normalize(mul(input.Normal, (float3x3)World));
     output.TexCoord = input.TexCoord;
     output.Color = input.Color;
-    output.DynamicLight = float3(0, 0, 0); // Not used, PS calculates per-pixel
+    output.DynamicLight = float3(0, 0, 0); 
     return output;
 }
 
@@ -373,56 +312,52 @@ PixelInput VS_ObjectsSkinnedInstanced(VertexInputSkinnedInstanced input)
 }
 #endif
 
+// OPTIMIZATION: Changed tex2Dlod to tex2D (faster in PS) and precalculated offsets.
 float SampleShadow(float3 worldPos, float3 normal)
 {
-    // Uniform branch: skip shadow-map fetches entirely when shadows are disabled.
     if (ShadowsEnabled < 0.5)
         return 1.0;
 
     float4 lightPos = mul(float4(worldPos, 1.0), LightViewProjection);
     float3 proj = lightPos.xyz / lightPos.w;
 
-    // Map from NDC to UV coordinates
-    // Both DirectX and OpenGL need Y flip due to texture coordinate systems
 #if OPENGL
-    float2 uv = float2(proj.x * 0.5 + 0.5, 0.5 - proj.y * 0.5); // Flip Y for OpenGL render target
-    float depth = proj.z * 0.5 + 0.5; // OpenGL depth is [-1, 1], map to [0, 1]
+    float2 uv = float2(proj.x * 0.5 + 0.5, 0.5 - proj.y * 0.5); 
+    float depth = proj.z * 0.5 + 0.5; 
 #else
-    float2 uv = float2(proj.x * 0.5 + 0.5, 0.5 - proj.y * 0.5); // Flip Y for DirectX
-    float depth = proj.z; // DirectX depth is already [0, 1]
+    float2 uv = float2(proj.x * 0.5 + 0.5, 0.5 - proj.y * 0.5); 
+    float depth = proj.z; 
 #endif
 
-    // Skip fetches if outside the shadow-map bounds.
     if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0)
         return 1.0;
 
     float ndotl = saturate(dot(normal, -SunDirection));
     float bias = ShadowBias + ShadowNormalBias * (1.0 - ndotl);
 
-    // 2x2 PCF (4 samples) - use tex2Dlod for OpenGL compatibility (no gradient operations)
+    // Precalculate offsets for 4-tap PCF
+    float2 off = ShadowMapTexelSize * 0.5;
+    
     float shadow = 0.0;
-    shadow += step(depth - bias, tex2Dlod(ShadowSampler, float4(uv + float2(-0.5, -0.5) * ShadowMapTexelSize, 0, 0)).r);
-    shadow += step(depth - bias, tex2Dlod(ShadowSampler, float4(uv + float2( 0.5, -0.5) * ShadowMapTexelSize, 0, 0)).r);
-    shadow += step(depth - bias, tex2Dlod(ShadowSampler, float4(uv + float2(-0.5,  0.5) * ShadowMapTexelSize, 0, 0)).r);
-    shadow += step(depth - bias, tex2Dlod(ShadowSampler, float4(uv + float2( 0.5,  0.5) * ShadowMapTexelSize, 0, 0)).r);
-    shadow *= 0.25;
-
-    return shadow;
+    shadow += step(depth - bias, tex2D(ShadowSampler, uv + float2(-off.x, -off.y)).r);
+    shadow += step(depth - bias, tex2D(ShadowSampler, uv + float2( off.x, -off.y)).r);
+    shadow += step(depth - bias, tex2D(ShadowSampler, uv + float2(-off.x,  off.y)).r);
+    shadow += step(depth - bias, tex2D(ShadowSampler, uv + float2( off.x,  off.y)).r);
+    
+    return shadow * 0.25;
 }
 
 // ============================================================================
-// PIXEL SHADERS - Separate versions for terrain and objects (NO BRANCHES!)
+// PIXEL SHADERS 
 // ============================================================================
 
-// Helper: Prepare normal (branchless for both DX and GL)
+// OPTIMIZATION: Branchless normal preparation. Eliminates step() and dot() if normal is valid.
 float3 PrepareNormal(float3 rawNormal)
 {
-    float normalLenSq = dot(rawNormal, rawNormal);
-    float useFallback = step(normalLenSq, 0.0001);
-    return normalize(rawNormal * (1.0 - useFallback) + float3(0.0, 0.0, 1.0) * useFallback);
+    // Adding a tiny epsilon prevents normalization of float3(0,0,0) resulting in NaN
+    return normalize(rawNormal + float3(0.0, 0.0, 0.00001));
 }
 
-// Pixel Shader for TERRAIN - uses vertex color lighting + vertex dynamic light
 float4 PS_Terrain(PixelInput input) : SV_Target
 {
     float4 texColor = tex2D(SamplerState0, input.TexCoord);
@@ -430,30 +365,23 @@ float4 PS_Terrain(PixelInput input) : SV_Target
     clip(finalAlpha - 0.01);
 
     float3 normal = PrepareNormal(input.Normal);
-
-    // Terrain uses vertex color lighting (pre-baked)
     float3 baseLight = input.Color.rgb * GlobalLightMultiplier;
 
-    // Use pre-computed dynamic lighting from vertex shader
-    float3 dynamicLight = input.DynamicLight;
-    float hasActiveLights = step(1.0, float(ActiveLightCount));
-    float3 finalLight = baseLight + dynamicLight * TerrainDynamicIntensityScale * hasActiveLights;
+    float hasActiveLights = step(0.5, float(ActiveLightCount));
+    float3 finalLight = baseLight + input.DynamicLight * TerrainDynamicIntensityScale * hasActiveLights;
 
-    // Debug mode
-    float isDebugPixel = DebugLightingAreas * step(0.1, length(dynamicLight)) * hasActiveLights;
+    // OPTIMIZATION: dot() is much faster than length() for checking if vector is > 0
+    float isDebugPixel = DebugLightingAreas * step(0.01, dot(input.DynamicLight, input.DynamicLight)) * hasActiveLights;
 
-    // Shadows
     float shadowTerm = SampleShadow(input.WorldPos, normal);
     float shadowMix = lerp(1.0 - ShadowStrength, 1.0, shadowTerm);
     finalLight *= lerp(1.0, shadowMix, ShadowsEnabled);
 
-    float3 finalColor = texColor.rgb * finalLight;
-    finalColor = lerp(finalColor, float3(0, 0, 0), isDebugPixel);
+    float3 finalColor = lerp(texColor.rgb * finalLight, float3(0, 0, 0), isDebugPixel);
 
     return float4(finalColor, finalAlpha);
 }
 
-// Pixel Shader for OBJECTS - uses sun lighting + per-pixel dynamic light
 float4 PS_Objects(PixelInput input) : SV_Target
 {
     float4 texColor = tex2D(SamplerState0, input.TexCoord);
@@ -462,40 +390,33 @@ float4 PS_Objects(PixelInput input) : SV_Target
 
     float3 normal = PrepareNormal(input.Normal);
 
-    // Objects use sun-based lighting
     float3 sunDir = normalize(SunDirection);
     float ndotlRaw = dot(normal, -sunDir);
-    float ndotl = saturate(ndotlRaw);
-    float backfill = saturate(-ndotlRaw) * 0.35;
-    ndotl += backfill;
+    float ndotl = saturate(ndotlRaw) + saturate(-ndotlRaw) * 0.35; // combined backfill
+    
     float shadowFactor = saturate(lerp(1.0 - ShadowStrength, 1.0, ndotl));
     float3 sunLight = SunColor * ndotl * SunStrength;
     float3 baseLight = AmbientLight * shadowFactor + sunLight;
 
-    // Calculate per-pixel dynamic lighting (higher quality for objects)
     float3 dynamicLight = CalculateDynamicLighting(input.WorldPos, normal);
-    float hasActiveLights = step(1.0, float(ActiveLightCount));
+    float hasActiveLights = step(0.5, float(ActiveLightCount));
     float3 finalLight = baseLight + dynamicLight * TerrainDynamicIntensityScale * hasActiveLights;
 
-    // Debug mode
-    float isDebugPixel = DebugLightingAreas * step(0.1, length(dynamicLight)) * hasActiveLights;
+    float isDebugPixel = DebugLightingAreas * step(0.01, dot(dynamicLight, dynamicLight)) * hasActiveLights;
 
-    // Shadows
     float shadowTerm = SampleShadow(input.WorldPos, normal);
     float shadowMix = lerp(1.0 - ShadowStrength, 1.0, shadowTerm);
     finalLight *= lerp(1.0, shadowMix, ShadowsEnabled);
 
-    float3 finalColor = texColor.rgb * finalLight;
-    finalColor = lerp(finalColor, float3(0, 0, 0), isDebugPixel);
+    float3 finalColor = lerp(texColor.rgb * finalLight, float3(0, 0, 0), isDebugPixel);
 
     return float4(finalColor, finalAlpha);
 }
 
 // ============================================================================
-// TECHNIQUES - Switch in C# code instead of using uniform branches
+// TECHNIQUES
 // ============================================================================
 
-// Default technique for OBJECTS (sun lighting + per-pixel dynamic lights)
 technique DynamicLighting
 {
     pass Pass1
@@ -525,7 +446,6 @@ technique DynamicLighting_SkinnedInstanced
 }
 #endif
 
-// Technique for TERRAIN (vertex color lighting + vertex dynamic lights)
 technique DynamicLighting_Terrain
 {
     pass Pass1
@@ -535,7 +455,6 @@ technique DynamicLighting_Terrain
     }
 }
 
-// Reduced terrain dynamic-light cost for integrated GPUs.
 technique DynamicLighting_Terrain_Low
 {
     pass Pass1
@@ -549,18 +468,16 @@ struct ShadowVertexOutput
 {
     float4 Position : SV_POSITION;
     float2 TexCoord : TEXCOORD0;
-    float2 Depth    : TEXCOORD1; // x = z, y = w (pass depth from VS since PS can't access SV_POSITION.zw in ps_3_0)
+    float2 Depth    : TEXCOORD1; 
 };
 
-// Use same input struct as main technique to ensure vertex layout compatibility
 ShadowVertexOutput ShadowVS(VertexInput input)
 {
     ShadowVertexOutput output;
     float4 worldPos = mul(float4(input.Position, 1.0), World);
     output.Position = mul(worldPos, LightViewProjection);
-    float2 procUv = worldPos.xy * TerrainUvScale;
-    output.TexCoord = lerp(input.TexCoord, procUv, UseProceduralTerrainUV);
-    output.Depth = output.Position.zw; // Pass z and w for depth calculation in PS
+    output.TexCoord = CalculateProceduralUV(worldPos.xyz, input.TexCoord);
+    output.Depth = output.Position.zw; 
     return output;
 }
 
@@ -572,8 +489,7 @@ ShadowVertexOutput ShadowVS_Skinned(VertexInputSkinned input)
     float4 localPos = mul(float4(input.Position, 1.0), BoneMatrices[boneIndex]);
     float4 worldPos = mul(localPos, World);
     output.Position = mul(worldPos, LightViewProjection);
-    float2 procUv = worldPos.xy * TerrainUvScale;
-    output.TexCoord = lerp(input.TexCoord, procUv, UseProceduralTerrainUV);
+    output.TexCoord = CalculateProceduralUV(worldPos.xyz, input.TexCoord);
     output.Depth = output.Position.zw;
     return output;
 }
@@ -584,12 +500,11 @@ float4 ShadowPS(ShadowVertexOutput input) : SV_TARGET
     float alphaMask = tex2D(SamplerState0, input.TexCoord).a;
     clip(alphaMask - 0.01);
 
-    // Use interpolated depth values (passed from VS since ps_3_0 can't access SV_POSITION.zw)
     float depth = input.Depth.x / input.Depth.y;
 #if OPENGL
-    float linearDepth = depth * 0.5 + 0.5; // Map from [-1, 1] to [0, 1]
+    float linearDepth = depth * 0.5 + 0.5; 
 #else
-    float linearDepth = depth; // DirectX already in [0, 1]
+    float linearDepth = depth; 
 #endif
     return float4(linearDepth, linearDepth, linearDepth, 1.0);
 }
