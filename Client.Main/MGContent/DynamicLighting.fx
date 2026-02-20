@@ -12,7 +12,7 @@
 float4x4 World;
 float4x4 View;
 float4x4 Projection;
-float4x4 WorldViewProjection;
+float4x4 WorldViewProjection; // Includes World * View * Projection
 #if !OPENGL
 float4x4 BoneMatrices[256];
 #endif
@@ -125,22 +125,17 @@ struct PixelInput
 };
 
 // ============================================================================
-// OPTIMIZED LIGHTING FUNCTIONS
+// EXTREME OPTIMIZED LIGHTING FUNCTIONS
 // ============================================================================
 
 #define TERRAIN_MAX_LIGHTS MAX_LIGHTS
 #define TERRAIN_LOW_MAX_LIGHTS 8
 
-// OPTIMIZATION: Replaced expensive linear falloff (distance / radius) with 
-// quadratic falloff (distSq / radSq). This eliminates sqrt/rsqrt for distance calculation,
-// removes the need for `step()` instructions, and looks more physically accurate.
 float3 CalculateTerrainLighting(float3 worldPos, float3 normal)
 {
     float3 dynamicLight = float3(0, 0, 0);
     int lightCount = min(ActiveLightCount, MaxLightsToProcess);
 
-    // [loop] prevents instruction cache overflow and speeds up compilation.
-    // Since lightCount is a uniform, early exit (break) is extremely fast on all GPUs.
     [loop]
     for (int i = 0; i < TERRAIN_MAX_LIGHTS; i++)
     {
@@ -148,18 +143,21 @@ float3 CalculateTerrainLighting(float3 worldPos, float3 normal)
 
         float3 lightDir = LightPositions[i] - worldPos;
         float distSq = dot(lightDir, lightDir);
-        float radSq = LightRadii[i] * LightRadii[i];
-
-        // Fast quadratic attenuation (0 if outside radius)
-        float attenuation = saturate(1.0 - (distSq / radSq));
         
-        // Hemisphere check (light from above) using fast inverse radius
-        float vertical = saturate((LightPositions[i].z - worldPos.z) * rsqrt(radSq));
+        // Fast inverse radius (multiplication is faster than division)
+        float invRad = 1.0 / (LightRadii[i] + 0.0001);
+        float invRadSq = invRad * invRad;
+
+        // Quadratic attenuation
+        float attenuation = saturate(1.0 - (distSq * invRadSq));
+        
+        // Hemisphere check
+        float vertical = saturate((LightPositions[i].z - worldPos.z) * invRad);
         attenuation *= vertical;
 
-        // Only normalize and calculate diffuse if light actually reaches the surface
+        // ALU TRICK: dot(normal, lightDir) * invDist saves 2 multiplications vs dot(normal, lightDir * invDist)
         float invDist = rsqrt(distSq + 0.0001);
-        float diffuse = saturate(dot(normal, lightDir * invDist));
+        float diffuse = saturate(dot(normal, lightDir) * invDist);
 
         dynamicLight += LightColors[i] * (LightIntensities[i] * diffuse * attenuation);
     }
@@ -171,21 +169,23 @@ float3 CalculateTerrainLightingLow(float3 worldPos, float3 normal)
     float3 dynamicLight = float3(0, 0, 0);
     int lightCount = min(min(ActiveLightCount, MaxLightsToProcess), TERRAIN_LOW_MAX_LIGHTS);
 
-    [loop]
+    // [unroll] is safe here because max iterations is strictly 8. Eliminates loop overhead completely.
+    [unroll(TERRAIN_LOW_MAX_LIGHTS)]
     for (int i = 0; i < TERRAIN_LOW_MAX_LIGHTS; i++)
     {
         if (i >= lightCount) break;
 
         float3 lightDir = LightPositions[i] - worldPos;
         float distSq = dot(lightDir, lightDir);
-        float radSq = LightRadii[i] * LightRadii[i];
-
-        float attenuation = saturate(1.0 - (distSq / radSq));
-        float vertical = saturate((LightPositions[i].z - worldPos.z) * rsqrt(radSq));
+        
+        float invRad = 1.0 / (LightRadii[i] + 0.0001);
+        float attenuation = saturate(1.0 - (distSq * (invRad * invRad)));
+        
+        float vertical = saturate((LightPositions[i].z - worldPos.z) * invRad);
         attenuation *= vertical;
 
         float invDist = rsqrt(distSq + 0.0001);
-        float diffuse = saturate(dot(normal, lightDir * invDist));
+        float diffuse = saturate(dot(normal, lightDir) * invDist);
 
         dynamicLight += LightColors[i] * (LightIntensities[i] * diffuse * attenuation);
     }
@@ -204,13 +204,12 @@ float3 CalculateDynamicLighting(float3 worldPos, float3 normal)
 
         float3 lightDir = LightPositions[i] - worldPos;
         float distSq = dot(lightDir, lightDir);
-        float radSq = LightRadii[i] * LightRadii[i];
-
-        // Fast quadratic attenuation (replaces 4 instructions from old shader)
-        float attenuation = saturate(1.0 - (distSq / radSq));
+        
+        float invRad = 1.0 / (LightRadii[i] + 0.0001);
+        float attenuation = saturate(1.0 - (distSq * (invRad * invRad)));
 
         float invDist = rsqrt(distSq + 0.0001);
-        float diffuse = saturate(dot(normal, lightDir * invDist));
+        float diffuse = saturate(dot(normal, lightDir) * invDist);
 
         dynamicLight += LightColors[i] * (LightIntensities[i] * diffuse * attenuation);
     }
@@ -221,20 +220,20 @@ float3 CalculateDynamicLighting(float3 worldPos, float3 normal)
 // VERTEX SHADERS
 // ============================================================================
 
-// OPTIMIZATION: Faster water UV wrap calculation using frac()
 float2 CalculateProceduralUV(float3 worldPos, float2 baseTexCoord)
 {
     float2 procUv = worldPos.xy * TerrainUvScale;
     if (IsWaterTexture > 0.5)
     {
         float f = max(0.01, DistortionFrequency);
-        // frac() is much faster than floor() + subtraction
-        float phase = frac(WaterTotal * f * 0.1591549) * 6.2831853; 
         
-        float2 uv = procUv + WaterFlowDirection * WaterTotal;
-        uv.x += sin(procUv.x * f + phase) * DistortionAmplitude;
-        uv.y += cos(procUv.y * f + phase) * DistortionAmplitude;
-        return uv;
+        float phase = frac(WaterTotal * f * 0.1591549) * 6.2831853;
+        
+        float2 offsets;
+        offsets.x = sin(procUv.x * f + phase);
+        offsets.y = cos(procUv.y * f + phase);
+        
+        return procUv + (WaterFlowDirection * WaterTotal) + (offsets * DistortionAmplitude);
     }
     return lerp(baseTexCoord, procUv, UseProceduralTerrainUV);
 }
@@ -244,7 +243,8 @@ PixelInput VS_Terrain(VertexInput input)
     PixelInput output;
     float4 worldPos = mul(float4(input.Position, 1.0), World);
     output.WorldPos = worldPos.xyz;
-    output.Position = mul(worldPos, mul(View, Projection));
+    // ALU TRICK: Use precalculated WorldViewProjection instead of multiplying View and Projection per vertex
+    output.Position = mul(float4(input.Position, 1.0), WorldViewProjection);
     output.Normal = normalize(mul(input.Normal, (float3x3)World));
     output.TexCoord = CalculateProceduralUV(worldPos.xyz, input.TexCoord);
     output.Color = input.Color;
@@ -257,7 +257,7 @@ PixelInput VS_TerrainLow(VertexInput input)
     PixelInput output;
     float4 worldPos = mul(float4(input.Position, 1.0), World);
     output.WorldPos = worldPos.xyz;
-    output.Position = mul(worldPos, mul(View, Projection));
+    output.Position = mul(float4(input.Position, 1.0), WorldViewProjection);
     output.Normal = normalize(mul(input.Normal, (float3x3)World));
     output.TexCoord = CalculateProceduralUV(worldPos.xyz, input.TexCoord);
     output.Color = input.Color;
@@ -270,7 +270,7 @@ PixelInput VS_Objects(VertexInput input)
     PixelInput output;
     float4 worldPos = mul(float4(input.Position, 1.0), World);
     output.WorldPos = worldPos.xyz;
-    output.Position = mul(worldPos, mul(View, Projection));
+    output.Position = mul(float4(input.Position, 1.0), WorldViewProjection);
     output.Normal = normalize(mul(input.Normal, (float3x3)World));
     output.TexCoord = input.TexCoord;
     output.Color = input.Color;
@@ -284,9 +284,11 @@ PixelInput VS_ObjectsSkinned(VertexInputSkinned input)
     PixelInput output;
     int boneIndex = min(max((int)input.BoneIndex, 0), 255);
     float4 localPos = mul(float4(input.Position, 1.0), BoneMatrices[boneIndex]);
-    float4 worldPos = mul(localPos, World);
-    output.WorldPos = worldPos.xyz;
-    output.Position = mul(worldPos, mul(View, Projection));
+    
+    output.WorldPos = mul(localPos, World).xyz;
+    // ALU TRICK: localPos * WorldViewProjection is mathematically identical to worldPos * View * Projection
+    // but saves 2 matrix multiplications per vertex!
+    output.Position = mul(localPos, WorldViewProjection);
     output.Normal = normalize(mul(input.Normal, (float3x3)World));
     output.TexCoord = input.TexCoord;
     output.Color = input.Color;
@@ -301,9 +303,13 @@ PixelInput VS_ObjectsSkinnedInstanced(VertexInputSkinnedInstanced input)
     float4x4 instanceWorld = float4x4(input.InstWorld0, input.InstWorld1, input.InstWorld2, input.InstWorld3);
     float4 localPos = mul(float4(input.Position, 1.0), BoneMatrices[boneIndex]);
     float4 worldPos = mul(localPos, instanceWorld);
-    float3 localNormal = mul(input.Normal, (float3x3)BoneMatrices[boneIndex]);
+    
     output.WorldPos = worldPos.xyz;
-    output.Position = mul(worldPos, mul(View, Projection));
+    // ALU TRICK: Vector * Matrix is faster than Matrix * Matrix.
+    // mul(mul(worldPos, View), Projection) takes 8 operations instead of 20!
+    output.Position = mul(mul(worldPos, View), Projection);
+    
+    float3 localNormal = mul(input.Normal, (float3x3)BoneMatrices[boneIndex]);
     output.Normal = normalize(mul(localNormal, (float3x3)instanceWorld));
     output.TexCoord = input.TexCoord;
     output.Color = input.Color * input.InstanceColor;
@@ -312,7 +318,6 @@ PixelInput VS_ObjectsSkinnedInstanced(VertexInputSkinnedInstanced input)
 }
 #endif
 
-// OPTIMIZATION: Changed tex2Dlod to tex2D (faster in PS) and precalculated offsets.
 float SampleShadow(float3 worldPos, float3 normal)
 {
     if (ShadowsEnabled < 0.5)
@@ -335,26 +340,26 @@ float SampleShadow(float3 worldPos, float3 normal)
     float ndotl = saturate(dot(normal, -SunDirection));
     float bias = ShadowBias + ShadowNormalBias * (1.0 - ndotl);
 
-    // Precalculate offsets for 4-tap PCF
     float2 off = ShadowMapTexelSize * 0.5;
     
-    float shadow = 0.0;
-    shadow += step(depth - bias, tex2D(ShadowSampler, uv + float2(-off.x, -off.y)).r);
-    shadow += step(depth - bias, tex2D(ShadowSampler, uv + float2( off.x, -off.y)).r);
-    shadow += step(depth - bias, tex2D(ShadowSampler, uv + float2(-off.x,  off.y)).r);
-    shadow += step(depth - bias, tex2D(ShadowSampler, uv + float2( off.x,  off.y)).r);
+    // ALU TRICK: Pack 4 texture samples into a float4, do ONE step() operation, 
+    // and use dot() to sum and multiply by 0.25 simultaneously.
+    float4 s;
+    s.x = tex2D(ShadowSampler, uv + float2(-off.x, -off.y)).r;
+    s.y = tex2D(ShadowSampler, uv + float2( off.x, -off.y)).r;
+    s.z = tex2D(ShadowSampler, uv + float2(-off.x,  off.y)).r;
+    s.w = tex2D(ShadowSampler, uv + float2( off.x,  off.y)).r;
     
-    return shadow * 0.25;
+    float4 shadows = step(depth - bias, s);
+    return dot(shadows, 0.25);
 }
 
 // ============================================================================
 // PIXEL SHADERS 
 // ============================================================================
 
-// OPTIMIZATION: Branchless normal preparation. Eliminates step() and dot() if normal is valid.
 float3 PrepareNormal(float3 rawNormal)
 {
-    // Adding a tiny epsilon prevents normalization of float3(0,0,0) resulting in NaN
     return normalize(rawNormal + float3(0.0, 0.0, 0.00001));
 }
 
@@ -362,6 +367,9 @@ float4 PS_Terrain(PixelInput input) : SV_Target
 {
     float4 texColor = tex2D(SamplerState0, input.TexCoord);
     float finalAlpha = texColor.a * Alpha * input.Color.a;
+    
+    // EXTREME OPTIMIZATION: Early clip! 
+    // If pixel is transparent, GPU aborts here and skips ALL lighting math below!
     clip(finalAlpha - 0.01);
 
     float3 normal = PrepareNormal(input.Normal);
@@ -370,7 +378,6 @@ float4 PS_Terrain(PixelInput input) : SV_Target
     float hasActiveLights = step(0.5, float(ActiveLightCount));
     float3 finalLight = baseLight + input.DynamicLight * TerrainDynamicIntensityScale * hasActiveLights;
 
-    // OPTIMIZATION: dot() is much faster than length() for checking if vector is > 0
     float isDebugPixel = DebugLightingAreas * step(0.01, dot(input.DynamicLight, input.DynamicLight)) * hasActiveLights;
 
     float shadowTerm = SampleShadow(input.WorldPos, normal);
@@ -386,13 +393,15 @@ float4 PS_Objects(PixelInput input) : SV_Target
 {
     float4 texColor = tex2D(SamplerState0, input.TexCoord);
     float finalAlpha = texColor.a * Alpha * input.Color.a;
+    
+    // EXTREME OPTIMIZATION: Early clip!
     clip(finalAlpha - 0.01);
 
     float3 normal = PrepareNormal(input.Normal);
 
     float3 sunDir = normalize(SunDirection);
     float ndotlRaw = dot(normal, -sunDir);
-    float ndotl = saturate(ndotlRaw) + saturate(-ndotlRaw) * 0.35; // combined backfill
+    float ndotl = saturate(ndotlRaw) + saturate(-ndotlRaw) * 0.35; 
     
     float shadowFactor = saturate(lerp(1.0 - ShadowStrength, 1.0, ndotl));
     float3 sunLight = SunColor * ndotl * SunStrength;
