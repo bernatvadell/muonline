@@ -282,8 +282,9 @@ namespace Client.Main
 
         protected override void Initialize()
         {
-            var fullPath = Path.GetFullPath(Constants.SETTINGS_PATH);
-            ConfigDirectory = Path.GetDirectoryName(fullPath)!;
+            // Uses the executable directory as the basis for appsettings.json,
+            // ensuring the file can be found regardless of the CWD.
+            ConfigDirectory = AppContext.BaseDirectory;
             AppConfiguration = new ConfigurationBuilder()
                 .SetBasePath(ConfigDirectory)
                 .AddJsonFile(Constants.SETTINGS_PATH, optional: false, reloadOnChange: true)

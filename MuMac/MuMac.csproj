@@ -21,6 +21,9 @@
 
   <PropertyGroup>
     <DefineConstants>$(DefineConstants);MACOS</DefineConstants>
+    <!-- Detects if Wine is available to compile HLSL shaders -->
+    <!-- If not, uses the pre-compiled .xnb files from the bin/ folder -->
+    <MGContentPrebuiltDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../Client.Main/MGContent/bin/DesktopGL/Content'))</MGContentPrebuiltDir>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -41,11 +44,34 @@
     <TrimmerRootAssembly Include="mscorlib" />
   </ItemGroup>
 
-    <ItemGroup>
+  <!-- In Windows/CI: compiles content via MGCB normally -->
+  <!-- In macOS without Wine: uses pre-compiled .xnb files from the bin/ folder -->
+  <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
     <MonoGameContentReference Include="..\Client.Main\MGContent\Content.mgcb">
       <Link>Content\Content.mgcb</Link>
     </MonoGameContentReference>
   </ItemGroup>
+
+  <!-- Copies pre-compiled .xnb files when not in Windows (macOS/Linux without Wine) -->
+  <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
+    <PrebuiltContent Include="$(MGContentPrebuiltDir)\**\*.xnb" />
+  </ItemGroup>
+
+  <Target Name="CopyPrebuiltContent"
+          Condition="'$(OS)' != 'Windows_NT'"
+          BeforeTargets="Build">
+    <Error
+      Condition="!Exists('$(MGContentPrebuiltDir)')"
+      Text="Pasta de conteúdo pré-compilado não encontrada: $(MGContentPrebuiltDir). Execute o build no Windows (ou via CI) para gerar os .xnb dos shaders .fx." />
+    <Message Text="[MuMac] macOS detectado: copiando conteúdo pré-compilado de '$(MGContentPrebuiltDir)'" Importance="High" />
+    <ItemGroup>
+      <_PrebuiltXnb Include="$(MGContentPrebuiltDir)/**/*.xnb" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(_PrebuiltXnb)"
+      DestinationFolder="$(OutputPath)/Content"
+      SkipUnchangedFiles="true" />
+  </Target>
 
   <Target Name="RestoreDotnetTools" BeforeTargets="CollectPackageReferences">
     <Message Text="Restoring dotnet tools" Importance="High" />
