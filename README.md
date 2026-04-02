@@ -125,15 +125,17 @@ This client requires **Season 20 (1.20.61)** client data files for assets (model
 
 ### 3️⃣ Configure Data Path
 
-Open `Client.Main/Constants.cs` and update line 25:
+Edit `Client.Main/appsettings.json` and set `MuOnlineSettings.DataPath`:
 
-```csharp
-// Windows
-public static string DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
-
-// Linux/macOS
-public static string DataPath = "/home/user/Games/MU_Red_1_20_61_Full/Data";
+```json
+{
+  "MuOnlineSettings": {
+    "DataPath": "/Users/your-user/Games/MU_Red_1_20_61_Full/Data"
+  }
+}
 ```
+
+`DataPath` accepts absolute or relative paths. Relative paths are resolved from the executable/config directory.
 
 ### 4️⃣ Configure Server Settings
 
@@ -361,18 +363,16 @@ This project implements a layered architecture with clear separation of concerns
 
 ## 🔧 Configuration
 
-### Constants.cs (Client.Main/Constants.cs:25)
+### Constants.cs (Client.Main/Constants.cs)
 
 Debug vs Release builds have different configurations:
 
 **Debug Settings:**
 - `SHOW_DEBUG_PANEL: true` - Shows FPS, position, network stats
 - `UNLIMITED_FPS: true` - Disables VSync for testing
-- `DataPath` - Absolute path to data files
 
 **Release Settings:**
 - `SHOW_DEBUG_PANEL: false`
-- `DataPath` - Relative to executable location
 
 **Rendering Options:**
 - `RENDER_SCALE: 2.0` - Supersampling multiplier
@@ -392,6 +392,7 @@ Debug vs Release builds have different configurations:
   "MuOnlineSettings": {
     "ConnectServerHost": "localhost",
     "ConnectServerPort": 44405,
+    "DataPath": "Data",
     "ProtocolVersion": "Season6",
     "ClientVersion": "1.04d",
     "ClientSerial": "0123456789ABCDEF",
@@ -451,10 +452,14 @@ Both versions produce **identical visual results** but use different rendering p
 <details>
 <summary><b>❌ "Data path not found" error</b></summary>
 
-**Solution:** Ensure `Client.Main/Constants.cs` has the correct path to your MU data files.
+**Solution:** Ensure `Client.Main/appsettings.json` has the correct `MuOnlineSettings.DataPath` value.
 
-```csharp
-public static string DataPath = @"C:\Games\MU_Red_1_20_61_Full\Data";
+```json
+{
+  "MuOnlineSettings": {
+    "DataPath": "/Users/your-user/Games/MU_Red_1_20_61_Full/Data"
+  }
+}
 ```
 
 Verify the path exists and contains files like `Data/Player.bmd`, `Data/Item`, etc.

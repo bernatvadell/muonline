@@ -216,6 +216,31 @@ namespace Client.Main
             return isValid;
         }
 
+        private static string ResolveDataPath(string configuredDataPath, ILogger logger)
+        {
+            string fallbackDataPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "Data"));
+
+            if (string.IsNullOrWhiteSpace(configuredDataPath))
+            {
+                return fallbackDataPath;
+            }
+
+            try
+            {
+                string candidatePath = configuredDataPath.Trim();
+                string absolutePath = Path.IsPathRooted(candidatePath)
+                    ? Path.GetFullPath(candidatePath)
+                    : Path.GetFullPath(Path.Combine(ConfigDirectory ?? AppContext.BaseDirectory, candidatePath));
+
+                return absolutePath;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to resolve MuOnlineSettings.DataPath '{DataPath}'. Falling back to {FallbackPath}.", configuredDataPath, fallbackDataPath);
+                return fallbackDataPath;
+            }
+        }
+
         public static void DisposeInstance()
         {
             if (Instance != null)
@@ -314,6 +339,16 @@ namespace Client.Main
                 return;
             }
             bootLogger.LogInformation("✅ Configuration loaded.");
+
+            Constants.DataPath = ResolveDataPath(AppSettings.DataPath, bootLogger);
+            if (Directory.Exists(Constants.DataPath))
+            {
+                bootLogger.LogInformation("✅ Using DataPath: {DataPath}", Constants.DataPath);
+            }
+            else
+            {
+                bootLogger.LogWarning("⚠️ DataPath does not exist: {DataPath}", Constants.DataPath);
+            }
 
             // --- Initialize Network Manager ---
             // Needs CharacterState and ScopeManager - create basic instances for now
