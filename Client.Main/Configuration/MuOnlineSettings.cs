@@ -122,6 +122,7 @@ namespace Client.Main.Configuration
         // Connect Server Settings
         public string ConnectServerHost { get; set; } = "127.0.0.1";
         public int ConnectServerPort { get; set; } = 44405;
+        public string DataPath { get; set; } = string.Empty;
 
         // Client/Protocol Settings
         public string ProtocolVersion { get; set; } = nameof(TargetProtocolVersion.Season6); // Use nameof for safety

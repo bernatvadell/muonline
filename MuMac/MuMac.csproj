@@ -21,6 +21,7 @@
 
   <PropertyGroup>
     <DefineConstants>$(DefineConstants);MACOS</DefineConstants>
+    <MGContentPrebuiltDir>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../Client.Main/MGContent/bin/DesktopGL/Content'))</MGContentPrebuiltDir>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -41,11 +42,32 @@
     <TrimmerRootAssembly Include="mscorlib" />
   </ItemGroup>
 
-    <ItemGroup>
+  <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
     <MonoGameContentReference Include="..\Client.Main\MGContent\Content.mgcb">
       <Link>Content\Content.mgcb</Link>
     </MonoGameContentReference>
   </ItemGroup>
+
+  <ItemGroup Condition="'$(OS)' != 'Windows_NT'">
+    <RequiredPrebuiltContent Include="AlphaRGB.xnb;GammaCorrection.xnb;FXAA.xnb;Shadow.xnb;ItemMaterial.xnb;MonsterMaterial.xnb;DynamicLighting.xnb;Arial.xnb;NotoKR.xnb;Background.xnb;Bubbles.xnb;WaterSplashParticle.xnb" />
+    <PrebuiltContent Include="$(MGContentPrebuiltDir)/**/*.xnb" />
+  </ItemGroup>
+
+  <Target Name="CopyPrebuiltContent" Condition="'$(OS)' != 'Windows_NT'" BeforeTargets="Build">
+    <Error Condition="!Exists('$(MGContentPrebuiltDir)')"
+           Text="Prebuilt content folder not found: $(MGContentPrebuiltDir). Build MuMac on Windows/CI once to generate DesktopGL XNB files and commit them." />
+    <Error Condition="'@(PrebuiltContent)' == ''"
+           Text="No prebuilt XNB files found in $(MGContentPrebuiltDir). Build MuMac on Windows/CI once to generate DesktopGL XNB files and commit them." />
+    <ItemGroup>
+      <MissingPrebuiltContent Include="@(RequiredPrebuiltContent)" Condition="!Exists('$(MGContentPrebuiltDir)/%(Identity)')" />
+    </ItemGroup>
+    <Error Condition="'@(MissingPrebuiltContent)' != ''"
+           Text="Missing required prebuilt XNB files in $(MGContentPrebuiltDir): @(MissingPrebuiltContent, ', '). Build MuMac on Windows/CI once, then commit generated DesktopGL XNB files." />
+    <Message Text="[MuMac] Non-Windows build detected, copying prebuilt DesktopGL content from $(MGContentPrebuiltDir)" Importance="High" />
+    <Copy SourceFiles="@(PrebuiltContent)"
+          DestinationFiles="@(PrebuiltContent->'$(OutputPath)Content/%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
 
   <Target Name="RestoreDotnetTools" BeforeTargets="CollectPackageReferences">
     <Message Text="Restoring dotnet tools" Importance="High" />

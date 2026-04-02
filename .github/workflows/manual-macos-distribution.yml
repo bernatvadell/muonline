@@ -1,0 +1,85 @@
+name: Manual macOS Distribution
+
+on:
+  workflow_dispatch:
+    inputs:
+      dotnet_version:
+        description: ".NET SDK version"
+        required: true
+        default: "10.0.x"
+      target_runtime:
+        description: "macOS runtime identifier"
+        required: true
+        default: "osx-x64"
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos-distribution:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ inputs.dotnet_version }}
+          include-prerelease: true
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Build Windows OpenGL head (generates DesktopGL XNB content)
+        run: dotnet build MuWinGL/MuWinGL.csproj -c Release -p:MonoGameFramework=MonoGame.Framework.DesktopGL
+
+      - name: Verify required prebuilt DesktopGL XNB files
+        shell: pwsh
+        run: |
+          $required = @(
+            "AlphaRGB.xnb",
+            "GammaCorrection.xnb",
+            "FXAA.xnb",
+            "Shadow.xnb",
+            "ItemMaterial.xnb",
+            "MonsterMaterial.xnb",
+            "DynamicLighting.xnb",
+            "Arial.xnb",
+            "NotoKR.xnb",
+            "Background.xnb",
+            "Bubbles.xnb",
+            "WaterSplashParticle.xnb"
+          )
+
+          $contentDir = "Client.Main/MGContent/bin/DesktopGL/Content"
+          $missing = $required | Where-Object { -not (Test-Path (Join-Path $contentDir $_)) }
+
+          if ($missing.Count -gt 0) {
+            Write-Error "Missing prebuilt DesktopGL XNB files: $($missing -join ', ')"
+            exit 1
+          }
+
+      - name: Publish macOS client
+        run: dotnet publish MuMac/MuMac.csproj -f net10.0 -c Release -r ${{ inputs.target_runtime }} -o publish-macos
+
+      - name: Archive macOS distribution
+        shell: pwsh
+        run: Compress-Archive -Path publish-macos\* -DestinationPath muonline-macos-${{ inputs.target_runtime }}.zip -Force
+
+      - name: Archive DesktopGL prebuilt content
+        shell: pwsh
+        run: Compress-Archive -Path Client.Main\MGContent\bin\DesktopGL\Content\* -DestinationPath desktopgl-prebuilt-content.zip -Force
+
+      - name: Upload macOS distribution artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: muonline-macos-${{ inputs.target_runtime }}
+          path: muonline-macos-${{ inputs.target_runtime }}.zip
+
+      - name: Upload prebuilt content artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktopgl-prebuilt-content
+          path: desktopgl-prebuilt-content.zip

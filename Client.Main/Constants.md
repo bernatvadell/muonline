@@ -27,11 +27,11 @@ Other notable settings
 ----------------------
 - Audio: `BACKGROUND_MUSIC`, `SOUND_EFFECTS`, and their volumes.
 - UI: `SHOW_DEBUG_PANEL`, `DRAW_BOUNDING_BOXES`, `DRAW_BOUNDING_BOXES_INTERACTIVES`.
-- Paths: `DataPath` (base: app base dir; Windows Debug: `C:\Games\MU_Red_1_20_61_Full\Data`), plus `DataPathUrl`/`DefaultDataPathUrl`.
+- Paths: `DataPath` is configured at runtime from `MuOnlineSettings.DataPath` in `appsettings.json` (fallback: app base dir + `Data`), plus `DataPathUrl`/`DefaultDataPathUrl`.
 - Camera: yaw/pitch, zoom, and limits constants live here (rarely changed).
 
 How to change
 -------------
-- Code defaults: edit `Constants.cs`.
+- Code defaults: edit `Constants.cs` (except `DataPath`, which is loaded from `appsettings.json`).
 - Per-build overrides: use compilation symbols (`DEBUG`, `ANDROID`, `WINDOWS`).
 - Runtime tweaks: render scale and many toggles are exposed in the pause menu; others can be changed and hot-reloaded only via code.
