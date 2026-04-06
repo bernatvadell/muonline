@@ -329,3 +329,4 @@ OpenMU/
 .claude/
 .codex/
 *.py
+!tools/*.py
